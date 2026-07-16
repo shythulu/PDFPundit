@@ -14,7 +14,7 @@ planStatus:
     - tui
     - design
   created: "2026-07-16"
-  updated: "2026-07-16T07:37:17.000Z"
+  updated: "2026-07-16T13:19:32.000Z"
   progress: 0
 ---
 # PDFPundit — Technical Design (v1)
@@ -368,9 +368,10 @@ and accept the first candidate that inflates to completion and passes Adler-32;
 (glyf vs cff), descriptor metrics, template PDF path + font object number, and
 a **sidecar `.gmap` binary** — `(gid, unicode, width, source)` records sorted
 by gid (JSON would balloon at CJK glyph counts). `source` distinguishes
-`cmap`-direct entries from **shaping-derived** ones: at build time `rustybuzz`
-shapes every dictionary character in isolated/initial/medial/final context and
-records the GSUB-produced gids. This is what makes Arabic inference viable —
+`cmap`-direct entries from **shaping-derived** ones: at build time `harfrust`
+(the HarfBuzz-org shaper built on read-fonts — one font ecosystem with skrifa
+and hayro) shapes every dictionary character in isolated/initial/medial/final
+context and records the GSUB-produced gids. This is what makes Arabic inference viable —
 content streams reference positional-form gids that never appear in `cmap`.
 
 Template PDFs (one per font, emitted with lopdf + read-fonts): single page,
@@ -434,10 +435,10 @@ pub enum ResolutionStatus {
 
 - **Bundled (default):** name lookup via `base_font_aliases`, else inference
   (§5.2). Always Unicode-correct — the template DB carries full gmaps.
-- **SystemByName:** enumerate installed fonts with the **`fontdb` crate**
-  (pure Rust, MIT; loads platform font dirs on all three OSes, queries by
-  family/PostScript name) — Cargo-renamed to `sysfonts` to avoid clashing with
-  our `pdf/fontdb.rs` module. A matched system font is full-embedded at output:
+- **SystemByName:** enumerate installed fonts with **`fontique`** (Linebender;
+  fontations-native so no second font parser; queries by family name via
+  DirectWrite/CoreText/fontconfig — fontconfig dlopen'd, so builds stay clean
+  on machines without it). A matched system font is full-embedded at output:
   raw bytes copied via lopdf, descriptor built from its tables via read-fonts,
   runtime cmap-based gmap for `/ToUnicode`. Check the OS/2 `fsType` embedding
   bits first — a restricted-license font is refused with a Finding, falling
@@ -566,9 +567,12 @@ pub enum Modal {
 - **Cat backdrop** — a custom widget writing pre-rendered cells (char +
   pastel-dimmed fg) straight into the frame `Buffer` first; panels then render
   opaque on top (`Clear` + solid `bg`) so the cat never bleeds through text.
-  `CatLayer` is produced off-thread by the FetchCat job (ureq → `image` →
-  `rascii_art` at terminal size → `pastel` lightness↑/saturation↓), re-rendered
-  on `Resize` (debounced 200 ms), cached on disk, bundled default when offline.
+  `CatLayer` is produced off-thread by the FetchCat job (ureq with the
+  rustls-graviola provider → `image` decode → **`artem`** lib
+  (`default-features = false` to drop its bundled ureq; sized to the terminal)
+  → parse the ANSI output into cells (`ansi-to-tui` or a ~30-line parser) →
+  `palette` Oklch lighten/desaturate per cell), re-rendered on `Resize`
+  (debounced 200 ms), cached on disk, bundled default when offline.
 
 **Input routing:** events translate to an `Action` enum (`AddFile`,
 `StartAnalyze`, `ApplyRepairs(Vec<CorruptionClass>)`, `ToggleAnalysis`,
@@ -603,7 +607,7 @@ prompted cancels cleanly).
 
 **Corpus harness (`src/bin/corpus.rs`):** headless run over the REPDF corpus
 (1,000 files). Text-recovery metric: extract text from repaired vs pristine
-(`pdf-extract`/`hayro-interpret`), normalize (NFC, casefold, collapse
+via `hayro-interpret` (also serving as the M8 glyph-API spike), normalize (NFC, casefold, collapse
 whitespace), word-level Myers diff via the `similar` crate;
 `recovery = 2·matched / (len_orig + len_repaired)`. Image recovery:
 decoded-pixel hash matches / originals. Emits `corpus_results.csv` and an
@@ -623,9 +627,9 @@ threshold `recovery ≥ baseline − 2%`); `corpus-full` nightly; `dist`
 | 2 | `config.rs` (dirs + toml); `library.rs` JSON store; `pdf/meta.rs`; queue/history wiring; `ui/analysis.rs` shell | M2 |
 | 3 | `pdf/lexer.rs` → `pdf/carver.rs` (landmarks, assembly, ObjStm, gap sweep) → `pdf/streams.rs` (inflate, classify, C9 salvage) → `pdf/graph.rs` → `pdf/rebuild.rs`; `tests/fixtures.rs` corruptors; JobRunner completed (sequential batch, cancel, panic isolation); `ui/progress.rs`; vendor corpus subset | M3 |
 | 4 | `pdf/diagnose.rs` C1–C10 detectors + `/Encrypt` detector; analysis panel findings tree; corpus classification test | M4 |
-| 5 | **Parallel track from step 2:** `tools/build-templates` (read-fonts extraction, rustybuzz shaped gmaps, lopdf template emit, fontindex); runtime `pdf/fontdb.rs` loader + scorer; system-font enumeration (`sysfonts`) + `FontResolution`; `ui/fontpick.rs` + substitution menu + rendezvous | M5 |
+| 5 | **Parallel track from step 2:** `tools/build-templates` (read-fonts extraction, harfrust shaped gmaps, lopdf template emit, fontindex); runtime `pdf/fontdb.rs` loader + scorer; system-font enumeration (fontique) + `FontResolution`; `ui/fontpick.rs` + substitution menu + rendezvous | M5 |
 | 6 | `pdf/emit.rs` (RebuildDoc, strategy selector, template harvest, verification); `pdf/repair.rs` passes in order C9→C10→C5→C4→C6→C7→C8; `/ToUnicode` rebuild; image extraction; context-menu actions + pass checklist; re-diagnose loop | M6 |
-| 7 | `src/bin/corpus.rs` + scoring; scorer weight tuning; cat fetch pipeline (ureq → rascii_art → pastel) + themes + banner; cargo-dist CI; docs | M7 |
+| 7 | `src/bin/corpus.rs` + scoring; scorer weight tuning; cat fetch pipeline (ureq+graviola → artem → palette) + themes + banner; third-party-viewer spot-check of a corpus sample; cargo-dist CI; docs | M7 |
 | 8 | **Spike `hayro-interpret` glyph API first**; then `pdf/export/*` behind `feature = "export"`; spdf wiring; Markdown emitter; export action + quality harness | M8 |
 
 Critical path: 1 → 3 → 4 → 6. The font DB (step 5) is the long pole for M6's
@@ -649,9 +653,83 @@ needs only lopdf + read-fonts, not the carver.
 
 ## 11. Post-approval follow-ups
 
-- Rename this file to `pdfpundit-technical-design.md` (harness-assigned name).
-- Create the TUI mockup via `/mockup` showing the cat-first layout: empty
-  state, floating queue + analysis panels, bottom progress pair, and the font
-  context menu — then link it here.
-- Patch the feature plan: persistence → JSON, drop the word "async", note
-  ObjStm handling, OFL license note, and the new UI layout.
+- [x] Renamed this file to `pdfpundit-technical-design.md` (2026-07-16).
+- [ ] TUI mockup (cat-first layout: empty state, floating queue + analysis
+  panels, bottom progress pair, font context menu) — in progress; link here
+  when done.
+- [x] Feature plan patched (2026-07-16): JSON persistence, threads-not-async
+  wording, ObjStm carving note, refined FFI/license rules, cat-first UI
+  layout, and the §12 crate decisions (harfrust, fontique, hayro-interpret
+  only, ureq+graviola, artem, palette, image trim).
+
+## 12. Backend crate-stack structural review
+
+Research pass over the plan's crate table (crates.io / upstream manifests,
+verified 2026-07-16) to find duplication and settle the big "which crate,
+where, and why" questions.
+
+### 12.1 Dependency-overlap map
+
+| Capability | In the plan | What research showed |
+| --- | --- | --- |
+| PDF parsing | lopdf + our carver + hayro + pdf-extract | `pdf-extract` rides **lopdf 0.42** (pinned) — with our lopdf 0.44 that compiles **two lopdf copies**, plus 4 small font/cmap crates (`adobe-cmap-parser`, `postscript`, `type1-encoding-parser`, `cff-parser`) duplicating hayro's machinery. |
+| Font parsing | read-fonts/skrifa **and** rustybuzz (ttf-parser inside) **and** maybe fontdb (ttf-parser) | `hayro-interpret` already depends on **skrifa** — fontations is in the binary regardless; every ttf-parser crate is a guaranteed *second* font parser. **harfrust** (HarfBuzz org, v0.12.0, July 2026, 2.4M recent dl) is rustybuzz rebuilt on read-fonts *specifically* to kill this duplication; rustybuzz last shipped Nov 2024. ⚠ hayro pins **skrifa 0.42** (current 0.44) — match hayro's pin or two skrifas compile. |
+| Inflate | flate2 + miniz_oxide | Non-issue: flate2's default rust backend **is** miniz_oxide — one implementation; hayro uses flate2 too. Keep flate2 (high-level) + miniz_oxide streaming API (C9 salvage); pin flate2 `default-features = false, features = ["rust_backend"]`. |
+| Image codecs | image + jpeg-decoder + png + hayro-jpeg2000 | `jpeg-decoder` and `png` standalone are **redundant** — image 0.25 bundles zune-jpeg and wraps the png crate. Also: DCTDecode/JPXDecode streams are complete JPEG/JP2 files — extraction dumps them **verbatim, no decoder needed**; only Flate raster data needs decode + PNG-encode. `image` (narrow features: jpeg, png, gif) is otherwise only needed to decode the downloaded cat photo. |
+| HTTPS (cat fetch) | ureq 3 + rustls | ⚠ ureq's default `rustls` feature uses the **ring** provider — ring compiles C/assembly, silently breaking the no-C-FFI rule. Escape hatches: `rustls-no-provider` + **rustls-graviola** (v0.4.0, June 2026, by the rustls maintainer; pure-cargo build, no C compiler; x86_64/aarch64 only — fine for our targets), or no runtime fetch at all. |
+| ASCII art | rascii_art 0.4 | **Effectively dead** — last release Aug 2023, ~1.7k recent downloads. Replaced by **`artem` 3.0.0** (user decision): has a real lib target, shares our `image` 0.25; caveats — **MPL-2.0** (recorded exception to the MIT/Apache rule; link-only use is fine), last release Mar 2024, drags clap/env_logger/build.rs, and outputs an ANSI string we parse into cells. Build with `default-features = false` (drops its ureq). |
+| Pastel color math | sharkdp/pastel as git dep | Unversioned git dep that drags clap/build.rs. **palette 0.7.6** (stable, 3.7M recent dl) has Oklch — lighten/desaturate is a few lines; or hand-roll (~50 lines). |
+| Bonus finds | — | hayro workspace also ships **hayro-write** (PDF emission — future alternative to lopdf, not adopted now), embedded standard-14 substitute fonts (~240KB) and predefined CMaps (~250KB) via `hayro-interpret` default features, `hayro-jbig2`/`hayro-ccitt` decoders, and `hayro-postscript`. memchr shared with hayro-syntax. |
+
+### 12.2 Weighted options on the four open decisions
+
+**A. Shaping / font-parsing ecosystem** (template build-time Arabic/Indic gid maps, §5.1)
+- **A1 — harfrust (fontations-everywhere)** ✅ recommended: one font parser in the whole binary (shared with hayro); HarfBuzz-org project matching HarfBuzz 13.0.0, actively released; caveat: errors on malformed fonts (irrelevant — we shape well-formed Notos at asset-build time) and younger than rustybuzz.
+- **A2 — rustybuzz (plan as written)**: most battle-tested shaper; but stale since Nov 2024, effectively superseded upstream, and adds ttf-parser as a second parser.
+
+**B. System-font enumeration** (SystemByName policy, §5.5)
+- **B1 — fontique** (0.11, Linebender, active): fontations-native (read-fonts, no second parser); but reaches fonts via **OS FFI** — DirectWrite/CoreText/fontconfig (fontconfig optionally dlopen'd, so builds stay clean); best fidelity to what apps actually see.
+- **B2 — fontdb** (0.23, stable, 9M dl): zero FFI, pure-Rust dir scanning + fontconfig-config parsing; but ttf-parser inside = second font parser (~small), last release Oct 2024.
+- **B3 — hand-rolled dir scan + read-fonts name tables**: zero new deps, fully pure; ~150 lines; misses exotic fontconfig setups and registry-only Windows fonts.
+
+**C. Benchmark text extraction** (corpus harness §8; also feeds the M8 engine spike)
+- **C1 — hayro-interpret only** ✅ recommended: drops pdf-extract's duplicate lopdf 0.42 + 4 crates; skrifa-based and active; doubles as the M8 `PdfEngine` spike (corpus harness becomes the spike). Risk: same interpreter for repair verification and scoring could share blind spots.
+- **C2 — keep pdf-extract as independent scorer**: a second opinion decorrelates measurement from our stack; costs the duplication (could be contained behind a `corpus` cargo feature).
+- **C3 — both, feature-gated**: hayro for extraction+spike, pdf-extract cross-check only inside the corpus bin.
+
+**D. Cat-fetch network purity** (`catbg.rs`, §7)
+- **D1 — bundled cat pack only**: zero network code in a forensic tool; several cats shipped in assets, "new cat" rotates the pack; simplest and purest; loses live fetch.
+- **D2 — ureq + rustls-graviola**: keeps live thecatapi fetch with a pure-cargo, no-C build; graviola is young (0.4) but authored by the rustls maintainer; x86_64/aarch64 only.
+- **D3 — ureq default (ring)**: most battle-tested; compiles C/asm — breaks the plan's stated constraint for a cosmetic feature.
+
+**Settled without a question** (low stakes / one obvious answer): drop
+rascii_art (dead) — ASCII conversion via `artem` per user decision (see 12.1);
+use `palette` for Oklch pastelization (drop the pastel git dep); keep lopdf
+strict-parse of inputs for diagnosis (free — lopdf
+is compiled anyway; carve remains authoritative); repo = cargo **workspace**
+(`pdfpundit` app package with lib + `corpus` bin, `tools/build-templates` as
+member — the plan already implied this); pin skrifa to hayro's version.
+
+### 12.3 Decisions
+
+All four resolved with the user (2026-07-16):
+
+- **A. Shaper: harfrust.** One font ecosystem (fontations) across the whole
+  binary; rustybuzz dropped everywhere.
+- **B. System fonts: fontique.** Fontations-native enumeration via OS APIs
+  (fontconfig dlopen'd on Linux). This refines the purity rule to: **no
+  compiled/vendored C or assembly in the build**; OS platform-API FFI is
+  acceptable, for system-font enumeration only.
+- **C. Benchmark extraction: hayro-interpret only.** pdf-extract dropped; the
+  corpus harness doubles as the M8 glyph-API spike. Shared-blind-spot risk
+  mitigated by spot-checking a corpus sample in a third-party viewer during M7.
+- **D. Cat fetch: ureq + rustls-graviola.** `ureq` built with
+  `rustls-no-provider`, graviola configured as the Agent's CryptoProvider —
+  live thecatapi fetch with no C compiler anywhere in the build.
+
+Plus: **ASCII conversion via `artem`** (user decision; rascii_art dropped —
+note artem is MPL-2.0, a recorded exception to the MIT/Apache code-deps rule,
+alongside the OFL fonts), `palette` for Oklch pastelization (pastel git dep
+dropped), lopdf strict-parse of inputs kept for diagnosis, cargo workspace
+(`pdfpundit` lib + `corpus` bin, `tools/build-templates` member), skrifa
+pinned to hayro's version.

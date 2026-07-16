@@ -15,7 +15,7 @@ planStatus:
     - repair
     - cross-platform
   created: "2026-07-15"
-  updated: "2026-07-15T20:00:00.000Z"
+  updated: "2026-07-16T13:39:02.000Z"
   progress: 0
 ---
 # PDFPundit — Rust Multiplatform PDF Analysis & Repair Tool
@@ -44,6 +44,10 @@ mappings, the text feeding extraction is *correct Unicode* — so export quality
 damaged or CID-font PDFs beats tools that extract from the raw file. Layout,
 column, and table reconstruction reuse the engine-agnostic spatial-projection core
 of **`spdf`** (MIT), driven by our own pure-Rust `PdfEngine` (no PDFium).
+
+> **Detailed technical design:** [pdfpundit-technical-design.md](pdfpundit-technical-design.md)
+> — module tree, algorithms, event architecture, UI spec, and the finalized
+> crate stack (this plan's table below reflects those decisions).
 
 ## Goals
 
@@ -145,11 +149,11 @@ Chosen stack (a pure-Rust, single-process TUI — "FrankenTUI"):
 | --- | --- | --- |
 | App shell | **FrankenTUI** — a `ratatui` terminal UI over `crossterm`, with mouse support | Pure-Rust, single self-contained binary per OS, no webview or system deps. Runs anywhere a terminal does and keeps the whole app in one Rust process. |
 | Input / drag-drop | `crossterm` events + terminal path-paste | Keyboard + mouse in-terminal. Dragging a file onto most terminals pastes its absolute path; the input layer captures that as an "add file" action. A `browse…` action opens an in-TUI filesystem picker filtered to `.pdf`. |
-| Forensic engine | Custom Rust carver + reconstructor, orchestrated by an async job runner | The core of the app: byte-level object carving, xref/trailer rebuild, object-graph reconstruction, and the C1–C10 repair passes. Runs off the UI thread and streams progress to the panels. |
+| Forensic engine | Custom Rust carver + reconstructor, orchestrated by a job runner on std threads + mpsc channels (no async runtime) | The core of the app: byte-level object carving, xref/trailer rebuild, object-graph reconstruction, and the C1–C10 repair passes. Runs off the UI thread and streams progress to the panels. |
 | PDF core | **lopdf** (pure Rust) to build/emit the template + repaired doc (REPDF used Python `pikepdf`) | lopdf models objects/dictionaries/streams and re-serializes a valid file. The carver operates below lopdf on raw bytes when the file is too broken to parse. **Pure-Rust only — no `qpdf`/`mupdf`/`pdfium` FFI** (see crate stack). |
 | Font tooling | `skrifa`/`read-fonts` (or `allsorts`/`ttf-parser`) for glyf/cmap/hmtx (REPDF used Python `fonttools`) | Reads `glyphorder`/`cmap`/`W` metrics from bundled fonts to drive code→Unicode inference and metric restoration. |
 | Template / font DB | Pre-built template PDFs with full-embedded fonts + a JSON font index; bundled 6-language word dictionaries | The forensic reference data. Fonts must cover en/fr/es/ar/hi/zh (Noto family is the natural open-licensed choice). Backs C6–C8. |
-| Persistence | **SQLite** via `rusqlite`, or a JSON store via `serde` | Stores the file-history index plus each run's findings and repair log. |
+| Persistence | **JSON store** via `serde` (atomic write-temp-then-rename) | Stores the recent-file history plus each run's findings and repair log. (`rusqlite --features bundled` would compile SQLite's C source — conflicts with the pure-Rust rule.) |
 | Packaging | `cargo-dist` cross-platform archives + installers | One CI matrix produces signed binaries/installers for macOS, Windows, and Linux from the single crate. |
 
 ### Rust PDF & font crate stack
@@ -167,17 +171,18 @@ fallback. Crate versions/health verified on crates.io (Jul 2026).
 | Font tables — glyphorder/cmap/hmtx (step 6) | **`skrifa`** + **`read-fonts`** (the `fontations`/"oxidize" stack, Google Fonts) | `allsorts` (0.17), `ttf-parser` (0.25) | Reads metrics + cmap for code→Unicode inference. Replaces REPDF's Python `fonttools`. Fontations is the most actively maintained reader; `allsorts` is the reading fallback. |
 | CFF / CIDFont handling | **`read-fonts`/`skrifa`** (CFF/CFF2, charset, FDSelect) | `allsorts`, `cff-parser` | **Reading** CID-keyed CFF (for mapping) is well-covered by fontations. **Writing/subsetting** CFF is the immature area — but we sidestep it (see full-embed note below). |
 | Font embedding (step 1) | **full-font embed** — copy raw font-program bytes via `lopdf` | `write-fonts` (`fontations`), `subsetter` (0.2) for optional trimming | REPDF embeds the *whole* font, so no CFF recompile/subset is needed — we only read tables + copy bytes. `write-fonts`/`subsetter` are optional, only for shrinking output. |
-| Complex-script shaping | **`rustybuzz`** (0.20) | — | HarfBuzz port — needed for correct **Arabic/Hindi** glyph shaping & widths (the paper's weakest languages). |
+| Complex-script shaping | **`harfrust`** (0.12, HarfBuzz org) | — | HarfBuzz port rebuilt on `read-fonts` (rustybuzz's successor — one font ecosystem with skrifa/hayro) — needed for correct **Arabic/Hindi** glyph shaping & widths (the paper's weakest languages). |
+| System-font enumeration (output option) | **`fontique`** (0.11, Linebender) | hand-rolled dir scan + `read-fonts` | "Use system fonts" substitution mode: match by family/PS name via DirectWrite/CoreText/fontconfig (dlopen'd) — OS platform-API FFI, the sole FFI exception. |
 | Render previews / thumbnails / font-pick preview | **`hayro`** (0.7, pure-Rust rasterizer) + `hayro-syntax`/`hayro-interpret` | — | The `hayro` family (author LaurenzV) is a full pure-Rust PDF stack; `hayro-interpret`/`hayro-syntax` can also cross-check our carve results. No native renderer needed. |
-| Image extract/decode (step 5) | **`image`** (0.25) + `jpeg-decoder`, `png`, **`hayro-jpeg2000`** (0.4) | — | Covers `/DCTDecode`, `/FlateDecode`, and now **`/JPXDecode` (JPEG2000) via `hayro-jpeg2000` — a pure-Rust decoder, closing the earlier gap.** |
-| Text extraction (benchmark eval) | `pdf-extract`, or `hayro-interpret` | rasterize (`hayro`) + OCR | To score recovered vs. original text against the corpus. |
+| Image extract/decode (step 5) | **`image`** (0.25, narrow features) + **`hayro-jpeg2000`** (0.4) | — | DCTDecode/JPXDecode streams are complete JPEG/JP2 files — extracted **verbatim, no decode**; only Flate rasters need decode + PNG-encode. (Standalone `jpeg-decoder`/`png` dropped — already bundled in `image`.) |
+| Text extraction (benchmark eval) | **`hayro-interpret`** | rasterize (`hayro`) + OCR | To score recovered vs. original text against the corpus. (`pdf-extract` dropped — pins lopdf 0.42, would compile a duplicate lopdf tree + 4 redundant font crates.) |
 | Char encoding / Unicode | `encoding_rs`, `unicode-normalization` | — | Normalize during font-inference scoring against word dictionaries. |
 | **MD export — glyph extraction** | our **pure-Rust `PdfEngine`** on `hayro-interpret` | — | Feeds per-glyph items (text + bbox + font attrs) into spdf, replacing spdf's PDFium `spdf-pdf`. Keeps export FFI-free. |
 | **MD export — layout/tables** | `spdf-projection` + `spdf-types` + `spdf-processing` (MIT) | (our own projection if spdf's API churns) | Engine-agnostic spatial-grid projection: columns, reading order, tables, faux-bold dedup. The hard layout logic, reused not rebuilt. |
 | **MD export — Markdown emitter** | our `export/markdown.rs` (GFM) | contribute to `spdf-output` | spdf ships text/JSON only; the Markdown formatter is our value-add (headings by font size, emphasis by flags, GFM tables, image refs, links). |
-| Retro cat background — fetch | **`ureq`** (3.3, rustls) | `minreq` | Pure-Rust sync HTTP for thecatapi.com — no tokio/reqwest. Optional/opt-in, off by default. |
-| Retro cat background — ASCII | **`rascii_art`** (0.4) | — | Image → colored ASCII sized to the terminal. |
-| Retro cat background — colors | **`pastel`** library via git (`sharkdp/pastel`, `pastel::Color`) | vendor its color modules to also drop `clap`/`build.rs`; `palette` as alt | `Color` → OkLCh/HSL, raise lightness + drop saturation + nudge hue → pastels. As a *dependency* only the lib target builds (no CLI); its `clap`/`build.rs` still compile (harmless build-time only). MIT/Apache. |
+| Retro cat background — fetch | **`ureq`** (3.3) + **`rustls-graviola`** provider | `minreq` | Pure-Rust sync HTTPS for thecatapi.com — no tokio/reqwest, and no C compiler (ureq's default `ring` provider compiles C/asm; graviola doesn't). Optional/opt-in, off by default. |
+| Retro cat background — ASCII | **`artem`** (3.0, lib target, `default-features = false`) | hand-rolled luminance ramp | Image → colored ASCII sized to the terminal; ANSI output parsed into cells. (`rascii_art` dropped — unmaintained since 2023. artem is MPL-2.0: recorded license exception.) |
+| Retro cat background — colors | **`palette`** (0.7) | hand-rolled OkLCh (~50 lines) | Oklch: raise lightness + drop saturation + nudge hue → pastels. (`pastel` git dep dropped — unversioned, drags clap/build.rs.) |
 
 **Decision — pure-Rust only:** no C FFI. `qpdf`, `mupdf`, and `pdfium` are **not**
 used; the `hayro` family (incl. `hayro-jpeg2000`) covers rendering and JPEG2000 in
@@ -187,8 +192,13 @@ LibreOffice (`spdf-convert`), or Tesseract (`spdf-ocr`) backends — we supply a
 pure-Rust `PdfEngine` on `hayro-interpret` instead. This keeps a single clean
 binary and trivial cross-platform builds, and avoids AGPL (`mupdf`) / large-binary
 (`pdfium`) concerns. Trade-off accepted: the worst-case structural-recovery ceiling
-rests on our own carver rather than a battle-tested C library. Everything in this
-stack is MIT/Apache-licensed.
+rests on our own carver rather than a battle-tested C library.
+
+**Rule refined (2026-07-16):** no *compiled/vendored* C or assembly anywhere in
+the build (hence rustls-graviola over ring, JSON over bundled SQLite); OS
+platform-API FFI is permitted solely for system-font enumeration (`fontique`).
+Licenses: code deps are MIT/Apache except `artem` (MPL-2.0, link-only — recorded
+exception); bundled Noto fonts are SIL OFL (license texts ship with the binary).
 
 ### Component layout
 
@@ -210,15 +220,15 @@ pdfpundit/
    ├─ app.rs              # App state, panel focus, key/mouse routing, dispatch
    ├─ input.rs            # crossterm events + terminal path-paste → actions
    ├─ theme.rs            # retro color scheme, borders, ASCII banner
-   ├─ catbg.rs            # thecatapi fetch (ureq) → rascii_art → pastel (sharkdp) bg + cache
+   ├─ catbg.rs            # thecatapi fetch (ureq+graviola) → artem → palette bg + cache
    ├─ ui/                 # FrankenTUI (ratatui) rendering
    │  ├─ browser.rs       # file queue / history list panel
    │  ├─ report.rs        # diagnostics panel — findings grouped by severity
    │  ├─ actions.rs       # repair-task checklist + progress panel
    │  ├─ fontpick.rs      # interactive font-candidate selector (low-confidence cases)
    │  └─ picker.rs        # in-TUI .pdf-filtered filesystem browser
-   ├─ library.rs          # file-history index + persistence (SQLite/JSON)
-   ├─ jobs.rs             # async job runner (analyze / repair) + progress events
+   ├─ library.rs          # file-history index + persistence (JSON, atomic writes)
+   ├─ jobs.rs             # job runner — std threads + mpsc (analyze / repair) + progress events
    └─ pdf/
       ├─ meta.rs          # lopdf metadata (version, pages, title, dimensions)
       ├─ carver.rs        # step 2: raw-byte object/stream scan (obj/endobj/stream)
@@ -256,22 +266,28 @@ the shared engine primitives (`carver`, `rebuild`, `fontdb`):
 
 ## UI Layout (v1)
 
-Three stacked/side-by-side ratatui panels within one terminal window; Tab cycles
-focus, mouse click selects, and the footer shows context key hints.
+**Cat-first layout** (revised 2026-07-16; full spec in the
+[technical design](pdfpundit-technical-design.md) §7). The window starts clean —
+the pastel ASCII cat on full display — and panels exist only once files do.
+Tab/mouse move focus; the footer shows context key hints.
 
-- **Queue / history panel (left):** files added this session plus prior runs, each
-  with status (queued, analyzing, issues found, repaired), title, page count, and version.
-- **Diagnostics panel (center):** C1–C10 findings for the selected file, grouped by
-  severity (error / warning / info), expandable to per-object detail.
-- **Actions panel (right/bottom):** checklist of applicable repair passes with
-  progress bars; a `Repair → <name>.repaired.pdf` action, an
-  `Export → <name>.md` (Markdown) action, and a run log.
-- **Interactive font picker (modal):** for low-confidence font inference (C6/C8,
-  esp. Arabic / "Print to PDF"), show the top candidate fonts with their decoded
-  text preview and scores; the user picks the most readable — REPDF's suggested
-  "interactive step," which our TUI does natively.
-- **Drop / empty state:** a hint bar — "Drop a PDF on this terminal, or press `b`
-  to browse" — with the `.pdf`-filtered picker as the alternative to dragging.
+- **Empty state:** no panels — just the cat, an ASCII wordmark, and one dim
+  hint: "Drop a PDF on this terminal, or press `b` to browse."
+- **Queue panel (floating, top-left):** appears when files are added (drop or
+  in-TUI browser); it *is* the batch queue and grows downward as files are
+  added. Each row: a status icon (not started / in progress / complete /
+  error) + filename + terse result note.
+- **Analysis panel (beneath the queue, hideable):** the selected file's
+  metadata, C1–C10 findings grouped by severity (expandable to per-object
+  evidence), font resolutions, and repair outcomes.
+- **Bottom progress bar (while processing):** the current file's gauge +
+  filename; when more than one file is queued, a second line shows total batch
+  percentage.
+- **Context menus (modals):** every decision — per-file actions
+  (analyze / repair / export), the repair-pass checklist, low-confidence font
+  picks (REPDF's suggested "interactive step," native to our TUI), and
+  unresolved font-substitution choices with individual selection plus a
+  select-all option.
 
 ### Retro aesthetic
 
@@ -289,15 +305,14 @@ The "cute retro" look is a first-class design constraint, driven by `theme.rs`:
 A dim, cute ASCII-art **cat** sits behind the panels as wallpaper. Pipeline:
 
 1. Fetch a random cat from **thecatapi.com** (`GET /v1/images/search`, `x-api-key`
-   header) using **`ureq`** (pure-Rust, sync, rustls — no tokio/reqwest).
-2. Decode the image (`image` crate) → convert to colored ASCII with **`rascii_art`**,
-   sized to the current terminal dimensions.
-3. Shift the palette "into cuteness" with **sharkdp/`pastel`'s color library**
-   (`pastel::Color` → OkLCh/HSL, raise lightness + lower saturation + nudge hue
-   toward pastels). Pulled in as a **git dependency** so only its lib target builds —
-   the CLI is never compiled (optionally vendor its color modules to also shed
-   `clap`/`build.rs`). Rendered as a low-contrast background layer so panel text
-   stays fully legible. (`palette` is the fallback if we'd rather avoid the git dep.)
+   header) using **`ureq`** (pure-Rust, sync; rustls with the **`rustls-graviola`**
+   provider — no tokio/reqwest, no C compiler).
+2. Decode the image (`image` crate) → convert to colored ASCII with **`artem`**
+   (lib target, `default-features = false`), sized to the current terminal;
+   parse its ANSI output into cells.
+3. Shift the palette "into cuteness" with **`palette`** (Oklch: raise lightness,
+   lower saturation, nudge hue toward pastels). Rendered as a low-contrast
+   background layer so panel text stays fully legible.
 4. **Cache** the fetched image + rendered ASCII to the app cache dir; reuse across
    launches and only refresh occasionally (or on a "new cat" keybind).
 
@@ -322,16 +337,16 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 - [ ] In-TUI `.pdf`-filtered filesystem picker (`browse…`).
 
 ### M2 — File history & metadata
-- [ ] History index model + local persistence (SQLite/JSON).
+- [ ] History index model + local persistence (JSON, atomic write-temp-then-rename).
 - [ ] Extract metadata (version, page count, title, dimensions) via lopdf.
 - [ ] Queue/history panel: list, status, select, remove.
 
 ### M3 — Forensic engine primitives (steps 2–5)
-- [ ] Object carver: raw-byte `obj/endobj/stream` scan recovering objects + stream lengths.
+- [ ] Object carver: raw-byte `obj/endobj/stream` scan recovering objects + stream lengths, incl. expanding `/ObjStm` containers (mandatory for PDF ≥1.5).
 - [ ] Stream inflate + classifier (image vs content by `/Subtype`/operators).
 - [ ] Page extraction (`/Contents`, `/MediaBox`) + resource analysis.
 - [ ] XRef/trailer rebuild + object-graph reconstruction (`/Root`→`/Pages`→`/Page`).
-- [ ] Async job runner streaming progress + findings to the UI.
+- [ ] Job runner (std threads + mpsc channels) streaming progress + findings to the UI.
 - [ ] Vendor the REPDF corpus (or a subset) as a test fixture set.
 
 ### M4 — Diagnostics (C1–C10 detectors)
@@ -356,7 +371,7 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 ### M7 — Benchmark, retro polish & packaging
 - [ ] Batch harness measuring text/image recovery across the REPDF corpus vs. the paper's numbers.
 - [ ] Retro theme(s), ASCII banner, selectable palettes; about screen.
-- [ ] Pastel ASCII-cat background: `catbg.rs` (ureq fetch → rascii_art → `pastel` git lib),
+- [ ] Pastel ASCII-cat background: `catbg.rs` (ureq+rustls-graviola fetch → artem → `palette`),
       disk cache, bundled offline fallback, on/off + offline-mode settings, obfuscated key.
 - [ ] `cargo-dist` binaries/installers for macOS, Windows, Linux via CI matrix.
 - [ ] Docs / README with usage.
@@ -382,7 +397,7 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 - **Template/font DB is the crux:** REPDF's advantage over other tools (C6–C8) comes entirely from the pre-built font DB. Building good templates + `fontindex` in Rust (font subsetting/full-embed via `skrifa`/`allsorts` vs. Python `fonttools`) is the highest-risk, highest-value work. Fonts must cover en/fr/es/ar/hi/zh — Noto is the natural open-licensed choice; *confirm acceptable bundle size (likely tens of MB).*
 - **Known-hard cases:** the paper's own weak spots carry over — Arabic font inference (~33–40% for C6/C8 due to inflection), "Print to PDF" files with mutating font names (`CIDFont+F1`), C9 zlib (~60%), and C10 "Print to PDF" truncation (~35%). The interactive font picker is our lever to beat the automatic-only scores.
 - **Pure-Rust ceiling (decided):** no C FFI — carver/rebuilder is entirely ours on `lopdf`, rendering via the `hayro` family. Accepted trade-off: no battle-tested C library (`qpdf`/`mupdf`) to lean on for the nastiest structural cases, so our carver's robustness is the ceiling. Mitigate with the corpus benchmark harness.
-- **Font tooling parity (reduced):** REPDF leans on `fonttools`+`pikepdf`. The `fontations`/"oxidize" stack (`read-fonts`/`skrifa`) covers CID/CFF *reading* well; the immature part (CFF *subsetting*/writing) is sidestepped because we embed the *full* font program bytes rather than subsetting. Residual risk is narrow: correctly reading CID charset/FDSelect and generating `/ToUnicode` for composite Type0 fonts. Still worth an early spike on a C7/C8 CJK/CFF corpus file. Arabic/Hindi correctness also needs `rustybuzz` shaping, not just glyph lookup.
+- **Font tooling parity (reduced):** REPDF leans on `fonttools`+`pikepdf`. The `fontations`/"oxidize" stack (`read-fonts`/`skrifa`) covers CID/CFF *reading* well; the immature part (CFF *subsetting*/writing) is sidestepped because we embed the *full* font program bytes rather than subsetting. Residual risk is narrow: correctly reading CID charset/FDSelect and generating `/ToUnicode` for composite Type0 fonts. Still worth an early spike on a C7/C8 CJK/CFF corpus file. Arabic/Hindi correctness also needs `harfrust` shaping, not just glyph lookup.
 - **Markdown export depends on two unknowns:** (1) `hayro-interpret` must expose per-glyph text + bbox + font attributes for our `PdfEngine` adapter — verify with a spike before committing to M8; if it doesn't, we extend hayro or fall back to our own content-stream interpreter. (2) `spdf` is early (v0.2.0-alpha) — API churn risk; mitigated because its projection core is small and MIT, so we can vendor/fork if needed.
 - **Markdown emitter is ours:** spdf outputs text/JSON, not Markdown — the GFM formatter (esp. table rendering and heading inference) is net-new work and where "high quality" is won or lost.
 - **Terminal drag-drop UX:** drop-on-terminal behavior varies by emulator (most paste the path). The `browse…` picker is the guaranteed fallback.
