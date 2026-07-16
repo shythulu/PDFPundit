@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(cd:*)",
+      "Bash(do:*)",
+      "Bash(done:*)",
+      "Bash(command:*)",
+      "Bash(python3:*)",
+      "Bash(cargo:*)",
+      "Bash(rustc:*)",
+      "Bash(echo:*)",
+      "Bash(ls:*)",
+      "Bash(git init:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
