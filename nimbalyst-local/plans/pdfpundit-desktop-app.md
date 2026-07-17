@@ -15,7 +15,7 @@ planStatus:
     - repair
     - cross-platform
   created: "2026-07-15"
-  updated: "2026-07-16T13:39:02.000Z"
+  updated: "2026-07-17T06:10:00.000Z"
   progress: 0
 ---
 # PDFPundit — Rust Multiplatform PDF Analysis & Repair Tool
@@ -143,13 +143,13 @@ like `CIDFont+F1` change, defeating name lookup); C9 (zlib) ≈60%; C10 truncati
 
 ## Proposed Architecture
 
-Chosen stack (a pure-Rust, single-process TUI — "FrankenTUI"):
+Chosen stack (a pure-Rust, single-process TUI):
 
 | Layer | Chosen approach | Rationale |
 | --- | --- | --- |
-| App shell | **FrankenTUI** — a `ratatui` terminal UI over `crossterm`, with mouse support | Pure-Rust, single self-contained binary per OS, no webview or system deps. Runs anywhere a terminal does and keeps the whole app in one Rust process. |
-| Input / drag-drop | `crossterm` events + terminal path-paste | Keyboard + mouse in-terminal. Dragging a file onto most terminals pastes its absolute path; the input layer captures that as an "add file" action. A `browse…` action opens an in-TUI filesystem picker filtered to `.pdf`. |
-| Forensic engine | Custom Rust carver + reconstructor, orchestrated by a job runner on std threads + mpsc channels (no async runtime) | The core of the app: byte-level object carving, xref/trailer rebuild, object-graph reconstruction, and the C1–C10 repair passes. Runs off the UI thread and streams progress to the panels. |
+| App shell | **Terminal UI — framework TBD** (candidates: ratatui vs. the Charm/lipgloss stack; see [pdfpundit-ui-design.md](pdfpundit-ui-design.md)) | Pure-Rust, single self-contained binary per OS, no webview or system deps. The framework, layout, and theme are decided in the UI plan; the engine is UI-agnostic. |
+| Input / drag-drop | `crossterm` events + terminal path-paste | Keyboard + mouse in-terminal. Dragging a file onto most terminals pastes its absolute path; the input layer captures that as an "add file" action. A `browse…` action opens a `.pdf`-filtered filesystem picker. |
+| Forensic engine | Custom Rust carver + reconstructor, orchestrated by a job runner on **std threads + mpsc** (no async runtime); streams a typed `JobEvent` stream to the UI | The core of the app: byte-level object carving, xref/trailer rebuild, object-graph reconstruction, and the C1–C10 repair passes. Runs off the UI thread; progress/findings stream to whatever UI consumes the events. |
 | PDF core | **lopdf** (pure Rust) to build/emit the template + repaired doc (REPDF used Python `pikepdf`) | lopdf models objects/dictionaries/streams and re-serializes a valid file. The carver operates below lopdf on raw bytes when the file is too broken to parse. **Pure-Rust only — no `qpdf`/`mupdf`/`pdfium` FFI** (see crate stack). |
 | Font tooling | `skrifa`/`read-fonts` (or `allsorts`/`ttf-parser`) for glyf/cmap/hmtx (REPDF used Python `fonttools`) | Reads `glyphorder`/`cmap`/`W` metrics from bundled fonts to drive code→Unicode inference and metric restoration. |
 | Template / font DB | Pre-built template PDFs with full-embedded fonts + a JSON font index; bundled 6-language word dictionaries | The forensic reference data. Fonts must cover en/fr/es/ar/hi/zh (Noto family is the natural open-licensed choice). Backs C6–C8. |
@@ -180,7 +180,7 @@ fallback. Crate versions/health verified on crates.io (Jul 2026).
 | **MD export — glyph extraction** | our **pure-Rust `PdfEngine`** on `hayro-interpret` | — | Feeds per-glyph items (text + bbox + font attrs) into spdf, replacing spdf's PDFium `spdf-pdf`. Keeps export FFI-free. |
 | **MD export — layout/tables** | `spdf-projection` + `spdf-types` + `spdf-processing` (MIT) | (our own projection if spdf's API churns) | Engine-agnostic spatial-grid projection: columns, reading order, tables, faux-bold dedup. The hard layout logic, reused not rebuilt. |
 | **MD export — Markdown emitter** | our `export/markdown.rs` (GFM) | contribute to `spdf-output` | spdf ships text/JSON only; the Markdown formatter is our value-add (headings by font size, emphasis by flags, GFM tables, image refs, links). |
-| Retro cat background — fetch | **`ureq`** (3.3) + **`rustls-graviola`** provider | `minreq` | Pure-Rust sync HTTPS for thecatapi.com — no tokio/reqwest, and no C compiler (ureq's default `ring` provider compiles C/asm; graviola doesn't). Optional/opt-in, off by default. |
+| Retro cat background — fetch | **`ureq`** (3.3) + **`rustls-graviola`** provider | `minreq` | Sync HTTPS for thecatapi.com — runs on a blocking job thread (doesn't pull reqwest/its own async stack), and no C compiler (ureq's default `ring` provider compiles C/asm; graviola doesn't). Optional/opt-in, off by default. |
 | Retro cat background — ASCII | **`artem`** (3.0, lib target, `default-features = false`) | hand-rolled luminance ramp | Image → colored ASCII sized to the terminal; ANSI output parsed into cells. (`rascii_art` dropped — unmaintained since 2023. artem is MPL-2.0: recorded license exception.) |
 | Retro cat background — colors | **`palette`** (0.7) | hand-rolled OkLCh (~50 lines) | Oklch: raise lightness + drop saturation + nudge hue → pastels. (`pastel` git dep dropped — unversioned, drags clap/build.rs.) |
 
@@ -220,15 +220,10 @@ pdfpundit/
    ├─ app.rs              # App state, panel focus, key/mouse routing, dispatch
    ├─ input.rs            # crossterm events + terminal path-paste → actions
    ├─ theme.rs            # retro color scheme, borders, ASCII banner
-   ├─ catbg.rs            # thecatapi fetch (ureq+graviola) → artem → palette bg + cache
-   ├─ ui/                 # FrankenTUI (ratatui) rendering
-   │  ├─ browser.rs       # file queue / history list panel
-   │  ├─ report.rs        # diagnostics panel — findings grouped by severity
-   │  ├─ actions.rs       # repair-task checklist + progress panel
-   │  ├─ fontpick.rs      # interactive font-candidate selector (low-confidence cases)
-   │  └─ picker.rs        # in-TUI .pdf-filtered filesystem browser
+   ├─ catbg.rs            # optional cat backdrop: fetch (ureq+graviola) → artem → palette + cache
+   ├─ ui/                 # terminal UI — framework/layout/theme per pdfpundit-ui-design.md
    ├─ library.rs          # file-history index + persistence (JSON, atomic writes)
-   ├─ jobs.rs             # job runner — std threads + mpsc (analyze / repair) + progress events
+   ├─ jobs.rs             # job runner — std threads + mpsc; streams AppEvent/JobEvent to the UI
    └─ pdf/
       ├─ meta.rs          # lopdf metadata (version, pages, title, dimensions)
       ├─ carver.rs        # step 2: raw-byte object/stream scan (obj/endobj/stream)
@@ -255,58 +250,38 @@ the shared engine primitives (`carver`, `rebuild`, `fontdb`):
 
 ### Key data flow
 
-1. User adds a PDF — drops it onto the terminal (path pasted) or picks it via the
-   in-TUI `browse…` picker — `input.rs` captures the path and queues it.
+1. User adds a PDF, 
+drops it onto the terminal (path pasted),
+ or picks it via the in-TUI `browse…` picker
+—`input.rs` captures the path and queues it. 
 2. The job runner runs the selected **diagnostic** passes off-thread; each pass
    emits `Finding`s (severity, location, description, whether auto-repairable).
 3. The report panel streams findings in as they arrive, grouped by severity.
-4. User ticks the repair tasks to apply; the runner executes their `repair()`
-   passes and writes a **new `<name>.repaired.pdf`** — the original is never mutated.
-5. Run metadata (findings + repair log + output path) is recorded to history.
+4.  User ticks the repair tasks to apply;
+5.  the runner executes their `repair()` passes and writes a **new `<name>.repaired.pdf`** — the original is never mutated.
+6. Run metadata (findings + repair log + output path) is recorded to history.
 
-## UI Layout (v1)
+## UI Layout & aesthetic — see the UI plan
 
-**Cat-first layout** (revised 2026-07-16; full spec in the
-[technical design](pdfpundit-technical-design.md) §7). The window starts clean —
-the pastel ASCII cat on full display — and panels exist only once files do.
-Tab/mouse move focus; the footer shows context key hints.
+The terminal-UI **framework, layout, theme, and copy are designed separately**
+in [pdfpundit-ui-design.md](pdfpundit-ui-design.md). Everything there is open —
+the "cat-first" layout (clean empty state → floating queue → hideable analysis →
+bottom progress → context-menu decisions), the aesthetic (retro vs. pastel), and
+the optional "furensic" copy pun are recorded as candidates, not commitments.
+The engine (this plan + the technical design) is UI-agnostic: it streams typed
+events (`JobEvent`) and view data (`QueueEntry`, `BatchState`, font-decision
+requests) that any UI consumes.
 
-- **Empty state:** no panels — just the cat, an ASCII wordmark, and one dim
-  hint: "Drop a PDF on this terminal, or press `b` to browse."
-- **Queue panel (floating, top-left):** appears when files are added (drop or
-  in-TUI browser); it *is* the batch queue and grows downward as files are
-  added. Each row: a status icon (not started / in progress / complete /
-  error) + filename + terse result note.
-- **Analysis panel (beneath the queue, hideable):** the selected file's
-  metadata, C1–C10 findings grouped by severity (expandable to per-object
-  evidence), font resolutions, and repair outcomes.
-- **Bottom progress bar (while processing):** the current file's gauge +
-  filename; when more than one file is queued, a second line shows total batch
-  percentage.
-- **Context menus (modals):** every decision — per-file actions
-  (analyze / repair / export), the repair-pass checklist, low-confidence font
-  picks (REPDF's suggested "interactive step," native to our TUI), and
-  unresolved font-substitution choices with individual selection plus a
-  select-all option.
+The one UI-adjacent piece kept here is the optional cat backdrop, because it is a
+self-contained cosmetic feature with its own crate stack:
 
-### Retro aesthetic
-
-The "cute retro" look is a first-class design constraint, driven by `theme.rs`:
-
-- Double-line box borders, a blocky ASCII/ANSI wordmark banner on launch.
-- A constrained retro palette (e.g. amber-on-black or teal/magenta DOS-era), with
-  a couple of selectable themes ("Amber", "Phosphor Green", "DOS16").
-- Chunky progress bars (`█▓▒░`), blinking cursor accents, and a status "ticker".
-- Optional CRT-flavored touches (scanline dividers) kept subtle so results stay
-  legible — **simple and reliable readouts first, decoration second.**
-
-#### Background: pastel ASCII-art cats 🐱
+### Background: ASCII-art cats 🐱 (optional cosmetic)
 
 A dim, cute ASCII-art **cat** sits behind the panels as wallpaper. Pipeline:
 
 1. Fetch a random cat from **thecatapi.com** (`GET /v1/images/search`, `x-api-key`
-   header) using **`ureq`** (pure-Rust, sync; rustls with the **`rustls-graviola`**
-   provider — no tokio/reqwest, no C compiler).
+   header) using **`ureq`** (pure-Rust, sync, on a blocking job thread; rustls with
+   the **`rustls-graviola`** provider — no reqwest, no C compiler).
 2. Decode the image (`image` crate) → convert to colored ASCII with **`artem`**
    (lib target, `default-features = false`), sized to the current terminal;
    parse its ANSI output into cells.
@@ -331,8 +306,8 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 ## Milestones
 
 ### M1 — Skeleton & input (a TUI that accepts PDFs)
-- [ ] Scaffold the ratatui/crossterm crate; panic-safe terminal restore.
-- [ ] Event loop, panel focus (Tab), mouse selection, footer key hints.
+- [ ] Scaffold the crate (crossterm-based; UI framework per [pdfpundit-ui-design.md](pdfpundit-ui-design.md)); panic-safe terminal restore.
+- [ ] Event loop + `AppEvent`/`JobEvent` plumbing; minimal shell listing added files; mouse selection; footer key hints.
 - [ ] Add-file via terminal path-paste; reject non-`.pdf`.
 - [ ] In-TUI `.pdf`-filtered filesystem picker (`browse…`).
 
@@ -401,6 +376,7 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 - **Markdown export depends on two unknowns:** (1) `hayro-interpret` must expose per-glyph text + bbox + font attributes for our `PdfEngine` adapter — verify with a spike before committing to M8; if it doesn't, we extend hayro or fall back to our own content-stream interpreter. (2) `spdf` is early (v0.2.0-alpha) — API churn risk; mitigated because its projection core is small and MIT, so we can vendor/fork if needed.
 - **Markdown emitter is ours:** spdf outputs text/JSON, not Markdown — the GFM formatter (esp. table rendering and heading inference) is net-new work and where "high quality" is won or lost.
 - **Terminal drag-drop UX:** drop-on-terminal behavior varies by emulator (most paste the path). The `browse…` picker is the guaranteed fallback.
+- **UI framework undecided (open):** the terminal-UI framework/styling stack is not yet chosen — see [pdfpundit-ui-design.md](pdfpundit-ui-design.md). To keep this a non-blocking decision, the engine is UI-agnostic (emits the `JobEvent` stream + view data), so the choice can be made and changed without engine impact. The known trade-space: ratatui (mature, manual styling, easy cell-buffer backdrop compositing) vs. the Charm/lipgloss stack (prebuilt styles/components — the "library of styles" the user wants — younger, async-first, string-composition makes the cat backdrop harder).
 - **Retro vs legibility:** CRT/scanline effects and the cat background must never hurt readability of findings — the wallpaper is dimmed and panels stay opaque; decoration is subordinate to reliable results.
 - **Cat background = network + secret:** fetching cats reaches the internet, which a forensic tool often shouldn't do unprompted — so it's opt-in, off by default, with an offline mode and bundled fallback. The embedded thecatapi key is obfuscated and kept out of source, but can't be truly secret (acceptable: cats only).
 

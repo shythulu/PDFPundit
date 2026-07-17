@@ -13,7 +13,9 @@
       "Bash(ls:*)",
       "Bash(git init:*)",
       "Bash(find:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "mcp__nimbalyst-excalidraw__excalidraw_get_elements",
+      "mcp__nimbalyst-excalidraw__excalidraw_add_arrows"
     ],
     "deny": [],
     "ask": []

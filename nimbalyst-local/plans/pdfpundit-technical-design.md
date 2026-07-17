@@ -14,7 +14,7 @@ planStatus:
     - tui
     - design
   created: "2026-07-16"
-  updated: "2026-07-16T13:19:32.000Z"
+  updated: "2026-07-17T06:40:00.000Z"
   progress: 0
 ---
 # PDFPundit — Technical Design (v1)
@@ -23,11 +23,13 @@ planStatus:
 
 The feature plan [pdfpundit-desktop-app.md](/Users/shylo/source/PDFPundit/nimbalyst-local/plans/pdfpundit-desktop-app.md)
 defines *what* PDFPundit is: a pure-Rust, REPDF-grounded forensic PDF repair
-tool with a retro ratatui TUI, targeting the C1–C10 corruption taxonomy, plus a
+tool with a terminal UI, targeting the C1–C10 corruption taxonomy, plus a
 fast-follow PDF→Markdown export. This document is the level below — the
 technical design an implementer codes from: module tree, core data model,
 concurrency/event architecture, carver and rebuild algorithms, font database
-and substitution policy, persistence, TUI architecture, and testing.
+and substitution policy, persistence, the engine↔UI contract, and testing.
+(The UI framework, layout, and aesthetic are designed separately in
+[pdfpundit-ui-design.md](pdfpundit-ui-design.md).)
 
 Plan decisions treated as fixed constraints: pure Rust, no C FFI, `lopdf` as
 sole emitter, full-font embedding (no CFF subsetting), originals never mutated,
@@ -42,23 +44,25 @@ single crate, MIT/Apache code deps.
    compiles SQLite's C source, which would have violated the no-C-FFI rule the
    plan itself set. JSON dodges that entirely; the store sits behind a small
    trait if scale ever demands more.)
-2. **UI layout**: **cat-first**. The window starts clean — pastel ASCII cat on
-   full display, no panels. Adding files (drop or in-app browser) summons a
-   floating queue panel that grows downward; a hideable analysis panel sits
-   beneath it; a bottom progress bar shows current-file progress plus a batch
-   total line when more than one file is queued. Decisions (font selection etc.)
-   are presented as TUI context menus. Replaces the plan's three-always-visible
-   panels. (§7)
+2. **UI is designed separately**: the terminal-UI framework, layout (the
+   "cat-first" idea), theme, and copy are parked in
+   [pdfpundit-ui-design.md](pdfpundit-ui-design.md). This document defines only
+   the engine and the UI-agnostic event/interaction contract (§7). *(supersedes
+   the plan's three-always-visible-panels UI section — now a UI-plan concern.)*
 3. **Font substitution is an output option**: default = bundled open-source
    "sister" fonts (Unicode-correct Noto-style replacements from the template
    DB); switchable to **system fonts matched by name**. Analysis precedes
    output, so PDF fonts with no equivalent become per-font user choices in a
-   TUI prompt — individual selection plus select-all. (§5.5)
+   user prompt — individual selection plus select-all. (§5.5)
 
 ### Design refinements over the plan (found during design)
 
-4. **"Async job runner" resolved as `std::thread` + `std::sync::mpsc`** — no
-   tokio, no crossbeam. Jobs are CPU-bound byte crunching; ureq is sync. (§3)
+4. **Job runner = `std::thread` + `std::sync::mpsc`** — no tokio, no crossbeam.
+   Jobs are CPU-bound byte crunching that stream typed events to whatever UI
+   consumes them; ureq is sync. The engine is **UI-agnostic** — it emits a
+   `JobEvent` stream and nothing more. (§3)
+   *(The TUI framework, layout, and aesthetic are decided separately in
+   [pdfpundit-ui-design.md](pdfpundit-ui-design.md) — not in this document.)*
 5. **Batches are first-class and sequential**: one PDF job at a time
    (deterministic "current file" progress, interaction prompts never
    interleave); the runner's queue makes parallelism a config knob later. (§3)
@@ -86,28 +90,22 @@ single crate, MIT/Apache code deps.
     the job runner in M3) or the M1 event loop gets retrofitted. (§9)
 13. **M8 churn containment**: `spdf-*` and all export code behind a cargo
     feature `export` so alpha-dep churn can never break the core build.
+14. **UI/aesthetic deferred**: the terminal-UI framework, the cat-first layout,
+    themes, and copy are **out of scope here** — parked in
+    [pdfpundit-ui-design.md](pdfpundit-ui-design.md). This document specifies
+    only the engine and the UI-agnostic `JobEvent` contract it exposes.
 
 ## 2. Module tree (delta from plan marked `+`)
 
 ```
 pdfpundit/                       # single crate (+ tools/ workspace member)
 ├─ src/
-│  ├─ main.rs                    # terminal init/teardown, event loop, panic hook
-│  ├─ app.rs                     # App state, Action enum, modal stack, dispatch
-│  ├─ input.rs                   # crossterm events, bracketed paste, path normalization
-│  ├─ config.rs                + # Config (config.toml), app-dirs resolution
-│  ├─ theme.rs                   # Theme struct, palettes, color-capability detection
-│  ├─ catbg.rs                   # cat fetch/render/cache; CatLayer buffer
+│  ├─ main.rs                    # entry: init, wire engine↔UI, run; panic-safe restore
 │  ├─ jobs.rs                    # JobRunner, AppEvent/JobEvent, CancelToken, interaction rendezvous
+│  ├─ config.rs                + # Config (config.toml), app-dirs resolution
 │  ├─ library.rs                 # HistoryStore trait + JSON backend
-│  ├─ ui/
-│  │  ├─ mod.rs                + # render(frame, &App); layout; CatBackdrop widget
-│  │  ├─ queue.rs              + # floating file-queue panel (replaces browser.rs)
-│  │  ├─ analysis.rs           + # hideable findings panel (replaces report.rs/actions.rs)
-│  │  ├─ progress.rs           + # bottom progress bar (current file + batch total)
-│  │  ├─ menu.rs               + # context-menu modal (actions, decisions)
-│  │  ├─ fontpick.rs             # font-candidate / substitution prompts
-│  │  └─ picker.rs               # in-TUI .pdf-filtered filesystem browser
+│  ├─ catbg.rs                   # optional cat backdrop: fetch/convert/cache (cosmetic; see UI plan §D4)
+│  ├─ ui/                        # ← framework/layout/theme designed in pdfpundit-ui-design.md
 │  └─ pdf/
 │     ├─ model.rs              + # shared types: CorruptionClass, Finding, ObjId…
 │     ├─ lexer.rs              + # tolerant byte-level PDF object parser
@@ -121,17 +119,19 @@ pdfpundit/                       # single crate (+ tools/ workspace member)
 └─ tests/fixtures.rs           + # programmatic C1–C10 corruptors + golden PDFs
 ```
 
-## 3. Concurrency & event architecture (`jobs.rs`, `main.rs`)
+## 3. Concurrency & event architecture (`jobs.rs`)
 
-**Decision: `std::thread` workers + `std::sync::mpsc`.** The UI thread is the
-single consumer of one merged channel (`Sender` is `Clone` — input thread and
-job threads share it); `recv_timeout` synthesizes ticks; interactive prompts use
-a bounded `sync_channel(1)` rendezvous. crossbeam-channel is a drop-in if mpsc
-ever shows contention (it won't at these event rates).
+**Decision: `std::thread` workers + `std::sync::mpsc`** — no async runtime in the
+engine. Jobs are CPU-bound byte crunching; ureq is sync. The engine emits a
+merged event stream that the UI consumes; the UI layer (chosen separately, see
+[pdfpundit-ui-design.md](pdfpundit-ui-design.md)) owns the render loop and how it
+bridges these events into its own model. `AppEvent`/`JobEvent` below are the
+**engine↔UI contract**; interactive prompts use a bounded `sync_channel(1)`
+rendezvous. crossbeam-channel is a drop-in if mpsc ever shows contention.
 
 ```rust
-pub enum AppEvent {
-    Input(crossterm::event::Event),          // Key, Mouse, Paste, Resize
+pub enum AppEvent {                          // what the UI's event source yields
+    Input(/* terminal input, framework-specific */),
     Job(JobId, JobEvent),
     Tick,
 }
@@ -157,11 +157,11 @@ pub struct InteractionRequest {
 }
 ```
 
-**Threads & ownership.** The UI thread (main) owns `App`, the `Terminal`, the
-`Receiver<AppEvent>`, and the `JobRunner`. An input thread loops
-`crossterm::event::poll(50ms)`. Job workers each own their inputs (`PathBuf`, a
-cloned `JobOptions` snapshot, `Arc<FontDb>`) and return data only through
-`JobEvent`s — no shared mutable state.
+**Ownership.** The UI thread owns the app state, the `Receiver<AppEvent>`, and
+the `JobRunner`; it is the single consumer of the merged channel (`Sender` is
+`Clone`, shared by the input source and every job thread). Job workers each own
+their inputs (`PathBuf`, a cloned `JobOptions` snapshot, `Arc<FontDb>`) and
+return data only by sending `AppEvent::Job(id, ev)` — no shared mutable state.
 
 **Batch semantics (sequential).** PDF jobs (analyze/repair/export) run **one at
 a time**: `JobRunner` holds a `VecDeque` of queued jobs and starts the next when
@@ -174,7 +174,7 @@ knob (`[jobs] parallel`).
 pub struct CancelToken(Arc<AtomicBool>);     // .check() -> Result<(), Cancelled> in every loop
 
 pub struct JobRunner {
-    tx: Sender<AppEvent>,
+    tx: Sender<AppEvent>,                     // clone of the UI's merged channel
     current: Option<JobHandle>,              // { id, cancel, join }
     pending: VecDeque<QueuedJob>,
     next_id: u64,
@@ -188,19 +188,17 @@ impl JobRunner {
 ```
 
 **Panic isolation.** Job bodies run inside `catch_unwind`; a panic becomes
-`JobEvent::Failed { panicked: true }` — a bad PDF can never kill the app. A
-process-level panic hook restores the terminal (leave alt screen, disable raw
-mode/mouse/paste) before printing, covering UI-thread panics.
-
-**UI loop:** `recv_timeout` until next 100 ms tick → `app.handle(ev)` → drain
-`try_recv` burst → redraw once if `app.dirty`.
+`JobEvent::Failed { panicked: true }` — a bad PDF can never kill the app. The
+UI layer is expected to install a panic hook that restores the terminal before
+printing (covers UI-thread panics); that hook is a UI-plan concern.
 
 **Blocking interaction from a job** (used by both font prompts):
 
 ```rust
 fn interact(&self, kind: InteractionKind) -> Result<InteractionReply, Cancelled> {
     let (tx, rx) = mpsc::sync_channel(1);
-    self.send(JobEvent::NeedsInteraction(InteractionRequest { kind, reply: tx }));
+    self.tx.send(AppEvent::Job(self.id, JobEvent::NeedsInteraction(
+        InteractionRequest { kind, reply: tx })));   // stream to the UI
     loop {
         match rx.recv_timeout(Duration::from_millis(200)) {
             Ok(reply) => return Ok(reply),
@@ -215,6 +213,10 @@ The `Disconnected ⇒ Cancelled` arm plus token polling is the deadlock guard fo
 "user quits while a job waits on a prompt" — covered by an explicit test.
 
 ## 4. Core engine: data model & algorithms
+
+> §4–§5 are the overview. **Part II (§13–§20)** expands the carver, stream
+> salvage, rebuild, and font inference to implementation-ready pseudocode with
+> byte-level edge cases — that is the spec the modules are coded/tested against.
 
 ### 4.1 Core types (`pdf/model.rs`)
 
@@ -274,14 +276,14 @@ second or two" budget.
 2. If followed by `stream`, resolve the data extent — the crux, since
    compressed data legitimately contains keyword bytes. Resolution ladder,
    recorded as `LengthSource`:
-   - `/Length` direct int → verify `endstream` lands within ±2-byte EOL slack → `Declared`.
-   - `/Length` indirect ref → defer to a second pass (the length object may live later) → `DeclaredIndirect`.
-   - Missing/mismatched length + FlateDecode → **inflate probe**: stream-decode
+  - `/Length` direct int → verify `endstream` lands within ±2-byte EOL slack → `Declared`.
+  - `/Length` indirect ref → defer to a second pass (the length object may live later) → `DeclaredIndirect`.
+  - Missing/mismatched length + FlateDecode → **inflate probe**: stream-decode
      with `miniz_oxide`; `bytes_consumed` at `Done` is the true length →
      `InflateProbe` (survives a destroyed `endstream` too).
-   - Else next `endstream` landmark *followed by a plausible continuation*
+  - Else next `endstream` landmark *followed by a plausible continuation*
      (`endobj` / next header / `xref` / EOF) → `ScannedEndstream`.
-   - Extends past EOF (C10) → clamp → `TruncatedAtEof`.
+  - Extends past EOF (C10) → clamp → `TruncatedAtEof`.
 3. Mark landmarks inside a confirmed stream span dead (spurious keyword bytes).
 4. Missing `endobj` → object ends at next header/EOF (note `NoEndobj`).
 5. Classify `ObjectKind` from `/Type`//`/Subtype`; typeless streams classify by
@@ -294,7 +296,7 @@ second or two" budget.
 `Orphan::Stream`; other non-whitespace runs ≥16 bytes become Finding evidence.
 
 Carve output: `CarveReport { header, objects: Vec<CarvedObject>, orphans,
-xref_spans, trailer_spans, startxref, eof_markers }`, where `CarvedObject`
+xref_spans, trailer_spans, startxref, eof_markers }`, where` CarvedObject`
 tracks `declared_id`, `assigned_id`, span, body (`Dict`/`Stream`/`Primitive`/
 `Unparsed`), kind, and anomaly notes.
 
@@ -376,7 +378,7 @@ content streams reference positional-form gids that never appear in `cmap`.
 
 Template PDFs (one per font, emitted with lopdf + read-fonts): single page,
 `/Type0` + `Identity-H` → `CIDFontType2` descendant with `/CIDToGIDMap
-/Identity`, full `/W` array, and a **full, non-subset** `/FontFile2`, plus a
+/Identity`, full` /W `array, and a **full, non-subset**` /FontFile2`, plus a
 full-coverage `/ToUnicode`. Repair harvests the font subtree via lopdf object
 copy + renumber. Assets embedded via `include_bytes!`/`rust-embed` (single
 binary), with `PDFPUNDIT_ASSETS`/`asset_dir` dev overrides. Dictionaries:
@@ -487,109 +489,37 @@ source = "bundled"                # bundled | system   (per-run override in the 
 prompt_unresolved = true          # false ⇒ auto-pick best candidate silently
 
 [ui]
-theme = "amber"                   # amber | phosphor | dos16
+theme = "default"                 # theme names defined by the UI plan (deferred)
 mouse = true
-cat_background = true             # the star of the empty state; obeys [general].offline
+cat_background = true             # optional cosmetic backdrop; obeys [general].offline
 cat_refresh_hours = 24
 
 [catapi]
 api_key = ""                      # overrides the embedded obfuscated key
 ```
 
-## 7. TUI architecture (`app.rs`, `ui/`) — cat-first layout
+## 7. UI — deferred (see separate plan)
 
-**The window starts clean: no panels, the pastel ASCII cat on full glorious
-display**, plus one dim footer hint ("drop a PDF here · b browse · q quit").
-Panels exist only once files do.
+The terminal-UI framework, layout, theme, and copy are **out of scope for this
+engine document** and are designed separately in
+[pdfpundit-ui-design.md](pdfpundit-ui-design.md) (framework candidates —
+ratatui vs. the Charm/lipgloss stack vs. others; the cat-first layout; pastel
+vs. retro; "furensic" copy — all still open).
 
-```rust
-pub struct App {
-    pub config: Config, pub theme: Theme,
-    pub queue: Vec<QueueEntry>,            // empty ⇒ cat-first empty state
-    pub selected: Option<usize>,
-    pub show_analysis: bool,               // analysis panel under the queue (toggle: Enter/a)
-    pub focus: Focus,                      // Queue | Analysis
-    pub modals: Vec<Modal>,                // stack — top owns input
-    pub pending_interactions: VecDeque<InteractionRequest>,
-    pub batch: Option<BatchState>,         // drives the bottom progress bar
-    pub runner: JobRunner,
-    pub store: JsonHistoryStore,
-    pub fontdb: Arc<FontDb>,
-    pub catbg: Option<CatLayer>,           // pre-rendered cells at current size
-    pub layout: LayoutRects,               // last-frame Rects for mouse hit-testing
-    pub dirty: bool, pub should_quit: bool,
-}
+What the engine guarantees to any UI (the contract the UI plan builds on):
 
-pub struct QueueEntry {
-    pub path: PathBuf,
-    pub status: EntryStatus,               // NotStarted | InProgress | Done | Error(String)
-    pub meta: Option<FileMeta>,
-    pub findings: Vec<Finding>,
-    pub font_resolutions: Vec<FontResolution>,   // §5.5 — filled by analysis
-    pub job: Option<JobId>,
-}
-
-pub struct BatchState {                    // total % = (completed + current_progress) / total
-    pub current: usize, pub current_progress: f32,
-    pub completed: usize, pub total: usize,
-}
-
-pub enum Modal {
-    FilePicker(PickerState),               // .pdf-filtered fs browser
-    ContextMenu(MenuState),                // per-file actions: Analyze / Repair… / Export…
-    PassChecklist(ChecklistState),         // tick C1–C10 passes before Repair
-    FontPick { req: FontPickRequest, reply: SyncSender<InteractionReply>, cursor: usize },
-    FontSubstitution { rows: Vec<SubstRow>, reply: SyncSender<InteractionReply> }, // + select-all
-    Confirm { title: String, body: String, on_yes: Action },
-    About,
-}
-```
-
-**Layout & widgets:**
-
-- **Queue panel** (`ui/queue.rs`) — floating, anchored top-left with a 2-cell
-  margin, ~45% width (min 40 cols). Height = entries + chrome; **grows downward
-  as files are added**, scrolling past ~60% of screen height. Each row: status
-  icon + filename + terse result note ("3 findings", "repaired ✓"). Icons:
-  `·` not started, spinner frames `◴◷◶◵` in progress, `✓` complete, `✗` error
-  (ASCII fallbacks at 16 colors).
-- **Analysis panel** (`ui/analysis.rs`) — directly beneath the queue, same
-  width, **hideable**; shows the selected file's info: metadata line, findings
-  grouped by severity (expandable to evidence rows incl. hex windows), font
-  resolutions, and after a repair, the pass outcomes + output path.
-- **Bottom progress bar** (`ui/progress.rs`) — full-width strip overlaying the
-  bottom edge while a batch runs. Line 1: chunky `█▓▒░` gauge + "repairing
-  report_2024.pdf 63%". Line 2 (only when `batch.total > 1`): "batch 3/7 — 38%
-  total". Disappears when idle.
-- **Context menus** (`ui/menu.rs`) — every decision is a modal popup near the
-  selected row: the per-file action menu (Enter/right-click), the repair-pass
-  checklist, and the two font prompts (§5.3, §5.5).
-- **Cat backdrop** — a custom widget writing pre-rendered cells (char +
-  pastel-dimmed fg) straight into the frame `Buffer` first; panels then render
-  opaque on top (`Clear` + solid `bg`) so the cat never bleeds through text.
-  `CatLayer` is produced off-thread by the FetchCat job (ureq with the
-  rustls-graviola provider → `image` decode → **`artem`** lib
-  (`default-features = false` to drop its bundled ureq; sized to the terminal)
-  → parse the ANSI output into cells (`ansi-to-tui` or a ~30-line parser) →
-  `palette` Oklch lighten/desaturate per cell), re-rendered on `Resize`
-  (debounced 200 ms), cached on disk, bundled default when offline.
-
-**Input routing:** events translate to an `Action` enum (`AddFile`,
-`StartAnalyze`, `ApplyRepairs(Vec<CorruptionClass>)`, `ToggleAnalysis`,
-`OpenMenu`, `Quit`, …). Dispatch: top-of-modal-stack first, then focused panel,
-then globals. Mouse clicks hit-test `App.layout`.
-
-**Drop/paste:** enable bracketed paste; `Event::Paste` → strip quotes (macOS),
-unescape `\ ` (Linux), normalize; accept multiple whitespace/newline-separated
-paths in one paste (multi-file drop). Verify `.pdf` extension and sniff `%PDF-`
-in the first 1 KiB — a missing magic only downgrades to a confirm dialog, since
-C1 files are our business. Non-bracketed terminals get a key-burst detector
-fallback; the picker is the guaranteed path.
-
-**Theme system:** `Theme { bg, panel_bg, fg, dim, accent, severity[3], border,
-border_focused, border_set (DOUBLE), progress_chars, banner }`; three palettes
-(amber / phosphor / dos16) defined in RGB with automatic quantization to 256/16
-colors; the cat degrades to dim monochrome at 16.
+- **Event stream** — `AppEvent`/`JobEvent` (§3): started, phase, progress,
+  streamed findings, needs-interaction, done, failed, cancelled.
+- **View data** — per-file `QueueEntry { path, status (NotStarted | InProgress |
+  Done | Error), meta, findings, font_resolutions, job }` and batch progress
+  `BatchState { current, current_progress, completed, total }` (engine-provided
+  shapes; the UI owns its own widget/model state).
+- **Interaction requests** — `FontPickRequest` (§5.3) and the font-substitution
+  rows (§5.5) arrive over the stream, each carrying a reply channel; the UI
+  presents them however it likes and sends the choice back.
+- **Input the engine needs** — added file paths (from paste/drop or a picker),
+  validated `.pdf` + `%PDF-` sniff (§4), and per-run job options
+  (selected passes, font policy). How those are captured is a UI concern.
 
 ## 8. Testing & benchmark harness
 
@@ -622,8 +552,8 @@ threshold `recovery ≥ baseline − 2%`); `corpus-full` nightly; `dist`
 ## 9. Build order (dependency-ordered, mapped to plan milestones)
 
 | Step | Work | Milestone |
-|---|---|---|
-| 1 | Crate scaffold; `pdf/model.rs` core types; `jobs.rs` **event/channel skeleton** (AppEvent/JobEvent/CancelToken); `main.rs` loop + panic-safe restore; `theme.rs` minimal; `app.rs` + cat-first empty state + `ui/queue.rs`; `input.rs` paste (multi-path); `ui/picker.rs`; `catbg.rs` with bundled cat (network fetch later) | M1 |
+| --- | --- | --- |
+| 1 | Crate scaffold; `pdf/model.rs` core types; `jobs.rs` event/channel skeleton (`AppEvent`/`JobEvent`/`CancelToken`); `main.rs` wiring + panic-safe restore; minimal shell that lists added files (**UI framework/layout per** [pdfpundit-ui-design.md](pdfpundit-ui-design.md)); add-file via paste/picker | M1 |
 | 2 | `config.rs` (dirs + toml); `library.rs` JSON store; `pdf/meta.rs`; queue/history wiring; `ui/analysis.rs` shell | M2 |
 | 3 | `pdf/lexer.rs` → `pdf/carver.rs` (landmarks, assembly, ObjStm, gap sweep) → `pdf/streams.rs` (inflate, classify, C9 salvage) → `pdf/graph.rs` → `pdf/rebuild.rs`; `tests/fixtures.rs` corruptors; JobRunner completed (sequential batch, cancel, panic isolation); `ui/progress.rs`; vendor corpus subset | M3 |
 | 4 | `pdf/diagnose.rs` C1–C10 detectors + `/Encrypt` detector; analysis panel findings tree; corpus classification test | M4 |
@@ -654,13 +584,15 @@ needs only lopdf + read-fonts, not the carver.
 ## 11. Post-approval follow-ups
 
 - [x] Renamed this file to `pdfpundit-technical-design.md` (2026-07-16).
-- [ ] TUI mockup (cat-first layout: empty state, floating queue + analysis
-  panels, bottom progress pair, font context menu) — in progress; link here
-  when done.
+- [x] UI/aesthetic decisions spun out to
+  [pdfpundit-ui-design.md](pdfpundit-ui-design.md) (2026-07-17) — framework,
+  cat-first layout, pastel/retro theme, and "furensic" copy are parked there as
+  open decisions; this document is now engine-only. The TUI mockup is a UI-plan
+  task, built once its aesthetic is locked.
 - [x] Feature plan patched (2026-07-16): JSON persistence, threads-not-async
-  wording, ObjStm carving note, refined FFI/license rules, cat-first UI
-  layout, and the §12 crate decisions (harfrust, fontique, hayro-interpret
-  only, ureq+graviola, artem, palette, image trim).
+  wording, ObjStm carving note, refined FFI/license rules, and the §12 crate
+  decisions (harfrust, fontique, hayro-interpret only, ureq+graviola, artem,
+  palette, image trim).
 
 ## 12. Backend crate-stack structural review
 
@@ -733,3 +665,431 @@ alongside the OFL fonts), `palette` for Oklch pastelization (pastel git dep
 dropped), lopdf strict-parse of inputs kept for diagnosis, cargo workspace
 (`pdfpundit` lib + `corpus` bin, `tools/build-templates` member), skrifa
 pinned to hayro's version.
+
+**Frontend crates are out of this ledger** — the TUI framework/styling stack is
+selected in [pdfpundit-ui-design.md](pdfpundit-ui-design.md) (D1). This backend
+ledger stands regardless of that choice; the engine is UI-agnostic.
+
+---
+
+# Part II — Engine deep-dive (implementation-ready)
+
+This part expands §4–§5 from sketches to buildable detail: exact grammars, state
+machines, byte-level edge cases, and function signatures. It is the spec the
+carver/rebuild/fontdb modules are coded and unit-tested against. PDF facts follow
+ISO 32000-1/2; where the spec and real-world files disagree, we follow
+**observed bytes**, not the spec's ideal.
+
+## 13. Lexer — tolerant PDF tokenizer (`pdf/lexer.rs`)
+
+The carver cannot use lopdf's parser for damaged input (it bails on the first
+structural error). We hand-roll a byte-slice tokenizer that never allocates for
+tokens and always makes forward progress.
+
+### 13.1 Character classes (PDF §7.2)
+
+```rust
+#[inline] fn is_ws(b: u8) -> bool   { matches!(b, b'\0'|b'\t'|b'\n'|b'\x0c'|b'\r'|b' ') }
+#[inline] fn is_delim(b: u8) -> bool{ matches!(b, b'('|b')'|b'<'|b'>'|b'['|b']'|b'{'|b'}'|b'/'|b'%') }
+#[inline] fn is_reg(b: u8) -> bool  { !is_ws(b) && !is_delim(b) }   // "regular" char
+```
+
+EOL is `\r`, `\n`, or `\r\n`. Comments run `%` → next EOL (skipped as whitespace,
+except the `%PDF-`/`%%EOF` landmarks the carver treats specially).
+
+### 13.2 Token grammar
+
+```rust
+pub enum Tok<'a> {
+    Int(i64), Real(f64),
+    Name(Cow<'a,[u8]>),          // '/' consumed; #xx unescaped (lazily → Cow)
+    LitStr(Vec<u8>),             // ( ... ) escapes + balanced parens resolved
+    HexStr(Vec<u8>),             // < ... > ; odd final nibble padded with 0
+    ArrOpen, ArrClose,           // [ ]
+    DictOpen, DictClose,         // << >>
+    Kw(&'a [u8]),                // bareword: obj endobj stream endstream R true false null xref trailer startxref
+    Eof,
+}
+
+pub struct Lexer<'a> { buf: &'a [u8], pub pos: usize }
+impl<'a> Lexer<'a> {
+    pub fn new(buf: &'a [u8], pos: usize) -> Self;
+    pub fn next(&mut self) -> Tok<'a>;         // skips leading ws/comments; never panics
+    pub fn peek(&mut self) -> Tok<'a>;         // next() without advancing (save/restore pos)
+    fn read_number(&mut self) -> Tok<'a>;      // handles +/-/. ; bare '.' → Real(0); "--" → recover
+    fn read_lit_string(&mut self) -> Tok<'a>;  // depth-counted (); \n \r \t \b \f \( \) \\ \ddd ; \<EOL> line-continue
+    fn read_hex_string(&mut self) -> Tok<'a>;  // ignores interior ws; non-hex byte → stop + note
+    fn read_name(&mut self) -> Tok<'a>;        // reads is_reg run; resolves #xx
+}
+```
+
+**Robustness rules (every one has a fixture):** unterminated `(` → consume to
+EOF-or-next-`endobj`, return what we have + `LexNote::UnterminatedString`;
+unterminated `<` that is not `<<` → treat as hex string to next `>` or delimiter;
+a number with a second sign/point ends at the anomaly; an unknown byte where a
+token is expected is skipped (never an infinite loop — `pos` strictly advances).
+
+### 13.3 Object-value parser
+
+```rust
+pub struct ParsedObj { pub value: lopdf::Object, pub end: usize, pub notes: Vec<LexNote> }
+
+/// Parse one object *value* starting at `pos` (after "N G obj" or inside a container).
+/// Recursively builds arrays/dicts; resolves `N G R` when three tokens read as int int 'R'.
+pub fn parse_value(buf: &[u8], pos: usize, depth: u8) -> Result<ParsedObj, LexErr>;
+```
+
+- **Depth guard:** `depth > 100` → `LexErr::TooDeep` (malicious nesting bomb).
+- **Dict recovery:** parse `<< key value key value … >>`; a value that fails to
+  parse is skipped to the next `/Name`-or-`>>` and the key dropped with
+  `DictRecovered`. Track `<<`/`>>` balance with a counter that ignores `<`/`>`
+  inside strings, so a stray `>>` in a `(literal)` value never closes the dict.
+- **Ref detection:** on `Int a`, save pos; if next two tokens are `Int b` then
+  `Kw("R")`, emit `Reference((a as u32, b as u16))`; else restore and treat `a`
+  as a number.
+
+## 14. Carver state machine (`pdf/carver.rs`)
+
+Top-level entry:
+
+```rust
+pub fn carve(buf: &[u8]) -> CarveReport;   // never fails; degrades to more `Unparsed`/`Orphan`s
+```
+
+### 14.1 Phase A — landmark scan
+
+```rust
+enum Landmark { Pdf, ObjHdr{num:u32, gen:u16, hdr_start:usize}, EndObj,
+                Stream, EndStream, Xref, Trailer, StartXref, Eof }
+```
+
+For each keyword run one `memchr::memmem::Finder`, collect `(offset, kind)`,
+merge-sort by offset. Disambiguation **at collection time**:
+
+1. Drop `obj` whose preceding 3 bytes are `end` (it's `endobj`'s tail); same for
+   `stream`/`endstream`.
+2. Promote an `obj` hit to `ObjHdr` only if backtracking over ≤24 bytes matches
+   `\d+\s+\d+\s+obj` (regex done by hand: skip ws left, read gen digits, skip ws,
+   read num digits). Record `hdr_start` at the object number's first digit. A hit
+   that fails this (e.g. `globj` in a stream) is discarded.
+
+Complexity: 8 linear scans; on a 100 MB file, memchr keeps this well under the
+"second or two" diagnose budget.
+
+### 14.2 Phase B — assembly loop
+
+```rust
+let mut cur = 0usize;                       // byte cursor
+let mut dead: RangeSet = empty();           // landmark offsets inside stream bodies
+for lm in landmarks.filter(kind == ObjHdr) {
+    if dead.contains(lm.hdr_start) { continue; }        // spurious hit inside a stream
+    let (num, gen) = (lm.num, lm.gen);
+    let body_start = end_of("obj", lm);                 // just past the 'obj' keyword
+    let ParsedObj{ value, end: after_val, notes } = parse_value(buf, body_start, 0)?;
+
+    // Is it a stream?  dict immediately followed by the `stream` keyword.
+    if value.is_dict() && next_kw(buf, after_val) == Some("stream") {
+        let dict = value.as_dict();
+        let data_start = after_stream_eol(buf, kw_end);     // skip the single CRLF|LF (14.3)
+        let (data_end, src) = resolve_stream_extent(buf, dict, data_start, &landmarks);
+        mark_dead(&mut dead, data_start..data_end);         // keywords inside are inert
+        let end = consume_endstream_endobj(buf, data_end);  // tolerate missing either
+        push_stream_object(num,gen, dict, data_start..data_end, src, end, notes);
+        cur = end;
+    } else {
+        let end = consume_endobj(buf, after_val);           // to `endobj` or next ObjHdr/EOF
+        push_object(num,gen, value, end, notes);            // Dict | Primitive | Unparsed
+        cur = end;
+    }
+}
+resolve_deferred_lengths();     // second pass: /Length was an indirect ref (14.3c)
+expand_objstms();               // 14.4
+gap_sweep();                    // 14.5
+detect_xref_and_trailer();      // classic xref/trailer/startxref spans for diagnosis only
+```
+
+Key invariant: **the loop visits ObjHdr landmarks in byte order and skips any
+that fall inside an already-claimed stream span**, so binary payloads that happen
+to contain `1 0 obj` can never spawn phantom objects.
+
+### 14.3 Stream-extent resolution ladder — `resolve_stream_extent`
+
+The crux of the whole carver. Returns `(data_end, LengthSource)`. Try in order;
+first success wins:
+
+| # | Condition | Method | Source |
+| --- | --- | --- | --- |
+| a | `/Length` is a direct positive `Int L` | candidate `e = data_start + L`; **verify** bytes at `e..e+~2` are `EOL? endstream` within a 2-byte slack | `Declared` |
+| b | (a) failed but `L` present | still record mismatch; fall through | note `LengthMismatch` |
+| c | `/Length` is `Reference(id)` | **defer**: provisional end via (d)/(e); after the main loop, once `id`'s value is known, re-resolve and re-verify | `DeclaredIndirect(id)` |
+| d | filter chain starts with `FlateDecode` (or none + looks like zlib `0x78`) | **inflate-probe**: stream-inflate from `data_start`; the input offset consumed at `StreamResult::Done` is the exact length | `InflateProbe` |
+| e | otherwise | scan forward to the next `EndStream` landmark whose following non-ws keyword ∈ {`endobj`, an `ObjHdr`, `xref`, `trailer`} or EOF | `ScannedEndstream` |
+| f | candidate end > `buf.len()` (truncation, C10) | clamp to `buf.len()`; mark object | `TruncatedAtEof` |
+
+`after_stream_eol`: per spec the `stream` keyword is followed by CRLF or LF (not
+bare CR). We accept CRLF, LF, **and** tolerate a stray single space before the
+EOL (seen in the wild); data begins after that.
+
+Inflate-probe detail (also the C9 hook): use `miniz_oxide::inflate::stream::inflate`
+with a reusable `InflateState`; feed the whole tail, 64 KiB output window at a
+time, until `MZStatus::StreamEnd` (record `total_in` = length) or `Err` (record
+the consumed-so-far as the C9 truncation point — §16).
+
+### 14.4 Container expansion — `expand_objstms`
+
+For each carved object with `/Type /ObjStm`:
+
+```
+data = salvage_inflate(stream)          // §16; may be Clean or Prefix
+N    = dict[/N] as usize
+first= dict[/First] as usize
+header = parse N pairs (objnum, rel_offset) from data[0..first]   // ints, ws-separated
+for k in 0..N:
+    start = first + rel_offset[k]
+    end   = if k+1<N { first + rel_offset[k+1] } else { data.len() }
+    obj   = parse_value(&data, start, 0)      // compressed objs are never streams
+    push carved object (objnum, gen=0) with note FromObjStm(container_id), origin=Compressed
+```
+
+Malformed offsets (non-monotonic, out of range) → skip that entry, note
+`ObjStmEntryBad`, keep the rest. **Xref streams** (`/Type /XRef`) are decoded the
+same way but only to cross-check declared offsets in diagnosis (C2/C3) — their
+entries are never treated as authoritative.
+
+### 14.5 Gap sweep (C5 orphans / C10 tails)
+
+Compute `covered = union(object spans ∪ xref spans ∪ trailer spans)`. For each
+maximal uncovered run `g` with ≥16 non-ws bytes:
+
+```
+if g starts (after ws) with '<<'                      → parse_value → Orphan::Dict{kind by /Type}
+else if g contains 'stream' … ('endstream' | inflate-Done) with no ObjHdr before it
+                                                       → Orphan::Stream (classify by content §15)
+else                                                  → record UnexplainedSpan (Finding evidence only)
+```
+
+Orphans carry no id yet; `rebuild` assigns ids and tries to place them (§17.2).
+
+## 15. Stream classification (`pdf/streams.rs`)
+
+```rust
+pub enum StreamClass { Content, Image{codec:ImgCodec}, Form, FontFile, CMap, Metadata, ObjStm, Other }
+pub fn classify(dict:&Dictionary, inflated:&[u8]) -> StreamClass;
+```
+
+Priority: (1) explicit `/Subtype`/`/Type` if present and sane; else (2) **content
+sniff** of the (inflated) bytes:
+
+- JPEG SOI `FF D8 FF`, PNG `89 50 4E 47`, JP2 `00 00 00 0C 6A 50` → `Image`.
+- Contains text operators `BT`…`ET` with `Tj`/`TJ`/`Tf` → `Content`.
+- Only `Do` XObject invocations, no text → `Form`.
+- Starts with `%!PS` or has `begincmap`/`endcmap` → `CMap`.
+- Font table magic `00 01 00 00` / `OTTO` / `true`/`ttcf` → `FontFile`.
+- `<?xpacket`/`<x:xmpmeta` → `Metadata`.
+
+Codec for image extraction comes from the filter, not the sniff: `DCTDecode`→JPEG
+(dump verbatim), `JPXDecode`→JP2 (dump verbatim), `CCITTFax`/`JBIG2` (dump +
+note), `FlateDecode` raster → decode + PNG-encode via `image`.
+
+## 16. Stream salvage — C9 & partial inflate (`pdf/streams.rs`)
+
+```rust
+pub enum Salvage { Clean(Vec<u8>), Prefix{data:Vec<u8>, in_used:usize, in_total:usize},
+                   ByteFlip{data:Vec<u8>, at:usize}, Unrecoverable }
+pub fn salvage_inflate(raw:&[u8], filters:&[Filter]) -> Salvage;
+```
+
+Ladder:
+
+1. `flate2::read::ZlibDecoder` (or `Deflate` if header absent) → `Ok` ⇒ `Clean`.
+2. On error at input offset `k`: keep the decoded prefix (miniz streaming gives
+   exact `in`/`out` counts) ⇒ candidate `Prefix`.
+3. **Single-byte-flip brute force** (corpus C9 flips exactly one byte), gated to
+   streams ≤ 256 KiB: for each byte `i` in `[k−4096 .. min(k+64, len)]`, for each
+   of 8 bit flips, re-inflate; accept the first that reaches `StreamEnd` **and**
+   (has a valid trailing Adler-32, or classifies as valid content) ⇒ `ByteFlip{at:i}`.
+   Budget-capped at ~256 K attempts; abort → step 4.
+4. Resync: scan past `k` for a plausible deflate **stored-block** header
+   (`00`/`01` final-block bit + `LEN`/`~LEN` complement match) and recover the
+   suffix fragment ⇒ `Prefix` (best-effort, `Partial`). Else `Unrecoverable`.
+
+Multi-filter chains apply remaining filters (e.g. `/ASCII85Decode` before
+`/FlateDecode`) left-to-right before/after inflate as declared.
+
+## 17. Object graph & rebuild (`pdf/graph.rs`, `pdf/rebuild.rs`)
+
+### 17.1 Graph build
+
+```rust
+impl ObjectGraph {
+  pub fn from_carve(r:&CarveReport) -> Self {   // O(total refs)
+    // node per assigned_id; walk each object value, emitting a RefEdge for every
+    // Reference found, tagged with the key-path stack (["Resources","Font","F1"]).
+  }
+}
+```
+
+Catalog candidates = nodes with `/Type /Catalog`, else nodes carrying a `/Pages`
+ref. `pages_in_doc_order` = BFS from the chosen `/Pages` following `/Kids`,
+falling back to byte order for unreferenced `/Type /Page` nodes.
+
+### 17.2 Renumber + dangling-ref reconciliation
+
+```rust
+pub fn plan_ids(carve:&CarveReport, graph:&ObjectGraph) -> IdRemap;
+```
+
+1. **Duplicate declared ids** (incremental updates / corruption): group by
+   `(num,gen)`; the **last in byte order wins** the id; earlier copies become
+   shadows (kept, unreferenced unless step 3 claims them).
+2. **Orphans** get fresh ids from `max_declared_num + 1`, assigned in byte order.
+3. **Dangling refs:** for each edge → missing id, infer expected `ObjectKind`
+   from the key-path tail:
+
+   | key path tail | expected kind |
+   |---|---|
+   | `/Contents` | ContentStream |
+   | `/FontFile`,`/FontFile2`,`/FontFile3` | FontFile |
+   | `/ToUnicode` | ToUnicode / CMap |
+   | `/Kids[*]` | Page |
+   | `/Font/*` | Font |
+   | `/XObject/*` (+`/Subtype`) | Image or Form |
+
+   Match to the **nearest unclaimed orphan of that kind in byte order**; on match,
+   rewrite the ref to the orphan's new id and record `Finding` evidence
+   (`matched by position, Δ=<bytes>`). Unmatched dangling refs → `Finding`
+   (severity Warning; the object may be genuinely gone).
+
+### 17.3 Page-tree reconstruction (C4)
+
+```
+pages   = graph.pages_in_doc_order()
+for p in pages: set /Parent → PAGES_ID
+mediabox(p) = p./MediaBox
+            ?? nearest ancestor /Pages./MediaBox
+            ?? modal MediaBox across sibling pages
+            ?? config.default_page_size
+build PAGES = << /Type/Pages /Kids [pages...] /Count pages.len() >>   // single flat node
+catalog = reuse surviving /Catalog (rewire /Pages→PAGES_ID)
+        ?? << /Type/Catalog /Pages PAGES_ID >>
+```
+
+Inheritable attributes actually resolved and pinned per-page before flattening:
+`/Resources`, `/MediaBox`, `/CropBox`, `/Rotate` (so discarding intermediate
+`/Pages` nodes loses nothing).
+
+### 17.4 Strategy selection & emit (`pdf/emit.rs`)
+
+```rust
+fn choose_strategy(sel:&[CorruptionClass], carve:&CarveReport, graph:&ObjectGraph) -> RebuildStrategy {
+    let font_work = sel.iter().any(|c| matches!(c, C6|C7|C8));
+    let heavy_loss = sel.contains(&C10)
+        && graph.reachable_fraction(root) < 0.60;
+    if font_work || heavy_loss { TemplateAssemble } else { Resave }
+}
+```
+
+- **Resave:** copy every carved object into a fresh `lopdf::Document` under the
+  `IdRemap`, fix header/page-tree/catalog, `set_max_id`, `save_to`. Preserves
+  outlines/annots/metadata. lopdf writes a valid classic xref + trailer — C1/C2/C3
+  are resolved *by construction*.
+- **TemplateAssemble:** seed the doc from the template PDF(s) (§18), inject
+  recovered content/image objects, substitute fonts, then the same emit tail.
+
+Post-emit **verification** (always): reload output with strict `lopdf`
+(`Document::load_mem`) — must succeed; `hayro` render page 1..=N to a null canvas
+— must not error; re-run `diagnose` on the output — targeted classes must be gone.
+Results populate `RepairReport.verification`.
+
+## 18. Font DB, inference & `/ToUnicode` (`pdf/fontdb.rs`)
+
+### 18.1 `.gmap` sidecar (built offline by `tools/build-templates`)
+
+Little-endian, sorted by gid, one 9-byte record: `gid:u16, unicode:u32,
+width:u16, source:u8 `(`source`: 0=cmap, 1=shaped). Loaded zero-copy via
+`bytemuck::cast_slice` behind a bsearch on gid. Reverse index (unicode→gid) built
+lazily into a `HashMap` on first inference use.
+
+### 18.2 Inference scoring — full algorithm
+
+```rust
+pub struct Candidate { pub font_id:String, pub lang:Lang, pub score:f32, pub hit:f32,
+                       pub preview:String }
+pub fn infer(codes:&[CodeRun], fonts:&[&FontRecord], dicts:&Dicts) -> Vec<Candidate>;  // sorted desc
+```
+
+```
+for font in candidate_fonts(filtered by code-range priors):
+  for lang in font.languages:
+     decoded = []
+     for run in codes:                        // each run = Vec<u16> hex codes in one Tj/TJ
+        for code in run:
+           gid = map_code_to_gid(code, surviving_encoding)   // Identity-H ⇒ gid==code
+           decoded.push(gmap(font).unicode(gid).unwrap_or('\u{FFFD}'))
+     text  = normalize(decoded)               // NFC + casefold + collapse ws
+     toks  = tokenize(text, run_boundaries)   // space glyphs / TJ (+kern) offsets / Td line breaks
+     s = 0.0; matched = 0; total = text.chars().count()
+     for w in toks:
+        if dict[lang].contains(w)          { s += W_WORD*len(w);  matched += len(w) }
+        else if let p = dict[lang].longest_prefix(w) { s += W_PREFIX*len(p); matched += len(p) }
+     s -= P_UNMAPPED * count(decoded == FFFD)
+     s -= P_RARE     * count(chars outside font.scripts)
+     s -= P_MIXED    * count(tokens mixing scripts)
+     record (font,lang, score=s, hit=matched/total, preview=text[..200])
+// Chinese: replace the word loop with mean bigram log-prob over dicts["zh"].bigram
+// /ToUnicode survives: build a per-doc dict from the true decoded text; score against it too.
+```
+
+Weights (start; tuned on corpus in M7): `W_WORD=2.0 W_PREFIX=0.5 P_UNMAPPED=3.0
+P_RARE=1.5 P_MIXED=2.0`. Confidence` conf = 0.5*hit + 0.5*margin`, where
+`margin = (best.score − second.score)/max(best.score, ε)`. **Auto-accept iff
+`conf ≥ cfg.auto_accept_confidence (0.35) && best.hit ≥ 0.5`; else emit
+`Interactive(FontPick)`** carrying the top-`cfg.max_font_candidates` with previews.
+
+### 18.3 `/ToUnicode` rebuild
+
+```rust
+pub fn build_tounicode(used:&BTreeMap<u16,char>) -> lopdf::Stream;
+```
+
+Emit a Type0 `CIDInit` CMap: header, `1 begincodespacerange <0000><FFFF>
+endcodespacerange`, then batch consecutive` (code, unicode)` pairs into
+`bfrange` blocks and singletons into `bfchar` blocks, **≤100 entries per block**
+(spec limit), FlateDecoded via lopdf. Only codes actually used in the document
+are included (keeps the CMap small).
+
+## 19. Diagnosis mapping (`pdf/diagnose.rs`) — detectors → `Finding`
+
+| Class | Detector (over `CarveReport`/`ObjectGraph`, cheap) |
+| --- | --- |
+| C1 | first `%PDF-` absent in the leading 1 KiB, or version bytes non-numeric |
+| C2 | no classic `xref` span **and** no `/Type /XRef` stream, but objects exist |
+| C3 | no `trailer`/`startxref`/`%%EOF`, or `startxref` offset doesn't land on `xref`/xref-stream |
+| C4 | no reachable `/Type /Pages`, or `/Count` ≠ discovered `/Page` count, or broken `/Kids` |
+| C5 | ≥1 `Orphan` with dict/stream shape but no `N G obj` header |
+| C6 | a `/Page` `/Resources` lacks `/Font` while its content stream uses `Tf` |
+| C7 | a `/FontDescriptor` lacks `/FontFile[23]` (or it's a dangling/empty ref) |
+| C8 | C7 **and** the font's `/ToUnicode` is missing |
+| C9 | any stream whose `salvage_inflate` returns `Prefix`/`ByteFlip`/`Unrecoverable` |
+| C10 | `file_len` < declared/`startxref` expectations, or a stream span clamped `TruncatedAtEof` |
+| — (extra) | `/Encrypt` present in trailer/carve ⇒ `Unrepairable("decrypt first")` |
+
+Each detector yields `Finding{ class, severity, location, evidence, repair }`;
+`repair` is set from the class's `Repairability` (Auto / Interactive / Partial /
+Unrepairable) so the UI knows which need a prompt before running.
+
+## 20. Edge-case catalogue (each ⇒ a `tests/fixtures.rs` case)
+
+- Stream body literally containing `endstream`/`endobj`/`1 0 obj` byte sequences
+  (verified by inflate-probe length, not keyword scan).
+- `/Length` correct · wrong-too-short · wrong-too-long · indirect (fwd ref) ·
+  missing entirely.
+- `stream` followed by LF · CRLF · CR-only(reject) · space+EOL.
+- Object with no `endobj`; two objects sharing a number; gen ≠ 0.
+- `%PDF` preceded by junk bytes (C1 + valid body) — header rewrite path.
+- ObjStm holding the page dicts (objects only reachable after §14.4).
+- Cross-reference **stream** file (PDF 1.5+) with no classic xref.
+- Truncation cutting mid-stream (C10) vs. cutting the trailer only.
+- Type0/Identity-H CID font (code==gid) vs. simple font with `/Differences`
+  encoding; Arabic positional-form gids resolved only via shaped `.gmap` entries.
+- Multi-filter stream (`[/ASCII85Decode /FlateDecode]`).

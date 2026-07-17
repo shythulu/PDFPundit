@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PDFPundit — retro TUI mockup</title>
+<style>
+  /* ── page ─────────────────────────────────────────────────────────── */
+  :root {
+    --bg:        #0a0a06;   /* deep terminal black            */
+    --panel:     #0d0b06;   /* opaque panel fill              */
+    --amber:     #ffb000;   /* primary amber                  */
+    --amber-hi:  #ffd75f;   /* focused / highlighted amber    */
+    --amber-dim: #8a6200;   /* secondary amber                */
+    --amber-ink: #241a02;   /* text on inverse-amber          */
+    --err:       #ff5c47;
+    --ok:        #8fce8f;
+    --pink:      #e3aecb;
+    --pinklav:   #cfaad6;
+    --lav:       #b3a6dc;
+    --mint:      #a4d6ba;
+    --rose:      #f2c4d8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 24px 80px;
+    background: #131110;
+    color: #c9c4b8;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; color: #e8e2d2; margin: 0 0 6px; letter-spacing: .5px; }
+  .sub { font-size: 13px; color: #8f887a; margin: 0 0 34px; }
+  .framelabel { font-size: 13px; color: #b0a890; margin: 42px 0 10px; }
+  .framelabel b { color: #ffb000; font-weight: 600; }
+
+  /* ── terminal window chrome ───────────────────────────────────────── */
+  .term {
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg);
+    box-shadow: 0 18px 60px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.5);
+    border: 1px solid #2a2620;
+  }
+  .titlebar {
+    height: 34px; display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(#211d16, #191611);
+    border-bottom: 1px solid #2c2820;
+    padding: 0 14px; position: relative;
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #7a4a42; } .dot.y { background: #7a6a3a; } .dot.g { background: #4a6a4a; }
+  .titlebar .tt {
+    position: absolute; left: 0; right: 0; text-align: center;
+    font-size: 12px; color: #6f6858; pointer-events: none;
+  }
+
+  /* ── screen ───────────────────────────────────────────────────────── */
+  .screen {
+    position: relative;
+    background: var(--bg);
+    font-size: 13px; line-height: 1.3;
+    overflow: hidden;
+  }
+  .screen.s1 { height: 560px; }
+  .screen.s2 { height: 680px; }
+  /* CRT scanlines + vignette */
+  .screen::after {
+    content: ""; position: absolute; inset: 0; z-index: 40; pointer-events: none;
+    background:
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.42) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, rgba(0,0,0,0) 1px 3px);
+  }
+  .amb  { color: var(--amber);     text-shadow: 0 0 7px rgba(255,176,0,.28); }
+  .dim  { color: var(--amber-dim); }
+  .hi   { color: var(--amber-hi);  text-shadow: 0 0 8px rgba(255,215,95,.30); }
+
+  /* ── pastel ASCII cat ─────────────────────────────────────────────── */
+  pre.cat {
+    margin: 0; position: absolute; z-index: 1;
+    font-size: 13px; line-height: 1.12; white-space: pre;
+    pointer-events: none; user-select: none;
+  }
+  .cat .p  { color: var(--pink); }
+  .cat .pl { color: var(--pinklav); }
+  .cat .l  { color: var(--lav); }
+  .cat .m  { color: var(--mint); }
+  .cat .f  { color: var(--rose); }
+  .s1 .cat { left: 50%; top: 54%; transform: translate(-50%,-50%); opacity: .60; }
+  .s2 .cat { left: 60%; top: 26px; transform: translateX(-50%); opacity: .34; font-size: 12px; }
+  .spark { position: absolute; z-index: 1; pointer-events: none; }
+
+  /* ── ASCII wordmark banner ────────────────────────────────────────── */
+  pre.wordmark {
+    margin: 0; position: absolute; top: 18px; left: 24px; z-index: 2;
+    font-size: 12px; line-height: 1.2; white-space: pre;
+    color: var(--amber-dim); text-shadow: 0 0 6px rgba(255,176,0,.18);
+  }
+  pre.wordmark .v { color: #5c4200; }
+
+  /* ── TUI box (double-line border via flex fill — always aligned) ──── */
+  .box { background: var(--panel); box-shadow: 0 6px 30px rgba(0,0,0,.75); }
+  .bx { display: flex; white-space: pre; }
+  .bx .fill { flex: 1 1 0; overflow: hidden; white-space: nowrap; }
+  .bx .cell { flex: 1 1 0; overflow: hidden; white-space: pre; }
+  .bd  { color: #b07f10; text-shadow: 0 0 6px rgba(255,176,0,.22); } /* border, normal  */
+  .bdf { color: var(--amber-hi); text-shadow: 0 0 8px rgba(255,215,95,.35); } /* border, focused */
+  .bdd { color: #6b4d00; }                                            /* border, dim     */
+  .ttl { color: var(--amber-hi); }
+  .row-sel .cell { background: #33240a; }
+  .row-sel .cell, .row-sel .cell .dim { color: var(--amber-hi); text-shadow: 0 0 8px rgba(255,215,95,.3); }
+
+  .err { color: var(--err); }
+  .wrn { color: var(--amber); }
+  .inf { color: var(--amber-dim); }
+  .ok  { color: var(--ok); }
+
+  /* ── frame-2 overlay layout ───────────────────────────────────────── */
+  .leftcol { position: absolute; left: 26px; top: 20px; width: 60ch; z-index: 10; }
+  .leftcol .box + .box { margin-top: 10px; }
+  .modal {
+    position: absolute; left: 54%; top: 47%; transform: translate(-50%,-50%);
+    width: 66ch; z-index: 20;
+    box-shadow: 0 14px 60px rgba(0,0,0,.92), 0 0 0 1px rgba(0,0,0,.6);
+  }
+  .btn  { color: var(--amber); }
+  .btn-primary { background: var(--amber); color: var(--amber-ink); text-shadow: none; font-weight: 600; }
+
+  /* ── bottom progress strip + footers ─────────────────────────────── */
+  .strip {
+    position: absolute; left: 0; right: 0; bottom: 30px; z-index: 15;
+    background: var(--panel); padding: 4px 18px 6px;
+    box-shadow: 0 -6px 24px rgba(0,0,0,.7);
+  }
+  .strip .edge { display: flex; overflow: hidden; white-space: nowrap; color: #6b4d00; }
+  .strip .line { white-space: pre; overflow: hidden; }
+  .gauge-fill { color: var(--amber); text-shadow: 0 0 8px rgba(255,176,0,.45); }
+  .gauge-rest { color: #4a3600; }
+  .footerbar {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 30px; z-index: 16;
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+    font-size: 13px; white-space: pre;
+  }
+  .footerbar .k { color: var(--amber); text-shadow: 0 0 7px rgba(255,176,0,.3); font-weight: 600; }
+  .footerbar .t { color: var(--amber-dim); }
+  .s1 .footerbar { background: transparent; }
+
+  .cursor { display: inline-block; width: .6em; background: var(--amber-dim); animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .spin { animation: blink 1.4s steps(1) infinite; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>PDFPUNDIT — retro TUI mockups</h1>
+  <p class="sub">Forensic PDF repair · ratatui · Amber theme (#ffb000 on #0a0a06) · double-line borders · spec §7 “cat-first layout”</p>
+
+  <!-- ══════════════════════════ FRAME 1 ══════════════════════════ -->
+  <div class="framelabel"><b>Frame 1</b> — empty state (“cat-first”): no panels, just the pastel cat and one dim hint</div>
+  <div class="term">
+    <div class="titlebar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="tt">pdfpundit — 104×38 — amber</span>
+    </div>
+    <div class="screen s1">
+
+      <pre class="wordmark">█▀█ █▀▄ █▀▀ █▀█ █ █ █▄ █ █▀▄ █ ▀█▀
+█▀▀ █▄▀ █▀  █▀▀ █▄█ █ ▀█ █▄▀ █  █
+<span class="v">forensic pdf repair · v0.1</span></pre>
+
+      <span class="spark m" style="left:22%; top:24%; color:var(--mint); opacity:.5;">·</span>
+      <span class="spark" style="left:76%; top:20%; color:var(--rose); opacity:.5;">*</span>
+      <span class="spark" style="left:81%; top:64%; color:var(--lav);  opacity:.45;">·</span>
+      <span class="spark" style="left:17%; top:70%; color:var(--mint); opacity:.4;">*</span>
+
+      <pre class="cat"><span class="p">          ,%.                       .%,</span>
+<span class="p">         ,%%%.                     .%%%.</span>
+<span class="p">        ,%%%%%.                   .%%%%%.</span>
+<span class="p">       ,%%%%%%%*.,,,,,,,,,,,,,,,.*%%%%%%%.</span>
+<span class="pl">      ,%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.</span>
+<span class="pl">      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%</span>
+<span class="pl">      %%%%%%  <span class="f">^ ^</span>  %%%%%%%%%%%  <span class="f">^ ^</span>  %%%%%%</span>
+<span class="pl">      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%</span>
+<span class="l">      %%%%%%%%%%%%%%%  <span class="f">.w.</span>  %%%%%%%%%%%%%%%</span>
+<span class="l">       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%</span>
+<span class="l">        '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'</span>
+<span class="l">          '%%%%%%%%%%%%%%%%%%%%%%%%%%'</span>
+<span class="l">          .%%%%%%%%%%%%%%%%%%%%%%%%%.</span>
+<span class="l">         .%%%%%%%%<span class="m">:::::::::::</span>%%%%%%%%.</span>
+<span class="l">        .%%%%%%%<span class="m">:::::::::::::::</span>%%%%%%%.</span>
+<span class="l">       .%%%%%%%<span class="m">:::::::::::::::::</span>%%%%%%%.</span>
+<span class="l">      .%%%%%%%<span class="m">:::::::::::::::::::</span>%%%%%%%.        <span class="p">,%%.</span></span>
+<span class="l">      ,%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%,      <span class="p">,%%%%%%.</span></span>
+<span class="l">      %%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%     <span class="p">,%%%%%%%%.</span></span>
+<span class="l">      %%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%     <span class="p">%%%%%%%%%%</span></span>
+<span class="l">      %%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%.   <span class="p">,%%%%%%%%%'</span></span>
+<span class="l">      '%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%%<span class="p">,,,%%%%%%%%%'</span></span>
+<span class="l">       '%%%%%%%<span class="m">:::::::::::::::::</span>%%%%%%%%%<span class="p">%%%%%%%%%%'</span></span>
+<span class="l">         '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'</span>
+<span class="l">            ''%%%%%%%%%%%%%%%%%%%%%%%%%%''</span></pre>
+
+      <div class="footerbar"><span class="t">drop a PDF here · </span><span class="k">b</span><span class="t"> browse · </span><span class="k">t</span><span class="t"> theme · </span><span class="k">q</span><span class="t"> quit </span><span class="cursor">&nbsp;</span></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ FRAME 2 ══════════════════════════ -->
+  <div class="framelabel"><b>Frame 2</b> — active batch: queue + analysis panels, font-decision modal, chunky progress strip (cat peeking through the gutters)</div>
+  <div class="term">
+    <div class="titlebar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="tt">pdfpundit — 104×38 — amber — repairing…</span>
+    </div>
+    <div class="screen s2">
+
+      <!-- dim cat backdrop, peeking through gutters -->
+      <pre class="cat"><span class="p">          ,%.                       .%,</span>
+<span class="p">         ,%%%.                     .%%%.</span>
+<span class="p">        ,%%%%%.                   .%%%%%.</span>
+<span class="p">       ,%%%%%%%*.,,,,,,,,,,,,,,,.*%%%%%%%.</span>
+<span class="pl">      ,%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.</span>
+<span class="pl">      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%</span>
+<span class="pl">      %%%%%%  <span class="f">^ ^</span>  %%%%%%%%%%%  <span class="f">^ ^</span>  %%%%%%</span>
+<span class="pl">      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%</span>
+<span class="l">      %%%%%%%%%%%%%%%  <span class="f">.w.</span>  %%%%%%%%%%%%%%%</span>
+<span class="l">       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%</span>
+<span class="l">        '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'</span>
+<span class="l">          '%%%%%%%%%%%%%%%%%%%%%%%%%%'</span>
+<span class="l">          .%%%%%%%%%%%%%%%%%%%%%%%%%.</span>
+<span class="l">         .%%%%%%%%<span class="m">:::::::::::</span>%%%%%%%%.</span>
+<span class="l">        .%%%%%%%<span class="m">:::::::::::::::</span>%%%%%%%.</span>
+<span class="l">       .%%%%%%%<span class="m">:::::::::::::::::</span>%%%%%%%.</span>
+<span class="l">      .%%%%%%%<span class="m">:::::::::::::::::::</span>%%%%%%%.        <span class="p">,%%.</span></span>
+<span class="l">      ,%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%,      <span class="p">,%%%%%%.</span></span>
+<span class="l">      %%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%     <span class="p">,%%%%%%%%.</span></span>
+<span class="l">      %%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%     <span class="p">%%%%%%%%%%</span></span>
+<span class="l">      %%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%.   <span class="p">,%%%%%%%%%'</span></span>
+<span class="l">      '%%%%%%<span class="m">:::::::::::::::::::::</span>%%%%%%%%<span class="p">,,,%%%%%%%%%'</span></span>
+<span class="l">       '%%%%%%%<span class="m">:::::::::::::::::</span>%%%%%%%%%<span class="p">%%%%%%%%%%'</span></span>
+<span class="l">         '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'</span>
+<span class="l">            ''%%%%%%%%%%%%%%%%%%%%%%%%%%''</span></pre>
+
+      <!-- left column: queue + analysis -->
+      <div class="leftcol">
+        <div class="box">
+          <div class="bx bd"><span>╔══╡ <span class="ttl">QUEUE</span> ╞</span><span class="fill">══════════════════════════════════════════════════════════════════════</span><span>╗</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell amb"> <span class="ok">✓</span> report_2024.pdf    <span class="dim">— repaired · 3 findings</span></div><span class="bd">║</span></div>
+          <div class="bx row-sel"><span class="bd">║</span><div class="cell amb"> <span class="hi spin">◐</span> thesis_ar.pdf      <span class="dim">— repairing…</span></div><span class="bd">║</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell amb"> <span class="dim">·</span> invoice_scan.pdf</div><span class="bd">║</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell amb"> <span class="err">✗</span> broken_upload.pdf  <span class="dim">— unreadable</span></div><span class="bd">║</span></div>
+          <div class="bx bd"><span>╚</span><span class="fill">══════════════════════════════════════════════════════════════════════════════</span><span>╝</span></div>
+        </div>
+
+        <div class="box">
+          <div class="bx bd"><span>╔══╡ <span class="ttl">ANALYSIS: thesis_ar.pdf</span> ╞</span><span class="fill">══════════════════════════════════════════════════════</span><span>╗</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell dim"> PDF 1.7 · 214 pages · 8.4 MB</div><span class="bd">║</span></div>
+          <div class="bx bdd"><span>╟</span><span class="fill">────────────────────────────────────────────────────────────────────────────────</span><span>╢</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell amb"> <span class="err">[ERR]</span> C2 xref table missing <span class="dim">— carved 1,842 objects</span></div><span class="bd">║</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell amb"> <span class="err">[ERR]</span> C8 font resources deleted <span class="dim">(FontFile2 + ToUnicode)</span></div><span class="bd">║</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell amb"> <span class="wrn">[WRN]</span> C6 font mapping lost on 12 pages</div><span class="bd">║</span></div>
+          <div class="bx"><span class="bd">║</span><div class="cell dim"> <span class="inf">[INF]</span> header intact (%PDF-1.7)</div><span class="bd">║</span></div>
+          <div class="bx bd"><span>╚</span><span class="fill">══════════════════════════════════════════════════════════════════════════════</span><span>╝</span></div>
+        </div>
+      </div>
+
+      <!-- centered modal: font decisions -->
+      <div class="box modal">
+        <div class="bx bdf"><span>╔══╡ <span class="hi">FONT DECISIONS — 2 unresolved</span> ╞</span><span class="fill">══════════════════════════════════════════════</span><span>╗</span></div>
+        <div class="bx"><span class="bdf">║</span><div class="cell">&nbsp;</div><span class="bdf">║</span></div>
+        <div class="bx row-sel"><span class="bdf">║</span><div class="cell amb">  F3 (CIDFont+F1)  →  <span class="hi">◄ Noto Naskh Arabic ►</span>   <span class="dim">conf 0.31</span></div><span class="bdf">║</span></div>
+        <div class="bx row-sel"><span class="bdf">║</span><div class="cell dim">     preview  <span dir="rtl">العنوان: مقدمة في تحليل البيانات</span></div><span class="bdf">║</span></div>
+        <div class="bx"><span class="bdf">║</span><div class="cell">&nbsp;</div><span class="bdf">║</span></div>
+        <div class="bx"><span class="bdf">║</span><div class="cell amb">  F7 (unknown)     →  <span class="amb">◄ Noto Sans ►</span>           <span class="dim">conf 0.28</span></div><span class="bdf">║</span></div>
+        <div class="bx"><span class="bdf">║</span><div class="cell dim">     preview  1.2 Background &amp; Methods</div><span class="bdf">║</span></div>
+        <div class="bx"><span class="bdf">║</span><div class="cell">&nbsp;</div><span class="bdf">║</span></div>
+        <div class="bx bdd"><span>╟</span><span class="fill">──────────────────────────────────────────────────────────────────────────────────</span><span>╢</span></div>
+        <div class="bx"><span class="bdf">║</span><div class="cell amb">   <span class="btn">[ Apply best to all ]</span>   <span class="btn-primary">[ Confirm ]</span>   <span class="btn">[ Skip ]</span></div><span class="bdf">║</span></div>
+        <div class="bx bdf"><span>╚</span><span class="fill">══════════════════════════════════════════════════════════════════════════════════</span><span>╝</span></div>
+      </div>
+
+      <!-- bottom progress strip -->
+      <div class="strip">
+        <div class="edge">════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════</div>
+        <div class="line"><span class="gauge-fill">█████████████████████████▓▒</span><span class="gauge-rest">░░░░░░░░░░░░░</span><span class="amb"> 63%</span><span class="dim">  repairing: </span><span class="amb">thesis_ar.pdf</span></div>
+        <div class="line dim">batch 2/4 — 38% total</div>
+      </div>
+
+      <div class="footerbar"><span class="k">↑↓</span><span class="t"> select · </span><span class="k">enter</span><span class="t"> menu · </span><span class="k">a</span><span class="t"> analysis · </span><span class="k">r</span><span class="t"> repair · </span><span class="k">e</span><span class="t"> export · </span><span class="k">q</span><span class="t"> quit</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
