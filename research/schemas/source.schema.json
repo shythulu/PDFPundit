@@ -1,0 +1,252 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "source",
+ "title": "Source (paper, preprint, standard, tool doc, dataset, web page)",
+ "type": "object",
+ "required": [
+  "id",
+  "type",
+  "title",
+  "year",
+  "dedupe_key",
+  "status",
+  "topics",
+  "provenance"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^SRC-\\d{4}$"
+  },
+  "type": {
+   "enum": [
+    "paper",
+    "preprint",
+    "thesis",
+    "standard",
+    "book",
+    "tool-doc",
+    "dataset",
+    "web",
+    "talk",
+    "patent"
+   ]
+  },
+  "title": {
+   "type": "string",
+   "minLength": 3
+  },
+  "authors": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "year": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "venue": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "doi": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^10\\..+/.+"
+  },
+  "arxiv": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "url": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "dedupe_key": {
+   "type": "string",
+   "description": "doi:<doi> | arxiv:<id> | th:<sha1(title|year)[:16]> (see kbcommon.dedupe_key)"
+  },
+  "aliases": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "other dedupe keys for the same work (preprint vs journal)"
+  },
+  "duplicate_of": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^SRC-\\d{4}$"
+  },
+  "access": {
+   "enum": [
+    "oa",
+    "paywalled",
+    "unknown",
+    "local"
+   ]
+  },
+  "status": {
+   "enum": [
+    "seed",
+    "screened-in",
+    "screened-out",
+    "read",
+    "extracted"
+   ]
+  },
+  "topics": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "minItems": 1
+  },
+  "relevance": {
+   "type": [
+    "integer",
+    "null"
+   ],
+   "minimum": 1,
+   "maximum": 3,
+   "description": "3 = directly on PDF repair/recovery"
+  },
+  "evidence_grade": {
+   "type": "object",
+   "properties": {
+    "damage": {
+     "enum": [
+      "synthetic",
+      "real",
+      "mixed",
+      "n/a",
+      "unknown"
+     ]
+    },
+    "code_public": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "data_public": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "replicated": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    }
+   }
+  },
+  "fulltext_sha256": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^[0-9a-f]{64}$"
+  },
+  "fulltext_from": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "fulltext_fetched_at": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "doi_check": {
+   "enum": [
+    "match",
+    "mismatch",
+    "not-found",
+    "unchecked",
+    null
+   ],
+   "description": "set by kb_validate --online --write only"
+  },
+  "doi_checked_at": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "notes_path": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "summary": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "1-3 sentences, our words"
+  },
+  "provenance": {
+   "type": "object",
+   "required": [
+    "agent",
+    "method",
+    "added_at"
+   ],
+   "properties": {
+    "agent": {
+     "type": "string",
+     "description": "role of the agent that created the record, e.g. 'chair', 'scoping-backward'"
+    },
+    "method": {
+     "enum": [
+      "crossref",
+      "dblp",
+      "opencitations",
+      "arxiv",
+      "openalex",
+      "semantic-scholar",
+      "core",
+      "parallel-search",
+      "parallel-fetch",
+      "webfetch",
+      "websearch",
+      "local-file",
+      "memory",
+      "user",
+      "derived"
+     ]
+    },
+    "search_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^SRCH-\\d{4}$"
+    },
+    "added_at": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,188 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "gap",
+ "title": "Research gap",
+ "type": "object",
+ "required": [
+  "id",
+  "title",
+  "statement",
+  "type",
+  "evidence",
+  "scores",
+  "status",
+  "still_open",
+  "provenance"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^GAP-\\d{3}$"
+  },
+  "title": {
+   "type": "string"
+  },
+  "statement": {
+   "type": "string"
+  },
+  "type": {
+   "enum": [
+    "explicit-future-work",
+    "stated-limitation",
+    "untested-condition",
+    "contradiction",
+    "cross-field-transfer",
+    "method-weakness",
+    "evaluation-weakness",
+    "tooling-gap"
+   ]
+  },
+  "evidence": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^CLM-\\d{4}$"
+   },
+   "minItems": 1
+  },
+  "inference": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "our reasoning when the gap is inferred rather than stated"
+  },
+  "damage_classes": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^(C(10|[1-9])|DMG-\\d{3})$"
+   }
+  },
+  "workstream": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "scores": {
+   "type": "object",
+   "required": [
+    "impact",
+    "feasibility",
+    "novelty",
+    "confidence"
+   ],
+   "properties": {
+    "impact": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5
+    },
+    "feasibility": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5
+    },
+    "novelty": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5
+    },
+    "confidence": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5
+    }
+   }
+  },
+  "status": {
+   "enum": [
+    "candidate",
+    "supported",
+    "prioritized",
+    "hypothesis",
+    "closed",
+    "superseded"
+   ],
+   "description": "anything above 'candidate' needs >=1 evidence claim with quote_check exact|fuzzy"
+  },
+  "still_open": {
+   "enum": [
+    "yes",
+    "no",
+    "unknown"
+   ]
+  },
+  "still_open_checked_at": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "still_open_evidence": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "related_gaps": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^GAP-\\d{3}$"
+   }
+  },
+  "hypotheses": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^HYP-\\d{3}$"
+   }
+  },
+  "provenance": {
+   "type": "object",
+   "required": [
+    "agent",
+    "method",
+    "added_at"
+   ],
+   "properties": {
+    "agent": {
+     "type": "string",
+     "description": "role of the agent that created the record, e.g. 'chair', 'scoping-backward'"
+    },
+    "method": {
+     "enum": [
+      "crossref",
+      "dblp",
+      "opencitations",
+      "arxiv",
+      "openalex",
+      "semantic-scholar",
+      "core",
+      "parallel-search",
+      "parallel-fetch",
+      "webfetch",
+      "websearch",
+      "local-file",
+      "memory",
+      "user",
+      "derived"
+     ]
+    },
+    "search_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^SRCH-\\d{4}$"
+    },
+    "added_at": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  }
+ }
+}
