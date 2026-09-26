@@ -137,3 +137,6 @@ this in D1.
 - [x] Lock D2 layout and D3 aesthetic; then build the mockup to the chosen
       aesthetic: `pdfpundit-ansi-bbs.mockup.html` (ANSI BBS, DarkBerry, cat-face
       drop target). The earlier amber CRT mockup was rejected and removed.
+      To review or change it, start with
+      [`../mockups/pdfpundit-ansi-bbs/README.md`](../mockups/pdfpundit-ansi-bbs/README.md):
+      it has the generator, PNG stills of every frame, and the open issues.
