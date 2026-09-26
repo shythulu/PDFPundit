@@ -15,10 +15,61 @@ planStatus:
     - repair
     - cross-platform
   created: "2026-07-15"
-  updated: "2026-07-17T06:10:00.000Z"
+  updated: "2026-09-26T12:00:00.000Z"
   progress: 0
 ---
 # PDFPundit — Rust Multiplatform PDF Analysis & Repair Tool
+
+## Goal
+
+> **Force serious people to interact with a very unserious application in order
+> to achieve best-in-class PDF repair and Markdown creation.**
+
+Forensic investigators at extremely serious policing agencies, and very serious
+auditors, should have no choice but to feed their PDFs to a kitty cat. "No
+choice" means PDFPundit is simply the best tool for repairing a damaged PDF or
+turning one into Markdown, and the only way to use it is through the cat.
+
+The goal only works if all three of these hold:
+
+1. **The results are beyond reproach.** The cat only gets away with it if the
+   output is the best available and survives scrutiny. Always, for everyone:
+   - originals are never modified
+   - the same input gives the same output
+   - everything works fully offline
+   - recovery rates are measured against the public REPDF corpus and published
+
+   For users who need it, an optional **chain-of-custody mode** (see M6b) hashes
+   every input and output, proves the originals were untouched, and writes a run
+   report that records exactly what changed and why.
+2. **The cat is not optional.** No "professional mode", setting, theme or flag
+   removes it. The main way in is dropping files on its face (see
+   [pdfpundit-ui-design.md](pdfpundit-ui-design.md) and the
+   `pdfpundit-ansi-bbs.mockup.html` mockup).
+3. **The artefacts stay serious.** The joke lives in the interaction, never in
+   the output. Repaired PDFs and exported Markdown carry no cat, so they can go
+   straight into a case file or an audit working paper. If the output embarrassed
+   its user, a serious organisation would ban the tool, and then they would have
+   a choice.
+
+Every decision in this plan and the technical design should be tested against
+this goal: does it make the results harder to fault, and does it keep the cat
+unavoidable?
+
+### Conflicts with the goal
+
+Resolved (2026-09-26):
+
+- **Headless CLI: dropped.** A command line would be a cat-free way in. It is
+  out of the Pundit+ phase and listed under Non-Goals.
+- **Chain of custody: in, as an option.** Added as milestone M6b. Off by
+  default; switched on in setup. Deterministic output is always on (M6).
+- **Markdown export: in v1.** It stands alongside repair as a headline
+  feature (M8), no longer a fast-follow. Its riskiest unknown, the
+  `hayro-interpret` glyph spike, moves up to run with M3.
+- **Random cat: shelved.** The bundled cat face is always on. A fetched cat
+  photo re-skinning the animated face is a later idea that needs research first
+  (see "Shelved: random cat skins" below).
 
 ## Summary
 
@@ -38,7 +89,7 @@ corrupted PDF files through font mapping and object relationship reconstruction"
 taxonomy (C1–C10) defines PDFPundit's analysis and repair passes and serves as its
 benchmark corpus.
 
-A second capability (a fast-follow after repair) is **high-quality PDF → Markdown
+The second v1 capability, alongside repair, is **high-quality PDF → Markdown
 export**. Because the repair pipeline reconstructs correct fonts and `/ToUnicode`
 mappings, the text feeding extraction is *correct Unicode* — so export quality on
 damaged or CID-font PDFs beats tools that extract from the raw file. Layout,
@@ -66,6 +117,8 @@ of **`spdf`** (MIT), driven by our own pure-Rust `PdfEngine` (no PDFium).
 - Cloud sync / accounts / multi-user.
 - Mobile (iOS/Android) targets.
 - Re-implementing REPDF's server or web UI — we adopt its *method*, not its hosting.
+- A headless CLI or scripted batch mode. Dropped on 2026-09-26: it would be a
+  way around the cat, and the cat is the only way in (see Goal).
 - Office/non-PDF input conversion and OCR of scanned pages for Markdown export
   (spdf's LibreOffice/Tesseract paths) — deferred to the "Pundit+" phase.
 
@@ -180,9 +233,9 @@ fallback. Crate versions/health verified on crates.io (Jul 2026).
 | **MD export — glyph extraction** | our **pure-Rust `PdfEngine`** on `hayro-interpret` | — | Feeds per-glyph items (text + bbox + font attrs) into spdf, replacing spdf's PDFium `spdf-pdf`. Keeps export FFI-free. |
 | **MD export — layout/tables** | `spdf-projection` + `spdf-types` + `spdf-processing` (MIT) | (our own projection if spdf's API churns) | Engine-agnostic spatial-grid projection: columns, reading order, tables, faux-bold dedup. The hard layout logic, reused not rebuilt. |
 | **MD export — Markdown emitter** | our `export/markdown.rs` (GFM) | contribute to `spdf-output` | spdf ships text/JSON only; the Markdown formatter is our value-add (headings by font size, emphasis by flags, GFM tables, image refs, links). |
-| Retro cat background — fetch | **`ureq`** (3.3) + **`rustls-graviola`** provider | `minreq` | Sync HTTPS for thecatapi.com — runs on a blocking job thread (doesn't pull reqwest/its own async stack), and no C compiler (ureq's default `ring` provider compiles C/asm; graviola doesn't). Optional/opt-in, off by default. |
-| Retro cat background — ASCII | **`artem`** (3.0, lib target, `default-features = false`) | hand-rolled luminance ramp | Image → colored ASCII sized to the terminal; ANSI output parsed into cells. (`rascii_art` dropped — unmaintained since 2023. artem is MPL-2.0: recorded license exception.) |
-| Retro cat background — colors | **`palette`** (0.7) | hand-rolled OkLCh (~50 lines) | Oklch: raise lightness + drop saturation + nudge hue → pastels. (`pastel` git dep dropped — unversioned, drags clap/build.rs.) |
+| *(shelved)* Random cat — fetch | **`ureq`** (3.3) + **`rustls-graviola`** provider | `minreq` | Sync HTTPS for thecatapi.com — runs on a blocking job thread (doesn't pull reqwest/its own async stack), and no C compiler (ureq's default `ring` provider compiles C/asm; graviola doesn't). Optional/opt-in, off by default. |
+| *(shelved)* Random cat — ASCII | **`artem`** (3.0, lib target, `default-features = false`) | hand-rolled luminance ramp | Image → colored ASCII sized to the terminal; ANSI output parsed into cells. (`rascii_art` dropped — unmaintained since 2023. artem is MPL-2.0: recorded license exception.) |
+| *(shelved)* Random cat — colors | **`palette`** (0.7) | hand-rolled OkLCh (~50 lines) | Oklch: raise lightness + drop saturation + nudge hue → pastels. (`pastel` git dep dropped — unversioned, drags clap/build.rs.) |
 
 **Decision — pure-Rust only:** no C FFI. `qpdf`, `mupdf`, and `pdfium` are **not**
 used; the `hayro` family (incl. `hayro-jpeg2000`) covers rendering and JPEG2000 in
@@ -220,7 +273,7 @@ pdfpundit/
    ├─ app.rs              # App state, panel focus, key/mouse routing, dispatch
    ├─ input.rs            # crossterm events + terminal path-paste → actions
    ├─ theme.rs            # retro color scheme, borders, ASCII banner
-   ├─ catbg.rs            # optional cat backdrop: fetch (ureq+graviola) → artem → palette + cache
+   ├─ catbg.rs            # (shelved) random cat: fetch (ureq+graviola) → artem → palette + cache
    ├─ ui/                 # terminal UI — framework/layout/theme per pdfpundit-ui-design.md
    ├─ library.rs          # file-history index + persistence (JSON, atomic writes)
    ├─ jobs.rs             # job runner — std threads + mpsc; streams AppEvent/JobEvent to the UI
@@ -234,7 +287,7 @@ pdfpundit/
       ├─ emit.rs          # step 7: assemble recovered objects into template → output
       ├─ diagnose.rs      # C1–C10 detectors → Findings
       ├─ repair.rs        # C1–C10 repair passes → writes <name>.repaired.pdf
-      └─ export/          # high-quality PDF → Markdown (fast-follow feature)
+      └─ export/          # high-quality PDF → Markdown (v1)
          ├─ engine.rs     # pure-Rust PdfEngine (hayro-interpret) → spdf glyph items
          ├─ layout.rs     # drive spdf-projection: columns, reading order, tables
          └─ markdown.rs   # structured layout → GFM (headings, lists, tables, images)
@@ -272,12 +325,30 @@ The engine (this plan + the technical design) is UI-agnostic: it streams typed
 events (`JobEvent`) and view data (`QueueEntry`, `BatchState`, font-decision
 requests) that any UI consumes.
 
-The one UI-adjacent piece kept here is the optional cat backdrop, because it is a
-self-contained cosmetic feature with its own crate stack:
+The one UI-adjacent piece kept here is the random-cat feature, because it has its
+own crate stack. It is shelved:
 
-### Background: ASCII-art cats 🐱 (optional cosmetic)
+### Shelved: random cat skins (was: ASCII-art cat backdrop)
 
-A dim, cute ASCII-art **cat** sits behind the panels as wallpaper. Pipeline:
+**Shelved on 2026-09-26.** The backdrop idea below predates the cat-face design.
+The cat face ships in v1: it is bundled, drawn by the app, always on and needs
+no network. The random cat comes back later with a new job. A fetched cat photo
+would **re-skin the animated cat face**, so each install or session gets its own
+cat, still turning to watch the file and opening wide to eat it.
+
+That needs research and new work before it can be planned:
+
+- converting a photo into half-block art that matches the face at 112×38
+- finding the cat's features in the photo (eyes, ears, nose, mouth) so it can
+  be posed
+- animating a single still photo through the drag poses (head turn, look up,
+  mouth open)
+- keeping it recognisably the fetched cat and on-theme
+
+The fetch pipeline below still holds for the download half and is kept for
+reference. The network stays off by default.
+
+Original backdrop design (a dim cat behind the panels as wallpaper):
 
 1. Fetch a random cat from **thecatapi.com** (`GET /v1/images/search`, `x-api-key`
    header) using **`ureq`** (pure-Rust, sync, on a blocking job thread; rustls with
@@ -342,17 +413,47 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 - [ ] Stream/truncation repairs C9–C10 (byte-by-byte inflate to limit loss).
 - [ ] Template emitter assembling recovered content/font/image objects into output.
 - [ ] Actions panel checklist + run log; re-diagnose after repair to confirm resolution.
+- [ ] Deterministic output, always on: the same input, version and settings give a
+      byte-identical file. No wall-clock timestamps, stable object numbering, and
+      a trailer `/ID` derived from the input hash.
+
+### M6b — Chain of custody (optional mode)
+
+Off by default. Switched on in setup (`[custody] enabled`). While it is on, the
+status bar says so, and nothing about the repair itself changes.
+
+- [ ] When files are dropped, the cat asks once per batch for a case reference and
+      examiner name (both can be left blank).
+- [ ] Hash each input before it is read (SHA-256, plus MD5 and SHA-1 for older case
+      systems), and hash each output after it is written.
+- [ ] Re-hash each original after the run and record that it was unchanged.
+- [ ] Per-file run record:
+      - tool version and build hash, font-DB version, settings snapshot
+      - UTC start and end times, host name
+      - passes run, findings before and after
+      - every repair action, with object IDs
+      - output paths and hashes
+- [ ] Write `<name>.custody.json` (machine-readable) and `<name>.custody.txt`
+      (human-readable) beside each output. The same applies to Markdown exports.
+      These reports carry no cat (see Goal, point 3).
+- [ ] Append-only custody log across runs. Each entry includes the hash of the
+      previous entry, so later edits are detectable.
+- [ ] "Verify" action on a finished file: re-hash the original and the output and
+      compare them against the report.
 
 ### M7 — Benchmark, retro polish & packaging
 - [ ] Batch harness measuring text/image recovery across the REPDF corpus vs. the paper's numbers.
-- [ ] Retro theme(s), ASCII banner, selectable palettes; about screen.
-- [ ] Pastel ASCII-cat background: `catbg.rs` (ureq+rustls-graviola fetch → artem → `palette`),
-      disk cache, bundled offline fallback, on/off + offline-mode settings, obfuscated key.
+- [ ] Themes: DarkBerry flavours (Blackwater default) plus the others, the theme
+      chooser, the block-pixel logo; about screen.
+- [ ] The cat face, bundled and drawn by the app: the meme start pose, the drag
+      animation (10 frames at most), eating and contented states. See
+      `pdfpundit-ansi-bbs.mockup.html`.
 - [ ] `cargo-dist` binaries/installers for macOS, Windows, Linux via CI matrix.
 - [ ] Docs / README with usage.
 
-### M8 — High-quality PDF → Markdown export (fast-follow)
-- [ ] Spike: confirm `hayro-interpret` exposes per-glyph text + bbox + font attrs.
+### M8 — High-quality PDF → Markdown export (v1)
+- [ ] Spike, run early alongside M3: confirm `hayro-interpret` exposes per-glyph text,
+      bbox and font attributes. If it doesn't, v1 needs our own content-stream interpreter.
 - [ ] Pure-Rust `PdfEngine` adapter feeding `spdf-types` items (replaces `spdf-pdf`/PDFium).
 - [ ] Wire `spdf-projection` for columns, reading order, and best-effort GFM tables.
 - [ ] `markdown.rs` emitter: headings (font-size tiers), emphasis (font flags), lists,
@@ -362,9 +463,12 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 
 ### Future — the "Pundit+" phase (out of v1 scope)
 - OCR pass (`spdf-ocr`/Tesseract or pure-Rust) to rebuild text layers on scanned/image-only documents — also unlocks Markdown export of scans.
-- Headless CLI / batch mode for scripted folder repair.
 - Standards deep-dive: full PDF/A validation & conversion.
 - Optional AI-assisted findings explanations / repair suggestions.
+
+### Shelved
+- Random cat skins: a fetched cat photo re-skins the animated cat face. Needs
+  research first (see "Shelved: random cat skins" above).
 
 ## Risks & Open Questions
 
@@ -373,12 +477,13 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 - **Known-hard cases:** the paper's own weak spots carry over — Arabic font inference (~33–40% for C6/C8 due to inflection), "Print to PDF" files with mutating font names (`CIDFont+F1`), C9 zlib (~60%), and C10 "Print to PDF" truncation (~35%). The interactive font picker is our lever to beat the automatic-only scores.
 - **Pure-Rust ceiling (decided):** no C FFI — carver/rebuilder is entirely ours on `lopdf`, rendering via the `hayro` family. Accepted trade-off: no battle-tested C library (`qpdf`/`mupdf`) to lean on for the nastiest structural cases, so our carver's robustness is the ceiling. Mitigate with the corpus benchmark harness.
 - **Font tooling parity (reduced):** REPDF leans on `fonttools`+`pikepdf`. The `fontations`/"oxidize" stack (`read-fonts`/`skrifa`) covers CID/CFF *reading* well; the immature part (CFF *subsetting*/writing) is sidestepped because we embed the *full* font program bytes rather than subsetting. Residual risk is narrow: correctly reading CID charset/FDSelect and generating `/ToUnicode` for composite Type0 fonts. Still worth an early spike on a C7/C8 CJK/CFF corpus file. Arabic/Hindi correctness also needs `harfrust` shaping, not just glyph lookup.
-- **Markdown export depends on two unknowns:** (1) `hayro-interpret` must expose per-glyph text + bbox + font attributes for our `PdfEngine` adapter — verify with a spike before committing to M8; if it doesn't, we extend hayro or fall back to our own content-stream interpreter. (2) `spdf` is early (v0.2.0-alpha) — API churn risk; mitigated because its projection core is small and MIT, so we can vendor/fork if needed.
+- **Markdown export depends on two unknowns:** (1) `hayro-interpret` must expose per-glyph text + bbox + font attributes for our `PdfEngine` adapter — verify with a spike alongside M3, since Markdown is now v1; if it doesn't, we extend hayro or fall back to our own content-stream interpreter. (2) `spdf` is early (v0.2.0-alpha) — API churn risk; mitigated because its projection core is small and MIT, so we can vendor/fork if needed.
 - **Markdown emitter is ours:** spdf outputs text/JSON, not Markdown — the GFM formatter (esp. table rendering and heading inference) is net-new work and where "high quality" is won or lost.
 - **Terminal drag-drop UX:** drop-on-terminal behavior varies by emulator (most paste the path). The `browse…` picker is the guaranteed fallback.
 - **UI framework undecided (open):** the terminal-UI framework/styling stack is not yet chosen — see [pdfpundit-ui-design.md](pdfpundit-ui-design.md). To keep this a non-blocking decision, the engine is UI-agnostic (emits the `JobEvent` stream + view data), so the choice can be made and changed without engine impact. The known trade-space: ratatui (mature, manual styling, easy cell-buffer backdrop compositing) vs. the Charm/lipgloss stack (prebuilt styles/components — the "library of styles" the user wants — younger, async-first, string-composition makes the cat backdrop harder).
 - **Retro vs legibility:** CRT/scanline effects and the cat background must never hurt readability of findings — the wallpaper is dimmed and panels stay opaque; decoration is subordinate to reliable results.
-- **Cat background = network + secret:** fetching cats reaches the internet, which a forensic tool often shouldn't do unprompted — so it's opt-in, off by default, with an offline mode and bundled fallback. The embedded thecatapi key is obfuscated and kept out of source, but can't be truly secret (acceptable: cats only).
+- **Cat background = network + secret (shelved with the feature):** fetching cats reaches the internet, which a forensic tool often shouldn't do unprompted — so it's opt-in, off by default, with an offline mode and bundled fallback. The embedded thecatapi key is obfuscated and kept out of source, but can't be truly secret (acceptable: cats only).
+- **Terminals don't report a drag until the drop.** During an operating-system drag, the terminal passes no hover or mouse-move events to the app. The path only arrives as a paste when the file is dropped. So the cat can't watch a file that is still being dragged over it, and the mockup's animation would have to play as a quick reaction right after the drop. Check whether any target terminal (for example kitty or WezTerm) supports a drag-and-drop protocol that reports hover. If none does, redesign the animation around the drop.
 
 ## Success Criteria
 

@@ -23,8 +23,8 @@ planStatus:
 
 The feature plan [pdfpundit-desktop-app.md](/Users/shylo/source/PDFPundit/nimbalyst-local/plans/pdfpundit-desktop-app.md)
 defines *what* PDFPundit is: a pure-Rust, REPDF-grounded forensic PDF repair
-tool with a terminal UI, targeting the C1–C10 corruption taxonomy, plus a
-fast-follow PDF→Markdown export. This document is the level below — the
+tool with a terminal UI, targeting the C1–C10 corruption taxonomy, plus
+PDF→Markdown export (both v1). This document is the level below — the
 technical design an implementer codes from: module tree, core data model,
 concurrency/event architecture, carver and rebuild algorithms, font database
 and substitution policy, persistence, the engine↔UI contract, and testing.
@@ -90,6 +90,8 @@ single crate, MIT/Apache code deps.
     the job runner in M3) or the M1 event loop gets retrofitted. (§9)
 13. **M8 churn containment**: `spdf-*` and all export code behind a cargo
     feature `export` so alpha-dep churn can never break the core build.
+    Markdown is v1 (decided 2026-09-26), so `export` is a **default** feature
+    and every release build ships with it. The flag only isolates churn in dev.
 14. **UI/aesthetic deferred**: the terminal-UI framework, the cat-first layout,
     themes, and copy are **out of scope here** — parked in
     [pdfpundit-ui-design.md](pdfpundit-ui-design.md). This document specifies
@@ -104,7 +106,7 @@ pdfpundit/                       # single crate (+ tools/ workspace member)
 │  ├─ jobs.rs                    # JobRunner, AppEvent/JobEvent, CancelToken, interaction rendezvous
 │  ├─ config.rs                + # Config (config.toml), app-dirs resolution
 │  ├─ library.rs                 # HistoryStore trait + JSON backend
-│  ├─ catbg.rs                   # optional cat backdrop: fetch/convert/cache (cosmetic; see UI plan §D4)
+│  ├─ catbg.rs                   # (shelved 2026-09-26) random cat: fetch/convert/cache; see feature plan
 │  ├─ ui/                        # ← framework/layout/theme designed in pdfpundit-ui-design.md
 │  └─ pdf/
 │     ├─ model.rs              + # shared types: CorruptionClass, Finding, ObjId…
@@ -113,7 +115,7 @@ pdfpundit/                       # single crate (+ tools/ workspace member)
 │     ├─ streams.rs              # inflate (flate2), C9 salvage (miniz_oxide), classifier
 │     ├─ graph.rs              + # ObjectGraph (hand-rolled)
 │     ├─ pages.rs  rebuild.rs  fontdb.rs  emit.rs  diagnose.rs  repair.rs  meta.rs
-│     └─ export/                 # M8, behind cargo feature "export"
+│     └─ export/                 # M8 (v1), default cargo feature "export"
 ├─ src/bin/corpus.rs           + # dev-only REPDF-corpus benchmark harness
 ├─ tools/build-templates/        # dev-time generator: templates, fontindex, gmaps
 └─ tests/fixtures.rs           + # programmatic C1–C10 corruptors + golden PDFs
@@ -136,7 +138,7 @@ pub enum AppEvent {                          // what the UI's event source yield
     Tick,
 }
 
-pub enum JobKind { Analyze, Repair { passes: Vec<CorruptionClass> }, ExportMarkdown, FetchCat }
+pub enum JobKind { Analyze, Repair { passes: Vec<CorruptionClass> }, ExportMarkdown, FetchCat /* shelved */ }
 
 pub enum JobEvent {
     Started { kind: JobKind, file: PathBuf },
@@ -488,14 +490,17 @@ extract_unplaceable_images = true
 source = "bundled"                # bundled | system   (per-run override in the TUI)
 prompt_unresolved = true          # false ⇒ auto-pick best candidate silently
 
+[custody]                         # optional chain-of-custody mode (feature plan M6b)
+enabled = false                   # hashes, run reports, custody log
+hashes = ["sha256", "sha1", "md5"]
+ask_case_details = true           # the cat asks for case ref + examiner once per batch
+log_path = ""                     # "" = data_dir()/custody.log (append-only, hash-chained)
+
 [ui]
 theme = "default"                 # theme names defined by the UI plan (deferred)
 mouse = true
-cat_background = true             # optional cosmetic backdrop; obeys [general].offline
-cat_refresh_hours = 24
-
-[catapi]
-api_key = ""                      # overrides the embedded obfuscated key
+# cat_background / cat_refresh_hours and [catapi] are shelved with the random-cat feature.
+# The cat face itself has no settings: it is always on.
 ```
 
 ## 7. UI — deferred (see separate plan)
@@ -559,8 +564,8 @@ threshold `recovery ≥ baseline − 2%`); `corpus-full` nightly; `dist`
 | 4 | `pdf/diagnose.rs` C1–C10 detectors + `/Encrypt` detector; analysis panel findings tree; corpus classification test | M4 |
 | 5 | **Parallel track from step 2:** `tools/build-templates` (read-fonts extraction, harfrust shaped gmaps, lopdf template emit, fontindex); runtime `pdf/fontdb.rs` loader + scorer; system-font enumeration (fontique) + `FontResolution`; `ui/fontpick.rs` + substitution menu + rendezvous | M5 |
 | 6 | `pdf/emit.rs` (RebuildDoc, strategy selector, template harvest, verification); `pdf/repair.rs` passes in order C9→C10→C5→C4→C6→C7→C8; `/ToUnicode` rebuild; image extraction; context-menu actions + pass checklist; re-diagnose loop | M6 |
-| 7 | `src/bin/corpus.rs` + scoring; scorer weight tuning; cat fetch pipeline (ureq+graviola → artem → palette) + themes + banner; third-party-viewer spot-check of a corpus sample; cargo-dist CI; docs | M7 |
-| 8 | **Spike `hayro-interpret` glyph API first**; then `pdf/export/*` behind `feature = "export"`; spdf wiring; Markdown emitter; export action + quality harness | M8 |
+| 7 | `src/bin/corpus.rs` + scoring; scorer weight tuning; cat face + drag animation + themes + banner (random-cat fetch shelved); third-party-viewer spot-check of a corpus sample; cargo-dist CI; docs | M7 |
+| 8 | **Spike `hayro-interpret` glyph API first, alongside step 3** (Markdown is v1); then `pdf/export/*` behind the default `feature = "export"`; spdf wiring; Markdown emitter; export action + quality harness | M8 |
 
 Critical path: 1 → 3 → 4 → 6. The font DB (step 5) is the long pole for M6's
 font passes and starts as soon as step 2 finishes — `tools/build-templates`
@@ -629,7 +634,7 @@ where, and why" questions.
 - **C2 — keep pdf-extract as independent scorer**: a second opinion decorrelates measurement from our stack; costs the duplication (could be contained behind a `corpus` cargo feature).
 - **C3 — both, feature-gated**: hayro for extraction+spike, pdf-extract cross-check only inside the corpus bin.
 
-**D. Cat-fetch network purity** (`catbg.rs`, §7)
+**D. Cat-fetch network purity** (`catbg.rs`, §7) — *shelved 2026-09-26 with the random-cat feature; kept for when it returns*
 - **D1 — bundled cat pack only**: zero network code in a forensic tool; several cats shipped in assets, "new cat" rotates the pack; simplest and purest; loses live fetch.
 - **D2 — ureq + rustls-graviola**: keeps live thecatapi fetch with a pure-cargo, no-C build; graviola is young (0.4) but authored by the rustls maintainer; x86_64/aarch64 only.
 - **D3 — ureq default (ring)**: most battle-tested; compiles C/asm — breaks the plan's stated constraint for a cosmetic feature.
@@ -655,7 +660,7 @@ All four resolved with the user (2026-07-16):
 - **C. Benchmark extraction: hayro-interpret only.** pdf-extract dropped; the
   corpus harness doubles as the M8 glyph-API spike. Shared-blind-spot risk
   mitigated by spot-checking a corpus sample in a third-party viewer during M7.
-- **D. Cat fetch: ureq + rustls-graviola.** `ureq` built with
+- **D. Cat fetch: ureq + rustls-graviola** *(shelved with the feature)*. `ureq` built with
   `rustls-no-provider`, graviola configured as the Agent's CryptoProvider —
   live thecatapi fetch with no C compiler anywhere in the build.
 

@@ -105,9 +105,16 @@ Decide: one fixed theme vs. a few selectable variants; retro vs. pastel vs. both
 Whatever framework wins D1 should make theme swaps cheap (ties back to the
 "library of styles" requirement).
 
-### D4 — ASCII-art backdrop (optional cosmetic)
+### D4 — ASCII-art backdrop — superseded, then shelved
 
-The optional cat wallpaper (opt-in, off by default; bundled fallback when
+Superseded by the cat face, which is now the centre of the layout and the drop
+target. It is bundled, drawn by the app and always on (see the
+`pdfpundit-ansi-bbs.mockup.html` mockup). The random-cat fetch is **shelved as of
+2026-09-26**. Its future job is to re-skin the animated cat face with a fetched
+photo, which needs research first (see "Shelved: random cat skins" in the feature
+plan).
+
+Original note: the optional cat wallpaper (opt-in, off by default; bundled fallback when
 offline) and its pipeline (`ureq` fetch → `image` decode → ASCII conversion →
 pastel color-shift) live in the engine plan's crate stack as a self-contained
 feature. UI-side question: **compositing** a dim backdrop *behind* opaque panels
@@ -127,5 +134,6 @@ this in D1.
       maintenance) — ratatui + styling helpers vs. lipgloss-rs vs. full
       bubbletea-rs stack vs. charmed-bubbles.
 - [ ] Pick the framework against the "library of styles" requirement.
-- [ ] Lock D2 layout and D3 aesthetic; then build the mockup
-      (`/mockup`, `pdfpundit-tui.mockup.html`) to the chosen aesthetic.
+- [x] Lock D2 layout and D3 aesthetic; then build the mockup to the chosen
+      aesthetic: `pdfpundit-ansi-bbs.mockup.html` (ANSI BBS, DarkBerry, cat-face
+      drop target). The earlier amber CRT mockup was rejected and removed.
