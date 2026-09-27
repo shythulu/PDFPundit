@@ -38,6 +38,15 @@ One C6 file is a generator defect rather than font-mapping loss: corrupted/savea
 - Script: `research/experiments/corpus_characterize.py` · Result file: `research/experiments/results/corpus_characterize.summary.json`
 - Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
 
+## OBS-0005
+
+REPDF's C9 ('stream zlib') damage is one changed byte per damaged stream, plus changes outside streams in 99 of 100 files: of 2162 changed bytes, 1747 sit in stream bodies (exactly one per damaged stream), 398 in object syntax (255 in standalone array objects such as font width arrays, 116 in dictionaries including 15 near /Length, 27 in bare-number objects such as indirect lengths) and 17 between objects. A repair that only searches inside stream bodies cannot restore C9 files to their originals.
+
+- Result: changed_bytes_by_location: stream body 1747, object syntax 398, between objects 17; changed_bytes_per_damaged_stream: {1: 1747}; files_with_changes_outside_streams 99/100; object_syntax_by_value_type: array 255, dict 116, other 27. Agrees with OBS-0300/0302 (flate_c9_probe.py: 1443 Flate + 304 other stream bodies = 1747; 415 outside).
+- Reproduce: `python3 research/experiments/c9_outside_streams.py /home/user/dfrc-korea/repdf research/experiments/results/c9_outside_streams`
+- Script: `research/experiments/c9_outside_streams.py` · Result file: `research/experiments/results/c9_outside_streams.summary.json`
+- Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
+
 ## OBS-0300
 
 In REPDF's C9 files, every damaged Flate stream carries exactly one changed byte, and a plain zlib inflate almost never notices it where it happens: 1217 of 1442 damaged streams (84%) decode to the end and fail only the Adler-32 check, 221 raise a decode error, 4 run out of input. A naive 'decode until error' salvage therefore emits wrong bytes in 1375 of 1442 streams (median 11,426 wrong bytes per stream).

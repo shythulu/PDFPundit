@@ -13,7 +13,7 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 | GAP-201 | 4.4 | Language-prior fabrication in glyph-to-Unicode recovery is unmeasured | evaluation-weakness | supported | yes | 6/6 | 0 | W3 | C6, C7, C8 |  |
 | GAP-004 | 4.2 | Context-aware glyph-to-Unicode recovery for complex scripts | explicit-future-work | supported | unknown | 4/4 | 1 | W1 | C6, C8 |  |
 | GAP-005 | 4.2 | Compressed-stream (DEFLATE) recovery beyond byte-level salvage | stated-limitation | supported | unknown | 14/14 | 0 | W1 | C9, C10 |  |
-| GAP-013 | 4.2 | REPDF benchmark does not match its own description | contradiction | supported | unknown | 4/4 | 1 | W3 | C6, C7, C8, C9 |  |
+| GAP-013 | 4.2 | REPDF benchmark does not match its own description | contradiction | supported | unknown | 7/7 | 1 | W3 | C6, C7, C8, C9 |  |
 | GAP-150 | 4.2 | Locating the corrupted byte inside a Flate stream | stated-limitation | supported | yes | 6/6 | 0 | W1 | C9, DMG-007, DMG-002 | HYP-150 |
 | GAP-253 | 4.2 | Adler-32 is not a trustworthy oracle: engines ignore checksum failures | method-weakness | supported | unknown | 7/7 | 0 | W1 | C9, DMG-007, DMG-251 |  |
 | GAP-002 | 4.0 | Producer diversity (non-Word PDFs, scans) | explicit-future-work | supported | unknown | 3/3 | 0 | W3 |  |  |
@@ -21,7 +21,7 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 | GAP-009 | 4.0 | Baselines against open-source repair engines | evaluation-weakness | supported | unknown | 3/3 | 0 | W3 |  |  |
 | GAP-010 | 4.0 | Forensic provenance of recovered vs synthesized content | untested-condition | supported | unknown | 7/7 | 1 | W1 |  |  |
 | GAP-015 | 4.0 | Tamper-aware repair (hostile and anti-forensic PDFs) | untested-condition | candidate | unknown | 2/2 | 0 | W1 | DMG-009 |  |
-| GAP-052 | 4.0 | A checksum match does not make a stream correction unique (provenance grade 3) | method-weakness | supported | yes | 6/6 | 0 | W1 | C9, DMG-007 |  |
+| GAP-052 | 4.0 | A checksum match does not make a stream correction unique (provenance grade 3) | method-weakness | supported | yes | 7/7 | 0 | W1 | C9, DMG-007 |  |
 | GAP-152 | 4.0 | Intra-block resynchronization for single-block PDF streams | untested-condition | supported | yes | 6/6 | 0 | W1 | C9, DMG-007, DMG-002 | HYP-151 |
 | GAP-156 | 4.0 | No benchmark for compressed-stream recovery in documents | evaluation-weakness | supported | yes | 6/6 | 0 | W3 | C9, C10, DMG-002, DMG-007 |  |
 | GAP-202 | 4.0 | No evaluation on naturally corrupted font encodings (UDHR natural pairs) | untested-condition | supported | yes | 5/5 | 0 | W3 | C6, DMG-200 |  |
@@ -104,9 +104,9 @@ Evidence: CLM-0004 (SRC-0001, exact), OBS-0002 (observation, script research/exp
 
 ### GAP-013 — REPDF benchmark does not match its own description
 
-The paper describes C9 as one modified byte (CLM-0026) but the released corpus flips 12-30 bytes across 11-28 streams (OBS-0002); C7/C8 blank font streams in place with spaces rather than deleting them (OBS-0003); one C6 file is a generator defect (OBS-0004); and the paper's per-language and aggregate tables disagree (CLM-0022). Published per-class numbers cannot be taken as targets until replicated on the corpus as released.
+The paper describes C9 as modifying a random byte (CLM-0026). The released corpus changes exactly one byte per damaged stream, but in 11-28 streams per file (12-30 bytes, OBS-0002, OBS-0300), and in 99 of 100 files also changes object syntax outside streams: font width arrays, dictionaries, indirect lengths (OBS-0005); C7/C8 blank font streams in place with spaces rather than deleting them (OBS-0003); one C6 file is a generator defect (OBS-0004); and the paper's per-language and aggregate tables disagree (CLM-0022). Published per-class numbers cannot be taken as targets until replicated on the corpus as released.
 
-Evidence: CLM-0026 (SRC-0001, exact), OBS-0002 (observation, script research/experiments/corpus_characterize.py), OBS-0003 (observation, script research/experiments/corpus_characterize.py), OBS-0004 (observation, script research/experiments/corpus_characterize.py), CLM-0022 (SRC-0001, inference)
+Evidence: CLM-0026 (SRC-0001, exact), OBS-0002 (observation, script research/experiments/corpus_characterize.py), OBS-0003 (observation, script research/experiments/corpus_characterize.py), OBS-0004 (observation, script research/experiments/corpus_characterize.py), CLM-0022 (SRC-0001, inference), OBS-0005 (observation, script research/experiments/c9_outside_streams.py), OBS-0300 (observation, script research/experiments/flate_c9_probe.py), OBS-0302 (observation, script research/experiments/flate_c9_probe.py)
 
 ### GAP-150 — Locating the corrupted byte inside a Flate stream
 
@@ -162,9 +162,9 @@ Evidence: CLM-0019 (SRC-0001, exact), CLM-0118 (SRC-0127, exact)
 
 The charter's grade 3 ('corrected and verified', e.g. an Adler-32 match) assumes a passing checksum verifies a correction. In a real forensic repair of zlib data with the Adler-32 as oracle (CLM-0101), 3 fragments kept several candidates that passed inflate, Adler-32 and length checks under a single bit flip (CLM-0103), and double-flip search left up to 40717 candidates per fragment (CLM-0104). The authors resolved this by marking disagreeing bits indeterminate with three-valued logic (CLM-0105) or by manual expert choice (CLM-0106), at a cost of days to more than a year of CPU per fragment (CLM-0107). For PDF FlateDecode streams, nobody has measured how often a unique checksum-passing candidate exists, how often a unique one is wrong, or how to report the ambiguity. Grade 3 needs a uniqueness criterion (a single candidate passing checksum plus content-stream grammar) and an indeterminate state; otherwise it must fall back to grade 2 or 6.
 
-*Inference:* Transfer to PDF is our inference. PDF content streams are often short, and REPDF's C9 files carry 12-30 changed bytes across 11-28 streams (OBS-0002), so both brute-force cost and candidate multiplicity are likely worse than in the 1-2 flip setting of SRC-0126. Testable: for C9 and DMG-007 files, enumerate 1- and 2-flip candidates per damaged stream and count those passing Adler-32 alone versus Adler-32 plus operator-grammar parsing.
+*Inference:* Transfer to PDF is our inference. PDF content streams are often short, and each damaged C9 stream carries exactly one changed byte (OBS-0005, OBS-0300; 11-28 such streams per file), so the per-stream search is the single-substitution case (at most 255 x stream length candidates, median compressed length 9547 bytes). Candidate multiplicity is therefore likely lower than for the multi-flip fragments of SRC-0126, but Adler-32 is weak on short inputs (CLM-0334, CLM-0335) and many PDF streams are short. Testable: for C9 and DMG-007 files, enumerate single-byte candidates per damaged stream (HYP-150) and count those passing Adler-32 alone versus Adler-32 plus operator-grammar parsing.
 
-Evidence: CLM-0101 (SRC-0126, exact), CLM-0103 (SRC-0126, exact), CLM-0104 (SRC-0126, exact), CLM-0105 (SRC-0126, exact), CLM-0106 (SRC-0126, exact), CLM-0107 (SRC-0126, exact)
+Evidence: CLM-0101 (SRC-0126, exact), CLM-0103 (SRC-0126, exact), CLM-0104 (SRC-0126, exact), CLM-0105 (SRC-0126, exact), CLM-0106 (SRC-0126, exact), CLM-0107 (SRC-0126, exact), OBS-0300 (observation, script research/experiments/flate_c9_probe.py)
 
 ### GAP-152 — Intra-block resynchronization for single-block PDF streams
 

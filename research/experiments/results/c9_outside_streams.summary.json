@@ -1,0 +1,29 @@
+{
+ "files": 100,
+ "changed_bytes_by_location": {
+  "object syntax": 398,
+  "stream body": 1747,
+  "between objects": 17
+ },
+ "changed_bytes_per_damaged_stream": {
+  "1": 1747
+ },
+ "files_with_changes_outside_streams": 99,
+ "object_syntax_by_value_type": {
+  "other": 27,
+  "array": 255,
+  "dict": 116
+ },
+ "nearest_name_in_enclosing_object_top10": {
+  "/Length": 15,
+  "/F": 4,
+  "/FlateDecode": 3,
+  "/Fo": 3,
+  "/FontBBox": 3,
+  "/B": 2,
+  "/Le": 2,
+  "/Supplem": 2,
+  "/CapHeight": 2,
+  "/Fla": 2
+ }
+}

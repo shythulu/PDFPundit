@@ -1,6 +1,6 @@
 ---
 title: Research charter — bleeding-edge PDF repair
-status: rev 2 (Charter Committee 001 applied; pending the review board)
+status: rev 2.1 (Charter Committee 001 applied; scoping-sweep evidence applied; pending the review board)
 owner: shythulu
 updated: 2026-09-27
 ---
@@ -34,8 +34,8 @@ Writing or publishing articles is **out of scope**. Outputs are knowledge-base r
 | # | Grade | Examples |
 |---|---|---|
 | 1 | Verbatim | Bytes copied unchanged from the damaged file |
-| 2 | Partially decoded | Salvaged prefix of a corrupt stream |
-| 3 | Corrected and verified | Checksum-verified bit correction, e.g. Adler-32 match |
+| 2 | Partially decoded | Output of a corrupt stream shown to be independent of the damage: bytes decoded before a *known* damage position, or output identical under two different dummy dictionaries (CLM-0337). A decode-until-error prefix is **not** grade 2 by default: in C9 it holds wrong bytes in 95% of damaged streams (OBS-0300, GAP-151). |
+| 3 | Corrected and verified | A correction that is the **only** candidate passing a checksum **and** an independent check (encoder replay, content grammar, /Length1 or font-table checksums). A checksum match alone is not verification (GAP-052, GAP-253, GAP-154). When several candidates pass, the differing bytes are marked indeterminate, not guessed (CLM-0105). |
 | 4 | Structurally inferred | From surviving bytes: page order, object renumbering, re-linked fonts, chosen revision |
 | 5 | Non-content synthesis | xref, trailer, `/Length`, header |
 | 6 | Content synthesis | Substituted fonts, generated ToUnicode, default MediaBox, inferred placement |
@@ -51,7 +51,7 @@ Writing or publishing articles is **out of scope**. Outputs are knowledge-base r
   - Its originals and producers are disjoint from SRC-0002.
   - It is frozen by hash, signed off by the user, and never used for tuning.
 - **REPDF's corpus (SRC-0002) is for replication and regression only.** Its real generator differs from the paper:
-  - C9 flips 12–30 bytes across 11–28 streams (OBS-0002).
+  - C9 changes exactly one byte in each of 11–28 stream bodies, plus bytes in object syntax (font width arrays, dictionaries, indirect lengths) in 99 of 100 files: 12–30 bytes per file (OBS-0002, OBS-0005, OBS-0300).
   - C7/C8 blank font streams in place with spaces (OBS-0003).
   - One C6 file is a generator defect (OBS-0004).
   - It is too well known to serve as a held-out test.
@@ -136,7 +136,7 @@ All are reported per class with confidence intervals.
 ## 5. Constraints
 - **Product decisions** (currently in force, from `nimbalyst-local/plans/pdfpundit-*.md`): pure Rust, no compiled C in the shipped binary; `lopdf` as the only emitter; originals never mutated; the C1–C10 taxonomy.
   - Research may recommend reopening any of them, but must flag the conflict with evidence.
-  - Known flag: `pdfpundit-technical-design.md` §4.5/§16 (single-byte-flip C9 salvage) assumes one changed byte. OBS-0002 shows 12–30.
+  - Known flag: `pdfpundit-technical-design.md` §4.5/§16 (single-byte-flip C9 salvage). Per stream, the one-byte premise holds (OBS-0005, OBS-0300). But each C9 file has 11–28 damaged streams plus changes outside streams that a stream-only salvage never touches (OBS-0005), and accepting a candidate on an Adler-32 match alone is not verification (GAP-052, GAP-253). A replay oracle is a candidate fix (GAP-154, HYP-150).
 - **The research harness is unconstrained.** Any language, tool or service is allowed as an oracle, baseline or generator.
 - **Clean-room rule for copyleft sources** (MuPDF and Ghostscript are AGPL, Poppler is GPL):
   - research agents may read them and cite short quotes;
@@ -179,3 +179,7 @@ All are reported per class with confidence intervals.
 - OBS-0001..0004: characterization of how the corpus generator actually works.
 - 13 gaps and 16 proposed damage classes. See `research/gaps/register.md` and `research/damage/classes.md`.
 - Committee minutes 000 and 001.
+
+## Revision log
+- **rev 2.1 (2026-09-27, chair, from scoping-sweep evidence):** tightened provenance grades 2 and 3, which the sweep showed were unsafe as written (a decode-until-error prefix is usually wrong; a checksum match is not unique). Corrected the C9 description (one byte per damaged stream, plus non-stream changes) and the §5 product flag. Nothing was loosened. The review board checks these changes.
+- **rev 2 (2026-09-27):** Charter Committee 001 applied (`research/committees/001-charter-committee.md`).
