@@ -1,0 +1,9 @@
+merged 2026-09-27
+source: +34
+screening: +40
+claim: +40
+gap: +7
+hypothesis: +3
+search: +11
+observation: +4
+sources folded into existing: 6 {'SRC-0301': 'SRC-0125', 'SRC-0308': 'SRC-0135', 'SRC-0318': 'SRC-0132', 'SRC-0319': 'SRC-0127', 'SRC-0325': 'SRC-0123', 'SRC-0338': 'SRC-0126'}

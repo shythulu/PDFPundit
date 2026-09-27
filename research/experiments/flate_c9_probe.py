@@ -2,9 +2,9 @@
 """Probe how REPDF's C9 ("stream zlib") damage looks to a zlib decoder, and how many DEFLATE
 blocks PDF Flate streams have (which bounds what block-level resynchronization can recover).
 
-    python3 research/staging/scoping-compression/experiments/flate_c9_probe.py \
+    python3 research/experiments/flate_c9_probe.py \
         /home/user/dfrc-korea/repdf \
-        research/staging/scoping-compression/experiments/results/flate_c9_probe
+        research/experiments/results/flate_c9_probe
 
 Inputs: the REPDF corpus (SRC-0002, commit e547d4d), originals + `*_stream_zlib.pdf` files.
 Outputs: <out>.csv (one row per damaged Flate stream), <out>.blocks.csv (one row per Flate

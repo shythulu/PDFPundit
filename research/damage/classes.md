@@ -18,7 +18,7 @@ One or more 512 B/4 KiB aligned blocks zeroed or replaced with foreign data (bad
 - Maps to: —
 - Generator: Zero or overwrite N aligned blocks at uniform offsets; N and block size parameterised.
 - Realism: Storage-level loss is sector/cluster granular; carving motivation (CLM-0023).
-- Evidence: CLM-0023
+- Evidence: CLM-0023, CLM-0309
 
 ## DMG-003 — Head truncation / missing prefix (proposed)
 
@@ -63,7 +63,7 @@ Random bit flips across many streams (aging media, transmission).
 - Maps to: C9
 - Generator: Flip B random bits over the file with density parameter.
 - Realism: Aging media and transmission errors cause scattered or bursty bit errors across many streams. Note that REPDF's C9 already substitutes 12-30 bytes over 11-28 streams (OBS-0002); this class adds realistic error models (burst length, sector alignment, density) rather than more of the same.
-- Evidence: CLM-0004, OBS-0002, CLM-0109, CLM-0110
+- Evidence: CLM-0004, OBS-0002, CLM-0109, CLM-0110, CLM-0341
 
 ## DMG-008 — Broken incremental update (proposed)
 

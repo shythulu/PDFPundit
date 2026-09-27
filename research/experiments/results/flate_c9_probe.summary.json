@@ -12,6 +12,22 @@
    "max": 292
   }
  },
+ "stock_zlib_reproducible": {
+  "saveas": {
+   "streams": 2081,
+   "byte_identical": 1124,
+   "levels": {
+    "6": 1124
+   }
+  },
+  "print": {
+   "streams": 1344,
+   "byte_identical": 1,
+   "levels": {
+    "6": 1
+   }
+  }
+ },
  "c9_changed_bytes_by_location": {
   "flate_stream_body": 1443,
   "other_stream_body": 304,

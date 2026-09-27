@@ -38,6 +38,42 @@ One C6 file is a generator defect rather than font-mapping loss: corrupted/savea
 - Script: `research/experiments/corpus_characterize.py` · Result file: `research/experiments/results/corpus_characterize.summary.json`
 - Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
 
+## OBS-0300
+
+In REPDF's C9 files, every damaged Flate stream carries exactly one changed byte, and a plain zlib inflate almost never notices it where it happens: 1217 of 1442 damaged streams (84%) decode to the end and fail only the Adler-32 check, 221 raise a decode error, 4 run out of input. A naive 'decode until error' salvage therefore emits wrong bytes in 1375 of 1442 streams (median 11,426 wrong bytes per stream).
+
+- Result: damaged Flate streams 1442 in 100 files; changed bytes per damaged stream: 1 in all 1442. Outcome: check-only (zlib 'incorrect data check') 1217, data-error 221 (183 'invalid distance too far back'), incomplete 4. Detection latency (compressed bytes consumed past the changed byte when zlib reports an error) min/median/max 1/3204/2341864. Bytes emitted before the error that differ from the original: median 11426, max 3670799; streams with any such bytes 1375. Verbatim decoded prefix as a fraction of the original's decoded length: median 0.48065. Damaged stream compressed length median 9547, decoded median 36736.
+- Reproduce: `python3 research/experiments/flate_c9_probe.py /home/user/dfrc-korea/repdf research/experiments/results/flate_c9_probe`
+- Script: `research/experiments/flate_c9_probe.py` · Result file: `research/experiments/results/flate_c9_probe.summary.json`
+- Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; originals + 100 *_stream_zlib.pdf (C9) files; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
+
+## OBS-0301
+
+Most PDF Flate streams in the REPDF originals are a single DEFLATE block, so block-level resynchronization (restart at the next intact block, as in Brown 2011 or pugz) cannot reach past the damage in most C9 streams: 2199 of 3425 Flate streams (64%) have one block, and 982 of the 1442 damaged C9 streams (68%) have no block starting after the changed byte.
+
+- Result: Flate streams in the 100 originals that have a C9 counterpart: 3425; blocks per stream min/median/max 1/1/292; single-block 2199, 2-5 blocks 1130, more than 5 blocks 96. Damaged C9 streams in a single-block stream: 853 of 1442; damaged streams with zero blocks starting after the first changed byte: 982 of 1442 (blocks_after median 0, max 261). Block boundaries from zlib inflate(Z_BLOCK).
+- Reproduce: `python3 research/experiments/flate_c9_probe.py /home/user/dfrc-korea/repdf research/experiments/results/flate_c9_probe`
+- Script: `research/experiments/flate_c9_probe.py` · Result file: `research/experiments/results/flate_c9_probe.summary.json`
+- Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; originals + 100 *_stream_zlib.pdf (C9) files; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
+
+## OBS-0302
+
+REPDF's C9 ('stream zlib') generator does not only damage Flate streams: of 2162 changed bytes across the 100 C9 files, 1443 fall in Flate stream bodies, 304 in other stream bodies (284 unfiltered, 17 DCTDecode, 3 undecodable Flate), and 415 outside stream bodies (dictionaries, width arrays), in 99 of 100 files. This refines OBS-0002.
+
+- Result: c9_changed_bytes_by_location: flate_stream_body 1443, other_stream_body 304, outside_stream_bodies 415; files with changes outside stream bodies 99/100; c9_other_stream_body_bytes_by_filter: none 284, DCTDecode 17, FlateDecode (does not inflate cleanly in the original) 3. Total 2162 = 1443 + 304 + 415.
+- Reproduce: `python3 research/experiments/flate_c9_probe.py /home/user/dfrc-korea/repdf research/experiments/results/flate_c9_probe`
+- Script: `research/experiments/flate_c9_probe.py` · Result file: `research/experiments/results/flate_c9_probe.summary.json`
+- Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; originals + 100 *_stream_zlib.pdf (C9) files; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
+
+## OBS-0303
+
+The producer's DEFLATE encoder can often be replayed exactly: 1124 of 2081 Flate streams (54%) in REPDF's Word 'Save As' originals are byte-identical to stock zlib level 6 output of their decoded data, but only 1 of 1344 in the 'Print to PDF' originals. For replayable streams, 're-encoding the candidate's decoded data reproduces the candidate exactly' is a far stronger correction oracle than Adler-32 alone.
+
+- Result: stock_zlib_reproducible: saveas 1124 of 2081 streams byte-identical (all at level 6); print 1 of 1344 (level 6). Tested zlib.compress levels 0-9 with default window/memLevel/strategy (Python zlib 1.3). Streams = all Flate streams of the 100 originals that have a C9 counterpart.
+- Reproduce: `python3 research/experiments/flate_c9_probe.py /home/user/dfrc-korea/repdf research/experiments/results/flate_c9_probe`
+- Script: `research/experiments/flate_c9_probe.py` · Result file: `research/experiments/results/flate_c9_probe.summary.json`
+- Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; originals + 100 *_stream_zlib.pdf (C9) files; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
+
 ## OBS-0500
 
 The public test suites of qpdf, pdf.js, PDFium and Poppler (plus Ghostscript's 4 in-scope files; MuPDF ships none) contain 2,873 PDF/PDF-like test files (2,802 unique), of which qpdf 11.9.0 --check flags 827 as damaged (warnings, errors, timeouts or a crash) and rebuilds the xref for 265; pdf.js additionally references 459 externally hosted test PDFs (.link files), mostly real-world bug-report attachments.
