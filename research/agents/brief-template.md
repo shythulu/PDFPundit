@@ -99,6 +99,11 @@ It computes `quote_check`; never set that field by hand. Fix or drop anything it
   This stops future agents re-screening the same papers.
 - Say what you did **not** check.
 
+## 4a. Keep approval prompts rare (the user asked for this)
+- Batch paid searches: several queries per call, as few calls as you can.
+- Prefer actions that stay inside your staging and scratch directories.
+- If an action is denied or blocked, don't retry it or work around it. Record it as not checked, with the reason, and move on.
+
 ## 5. Finish
 1. Run `python research/tools/kb_validate.py --staging research/staging/<you> --write --online` until it reports 0 errors.
 2. Write `research/staging/<you>/report.md` covering: what you did, the key findings, what you did

@@ -55,6 +55,9 @@ def cmd_sample(a) -> None:
     rng = random.Random(a.seed)
     src = {r["id"]: r for r in recs["source"]}
     screen = [s for s in recs["screening"] if s["src"] in src]
+    # A work screened by two agents keeps both records after a merge fold; sample it once.
+    seen: set[str] = set()
+    screen = [s for s in screen if not (s["src"] in seen or seen.add(s["src"]))]
     picked = stratified(screen, lambda s: s["by"], lambda n: max(1, round(n * a.frac)), rng)
     a.out.mkdir(parents=True, exist_ok=True)
     write_jsonl(a.out / "rescreen-sample.jsonl",
