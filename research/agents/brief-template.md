@@ -15,6 +15,8 @@ brief comes on top of them and takes precedence where the two differ.
   `sources/notes/SRC-*.md`, `gaps/gaps.jsonl`, `damage/classes.jsonl`, `tooling/ledger.jsonl`,
   `hypotheses/hypotheses.jsonl`, `observations/observations.jsonl`, `search-log.jsonl`, plus a free-form `report.md`.
 - Never edit the main registries. The chair merges staging directories with `research/tools/merge_staging.py`.
+- Keep scratch files (downloads, helper scripts, logs) in `<scratchpad>/<your-agent-name>/`, never at the
+  scratchpad root. Other agents share the scratchpad, so never run or edit a file outside your own subdirectory.
 - **ID block**: the chair assigns you block number *n*. Use only these IDs:
   - `SRC-`, `CLM-`, `OBS-` and `SRCH-` numbers from *n*·100 to *n*·100+99. Example for block 3: `SRC-0300` to `SRC-0399`.
   - `GAP-`, `DMG-`, `TOOL-` and `HYP-` numbers from *n*·50 to *n*·50+49. Example for block 3: `GAP-150` to `GAP-199`.

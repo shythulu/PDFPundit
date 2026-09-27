@@ -47,6 +47,24 @@ REPDF's C9 ('stream zlib') damage is one changed byte per damaged stream, plus c
 - Script: `research/experiments/c9_outside_streams.py` · Result file: `research/experiments/results/c9_outside_streams.summary.json`
 - Inputs: /home/user/dfrc-korea/repdf (REPDF dataset (SRC-0002), git commit e547d4d1b77ead7e8cccce8b02878a6d33aa427a; clone with GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf)
 
+## OBS-0200
+
+In the published per-file metadata for the 1k sample (0000.zip) of the SafeDocs CC-MAIN-2021-31-PDF-UNTRUNCATED corpus, 21% of URL rows had been truncated by Common Crawl, yet after refetching, lenient parsers almost never fail: Tika/PDFBox and pdfinfo each fail on under 0.5% of rows, while about a quarter of files carry incremental updates.
+
+- Result: Provenance: 1045 URL rows for 1000 unique files; cc_truncated=length 218, not truncated 827; fetched_status REFETCHED_SUCCESS 218. pdfinfo: exit!=0 4, timeouts 0, rows with any stderr 19; xref/trailer-level messages: 'Couldn't read xref table' 1, 'Couldn't find trailer dictionary' 1, 'End of file inside dictionary' 1, 'May not be a PDF file' 2. Tika: PARSE_EXCEPTION 4 of 1045 (3 encryption/permission, 1 'Page tree root must be a dictionary'); non-PDF MIME 11; encrypted 22; signed 7; damaged font flagged 2; >=1 incremental update 276 of 1042 rows with a value (1 update: 252; max 36). Caveat: the corpus holds only successfully obtained files, so failed refetches are absent; the sample is one ZIP ordered by SHA-256.
+- Reproduce: `python research/experiments/cc_1k_prevalence.py`
+- Script: `research/experiments/cc_1k_prevalence.py` · Result file: `research/experiments/results/cc_1k_prevalence.json`
+- Inputs: https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/cc-provenance-20230324-1k.csv (downloaded to /tmp/cc-safedocs; per-URL rows for the 1,000 files in zipfiles/0000-0999/0000.zip); https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/pdfinfo-20230324-1k.csv (downloaded to /tmp/cc-safedocs; per-URL rows for the 1,000 files in zipfiles/0000-0999/0000.zip); https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/tika-20230714-1k.csv (downloaded to /tmp/cc-safedocs; per-URL rows for the 1,000 files in zipfiles/0000-0999/0000.zip)
+
+## OBS-0201
+
+Common Crawl's truncated PDF captures are usable natural pairs: for 34 of 35 length-truncated, refetched files in the SafeDocs 1k sample, the capture is an exact byte prefix of the complete refetched file; every capture is exactly 1,048,576 bytes.
+
+- Result: Eligible rows in the 1k sample: 218; checked 35 (first by url_id); prefix match 34; mismatch 1 (document at the URL changed between crawl and refetch); capture lengths [1048576]; WARC-Truncated values ['length']; chunked HTTP payloads 0; errors 5. Implication: the cap is 1 MiB (1,048,576 bytes), and prefix verification is required because a minority of refetches are different documents.
+- Reproduce: `python research/experiments/cc_natural_pairs.py --n 40`
+- Script: `research/experiments/cc_natural_pairs.py` · Result file: `research/experiments/results/cc_natural_pairs.csv`
+- Inputs: https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/cc-provenance-20230324-1k.csv (rows with cc_truncated!='' and REFETCHED_SUCCESS, sorted by url_id, first --n); https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/zipfiles/0000-0999/0000.zip (read by HTTP range requests; 1,266,879,273 bytes per S3 listing 2026-09-27); https://data.commoncrawl.org/ (CC-MAIN-2021-31 WARC records by file/offset from the provenance table) (per-pair capture sha256 in the result CSV)
+
 ## OBS-0300
 
 In REPDF's C9 files, every damaged Flate stream carries exactly one changed byte, and a plain zlib inflate almost never notices it where it happens: 1217 of 1442 damaged streams (84%) decode to the end and fail only the Adler-32 check, 221 raise a decode error, 4 run out of input. A naive 'decode until error' salvage therefore emits wrong bytes in 1375 of 1442 streams (median 11,426 wrong bytes per stream).

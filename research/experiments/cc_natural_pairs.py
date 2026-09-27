@@ -3,9 +3,9 @@
 SafeDocs later refetched (CC-MAIN-2021-31-PDF-UNTRUNCATED). Such prefix-verified pairs are natural
 pairs in the sense of charter §3(a): real truncation damage with a known original.
 
-    python research/staging/scoping-langsec/experiments/cc_natural_pairs.py [--n 30] \
+    python research/experiments/cc_natural_pairs.py [--n 30] \
         [--workdir /tmp/cc-safedocs] \
-        [--out research/staging/scoping-langsec/experiments/results/cc_natural_pairs.csv]
+        [--out research/experiments/results/cc_natural_pairs.csv]
 
 Input: the 1k provenance table (rows for the files in zipfiles/0000-0999/0000.zip). Rows with
 cc_truncated != '' and fetched_status == REFETCHED_SUCCESS are sorted by url_id and the first --n taken
@@ -111,7 +111,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/cc-safedocs"))
-    ap.add_argument("--out", type=Path, default=Path("research/staging/scoping-langsec/experiments/results/cc_natural_pairs.csv"))
+    ap.add_argument("--out", type=Path, default=Path("research/experiments/results/cc_natural_pairs.csv"))
     a = ap.parse_args()
     a.workdir.mkdir(parents=True, exist_ok=True)
     meta = a.workdir / "cc-provenance-20230324-1k.csv"

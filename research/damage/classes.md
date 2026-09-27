@@ -71,17 +71,17 @@ A truncated or corrupted incremental-update section on top of an intact base rev
 
 - Maps to: C3, C10
 - Generator: Append an update, then truncate/corrupt within it.
-- Realism: Incrementally-updated (edited/signed) PDFs are common; prior revisions are recoverable evidence.
-- Evidence: CLM-0023
+- Realism: Incrementally-updated (edited/signed) PDFs are common; prior revisions are recoverable evidence. Prevalence is contested: most files in Caradoc's set (CLM-0202) vs about 26% of a 2021 crawl sample (OBS-0200); see GAP-017.
+- Evidence: CLM-0023, CLM-0202, OBS-0200
 
 ## DMG-009 — Adversarial / anti-forensic manipulation (proposed)
 
 Deliberate structural manipulation meant to mislead viewers or repair tools: incremental-update shadowing, duplicate xref entries, object-number reuse, conflicting trailers, parser-differential constructs.
 
 - Maps to: —
-- Generator: Apply documented attack templates (to be taken from literature found in P1) to known originals; label the intended hidden and visible content.
-- Realism: Forensic reviewer FO-B1: validation must cover deliberate manipulation, not only accidents. Literature to be linked.
-- Evidence: CLM-0019
+- Generator: Apply each template to known originals, alone and compounded with DMG-008 or C2, and label the intended hidden and visible content: (1) Shadow Hide: an appended xref marks the overlay object free; (2) Shadow Replace: a form-field /BBox overlay, or a replaced font; (3) Shadow Hide-and-Replace: two objects share one object number and an appended xref re-points it (CLM-0222, CLM-0223), or an appended xref flips objects between in-use and free (CLM-0224); (4) malformed incremental update with missing or unclosed objects (CLM-0230); (5) name-escape split /Foo#7/Bar, read as one name or two (CLM-0208); (6) generation numbers undefined, negative or 65535, so readers fall back to object number (CLM-0209); (7) duplicate dictionary keys (CLM-0210).
+- Realism: Shadow attacks fooled 16 of 29 viewers (CLM-0220). Forensic reviewer FO-B1: validation must cover deliberate manipulation, not only accidents.
+- Evidence: CLM-0019, CLM-0220, CLM-0222, CLM-0223, CLM-0224, CLM-0230, CLM-0208, CLM-0209, CLM-0210
 
 ## DMG-010 — Transfer mangling (proposed)
 
@@ -97,9 +97,9 @@ Binary damaged in transit: FTP ASCII-mode CRLF conversion, UTF-8 re-encoding tha
 Files malformed at creation: wrong /Length, xref offsets off by N, missing endobj, bad object streams.
 
 - Maps to: —
-- Generator: Perturb /Length values, shift xref offsets by N bytes, drop endobj keywords; also harvest real examples from engine test corpora (P1 engine study).
-- Realism: Likely the most common real damage; engines carry repair code for it.
-- Evidence: —
+- Generator: Perturb /Length values, shift xref offsets by N bytes, drop endobj keywords; also harvest real examples from engine test corpora (P1 engine study). Include in-use xref entries at offset zero (CLM-0204).
+- Realism: Likely the most common real damage; engines carry repair code for it. Real files declare in-use objects at offset zero often enough to need a special tolerance (CLM-0204, CLM-0205).
+- Evidence: CLM-0204, CLM-0205
 
 ## DMG-012 — Zero-filled tail (proposed)
 
@@ -116,8 +116,8 @@ Foreign bytes before %PDF- or after %%EOF (HTTP headers, email wrappers, appende
 
 - Maps to: C1
 - Generator: Prepend or append N bytes of HTTP/MIME/random data.
-- Realism: Saved web responses and mail attachments.
-- Evidence: —
+- Realism: Saved web responses and mail attachments. Weak support only: crawl selection by MIME type admits non-PDFs (CLM-0288), and pdfinfo reports 'May not be a PDF file' on 2 of 1045 rows (OBS-0200), which may be non-PDFs rather than junk-prefixed PDFs.
+- Evidence: CLM-0288, OBS-0200
 
 ## DMG-014 — Hybrid-reference and revision ambiguity (proposed)
 
@@ -125,8 +125,8 @@ Files with classic xref plus /XRefStm, multiple incremental sections, or lineari
 
 - Maps to: C2, C3, C5
 - Generator: Build multi-revision originals (edits, redactions, signatures), then remove xref/trailer sections.
-- Realism: Every Save As file the PDF internals reviewer checked was hybrid-reference with 2 sections.
-- Evidence: —
+- Realism: Every Save As file the PDF internals reviewer checked was hybrid-reference with 2 sections. Multi-revision prevalence is contested (GAP-017).
+- Evidence: CLM-0202, OBS-0200
 
 ## DMG-015 — Encryption /ID loss (proposed)
 
@@ -143,8 +143,8 @@ Damage to DCT (partial JPEG), JBIG2 with lost /JBIG2Globals, CCITT, LZW, or lost
 
 - Maps to: C9
 - Generator: Flip/truncate bytes inside non-Flate streams; delete /JBIG2Globals or /DecodeParms entries.
-- Realism: Scanned and image-heavy producers use these filters; REPDF only tests Flate.
-- Evidence: —
+- Realism: Scanned and image-heavy producers use these filters; REPDF only tests Flate. Strict validators skip non-Flate filters too (CLM-0212), so these streams are unchecked at both ends; no prevalence figure yet.
+- Evidence: CLM-0212
 
 ## DMG-050 — Foreign PDF objects in the recovered byte range (proposed)
 
@@ -154,6 +154,24 @@ The damaged or carved byte range contains syntactically valid PDF objects that b
 - Generator: Pick PDFs A and B from the same producer (colliding object numbering). Replace k in {1,2,4} aligned 4 KiB clusters of A with clusters of B, at object boundaries or at uniform cluster positions; variants with A's xref intact and with it removed. Record the seeds and B's identity so association errors (B content rendered as A) can be scored.
 - Realism: Both published PDF repairers carve objects by obj/endobj signatures and object numbers (CLM-0137, CLM-0138), so foreign objects with colliding numbers would be accepted. Forensic tool testing finds carved and recovered files contain data mixed from multiple sources (CLM-0120) and cannot always separate original from overwriting data (CLM-0119); the fragment-reassembly literature assumes the problem away (CLM-0133).
 - Evidence: CLM-0120, CLM-0119, CLM-0133, CLM-0137, CLM-0138
+
+## DMG-100 — Transfer truncation at a size cap or disconnect (crawl captures) (proposed)
+
+The file is cut at a fixed byte cap (Common Crawl: 1 MB) or at an arbitrary point by a network disconnect. Only files larger than the cap are affected, so it selects large, image- or font-heavy files. For many real cases the complete original exists (refetched), giving natural pairs.
+
+- Maps to: C10
+- Generator: Cap variant: for originals larger than B bytes keep bytes[0:B], with B = 1,048,576 (the Common Crawl cap observed in OBS-0201). Disconnect variant: cut at U(0.05, 0.95) x size with a recorded seed. Natural-pair variant: from CC-MAIN-2021-31-PDF-UNTRUNCATED rows with cc_truncated in {length, disconnect} and fetched_status = REFETCHED_SUCCESS, range-fetch the WARC capture and keep the pair only if the capture payload is a byte prefix of the refetched file (SRC-0206).
+- Realism: 22% of PDFs in the December 2019 Common Crawl were truncated at 1 MB (CLM-0270). CC-MAIN-2021-31 flags 2,020,913 PDF URLs truncated by length and 5,861 by disconnect (CLM-0280, CLM-0281), and complete refetches exist for 1,922,505 URLs (CLM-0282). Differs from REPDF C10 in its size-conditioned cut point and real originals.
+- Evidence: CLM-0270, CLM-0280, CLM-0281, CLM-0282, CLM-0283, OBS-0201
+
+## DMG-101 — Reference cycles (xref /Prev loops, cyclic outlines and page trees) (proposed)
+
+Structures meant to be acyclic contain cycles: incremental-update /Prev chains that loop, outline items whose /Next or /First point back, page-tree /Kids pointing at an ancestor. Readers can hang. A repair engine walking /Prev or /Kids must bound traversal and report the cycle rather than 'fix' it silently.
+
+- Maps to: C3, C4
+- Generator: (a) In a 2-revision original, make the later trailer's /Prev point to itself, or make the two revisions' /Prev values point at each other (Caradoc Fig. 6 pattern). (b) Point an outline item's /Next at an earlier sibling or its /First at an ancestor. (c) Add a /Kids entry pointing at an ancestor /Pages node. Choose the node with a recorded seed. Label as crafted (hostile) unless produced by a single-digit change to a /Prev offset (accidental variant).
+- Realism: Cyclic structures trigger infinite recursion in most tested readers (CLM-0215); cyclic outlines made most readers loop on at least one file (CLM-0216); the specification does not require an update to follow its predecessor, so /Prev loops look legal (CLM-0217). No real-world prevalence found; the accidental variant is our inference.
+- Evidence: CLM-0215, CLM-0216, CLM-0217
 
 ## DMG-200 — Wrong or many-to-one ToUnicode written by the producer (proposed)
 

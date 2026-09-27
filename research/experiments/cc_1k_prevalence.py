@@ -2,8 +2,8 @@
 """Real-world damage/prevalence counts on the 1k sample (0000.zip) of the SafeDocs
 CC-MAIN-2021-31-PDF-UNTRUNCATED corpus, from its published per-file metadata tables.
 
-    python research/staging/scoping-langsec/experiments/cc_1k_prevalence.py \
-        [--workdir /tmp/cc-safedocs] [--out research/staging/scoping-langsec/experiments/results/cc_1k_prevalence.json]
+    python research/experiments/cc_1k_prevalence.py \
+        [--workdir /tmp/cc-safedocs] [--out research/experiments/results/cc_1k_prevalence.json]
 
 Downloads (once) the three *-1k.csv tables from the Digital Corpora S3 bucket, prints their sha256,
 and counts: Common Crawl truncation flags and refetch status (provenance table); Poppler pdfinfo exit
@@ -38,7 +38,7 @@ def rows(p: Path) -> list[dict]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/cc-safedocs"))
-    ap.add_argument("--out", type=Path, default=Path("research/staging/scoping-langsec/experiments/results/cc_1k_prevalence.json"))
+    ap.add_argument("--out", type=Path, default=Path("research/experiments/results/cc_1k_prevalence.json"))
     a = ap.parse_args()
     a.workdir.mkdir(parents=True, exist_ok=True)
     paths = {n: fetch(n, a.workdir) for n in TABLES}
