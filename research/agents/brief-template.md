@@ -64,13 +64,19 @@ It computes `quote_check`; never set that field by hand. Fix or drop anything it
      - Crossref: `https://api.crossref.org/works/<doi>`, and `...works?query.bibliographic=...&rows=3`
        (its `reference` field is the reference list).
      - OpenCitations v2: `https://api.opencitations.net/index/v2/citations/doi:<doi>` and `/references/doi:<doi>`.
-     - DBLP: `https://dblp.org/search/publ/api?q=...&format=json&h=100` (it also covers arXiv).
+     - **DBLP is unusable from this container.** All its mirrors serve an anti-bot challenge page (checked 2026-09-27).
+       Use Crossref for venue searches instead:
+       - `https://api.crossref.org/journals/<ISSN>/works?query=<terms>&rows=50&select=DOI,title,author,issued`
+         (Digital Investigation 1742-2876; FSI: Digital Investigation 2666-2817);
+       - `https://api.crossref.org/works?query.bibliographic=<terms>&query.container-title=<venue>&rows=50`.
      - arXiv: `https://export.arxiv.org/api/query?id_list=<id>` and `https://arxiv.org/pdf/<id>`.
-       Search queries return 406, so discover through DBLP.
+       Search queries return 406, so discover through Crossref, OpenCitations or Parallel Search.
      - crates.io (send a User-Agent), PyPI.
   2. Built-in WebFetch for URLs you already know.
   3. **Parallel Search** (`mcp__Parallel_Search__web_search` / `web_fetch`) only for discovery or grey
      literature. Batch 2–3 queries per call.
+- **Always fetch free APIs through `python research/tools/polite_get.py '<url>' [-o file]`.**
+  It spaces requests per host across every agent in the container and backs off on 429.
 - **Rate limits.** This container shares an IP address, and Crossref and DBLP return **429** quickly.
   - Wait at least 2 seconds between requests to the same host.
   - On a 429, back off for 30 seconds or more, and retry at most twice.
