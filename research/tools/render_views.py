@@ -4,7 +4,8 @@
     python research/tools/render_views.py
 
 Writes gaps/register.md, sources/index.md, tooling/ledger.md, damage/classes.md,
-hypotheses/index.md. Gap priority = 0.4*impact + 0.2*(novelty + feasibility + confidence).
+hypotheses/index.md, observations/index.md.
+Gap priority = 0.4*impact + 0.2*(novelty + feasibility + confidence).
 """
 
 from __future__ import annotations
@@ -40,19 +41,35 @@ def priority(g: dict) -> float:
 def main() -> None:
     R = {t: load_jsonl(p) for t, (p, _, _) in REGISTRIES.items()}
     claims = {c["id"]: c for c in R["claim"]}
+    obs = {o["id"]: o for o in R["observation"]}
+
+    def is_inference(e: str) -> bool:
+        return claims.get(e, {}).get("kind") == "critique"
+
+    def is_verified(e: str) -> bool:  # mirrors kb_validate: verified quote/code citation, or an observation
+        if e in obs:
+            return True
+        c = claims.get(e, {})
+        return c.get("kind") != "critique" and c.get("quote_check") in ("exact", "fuzzy")
+
+    def describe(e: str) -> str:
+        if e in obs:
+            return f"{e} (observation, script {obs[e]['script']})"
+        c = claims.get(e, {})
+        return f"{e} ({c.get('src', '?')}, {'inference' if is_inference(e) else c.get('quote_check', '?')})"
 
     gaps = sorted(R["gap"], key=lambda g: (-priority(g), g["id"]))
-    verified = lambda g: sum(claims.get(c, {}).get("quote_check") in ("exact", "fuzzy") for c in g["evidence"])  # noqa: E731
-    body = "# Gap register\n\nSorted by priority. `ev` = evidence claims (verified quotes / total).\n\n"
+    body = ("# Gap register\n\nSorted by priority. `ev` = verified evidence (quotes, code citations, "
+            "observations) / non-inference evidence cited; `inf` = our own inferences cited (never evidence).\n\n")
     body += table([[g["id"], priority(g), g["title"], g["type"], g["status"], g["still_open"],
-                    f"{verified(g)}/{len(g['evidence'])}", g.get("workstream"), g.get("damage_classes", []),
+                    f"{sum(map(is_verified, g['evidence']))}/{sum(not is_inference(e) for e in g['evidence'])}",
+                    sum(map(is_inference, g["evidence"])), g.get("workstream"), g.get("damage_classes", []),
                     g.get("hypotheses", [])] for g in gaps],
-                  ["id", "prio", "title", "type", "status", "open?", "ev", "ws", "damage", "hyp"])
+                  ["id", "prio", "title", "type", "status", "open?", "ev", "inf", "ws", "damage", "hyp"])
     body += "\n## Statements\n\n" + "".join(
         f"### {g['id']} — {g['title']}\n\n{g['statement']}\n\n"
         + (f"*Inference:* {g['inference']}\n\n" if g.get("inference") else "")
-        + "Evidence: " + ", ".join(f"{c} ({claims.get(c, {}).get('src', '?')}, "
-                                   f"{claims.get(c, {}).get('quote_check', '?')})" for c in g["evidence"]) + "\n\n"
+        + "Evidence: " + ", ".join(describe(e) for e in g["evidence"]) + "\n\n"
         for g in gaps)
     (ROOT / "gaps" / "register.md").write_text(HEADER.format(src="gaps/gaps.jsonl") + body)
 
@@ -90,6 +107,13 @@ def main() -> None:
          sorted(R["hypothesis"], key=lambda h: h["id"])],
         ["id", "status", "statement", "metric", "gaps", "ready (M/D/B/G)"])
     (ROOT / "hypotheses" / "index.md").write_text(HEADER.format(src="hypotheses/hypotheses.jsonl") + body)
+
+    body = "# Observations (reproducible experiments we ran)\n\n" + "".join(
+        f"## {o['id']}\n\n{o['statement']}\n\n- Result: {o['result']}\n- Reproduce: `{o['command']}`\n"
+        f"- Script: `{o['script']}`" + (f" · Result file: `{o['result_path']}`" if o.get("result_path") else "")
+        + "\n- Inputs: " + "; ".join(f"{i['path']}" + (f" ({i['note']})" if i.get("note") else "") for i in o["inputs"])
+        + "\n\n" for o in sorted(R["observation"], key=lambda o: o["id"]))
+    (ROOT / "observations" / "index.md").write_text(HEADER.format(src="observations/observations.jsonl") + body)
     print("views rendered")
 
 

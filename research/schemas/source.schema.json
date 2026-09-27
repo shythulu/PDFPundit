@@ -262,6 +262,34 @@
     "null"
    ],
    "description": "SPDX license of the source (important for source-code: AGPL/GPL = techniques only, never code)"
+  },
+  "text_sha256": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "sha256 of the cached extracted text (detects edits)"
+  },
+  "extractor": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "text extractor used (pdftotext | pymupdf | raw)"
+  },
+  "extractor_version": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "version string of the extractor"
+  },
+  "title_check": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "result of the cached-text title check: pass | skipped | n/a"
   }
  }
 }

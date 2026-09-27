@@ -2,22 +2,26 @@
 
 # Gap register
 
-Sorted by priority. `ev` = evidence claims (verified quotes / total).
+Sorted by priority. `ev` = verified evidence (quotes, code citations, observations) / non-inference evidence cited; `inf` = our own inferences cited (never evidence).
 
-| id | prio | title | type | status | open? | ev | ws | damage | hyp |
-|---|---|---|---|---|---|---|---|---|---|
-| GAP-001 | 4.4 | Realistic and compound damage corpus | explicit-future-work | supported | unknown | 2/3 | W3 | C1, C2, C3, C4, C5, C6, C7, C8, C9, C10 |  |
-| GAP-008 | 4.4 | Evaluation metric that measures extractable, faithful text | evaluation-weakness | supported | unknown | 1/2 | W3 |  |  |
-| GAP-004 | 4.2 | Context-aware glyph-to-Unicode recovery for complex scripts | explicit-future-work | supported | unknown | 2/3 | W1 | C6, C8 |  |
-| GAP-005 | 4.2 | Compressed-stream (DEFLATE) recovery beyond byte-level salvage | stated-limitation | supported | unknown | 1/1 | W1 | C9, C10 |  |
-| GAP-010 | 4.2 | Forensic provenance of recovered vs synthesized content | untested-condition | candidate | unknown | 1/1 | W1 |  |  |
-| GAP-002 | 4.0 | Producer diversity (non-Word PDFs, scans) | explicit-future-work | supported | unknown | 2/2 | W3 |  |  |
-| GAP-003 | 4.0 | Extensible font knowledge beyond a fixed font DB | explicit-future-work | supported | unknown | 3/3 | W1 | C7, C8 |  |
-| GAP-009 | 4.0 | Baselines against open-source repair engines | evaluation-weakness | supported | unknown | 2/2 | W3 |  |  |
-| GAP-006 | 3.8 | Truncation recovery when content/fonts sit near EOF | untested-condition | supported | unknown | 2/2 | W1 | C10 |  |
-| GAP-012 | 3.8 | Cross-viewer consistency of repaired output | evaluation-weakness | supported | unknown | 1/1 | W3 |  |  |
-| GAP-007 | 3.2 | Re-placing orphaned images and content | method-weakness | supported | unknown | 1/1 | W1 | C4, C5, C10 |  |
-| GAP-011 | 2.8 | Structural collateral damage and adjacency | stated-limitation | supported | unknown | 1/1 | W1 | C4 |  |
+| id | prio | title | type | status | open? | ev | inf | ws | damage | hyp |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GAP-001 | 4.4 | Realistic and compound damage corpus | explicit-future-work | supported | unknown | 2/2 | 1 | W3 | C1, C2, C3, C4, C5, C6, C7, C8, C9, C10 |  |
+| GAP-008 | 4.4 | Evaluation metric that measures extractable, faithful text | evaluation-weakness | supported | unknown | 1/1 | 1 | W3 |  |  |
+| GAP-004 | 4.2 | Context-aware glyph-to-Unicode recovery for complex scripts | explicit-future-work | supported | unknown | 2/2 | 1 | W1 | C6, C8 |  |
+| GAP-005 | 4.2 | Compressed-stream (DEFLATE) recovery beyond byte-level salvage | stated-limitation | supported | unknown | 2/2 | 0 | W1 | C9, C10 |  |
+| GAP-013 | 4.2 | REPDF benchmark does not match its own description | contradiction | supported | unknown | 4/4 | 1 | W3 | C6, C7, C8, C9 |  |
+| GAP-002 | 4.0 | Producer diversity (non-Word PDFs, scans) | explicit-future-work | supported | unknown | 2/2 | 0 | W3 |  |  |
+| GAP-003 | 4.0 | Extensible font knowledge beyond a fixed font DB | explicit-future-work | supported | unknown | 3/3 | 0 | W1 | C7, C8 |  |
+| GAP-009 | 4.0 | Baselines against open-source repair engines | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 |  |  |
+| GAP-010 | 4.0 | Forensic provenance of recovered vs synthesized content | untested-condition | candidate | unknown | 1/1 | 0 | W1 |  |  |
+| GAP-015 | 4.0 | Tamper-aware repair (hostile and anti-forensic PDFs) | untested-condition | candidate | unknown | 1/1 | 0 | W1 | DMG-009 |  |
+| GAP-006 | 3.8 | Truncation recovery when content/fonts sit near EOF | untested-condition | supported | unknown | 2/2 | 0 | W1 | C10 |  |
+| GAP-012 | 3.8 | Cross-viewer consistency of repaired output | evaluation-weakness | supported | unknown | 1/1 | 0 | W3 |  |  |
+| GAP-014 | 3.8 | Offset-preserving synthetic damage overstates recoverability | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 | C7, C8 |  |
+| GAP-016 | 3.6 | Evidence-preserving emission (revisions and signatures) | method-weakness | candidate | unknown | 1/1 | 0 | W1 | DMG-014 |  |
+| GAP-007 | 3.2 | Re-placing orphaned images and content | method-weakness | supported | unknown | 1/1 | 0 | W1 | C4, C5, C10 |  |
+| GAP-011 | 2.8 | Structural collateral damage and adjacency | stated-limitation | supported | unknown | 1/1 | 0 | W1 | C4 |  |
 
 ## Statements
 
@@ -25,13 +29,13 @@ Sorted by priority. `ev` = evidence claims (verified quotes / total).
 
 REPDF evaluates one synthetic fault per file; how damage manifests in the wild (and in combination) is unknown. A corpus of real-world corrupted PDFs, or damage models derived from them, is needed before any 'state of the art' claim is meaningful.
 
-Evidence: CLM-0006 (SRC-0001, exact), CLM-0007 (SRC-0001, exact), CLM-0023 (SRC-0001, no-quote)
+Evidence: CLM-0006 (SRC-0001, exact), CLM-0007 (SRC-0001, exact), CLM-0023 (SRC-0001, inference)
 
 ### GAP-008 — Evaluation metric that measures extractable, faithful text
 
 OCR-of-original ground truth and exact word match reward visible-but-unsearchable output, mix OCR error into the score, and ignore reading order, layout, and non-text structure. A metric suite separating extractability, visual fidelity, structure, and fabrication is needed.
 
-Evidence: CLM-0016 (SRC-0001, exact), CLM-0024 (SRC-0001, no-quote)
+Evidence: CLM-0016 (SRC-0001, exact), CLM-0024 (SRC-0001, inference)
 
 ### GAP-004 — Context-aware glyph-to-Unicode recovery for complex scripts
 
@@ -39,21 +43,19 @@ Dictionary scoring fails for Arabic (33-40%). Authors ask for AI-based contextua
 
 *Inference:* The GSUB mechanism is our inference, not the authors'.
 
-Evidence: CLM-0012 (SRC-0001, exact), CLM-0013 (SRC-0001, exact), CLM-0025 (SRC-0001, no-quote)
+Evidence: CLM-0012 (SRC-0001, exact), CLM-0013 (SRC-0001, exact), CLM-0025 (SRC-0001, inference)
 
 ### GAP-005 — Compressed-stream (DEFLATE) recovery beyond byte-level salvage
 
-C9 recovery is ~60% and depends on corruption location. Open: error localisation and correction (Adler-32/CRC-guided search), block resynchronisation after corruption, grammar- or LM-guided reconstruction of content-stream operators, multi-error and truncated streams.
+C9 recovery is ~60% and depends on corruption location. Open: error localisation and correction (Adler-32/CRC-guided search), block resynchronisation after corruption, grammar- or LM-guided reconstruction of content-stream operators, multi-error and truncated streams. Note: the REPDF corpus's C9 files carry 12-30 substituted bytes across 11-28 streams (OBS-0002), so 'single-error' salvage (e.g. one-bit-flip search) does not match even the benchmark.
 
-Evidence: CLM-0004 (SRC-0001, exact)
+Evidence: CLM-0004 (SRC-0001, exact), OBS-0002 (observation, script research/experiments/corpus_characterize.py)
 
-### GAP-010 — Forensic provenance of recovered vs synthesized content
+### GAP-013 — REPDF benchmark does not match its own description
 
-Template-based repair inserts external fonts (and potentially other synthesized structure) into evidence. Nothing distinguishes recovered bytes from fabricated/substituted ones, reports fabrication rate, or preserves an audit trail — a gap for forensic admissibility.
+The paper describes C9 as one modified byte (CLM-0026) but the released corpus flips 12-30 bytes across 11-28 streams (OBS-0002); C7/C8 blank font streams in place with spaces rather than deleting them (OBS-0003); one C6 file is a generator defect (OBS-0004); and the paper's per-language and aggregate tables disagree (CLM-0022). Published per-class numbers cannot be taken as targets until replicated on the corpus as released.
 
-*Inference:* Inferred from absence; confirm no later work addresses provenance labelling.
-
-Evidence: CLM-0020 (SRC-0001, fuzzy)
+Evidence: CLM-0026 (SRC-0001, exact), OBS-0002 (observation, script research/experiments/corpus_characterize.py), OBS-0003 (observation, script research/experiments/corpus_characterize.py), OBS-0004 (observation, script research/experiments/corpus_characterize.py), CLM-0022 (SRC-0001, inference)
 
 ### GAP-002 — Producer diversity (non-Word PDFs, scans)
 
@@ -73,6 +75,22 @@ REPDF compares only against three end-user tools, not qpdf/pikepdf (which it its
 
 Evidence: CLM-0017 (SRC-0001, exact), CLM-0018 (SRC-0001, exact)
 
+### GAP-010 — Forensic provenance of recovered vs synthesized content
+
+Template-based repair inserts external fonts (and potentially other synthesized structure) into evidence. Nothing distinguishes recovered bytes from fabricated/substituted ones, reports fabrication rate, or preserves an audit trail — a gap for forensic admissibility. Elevated by Charter Committee 001: a six-grade provenance record plus fabrication and omission rates are now charter success criteria (charter §2, §3c).
+
+*Inference:* Inferred from absence; confirm no later work addresses provenance labelling.
+
+Evidence: CLM-0020 (SRC-0001, fuzzy)
+
+### GAP-015 — Tamper-aware repair (hostile and anti-forensic PDFs)
+
+REPDF's threat model is accidental damage only (CLM-0019). Deliberately manipulated files (incremental-update/shadow attacks, object-number reuse, parser-differential constructs) could be 'repaired' into misleading evidence. Needed: detection and reporting of tamper indicators, and repair strategies that never erase them.
+
+*Inference:* The need follows from the forensic use case (Charter Committee 001, FO-B1); literature on shadow attacks and parser differentials is to be linked by the scoping sweep.
+
+Evidence: CLM-0019 (SRC-0001, exact)
+
 ### GAP-006 — Truncation recovery when content/fonts sit near EOF
 
 Print-to-PDF truncation recovers ~35% vs 99.6% for Save As; the authors' layout explanation is an untested hypothesis. Open: verify the layout cause, partial decoding of truncated streams, and inference from surviving fragments.
@@ -86,6 +104,20 @@ Repair success was judged in a single viewer (Chrome). PDF viewers disagree on m
 *Inference:* Parser-differential literature to be linked by the scoping sweep.
 
 Evidence: CLM-0021 (SRC-0002, exact)
+
+### GAP-014 — Offset-preserving synthetic damage overstates recoverability
+
+C7/C8 blank font streams with spaces while keeping file size (OBS-0003), so every xref offset stays valid; real deletion or loss shifts offsets and breaks structure too. Recovery measured on offset-preserving damage may not transfer to realistic damage.
+
+Evidence: OBS-0003 (observation, script research/experiments/corpus_characterize.py), CLM-0027 (SRC-0002, exact)
+
+### GAP-016 — Evidence-preserving emission (revisions and signatures)
+
+REPDF re-emits a new file through pikepdf (CLM-0018), which discards earlier revisions and invalidates signatures. Open: append-only incremental repair overlays that keep the original bytes (and a signed revision's ByteRange) intact, and how to choose and report the revision used.
+
+*Inference:* Our inference from the emission method; to be checked against engine practice and literature.
+
+Evidence: CLM-0018 (SRC-0001, exact)
 
 ### GAP-007 — Re-placing orphaned images and content
 

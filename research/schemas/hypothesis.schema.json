@@ -4,13 +4,14 @@
  "title": "Testable research hypothesis (feeds experiment specs)",
  "type": "object",
  "required": [
-  "id",
   "gaps",
-  "statement",
+  "id",
   "metric",
-  "status",
+  "provenance",
   "readiness",
-  "provenance"
+  "refute_if",
+  "statement",
+  "status"
  ],
  "properties": {
   "id": {
@@ -134,6 +135,11 @@
      "format": "date"
     }
    }
+  },
+  "refute_if": {
+   "type": "string",
+   "minLength": 10,
+   "description": "the observable result that would refute the hypothesis"
   }
  }
 }

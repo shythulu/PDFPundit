@@ -42,7 +42,7 @@
    "type": "array",
    "items": {
     "type": "string",
-    "pattern": "^(CLM-\\d{4}|SRC-\\d{4})$"
+    "pattern": "^(CLM|OBS|SRC)-\\d{4}$"
    }
   },
   "status": {

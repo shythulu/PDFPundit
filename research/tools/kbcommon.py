@@ -13,6 +13,7 @@ CACHE = ROOT / "cache"
 FULLTEXT = CACHE / "fulltext"                        # <sha256>.txt, pages separated by \f
 PDFCACHE = CACHE / "pdf"                             # <sha256>.pdf
 CROSSREF = CACHE / "crossref"                        # <doi-slug>.json
+CODECACHE = CACHE / "code"                           # <repo-slug>@<commit12>/ shallow checkouts
 SCHEMAS = ROOT / "schemas"
 
 # Record type -> (registry file, id prefix, schema file)
@@ -25,7 +26,11 @@ REGISTRIES = {
     "damage":     (ROOT / "damage" / "classes.jsonl",     "DMG",  "damage.schema.json"),
     "tool":       (ROOT / "tooling" / "ledger.jsonl",     "TOOL", "tool.schema.json"),
     "search":     (ROOT / "search-log.jsonl",             "SRCH", "search.schema.json"),
+    "observation": (ROOT / "observations" / "observations.jsonl", "OBS", "observation.schema.json"),
 }
+
+# Source types whose full text must be a real document of that work (title-checked, no ad-hoc .txt).
+DOCUMENT_TYPES = {"paper", "preprint", "thesis", "standard", "book", "patent"}
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -85,8 +90,45 @@ def dedupe_key(rec: dict) -> str:
     return title_key(rec.get("title", ""), rec.get("year"))
 
 
+def fulltext_path(sha256: str) -> Path:
+    return FULLTEXT / f"{sha256}.txt"
+
+
 def fulltext_pages(sha256: str) -> list[str] | None:
-    p = FULLTEXT / f"{sha256}.txt"
+    p = fulltext_path(sha256)
     if not p.exists():
         return None
     return p.read_text(encoding="utf-8").split("\f")
+
+
+def sha256_file(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def repo_slug(url: str) -> str:
+    """https://github.com/qpdf/qpdf(.git) -> github.com_qpdf_qpdf"""
+    u = re.sub(r"^[a-z]+://", "", url.strip()).removesuffix(".git").strip("/")
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", u)
+
+
+def code_checkout(url: str, commit: str) -> Path:
+    return CODECACHE / f"{repo_slug(url)}@{commit[:12]}"
+
+
+# Numbers that carry meaning in a claim's paraphrase (skips ids such as C9, CLM-0012, PDF-1.7).
+_NUM = re.compile(r"(?<![A-Za-z\-\d.])\d+(?:[.,]\d+)*")
+
+
+def _canon_number(n: str) -> str:
+    if re.fullmatch(r"\d{1,3}(,\d{3})+", n):      # 1,000 / 12,345,678 -> thousands separators
+        return n.replace(",", "")
+    return n.replace(",", ".")                     # 90,67 -> 90.67 (decimal comma)
+
+
+def numbers_in(text: str) -> set[str]:
+    return {_canon_number(n) for n in _NUM.findall(unicodedata.normalize("NFKC", text))}

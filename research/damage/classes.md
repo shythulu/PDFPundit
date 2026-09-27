@@ -62,8 +62,8 @@ Random bit flips across many streams (aging media, transmission).
 
 - Maps to: C9
 - Generator: Flip B random bits over the file with density parameter.
-- Realism: Multi-stream generalisation of C9's single byte.
-- Evidence: CLM-0004
+- Realism: Aging media and transmission errors cause scattered or bursty bit errors across many streams. Note that REPDF's C9 already substitutes 12-30 bytes over 11-28 streams (OBS-0002); this class adds realistic error models (burst length, sector alignment, density) rather than more of the same.
+- Evidence: CLM-0004, OBS-0002
 
 ## DMG-008 — Broken incremental update (proposed)
 
@@ -73,4 +73,76 @@ A truncated or corrupted incremental-update section on top of an intact base rev
 - Generator: Append an update, then truncate/corrupt within it.
 - Realism: Incrementally-updated (edited/signed) PDFs are common; prior revisions are recoverable evidence.
 - Evidence: CLM-0023
+
+## DMG-009 — Adversarial / anti-forensic manipulation (proposed)
+
+Deliberate structural manipulation meant to mislead viewers or repair tools: incremental-update shadowing, duplicate xref entries, object-number reuse, conflicting trailers, parser-differential constructs.
+
+- Maps to: —
+- Generator: Apply documented attack templates (to be taken from literature found in P1) to known originals; label the intended hidden and visible content.
+- Realism: Forensic reviewer FO-B1: validation must cover deliberate manipulation, not only accidents. Literature to be linked.
+- Evidence: CLM-0019
+
+## DMG-010 — Transfer mangling (proposed)
+
+Binary damaged in transit: FTP ASCII-mode CRLF conversion, UTF-8 re-encoding that inserts EF BF BD, MIME/base64 wrapping errors.
+
+- Maps to: —
+- Generator: Apply CRLF<->LF conversion, text re-encoding with replacement characters, or broken base64 line wrapping to the whole file.
+- Realism: PDF internals reviewer: common real-world origin distinct from storage loss.
+- Evidence: —
+
+## DMG-011 — Producer bugs (proposed)
+
+Files malformed at creation: wrong /Length, xref offsets off by N, missing endobj, bad object streams.
+
+- Maps to: —
+- Generator: Perturb /Length values, shift xref offsets by N bytes, drop endobj keywords; also harvest real examples from engine test corpora (P1 engine study).
+- Realism: Likely the most common real damage; engines carry repair code for it.
+- Evidence: —
+
+## DMG-012 — Zero-filled tail (proposed)
+
+The file has its full length but the end is zeros (crash during write, preallocated download).
+
+- Maps to: C10
+- Generator: Overwrite the last K% of bytes with 0x00, keeping size.
+- Realism: Crash-interrupted writes and preallocating download managers.
+- Evidence: —
+
+## DMG-013 — Junk prefix or suffix (proposed)
+
+Foreign bytes before %PDF- or after %%EOF (HTTP headers, email wrappers, appended data).
+
+- Maps to: C1
+- Generator: Prepend or append N bytes of HTTP/MIME/random data.
+- Realism: Saved web responses and mail attachments.
+- Evidence: —
+
+## DMG-014 — Hybrid-reference and revision ambiguity (proposed)
+
+Files with classic xref plus /XRefStm, multiple incremental sections, or linearization, where carving without the xref selects the wrong object revision (possibly resurrecting redacted content).
+
+- Maps to: C2, C3, C5
+- Generator: Build multi-revision originals (edits, redactions, signatures), then remove xref/trailer sections.
+- Realism: Every Save As file the PDF internals reviewer checked was hybrid-reference with 2 sections.
+- Evidence: —
+
+## DMG-015 — Encryption /ID loss (proposed)
+
+Encrypted file (R2-R4) whose trailer /ID is lost, so the key cannot be derived even with an empty user password.
+
+- Maps to: C3
+- Generator: Encrypt originals with an empty user password, then remove the trailer /ID (and optionally earlier trailers).
+- Realism: Key derivation uses /ID; trailer damage (C3) on encrypted files makes them undecryptable.
+- Evidence: —
+
+## DMG-016 — Non-Flate filter damage (proposed)
+
+Damage to DCT (partial JPEG), JBIG2 with lost /JBIG2Globals, CCITT, LZW, or lost /DecodeParms predictors.
+
+- Maps to: C9
+- Generator: Flip/truncate bytes inside non-Flate streams; delete /JBIG2Globals or /DecodeParms entries.
+- Realism: Scanned and image-heavy producers use these filters; REPDF only tests Flate.
+- Evidence: —
 

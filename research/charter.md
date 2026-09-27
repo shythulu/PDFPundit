@@ -1,106 +1,181 @@
 ---
 title: Research charter — bleeding-edge PDF repair
-status: draft (rev 1, pending Charter Committee)
+status: rev 2 (Charter Committee 001 applied; pending the review board)
 owner: shythulu
-updated: 2026-09-26
+updated: 2026-09-27
 ---
 
 # Research charter: bleeding-edge PDF repair
 
 ## 1. Goal
 Advance PDFPundit from *a Rust reimplementation of REPDF* (SRC-0001) to **the most capable and
-most trustworthy PDF repair engine we can evidence**. We get there by reading the literature
-systematically, turning what it leaves open into testable hypotheses, and handing those
-hypotheses to coding agents as experiment specs.
+most trustworthy PDF repair engine we can evidence**. Evidence comes from three places:
+- the literature, read systematically;
+- the recovery practice built into mature engines (their source code);
+- reproducible experiments on real and realistic damage.
 
-Writing or publishing articles is **out of scope**. The outputs are knowledge-base records,
-plans, specs and, later, code.
+What those sources leave open becomes testable hypotheses, and those become specs for coding agents.
+
+Writing or publishing articles is **out of scope**. Outputs are knowledge-base records, plans, specs and, later, code.
 
 ## 2. Definitions
 | Term | Meaning here |
 |---|---|
-| **Repair** | Producing a new, standards-conforming PDF from a damaged one. The original is never mutated. |
-| **Recovery** | Getting content out (text, images, structure) whether or not a valid PDF results. |
-| **Recovered vs synthesized** | Recovered content is derived from bytes in the damaged file. Synthesized content is inserted from outside: substituted fonts, rebuilt xref, default MediaBox, inferred placement. |
-| **Fabrication** | Output content that was not in the original document. Examples: wrong glyph→Unicode mappings, wrong page order, text from the wrong font inference. |
-| **Bleeding edge** | Satisfies §3 (a), (b) and (c) together. It is not a single benchmark number. |
-| **Damage class** | REPDF's C1–C10, extended by `DMG-` records (`research/damage/`). |
+| **Repair** | A new, standards-conforming PDF produced from a damaged one. The original is never mutated. "Conforming" means it passes a named conformance oracle (chosen in W3), not a lenient reader. |
+| **Recovery** | Getting content out (text, images, structure), whether or not a valid PDF results. |
+| **Provenance grade** | Every output element is labelled with exactly one of the six grades below. |
+| **Fabrication** | Content in the output (grade 6, or a wrong grade 3–4 inference) that wasn't in the original: a wrong glyph→Unicode mapping, wrong page order, wrong revision, wrong font inference. |
+| **Omission** | Content still present in the damaged file's surviving bytes that the repair drops: unreachable objects, earlier revisions, partially decodable streams. It is measured against an *upper bound* computed from the damaged file itself. |
+| **Damage class** | REPDF's C1–C10 **as the corpus actually implements them** (OBS-0001..0004), extended by `DMG-` records (`research/damage/`). |
+| **Tamper indicator** | Structure that suggests deliberate manipulation (shadow/incremental-update attacks, object-number reuse, parser-differential constructs). It is detected and reported, never "repaired away". |
+
+**The six provenance grades:**
+
+| # | Grade | Examples |
+|---|---|---|
+| 1 | Verbatim | Bytes copied unchanged from the damaged file |
+| 2 | Partially decoded | Salvaged prefix of a corrupt stream |
+| 3 | Corrected and verified | Checksum-verified bit correction, e.g. Adler-32 match |
+| 4 | Structurally inferred | From surviving bytes: page order, object renumbering, re-linked fonts, chosen revision |
+| 5 | Non-content synthesis | xref, trailer, `/Length`, header |
+| 6 | Content synthesis | Substituted fonts, generated ToUnicode, default MediaBox, inferred placement |
 
 ## 3. Success criteria (all three must hold)
-**(a) Held-out, realistic damage.**
-- Performance is measured on a damage suite that is specified independently of our repair methods,
-  from real-world evidence (GAP-001, GAP-002).
-- The suite is frozen before tuning and kept held out from development.
-- It includes compound faults and multiple producers.
-- The REPDF corpus (SRC-0002) is the **replication and regression** set, not the finish line.
-  Its generator is known (C9 flips exactly one byte; C10 keeps 70%), so it can be gamed.
 
-**(b) Head-to-head against the strongest existing tools.** At minimum: qpdf/pikepdf, MuPDF (mutool),
-Ghostscript, Poppler, pdf.js, PDFium, and REPDF's reported numbers (GAP-009). The same inputs,
-metrics and time limits apply to every tool.
+### (a) Held-out realistic damage
+- **Fidelity metrics use known originals.** Fidelity and fabrication are scored only on documents whose originals we know, damaged by **damage models fitted to real-world evidence**. That evidence comes from ≥2 named real-world damage sources, identified in P1, with a fallback.
+  - Verified *natural pairs* are also allowed: real damaged files whose originals are independently available, such as truncated crawl captures with later full fetches. Each must be verified before use.
+- **Found files feed robustness only.** Files found already corrupted, with no known original, count only toward robustness metrics: crash rate, plausibility, cross-engine agreement.
+- **The suite is walled off from the method work.**
+  - The suite is authored by an agent with no access to the engine design or the method work.
+  - Its originals and producers are disjoint from SRC-0002.
+  - It is frozen by hash, signed off by the user, and never used for tuning.
+- **REPDF's corpus (SRC-0002) is for replication and regression only.** Its real generator differs from the paper:
+  - C9 flips 12–30 bytes across 11–28 streams (OBS-0002).
+  - C7/C8 blank font streams in place with spaces (OBS-0003).
+  - One C6 file is a generator defect (OBS-0004).
+  - It is too well known to serve as a held-out test.
 
-**(c) Forensic fidelity.** Every repair reports which content is recovered and which is
-synthesized. The metric suite measures **fabrication rate** alongside recovery (GAP-008, GAP-010).
-A repair that recovers more but fabricates more doesn't count as better.
+### (b) Head-to-head baseline protocol
+- **Tools compared:**
+  - qpdf/pikepdf;
+  - MuPDF (mutool);
+  - Ghostscript;
+  - Poppler;
+  - pdf.js;
+  - PDFium;
+  - plus a **null-repair baseline**: tolerant readers opening the damaged file directly, with no repair.
+- **Protocol:**
+  - Tool versions are pinned.
+  - Each tool gets the best of a small declared set of option configurations.
+  - The same inputs and time limits apply to every tool.
+  - Every output is scored after rendering and extraction in **≥2 engines**.
+- **REPDF's published numbers** are a replication reference on SRC-0002 only. REPDF's code isn't public (SRCH-0001), so it isn't a runnable baseline. Replicating it, by black-box runs of repdf.site if allowed or by reimplementation, is a **W3 gate before P5** (decided by the user, 2026-09-27).
 
-**Metric suite** (to be specified in W3):
-- **Extractable-text accuracy**: word-level F1 and order-aware similarity of *extracted* text against the original's extracted text. This is separate from OCR-visible text.
-- **Visual fidelity**: per-page render similarity in at least 2 engines.
-- **Structural fidelity**: pages, order, annotations, outlines, forms, metadata.
-- **Cross-engine consistency**: parser-differential agreement (GAP-012).
-- **Fabrication rate**, **runtime** and **failure rate**.
+### (c) Forensic fidelity
+- **Provenance record.** Every repair emits a record, in the style of a custody log, containing:
+  - input and output hashes;
+  - tool, version and configuration;
+  - the provenance grade per element;
+  - tamper indicators found;
+  - the version and checksum of any learned model used.
+- **Fabrication and omission are both measured.** Better recovery doesn't count if it comes with more fabrication or omission.
+- **Learned components in the product path** (ML, LLM, VLM) must be local, versioned and deterministic.
+  Research exploration may use hosted models, but only with recorded versions, and its results aren't product evidence.
+- **Signatures.** Repairing a signed file invalidates its signature. Where feasible, prefer emission strategies that keep the signed bytes intact (see RQ on emission). Never imply a repaired file is authentic.
+
+### Decision rule (pre-registered before P5)
+Before any experiment runs, `research/preregistration.md` is committed. It contains:
+- one **primary endpoint**;
+- a **fabrication ceiling**;
+- a minimum meaningful margin;
+- the suite size;
+- a paired per-file comparison with bootstrap confidence intervals and correction for multiple comparisons.
+
+The user signs off on the endpoint and the frozen suite.
+
+**Metric suite** (specified in the 5k plan, W3):
+- extractable-text accuracy (word F1 plus an order-aware measure);
+- visual fidelity (per page, in ≥2 engines);
+- structural fidelity;
+- cross-engine consistency;
+- fabrication rate and omission rate;
+- runtime and failure rate.
+
+All are reported per class with confidence intervals.
 
 ## 4. Scope
 **In scope:**
-- Structural, stream, font and text recovery.
-- Truncated, fragmented, carved and partially overwritten files.
-- Incremental updates and prior revisions.
-- Robust and differential parsing.
-- Content disarm and reconstruction (CDR) as a neighbouring discipline.
-- Methods transferable from other formats (ZIP, JPEG, Office).
-- ML, LLM and VLM assistance with calibrated confidence.
-- Choosing a repair strategy (toolpath matrix).
-- Evaluation infrastructure.
+- Repair targets:
+  - structural, stream, font and text recovery;
+  - truncated, fragmented, carved and partially overwritten files;
+  - transfer-mangled files and files with producer bugs;
+  - incremental updates and choosing the right revision;
+  - signatures and encryption, when the key is available;
+  - filters other than Flate;
+  - emission strategy, including append-only incremental overlays.
+- Methods and neighbouring disciplines:
+  - robust and differential parsing;
+  - content disarm and reconstruction (CDR);
+  - methods transferable from other formats;
+  - ML, LLM or VLM assistance under §3(c);
+  - repair-strategy selection;
+  - evaluation infrastructure.
+
+**Threat model:**
+- Accidental damage is the repair target.
+- **Hostile input** is a detection and safety target: decompression bombs, resource exhaustion, exploits, anti-forensic manipulation.
 
 **Out of scope:**
 - Publishing.
-- Password cracking. Encrypted files count as repairable only when the key is available.
+- Password cracking.
 - Building malware.
 - Non-PDF formats, except as a source of transferable methods.
-- UI and aesthetics (see `nimbalyst-local/plans/pdfpundit-ui-design.md`).
+- UI and aesthetics.
 
 ## 5. Constraints
-- **Product decisions** (currently in force, from `nimbalyst-local/plans/pdfpundit-*.md`):
-  - pure Rust, no compiled or vendored C in the shipped binary;
-  - `lopdf` is the only emitter;
-  - originals are never mutated;
-  - the REPDF C1–C10 taxonomy.
-  - Research may recommend reopening any of these. That recommendation must state the conflict and
-    the evidence (`docs/agents/domain.md`: "flag ADR conflicts"). It is never silently overridden.
-- **The research harness is unconstrained.** Python, Java, C tools and web services are all allowed
-  as oracles, baselines or generators.
-- **Legal and ethical limits:**
-  - cache only open-access full text, and never commit it;
-  - respect corpus licenses;
+- **Product decisions** (currently in force, from `nimbalyst-local/plans/pdfpundit-*.md`): pure Rust, no compiled C in the shipped binary; `lopdf` as the only emitter; originals never mutated; the C1–C10 taxonomy.
+  - Research may recommend reopening any of them, but must flag the conflict with evidence.
+  - Known flag: `pdfpundit-technical-design.md` §4.5/§16 (single-byte-flip C9 salvage) assumes one changed byte. OBS-0002 shows 12–30.
+- **The research harness is unconstrained.** Any language, tool or service is allowed as an oracle, baseline or generator.
+- **Clean-room rule for copyleft sources** (MuPDF and Ghostscript are AGPL, Poppler is GPL):
+  - research agents may read them and cite short quotes;
+  - behaviour is described in our own words;
+  - specs describe behaviour only;
+  - coding agents are never pointed at copyleft source;
+  - nothing is copied into PDFPundit.
+- **Data ethics:**
+  - public corpora only;
+  - no committing samples that contain personal data;
+  - corpus licences recorded;
+  - only open-access full text cached, never committed;
   - no scraping that breaches terms of service.
-- **Budget:** Parallel Search is capped at 80 paid calls for the planning campaign (user-approved),
-  and every call is logged in `search-log.jsonl`. Free APIs come first. New paid or keyed services
-  need the user's approval: the user creates accounts on request.
+- **Budget:** Parallel Search is capped at 80 paid calls for the planning campaign (user-approved), and every call is logged. Free APIs come first. New paid or keyed services need the user's approval: the user creates the accounts, batched at the tooling gate.
 
-## 6. Governance
-- Major decisions go through a committee. The protocol is in
-  `research/committees/000-orchestration-plan-review.md`.
-  - Reviewers work independently, then the chair synthesizes.
+## 6. Governance and evidence
+- **Committees.** The protocol is in `research/committees/000-orchestration-plan-review.md`.
   - The chair answers every blocking issue with a reason.
   - **Any blocking objection the chair rejects is escalated to the user.**
-- Decisions that affect the product become ADRs in `docs/adr/`. Process decisions stay in committee minutes.
-- A hypothesis is **spec-ready** when:
-  - its metric is measurable;
+  - One seat per committee spot-checks 5 random claims against raw sources.
+  - Review boards include a replication seat that runs something.
+- **Screening.** Every screening decision is logged with a reason code. A second, independent agent re-screens a 20% sample, and agreement is reported. Recall is measured against a quasi-gold set of known-relevant works that is hidden from the sweep agents.
+- **What counts as evidence.** Three kinds, all machine-checked by `research/tools/kb_validate.py`:
+  - a **verified quote**: in the cached text, ≥8 words, correct page, and every number in the paraphrase present in the quote;
+  - a **code citation**: quote found in the cited lines of the file at the pinned commit;
+  - a **reproducible observation** (`OBS-`): committed script, hashed inputs.
+  - Critiques (`kind: critique`) are our own inference and **never count as evidence**.
+- **Spec-ready.** A hypothesis is spec-ready only when all of these hold:
+  - it has a measurable metric and a `refute_if`;
   - its data can be reached from the container;
   - its baselines have been verified in the container;
-  - it cites at least one gap with a verified quote.
-  - Only spec-ready hypotheses become coding-agent specs (GitHub "wayfinder" issues, `docs/agents/issue-tracker.md`).
+  - its gaps are `still_open: yes` and were checked within 90 days;
+  - its gaps cite at least one verified piece of evidence;
+  - the provenance-record schema (§3c) exists.
+- **Stop rules.** P1 scoping is time-boxed to one sweep round. The P4 full review stops when an iteration adds fewer than 5% new includes, or after 3 iterations.
+- **Before P6 (integration):** a validation report with tool-testing assertions and documented known limitations.
 
-## 7. Initial evidence
-- REPDF (SRC-0001) and its dataset (SRC-0002).
-- 25 claims (21 verified quotes), 12 gaps and 8 proposed damage classes. See `research/gaps/register.md` and `research/damage/classes.md`.
+## 7. Evidence so far
+- SRC-0001 (REPDF) and SRC-0002 (its dataset); 25 claims.
+- OBS-0001..0004: characterization of how the corpus generator actually works.
+- 13 gaps and 16 proposed damage classes. See `research/gaps/register.md` and `research/damage/classes.md`.
+- Committee minutes 000 and 001.

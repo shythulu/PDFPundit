@@ -41,9 +41,10 @@
    "type": "array",
    "items": {
     "type": "string",
-    "pattern": "^CLM-\\d{4}$"
+    "pattern": "^(CLM|OBS)-\\d{4}$"
    },
-   "minItems": 1
+   "minItems": 1,
+   "description": "CLM (verified quote or code citation) or OBS (reproducible observation) ids"
   },
   "inference": {
    "type": [
