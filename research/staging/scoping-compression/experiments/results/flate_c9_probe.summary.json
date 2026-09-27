@@ -12,6 +12,12 @@
    "max": 292
   }
  },
+ "c9_changed_bytes_by_location": {
+  "flate_stream_body": 1443,
+  "other_stream_body": 304,
+  "outside_stream_bodies": 415
+ },
+ "c9_files_with_changes_outside_stream_bodies": 99,
  "damaged_streams": 1442,
  "damaged_files": 100,
  "changed_bytes_per_damaged_stream": {

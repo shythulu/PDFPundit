@@ -23,6 +23,8 @@ unchanged in C9, so offsets align):
   - blocks_total / blocks_after: DEFLATE blocks in the original stream, and blocks that start
     after the first changed byte (the most that block-level resync, as in Brown 2011 or pugz,
     could reach).
+Also counts, per C9 file, where the changed bytes fall: inside Flate stream bodies, inside other
+(unfiltered/DCT/undecodable) stream bodies, or outside stream bodies (dictionaries, arrays).
 Block boundaries come from zlib's own inflate(Z_BLOCK) via ctypes (the method zlib's zran.c uses).
 """
 
@@ -128,6 +130,8 @@ def main() -> None:
     corpus, out = Path(sys.argv[1]), Path(sys.argv[2])
     out.parent.mkdir(parents=True, exist_ok=True)
     rows, block_rows = [], []
+    where = Counter()                 # changed bytes by location: flate body / other body / outside
+    files_outside = 0
     for f in sorted((corpus / "corrupted").rglob("*_stream_zlib.pdf")):
         mode, kind = f.parent.parent.name, f.parent.name
         base = f.name[: -len("_stream_zlib.pdf")]
@@ -135,7 +139,19 @@ def main() -> None:
         a, b = orig.read_bytes(), f.read_bytes()
         if len(a) != len(b):
             continue
-        for idx, (s, e) in enumerate(body_spans(a)):
+        spans = body_spans(a)
+        flate_spans = [(s, e) for s, e in spans if inflate(trim_eol(a[s:e]), False)["ret"] == Z_STREAM_END]
+        n_out = 0
+        for i in (i for i in range(len(a)) if a[i] != b[i]):
+            if any(s <= i < e for s, e in flate_spans):
+                where["flate_stream_body"] += 1
+            elif any(s <= i < e for s, e in spans):
+                where["other_stream_body"] += 1
+            else:
+                where["outside_stream_bodies"] += 1
+                n_out += 1
+        files_outside += n_out > 0
+        for idx, (s, e) in enumerate(spans):
             ob = trim_eol(a[s:e])
             ores = inflate(ob, block_mode=True)
             if ores["ret"] != Z_STREAM_END:
@@ -177,6 +193,8 @@ def main() -> None:
         "blocks_per_stream": {"single_block": nb[1], "two_to_five": sum(v for k, v in nb.items() if 2 <= k <= 5),
                               "more_than_five": sum(v for k, v in nb.items() if k > 5),
                               "stats": stats([r["blocks"] for r in block_rows])},
+        "c9_changed_bytes_by_location": dict(where),
+        "c9_files_with_changes_outside_stream_bodies": files_outside,
         "damaged_streams": len(rows),
         "damaged_files": len({r["file"] for r in rows}),
         "changed_bytes_per_damaged_stream": dict(sorted(Counter(r["changed_bytes"] for r in rows).items())),
