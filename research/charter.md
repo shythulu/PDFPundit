@@ -1,6 +1,6 @@
 ---
 title: Research charter — bleeding-edge PDF repair
-status: rev 2.1 (Charter Committee 001 applied; scoping-sweep evidence applied; pending the review board)
+status: rev 2.2 (Charter Committee 001 applied; scoping-sweep evidence applied; pending the review board)
 owner: shythulu
 updated: 2026-09-27
 ---
@@ -45,6 +45,11 @@ Writing or publishing articles is **out of scope**. Outputs are knowledge-base r
 ### (a) Held-out realistic damage
 - **Fidelity metrics use known originals.** Fidelity and fabrication are scored only on documents whose originals we know, damaged by **damage models fitted to real-world evidence**. That evidence comes from ≥2 named real-world damage sources, identified in P1, with a fallback.
   - Verified *natural pairs* are also allowed: real damaged files whose originals are independently available, such as truncated crawl captures with later full fetches. Each must be verified before use.
+  - **Named in P1** (candidates until the review board confirms them):
+    1. Common Crawl truncated captures paired with SafeDocs full refetches: truncation, natural pairs. 34 of 35 checked pairs are exact prefixes; every pair needs that check (OBS-0201, GAP-100).
+    2. Corrupted UDHR translations paired with unicode.org texts: font encoding, natural pairs. The pairs and the OHCHR terms are not yet verified (GAP-202).
+    3. Measured NAND bit-flip rates from chip-off dumps, as damage-model parameters (SRC-0126).
+    - Fallback, robustness only: the engines' regression corpora (OBS-0500) and the SafeDocs Issue Tracker corpus (CLM-0293).
 - **Found files feed robustness only.** Files found already corrupted, with no known original, count only toward robustness metrics: crash rate, plausibility, cross-engine agreement.
 - **The suite is walled off from the method work.**
   - The suite is authored by an agent with no access to the engine design or the method work.
@@ -175,11 +180,12 @@ All are reported per class with confidence intervals.
 - **Before P6 (integration):** a validation report with tool-testing assertions and documented known limitations.
 
 ## 7. Evidence so far
-- SRC-0001 (REPDF) and SRC-0002 (its dataset); 25 claims.
-- OBS-0001..0004: characterization of how the corpus generator actually works.
-- 13 gaps and 16 proposed damage classes. See `research/gaps/register.md` and `research/damage/classes.md`.
-- Committee minutes 000 and 001.
+- SRC-0001 (REPDF) and SRC-0002 (its dataset); OBS-0001..0005 characterize how the corpus generator actually works.
+- **P1 scoping sweep** (five agents, committee 002): 150 sources, 271 claims, 51 gaps, 23 damage classes, 13 observations, 3 draft hypotheses.
+- Live counts: `research/README.md`. Views: `research/gaps/register.md`, `research/damage/classes.md`.
+- Committee minutes 000, 001 and 002.
 
 ## Revision log
+- **rev 2.2 (2026-09-27, chair):** named the P1 real-world damage sources in §3(a) as candidates for the board; updated §7.
 - **rev 2.1 (2026-09-27, chair, from scoping-sweep evidence):** tightened provenance grades 2 and 3, which the sweep showed were unsafe as written (a decode-until-error prefix is usually wrong; a checksum match is not unique). Corrected the C9 description (one byte per damaged stream, plus non-stream changes) and the §5 product flag. Nothing was loosened. The review board checks these changes.
 - **rev 2 (2026-09-27):** Charter Committee 001 applied (`research/committees/001-charter-committee.md`).

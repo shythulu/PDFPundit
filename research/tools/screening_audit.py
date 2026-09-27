@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from kbcommon import REGISTRIES, fulltext_path, load_jsonl, normalize, write_jsonl  # noqa: E402
+from kbcommon import REGISTRIES, code_checkout, fulltext_path, load_jsonl, normalize, write_jsonl  # noqa: E402
 
 BIB = ("id", "type", "title", "authors", "year", "venue", "doi", "arxiv", "url")
 VERDICTS = ("faithful", "overstated", "understated", "misread", "unsupported")
@@ -62,13 +63,15 @@ def cmd_sample(a) -> None:
 
     claims = [c for c in recs["claim"]
               if c.get("kind") != "critique" and c.get("quote_check") in ("exact", "fuzzy")]
-    per_agent = max(1, a.claims // max(1, len({c["provenance"]["agent"] for c in claims})))
+    per_agent = max(1, math.ceil(a.claims / max(1, len({c["provenance"]["agent"] for c in claims}))))
     cs = stratified(claims, lambda c: c["provenance"]["agent"], lambda n: min(n, per_agent), rng)
     rng.shuffle(cs)
     rows = []
     for c in cs[: a.claims]:
         s = src.get(c["src"], {})
         cached = fulltext_path(s["fulltext_sha256"]) if s.get("fulltext_sha256") else None
+        if c.get("locator") and s.get("commit") and s.get("url"):
+            cached = code_checkout(s["url"], s["commit"]) / c["locator"]["path"]
         rows.append({"claim": c["id"], "src": c["src"], "src_title": s.get("title"),
                      "src_url": s.get("url") or (f"https://doi.org/{s['doi']}" if s.get("doi") else None),
                      "kind": c.get("kind"), "text": c.get("text"), "quote": c.get("quote"),
