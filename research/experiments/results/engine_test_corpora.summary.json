@@ -1,0 +1,508 @@
+{
+ "tools": {
+  "qpdf": "qpdf version 11.9.0",
+  "python": "3.11.15"
+ },
+ "timeout_s": 10.0,
+ "engines": {
+  "SRC-0500": {
+   "engine": "qpdf",
+   "url": "https://github.com/qpdf/qpdf",
+   "commit": "4eba95899886e851cc41d76886483b347612f2a8",
+   "licence": "Apache-2.0",
+   "test_roots": [
+    "qpdf/qtest",
+    "examples/qtest",
+    "compare-for-test/qtest",
+    "libtests/qtest",
+    "fuzz"
+   ],
+   "files": 901,
+   "unique_sha256": 848,
+   "bytes": 52071439,
+   "by_kind": {
+    "pdf": 717,
+    "magic": 105,
+    "fuzz": 79
+   },
+   "qpdf_labels": {
+    "ok": 626,
+    "error": 76,
+    "password": 37,
+    "warnings": 156,
+    "timeout": 5,
+    "crash-signal-11": 1
+   },
+   "qpdf_flags_damaged": 238,
+   "qpdf_reconstructed_xref": 129,
+   "first_message_class": {
+    "xref-trailer": 61,
+    "header": 62,
+    "object-syntax": 38,
+    "": 5,
+    "filter-decode": 15,
+    "stream-length": 8,
+    "linearization": 24,
+    "page-tree": 20,
+    "other": 4,
+    "encryption": 1
+   },
+   "files_with_message_class": {
+    "filter-decode": 33,
+    "stream-length": 61,
+    "xref-trailer": 133,
+    "header": 63,
+    "encryption": 38,
+    "object-syntax": 122,
+    "page-tree": 57,
+    "other": 42,
+    "linearization": 28
+   },
+   "damaged_excluding_linearization_only": 215,
+   "no_header_in_first_1024": 60,
+   "no_eof_in_last_1024": 76,
+   "pdfs_anywhere_in_checkout": 717,
+   "top_first_messages": [
+    [
+     "can't find PDF header",
+     62
+    ],
+    [
+     "xref not found",
+     24
+    ],
+    [
+     "can't find startxref",
+     18
+    ],
+    [
+     "end of first page section (/E) mismatch: /E = N; computed = N..N",
+     14
+    ],
+    [
+     "error decoding stream data for object N N: LZWDecoder: bad code received",
+     10
+    ],
+    [
+     "expected n n obj",
+     6
+    ],
+    [
+     "name with stray # will not work with PDF >= N.N",
+     5
+    ],
+    [
+     "expected endstream",
+     5
+    ],
+    [
+     "unknown token while reading object; treating as string",
+     4
+    ],
+    [
+     "object has offset N",
+     3
+    ],
+    [
+     "expected N N obj",
+     3
+    ],
+    [
+     "catalog /Type entry missing or invalid",
+     3
+    ]
+   ],
+   "link_files": 0
+  },
+  "SRC-0501": {
+   "engine": "mupdf",
+   "url": "https://github.com/ArtifexSoftware/mupdf",
+   "commit": "d587982f971e2404e72b0539b2d9c60ad2c9b03f",
+   "licence": "AGPL-3.0-or-later",
+   "test_roots": [],
+   "files": 0,
+   "unique_sha256": 0,
+   "bytes": 0,
+   "by_kind": {},
+   "qpdf_labels": {},
+   "qpdf_flags_damaged": 0,
+   "qpdf_reconstructed_xref": 0,
+   "first_message_class": {},
+   "files_with_message_class": {},
+   "damaged_excluding_linearization_only": 0,
+   "no_header_in_first_1024": 0,
+   "no_eof_in_last_1024": 0,
+   "pdfs_anywhere_in_checkout": 0,
+   "top_first_messages": [],
+   "link_files": 0
+  },
+  "SRC-0502": {
+   "engine": "pdf.js",
+   "url": "https://github.com/mozilla/pdf.js",
+   "commit": "d52fdf411a6e4d338180687456e0df019e28475e",
+   "licence": "Apache-2.0",
+   "test_roots": [
+    "test"
+   ],
+   "files": 982,
+   "unique_sha256": 981,
+   "bytes": 124482987,
+   "by_kind": {
+    "pdf": 982
+   },
+   "qpdf_labels": {
+    "ok": 693,
+    "error": 13,
+    "warnings": 264,
+    "password": 12
+   },
+   "qpdf_flags_damaged": 277,
+   "qpdf_reconstructed_xref": 42,
+   "first_message_class": {
+    "filter-decode": 7,
+    "xref-trailer": 104,
+    "linearization": 134,
+    "other": 2,
+    "stream-length": 6,
+    "object-syntax": 20,
+    "header": 2,
+    "page-tree": 2
+   },
+   "files_with_message_class": {
+    "filter-decode": 9,
+    "xref-trailer": 113,
+    "encryption": 13,
+    "object-syntax": 36,
+    "linearization": 134,
+    "other": 8,
+    "stream-length": 22,
+    "header": 2,
+    "page-tree": 7
+   },
+   "damaged_excluding_linearization_only": 145,
+   "no_header_in_first_1024": 1,
+   "no_eof_in_last_1024": 6,
+   "pdfs_anywhere_in_checkout": 984,
+   "top_first_messages": [
+    [
+     "linearized file contains an uncompressed object after a compressed one in a cross-reference stream",
+     112
+    ],
+    [
+     "reported number of objects (N) is not one plus the highest object number (N)",
+     71
+    ],
+    [
+     "xref not found",
+     14
+    ],
+    [
+     "object has offset N",
+     9
+    ],
+    [
+     "page N has shared identifier entries",
+     9
+    ],
+    [
+     "can't find startxref",
+     8
+    ],
+    [
+     "incorrect offset in outlines table: hint table = N; computed = N",
+     7
+    ],
+    [
+     "expected N N obj",
+     5
+    ],
+    [
+     "extraneous whitespace seen before xref",
+     4
+    ],
+    [
+     "expected endstream",
+     4
+    ],
+    [
+     "invalid xref entry (obj=N)",
+     3
+    ],
+    [
+     "shared object N length mismatch: hint table = N; computed = N",
+     3
+    ]
+   ],
+   "link_files": 459
+  },
+  "SRC-0503": {
+   "engine": "pdfium",
+   "url": "https://pdfium.googlesource.com/pdfium",
+   "commit": "8ca5b735df4263f43c830479b78213854a392c22",
+   "licence": "BSD-3-Clause",
+   "test_roots": [
+    "testing"
+   ],
+   "files": 903,
+   "unique_sha256": 889,
+   "bytes": 3933422,
+   "by_kind": {
+    "template": 562,
+    "pdf": 341
+   },
+   "qpdf_labels": {
+    "ok": 593,
+    "warnings": 260,
+    "password": 10,
+    "error": 38,
+    "timeout": 2
+   },
+   "qpdf_flags_damaged": 300,
+   "qpdf_reconstructed_xref": 90,
+   "first_message_class": {
+    "xref-trailer": 107,
+    "object-syntax": 67,
+    "page-tree": 59,
+    "stream-length": 43,
+    "header": 8,
+    "other": 10,
+    "": 2,
+    "linearization": 4
+   },
+   "files_with_message_class": {
+    "xref-trailer": 123,
+    "object-syntax": 124,
+    "page-tree": 92,
+    "stream-length": 129,
+    "encryption": 11,
+    "other": 21,
+    "header": 8,
+    "linearization": 5
+   },
+   "damaged_excluding_linearization_only": 296,
+   "no_header_in_first_1024": 7,
+   "no_eof_in_last_1024": 14,
+   "pdfs_anywhere_in_checkout": 341,
+   "top_first_messages": [
+    [
+     "trailer dictionary lacks /Size key",
+     36
+    ],
+    [
+     "expected endobj",
+     34
+    ],
+    [
+     "stream dictionary lacks /Length key",
+     32
+    ],
+    [
+     "reported number of objects (N) is not one plus the highest object number (N)",
+     28
+    ],
+    [
+     "can't find startxref",
+     18
+    ],
+    [
+     "kid N (from N) MediaBox is undefined; setting to letter / ANSI A",
+     16
+    ],
+    [
+     "catalog /Type entry missing or invalid",
+     16
+    ],
+    [
+     "WARNING: page object N N: item index N (from N): ignoring non-stream in an array of streams",
+     15
+    ],
+    [
+     "unknown token while reading object; treating as string",
+     13
+    ],
+    [
+     "unsigned value request for negative number; returning N",
+     13
+    ],
+    [
+     "xref not found",
+     12
+    ],
+    [
+     "expected endstream",
+     11
+    ]
+   ],
+   "link_files": 0
+  },
+  "SRC-0504": {
+   "engine": "poppler",
+   "url": "https://gitlab.freedesktop.org/poppler/poppler.git",
+   "commit": "c8dc23d564f233875386b7aa1d59fc909ea58799",
+   "licence": "GPL-2.0-or-later",
+   "test_roots": [
+    "test",
+    "qt5/tests",
+    "qt6/tests",
+    "glib/tests",
+    "cpp/tests"
+   ],
+   "files": 0,
+   "unique_sha256": 0,
+   "bytes": 0,
+   "by_kind": {},
+   "qpdf_labels": {},
+   "qpdf_flags_damaged": 0,
+   "qpdf_reconstructed_xref": 0,
+   "first_message_class": {},
+   "files_with_message_class": {},
+   "damaged_excluding_linearization_only": 0,
+   "no_header_in_first_1024": 0,
+   "no_eof_in_last_1024": 0,
+   "pdfs_anywhere_in_checkout": 0,
+   "top_first_messages": [],
+   "link_files": 0
+  },
+  "SRC-0506": {
+   "engine": "poppler",
+   "url": "https://gitlab.freedesktop.org/poppler/test.git",
+   "commit": "48b6219b84fc0a708040cb279d51095cc4e1c603",
+   "licence": "NOASSERTION (repo COPYING is GPL-2.0; PDFs of mixed origin)",
+   "test_roots": [
+    "."
+   ],
+   "files": 83,
+   "unique_sha256": 83,
+   "bytes": 4279448,
+   "by_kind": {
+    "pdf": 83
+   },
+   "qpdf_labels": {
+    "ok": 69,
+    "warnings": 11,
+    "password": 3
+   },
+   "qpdf_flags_damaged": 11,
+   "qpdf_reconstructed_xref": 4,
+   "first_message_class": {
+    "object-syntax": 1,
+    "linearization": 5,
+    "xref-trailer": 5
+   },
+   "files_with_message_class": {
+    "object-syntax": 1,
+    "other": 1,
+    "linearization": 5,
+    "xref-trailer": 7,
+    "encryption": 3,
+    "page-tree": 1,
+    "stream-length": 1
+   },
+   "damaged_excluding_linearization_only": 8,
+   "no_header_in_first_1024": 0,
+   "no_eof_in_last_1024": 0,
+   "pdfs_anywhere_in_checkout": 83,
+   "top_first_messages": [
+    [
+     "shared object N length mismatch: hint table = N; computed = N",
+     3
+    ],
+    [
+     "extraneous whitespace seen before xref",
+     2
+    ],
+    [
+     "xref not found",
+     2
+    ],
+    [
+     "unknown token while reading object; treating as string",
+     1
+    ],
+    [
+     "page N has shared identifier entries",
+     1
+    ],
+    [
+     "end of first page section (/E) mismatch: /E = N; computed = N..N",
+     1
+    ],
+    [
+     "reported number of objects (N) is not one plus the highest object number (N)",
+     1
+    ]
+   ],
+   "link_files": 0
+  },
+  "SRC-0505": {
+   "engine": "ghostscript",
+   "url": "https://github.com/ArtifexSoftware/ghostpdl",
+   "commit": "a3cc9bd74ac017c169da704c8792dcb2365094f3",
+   "licence": "AGPL-3.0-or-later",
+   "test_roots": [
+    "toolbin/tests",
+    "examples"
+   ],
+   "files": 4,
+   "unique_sha256": 4,
+   "bytes": 880341,
+   "by_kind": {
+    "pdf": 4
+   },
+   "qpdf_labels": {
+    "warnings": 1,
+    "ok": 3
+   },
+   "qpdf_flags_damaged": 1,
+   "qpdf_reconstructed_xref": 0,
+   "first_message_class": {
+    "linearization": 1
+   },
+   "files_with_message_class": {
+    "linearization": 1
+   },
+   "damaged_excluding_linearization_only": 0,
+   "no_header_in_first_1024": 0,
+   "no_eof_in_last_1024": 0,
+   "pdfs_anywhere_in_checkout": 35,
+   "top_first_messages": [
+    [
+     "linearized file contains an uncompressed object after a compressed one in a cross-reference stream",
+     1
+    ]
+   ],
+   "link_files": 0
+  }
+ },
+ "totals": {
+  "files": 2873,
+  "unique_sha256": 2802,
+  "qpdf_labels": {
+   "warnings": 692,
+   "ok": 1984,
+   "error": 127,
+   "password": 62,
+   "timeout": 7,
+   "crash-signal-11": 1
+  },
+  "qpdf_flags_damaged": 827,
+  "damaged_unique_sha256": 818,
+  "damaged_excluding_linearization_only": 664,
+  "qpdf_reconstructed_xref": 265,
+  "first_message_class": {
+   "linearization": 168,
+   "filter-decode": 22,
+   "xref-trailer": 277,
+   "other": 16,
+   "stream-length": 57,
+   "object-syntax": 126,
+   "header": 72,
+   "page-tree": 81,
+   "": 7,
+   "encryption": 1
+  },
+  "link_files": 459,
+  "link_hosts": 11,
+  "link_files_password": 0
+ }
+}

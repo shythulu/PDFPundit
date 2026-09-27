@@ -1,0 +1,137 @@
+{
+ "tools": {
+  "qpdf": "qpdf version 11.9.0",
+  "mutool": "mutool version 1.23.10",
+  "gs": "10.02.1",
+  "pdftotext": "pdftotext version 24.02.0",
+  "python": "3.11.15"
+ },
+ "timeout_s": 30,
+ "documents": 100,
+ "by_variant": {
+  "original": {
+   "n": 100,
+   "files_with_%PDF": 100,
+   "qpdf_exit_counts": {
+    "0": 100
+   },
+   "mutool": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "gs": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "gs_forced": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "pdftotext": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   }
+  },
+  "C1": {
+   "n": 100,
+   "files_with_%PDF": 0,
+   "qpdf_exit_counts": {
+    "3": 100
+   },
+   "mutool": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "gs": {
+    "recovered_ge_0.95": 0,
+    "zero_text": 100,
+    "median_ratio": 0.0,
+    "nonzero_exit": 100
+   },
+   "gs_forced": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "pdftotext": {
+    "recovered_ge_0.95": 94,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   }
+  },
+  "C2": {
+   "n": 100,
+   "files_with_%PDF": 100,
+   "qpdf_exit_counts": {
+    "3": 100
+   },
+   "mutool": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "gs": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "gs_forced": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "pdftotext": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   }
+  },
+  "C1+C2": {
+   "n": 100,
+   "files_with_%PDF": 0,
+   "qpdf_exit_counts": {
+    "3": 100
+   },
+   "mutool": {
+    "recovered_ge_0.95": 100,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   },
+   "gs": {
+    "recovered_ge_0.95": 0,
+    "zero_text": 100,
+    "median_ratio": 0.0,
+    "nonzero_exit": 100
+   },
+   "gs_forced": {
+    "recovered_ge_0.95": 0,
+    "zero_text": 100,
+    "median_ratio": 0.0,
+    "nonzero_exit": 0
+   },
+   "pdftotext": {
+    "recovered_ge_0.95": 94,
+    "zero_text": 0,
+    "median_ratio": 1.0,
+    "nonzero_exit": 0
+   }
+  }
+ }
+}

@@ -1,0 +1,101 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "damage",
+ "title": "Damage class (extends REPDF C1-C10)",
+ "type": "object",
+ "required": [
+  "id",
+  "name",
+  "description",
+  "generator_spec",
+  "realism",
+  "status",
+  "provenance"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^DMG-\\d{3}$"
+  },
+  "name": {
+   "type": "string"
+  },
+  "description": {
+   "type": "string"
+  },
+  "maps_to": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^C(10|[1-9])$"
+   }
+  },
+  "generator_spec": {
+   "type": "string",
+   "description": "how to induce it reproducibly (parameters, seeds)"
+  },
+  "realism": {
+   "type": "string",
+   "description": "why this occurs in the wild; cite CLM-/SRC- ids"
+  },
+  "evidence": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^(CLM|OBS|SRC)-\\d{4}$"
+   }
+  },
+  "status": {
+   "enum": [
+    "proposed",
+    "accepted",
+    "implemented",
+    "rejected"
+   ]
+  },
+  "provenance": {
+   "type": "object",
+   "required": [
+    "agent",
+    "method",
+    "added_at"
+   ],
+   "properties": {
+    "agent": {
+     "type": "string",
+     "description": "role of the agent that created the record, e.g. 'chair', 'scoping-backward'"
+    },
+    "method": {
+     "enum": [
+      "crossref",
+      "dblp",
+      "opencitations",
+      "arxiv",
+      "openalex",
+      "semantic-scholar",
+      "core",
+      "parallel-search",
+      "parallel-fetch",
+      "webfetch",
+      "websearch",
+      "local-file",
+      "memory",
+      "user",
+      "derived"
+     ]
+    },
+    "search_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^SRCH-\\d{4}$"
+    },
+    "added_at": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  }
+ }
+}
