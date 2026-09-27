@@ -54,7 +54,7 @@ File carved as out-of-order or interleaved fragments with foreign data between.
 - Maps to: —
 - Generator: Split into F fragments, shuffle, interleave with foreign bytes; ground-truth order kept.
 - Realism: Carving from disk/RAM yields fragmented data (REPDF motivation, untested).
-- Evidence: CLM-0023
+- Evidence: CLM-0023, CLM-0134
 
 ## DMG-007 — Distributed bit rot (proposed)
 
@@ -63,7 +63,7 @@ Random bit flips across many streams (aging media, transmission).
 - Maps to: C9
 - Generator: Flip B random bits over the file with density parameter.
 - Realism: Aging media and transmission errors cause scattered or bursty bit errors across many streams. Note that REPDF's C9 already substitutes 12-30 bytes over 11-28 streams (OBS-0002); this class adds realistic error models (burst length, sector alignment, density) rather than more of the same.
-- Evidence: CLM-0004, OBS-0002
+- Evidence: CLM-0004, OBS-0002, CLM-0109, CLM-0110
 
 ## DMG-008 — Broken incremental update (proposed)
 
@@ -145,4 +145,49 @@ Damage to DCT (partial JPEG), JBIG2 with lost /JBIG2Globals, CCITT, LZW, or lost
 - Generator: Flip/truncate bytes inside non-Flate streams; delete /JBIG2Globals or /DecodeParms entries.
 - Realism: Scanned and image-heavy producers use these filters; REPDF only tests Flate.
 - Evidence: —
+
+## DMG-050 — Foreign PDF objects in the recovered byte range (proposed)
+
+The damaged or carved byte range contains syntactically valid PDF objects that belong to another document or an earlier revision, with object numbers colliding with the target's: an adjacent deleted PDF in unallocated space or slack, an embedded PDF attachment, or a partially overwritten region. Unlike DMG-006, the foreign data parses as PDF.
+
+- Maps to: —
+- Generator: Pick PDFs A and B from the same producer (colliding object numbering). Replace k in {1,2,4} aligned 4 KiB clusters of A with clusters of B, at object boundaries or at uniform cluster positions; variants with A's xref intact and with it removed. Record the seeds and B's identity so association errors (B content rendered as A) can be scored.
+- Realism: Both published PDF repairers carve objects by obj/endobj signatures and object numbers (CLM-0137, CLM-0138), so foreign objects with colliding numbers would be accepted. Forensic tool testing finds carved and recovered files contain data mixed from multiple sources (CLM-0120) and cannot always separate original from overwriting data (CLM-0119); the fragment-reassembly literature assumes the problem away (CLM-0133).
+- Evidence: CLM-0120, CLM-0119, CLM-0133, CLM-0137, CLM-0138
+
+## DMG-200 — Wrong or many-to-one ToUnicode written by the producer (proposed)
+
+The ToUnicode map (or font cmap) is present but silently wrong: distinct glyphs map to the same code point, glyphs map to wrong characters, or entries are missing (ad-hoc and legacy fonts, Indic conjuncts mapped to a base letter). This is worse than loss, because extractors return confident wrong text.
+
+- Maps to: C6
+- Generator: From an original PDF with correct ToUnicode, rewrite each font's ToUnicode so that k% of codes point to a wrong code point (same script), m code pairs merge to one code point, and n entries are dropped. Suggested ranges: k 5-30, m 1-10, n 0-20%. Record the seed and parameters per file. For evaluation, pair with real cases (UDHR, GAP-202).
+- Realism: Real UDHR PDFs map distinct glyphs to one character (CLM-0427). Endangered-language documents use ad-hoc unpublished fonts (CLM-0426). 21 of 526 UDHR translations have unrecoverable characters (CLM-0415).
+- Evidence: CLM-0427, CLM-0426, CLM-0415
+
+## DMG-201 — Producer-internal character codes with ToUnicode loss (proposed)
+
+Character codes are assigned by the producer (sequentially by first appearance) rather than by GlyphID, and ToUnicode (optionally FontFile) is then lost. Font-DB reverse lookup is impossible, so only glyph shapes or code statistics remain.
+
+- Maps to: C6, C8
+- Generator: Take PDFs from a producer that assigns internal codes (macOS Quartz/Document Editor), or re-encode an original's text so codes are assigned sequentially from a start value in order of first appearance. Then delete /ToUnicode, and optionally blank /FontFile2 by deletion rather than in-place spaces (cf. OBS-0003). Record the producer, start value and seed.
+- Realism: CPR documents sequential CIDs from 21 in macOS output (CLM-0411) and cannot recover them without a CMap (CLM-0404).
+- Evidence: CLM-0411, CLM-0404
+
+## DMG-250 — Corrupted structural keywords (proposed)
+
+Structural keywords are misspelled, cut short or missing while the surrounding bytes survive: 'endsteam', 'endstrea', a missing 'endobj', a mangled 'startxref'. Offsets stay valid, but any parser that matches keywords exactly loses the stream or object.
+
+- Maps to: C5
+- Generator: Choose k keyword occurrences among endstream/endobj/obj/startxref (seeded); apply one of {drop 1-3 trailing characters, substitute one character, delete the keyword}; keep file length by padding with spaces when required (variant with length change too). Record keyword, offset and edit per file.
+- Realism: pdf.js accepts misspelled ('endsteam') and cut-short ('endstrea') endstream keywords and handles missing endobj, each added for a real regression PDF from its bug tracker (CLM-0520, OBS-0500).
+- Evidence: CLM-0520, OBS-0500
+
+## DMG-251 — Wrong Adler-32 on otherwise intact Flate streams (proposed)
+
+A zlib stream decodes completely but its 4-byte Adler-32 trailer is wrong or missing (producer bug). Detectors that treat every inflate error as C9 damage flag, and may 'repair', undamaged content; checksum-verified correction rejects correct candidates.
+
+- Maps to: C9
+- Generator: For k Flate streams (seeded), overwrite the final 4 bytes of the zlib data with random bytes (variant: drop them and fix /Length); leave the deflate payload intact. Record stream object ids.
+- Realism: qpdf, MuPDF and Ghostscript all ignore Adler-32 failures because such files occur in the wild; Ghostscript cites Adobe, Apple and xpdf accepting them (CLM-0505, CLM-0512, CLM-0545; the latter two are copyleft sources, cited for behaviour only).
+- Evidence: CLM-0505, CLM-0512, CLM-0545
 

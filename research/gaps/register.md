@@ -6,21 +6,41 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 
 | id | prio | title | type | status | open? | ev | inf | ws | damage | hyp |
 |---|---|---|---|---|---|---|---|---|---|---|
-| GAP-001 | 4.4 | Realistic and compound damage corpus | explicit-future-work | supported | unknown | 2/2 | 1 | W3 | C1, C2, C3, C4, C5, C6, C7, C8, C9, C10 |  |
-| GAP-008 | 4.4 | Evaluation metric that measures extractable, faithful text | evaluation-weakness | supported | unknown | 1/1 | 1 | W3 |  |  |
-| GAP-004 | 4.2 | Context-aware glyph-to-Unicode recovery for complex scripts | explicit-future-work | supported | unknown | 2/2 | 1 | W1 | C6, C8 |  |
-| GAP-005 | 4.2 | Compressed-stream (DEFLATE) recovery beyond byte-level salvage | stated-limitation | supported | unknown | 2/2 | 0 | W1 | C9, C10 |  |
+| GAP-001 | 4.4 | Realistic and compound damage corpus | explicit-future-work | supported | unknown | 9/9 | 1 | W3 | C1, C2, C3, C4, C5, C6, C7, C8, C9, C10 |  |
+| GAP-008 | 4.4 | Evaluation metric that measures extractable, faithful text | evaluation-weakness | supported | unknown | 10/10 | 2 | W3 |  |  |
+| GAP-201 | 4.4 | Language-prior fabrication in glyph-to-Unicode recovery is unmeasured | evaluation-weakness | supported | yes | 6/6 | 0 | W3 | C6, C7, C8 |  |
+| GAP-004 | 4.2 | Context-aware glyph-to-Unicode recovery for complex scripts | explicit-future-work | supported | unknown | 4/4 | 1 | W1 | C6, C8 |  |
+| GAP-005 | 4.2 | Compressed-stream (DEFLATE) recovery beyond byte-level salvage | stated-limitation | supported | unknown | 7/7 | 0 | W1 | C9, C10 |  |
 | GAP-013 | 4.2 | REPDF benchmark does not match its own description | contradiction | supported | unknown | 4/4 | 1 | W3 | C6, C7, C8, C9 |  |
-| GAP-002 | 4.0 | Producer diversity (non-Word PDFs, scans) | explicit-future-work | supported | unknown | 2/2 | 0 | W3 |  |  |
-| GAP-003 | 4.0 | Extensible font knowledge beyond a fixed font DB | explicit-future-work | supported | unknown | 3/3 | 0 | W1 | C7, C8 |  |
-| GAP-009 | 4.0 | Baselines against open-source repair engines | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 |  |  |
-| GAP-010 | 4.0 | Forensic provenance of recovered vs synthesized content | untested-condition | candidate | unknown | 1/1 | 0 | W1 |  |  |
-| GAP-015 | 4.0 | Tamper-aware repair (hostile and anti-forensic PDFs) | untested-condition | candidate | unknown | 1/1 | 0 | W1 | DMG-009 |  |
+| GAP-253 | 4.2 | Adler-32 is not a trustworthy oracle: engines ignore checksum failures | method-weakness | supported | unknown | 3/3 | 0 | W1 | C9, DMG-007, DMG-251 |  |
+| GAP-002 | 4.0 | Producer diversity (non-Word PDFs, scans) | explicit-future-work | supported | unknown | 3/3 | 0 | W3 |  |  |
+| GAP-003 | 4.0 | Extensible font knowledge beyond a fixed font DB | explicit-future-work | supported | unknown | 4/4 | 0 | W1 | C7, C8 |  |
+| GAP-009 | 4.0 | Baselines against open-source repair engines | evaluation-weakness | supported | unknown | 3/3 | 0 | W3 |  |  |
+| GAP-010 | 4.0 | Forensic provenance of recovered vs synthesized content | untested-condition | supported | unknown | 5/5 | 1 | W1 |  |  |
+| GAP-015 | 4.0 | Tamper-aware repair (hostile and anti-forensic PDFs) | untested-condition | candidate | unknown | 2/2 | 0 | W1 | DMG-009 |  |
+| GAP-052 | 4.0 | A checksum match does not make a stream correction unique (provenance grade 3) | method-weakness | supported | yes | 6/6 | 0 | W1 | C9, DMG-007 |  |
+| GAP-202 | 4.0 | No evaluation on naturally corrupted font encodings (UDHR natural pairs) | untested-condition | supported | yes | 5/5 | 0 | W3 | C6, DMG-200 |  |
+| GAP-250 | 4.0 | Which copy wins: engine-specific duplicate and trailer rules in reconstruction | contradiction | supported | unknown | 10/10 | 0 | W1 | C5, DMG-008, DMG-014 |  |
+| GAP-251 | 4.0 | Object-stream carving during reconstruction: engines split, nobody measures it | untested-condition | supported | unknown | 6/6 | 0 | W1 | C2, DMG-004, DMG-005 |  |
+| GAP-252 | 4.0 | Truncated streams are thrown away by most engines | method-weakness | supported | unknown | 4/4 | 0 | W1 | C10, DMG-012 |  |
 | GAP-006 | 3.8 | Truncation recovery when content/fonts sit near EOF | untested-condition | supported | unknown | 2/2 | 0 | W1 | C10 |  |
 | GAP-012 | 3.8 | Cross-viewer consistency of repaired output | evaluation-weakness | supported | unknown | 1/1 | 0 | W3 |  |  |
 | GAP-014 | 3.8 | Offset-preserving synthetic damage overstates recoverability | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 | C7, C8 |  |
+| GAP-050 | 3.8 | No tool-testing specification or reference data for PDF repair tools | tooling-gap | supported | yes | 8/8 | 0 | W3 |  |  |
+| GAP-051 | 3.8 | Source mixing: repair from raw bytes can merge objects from other documents or revisions | untested-condition | supported | yes | 6/6 | 0 | W1 | DMG-050, DMG-006, DMG-014 |  |
+| GAP-053 | 3.8 | Complementarity of PDF repair engines and per-file tool selection are unmeasured | evaluation-weakness | supported | yes | 5/5 | 0 | W3 |  |  |
+| GAP-200 | 3.8 | Producer-assigned character codes defeat font-database mapping | stated-limitation | supported | yes | 3/3 | 0 | W1 | C6, DMG-201 |  |
+| GAP-205 | 3.8 | Code-sequence decipherment (substitution-cipher solving) untried for PDF recovery | cross-field-transfer | supported | yes | 3/3 | 0 | W1 | C6, C7, C8 |  |
+| GAP-256 | 3.8 | Header loss: baselines disagree and Ghostscript fails silently | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 | C1, DMG-003, DMG-001 |  |
+| GAP-257 | 3.8 | Engine regression corpora are an untapped, unlabelled damage source | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 | DMG-009, DMG-011 |  |
 | GAP-016 | 3.6 | Evidence-preserving emission (revisions and signatures) | method-weakness | candidate | unknown | 1/1 | 0 | W1 | DMG-014 |  |
+| GAP-054 | 3.6 | Syntactic reassembly of out-of-order fragmented PDFs | cross-field-transfer | supported | unknown | 5/5 | 0 | W1 | DMG-006 |  |
+| GAP-204 | 3.6 | Calibrated per-mapping confidence for provenance grading | method-weakness | supported | yes | 3/3 | 0 | W1 | C6, C7, C8 |  |
+| GAP-254 | 3.6 | Encrypted files with a lost /ID: engines guess empty, PDFPundit refuses | method-weakness | supported | unknown | 5/5 | 0 | W1 | C3, DMG-015 |  |
+| GAP-203 | 3.4 | Logical-order reconstruction from positioned glyphs (Indic, vertical scripts) | stated-limitation | supported | yes | 2/2 | 0 | W1 | C6, C8 |  |
+| GAP-255 | 3.4 | No decompression-bomb or output guard in PDFPundit's salvage path | method-weakness | supported | unknown | 2/2 | 0 | W1 | DMG-009 |  |
 | GAP-007 | 3.2 | Re-placing orphaned images and content | method-weakness | supported | unknown | 1/1 | 0 | W1 | C4, C5, C10 |  |
+| GAP-055 | 3.0 | Aggregate fabrication and omission rates can hide systematic failure conditions | evaluation-weakness | supported | yes | 2/2 | 0 | W3 |  |  |
 | GAP-011 | 2.8 | Structural collateral damage and adjacency | stated-limitation | supported | unknown | 1/1 | 0 | W1 | C4 |  |
 
 ## Statements
@@ -29,13 +49,21 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 
 REPDF evaluates one synthetic fault per file; how damage manifests in the wild (and in combination) is unknown. A corpus of real-world corrupted PDFs, or damage models derived from them, is needed before any 'state of the art' claim is meaningful.
 
-Evidence: CLM-0006 (SRC-0001, exact), CLM-0007 (SRC-0001, exact), CLM-0023 (SRC-0001, inference)
+Evidence: CLM-0006 (SRC-0001, exact), CLM-0007 (SRC-0001, exact), CLM-0023 (SRC-0001, inference), CLM-0116 (SRC-0127, exact), CLM-0110 (SRC-0126, exact), CLM-0134 (SRC-0132, exact), CLM-0128 (SRC-0129, exact), CLM-0410 (SRC-0123, fuzzy), CLM-0415 (SRC-0401, exact), CLM-0416 (SRC-0401, exact)
 
 ### GAP-008 — Evaluation metric that measures extractable, faithful text
 
 OCR-of-original ground truth and exact word match reward visible-but-unsearchable output, mix OCR error into the score, and ignore reading order, layout, and non-text structure. A metric suite separating extractability, visual fidelity, structure, and fabrication is needed.
 
-Evidence: CLM-0016 (SRC-0001, exact), CLM-0024 (SRC-0001, inference)
+Evidence: CLM-0016 (SRC-0001, exact), CLM-0024 (SRC-0001, inference), CLM-0127 (SRC-0129, exact), CLM-0123 (SRC-0129, exact), CLM-0409 (SRC-0123, exact), CLM-0435 (SRC-0422, exact), CLM-0437 (SRC-0427, exact), CLM-0438 (SRC-0427, exact), CLM-0439 (SRC-0427, fuzzy), CLM-0440 (SRC-0427, exact), CLM-0442 (SRC-0427, exact), CLM-0444 (SRC-0427, inference)
+
+### GAP-201 — Language-prior fabrication in glyph-to-Unicode recovery is unmeasured
+
+Every automatic font-recovery path decides between candidate mappings with a language prior: REPDF's dictionary scoring (CLM-0012), CPR's LLM naturalness check, which fails on short or low-context codes (CLM-0405, CLM-0403), and glyph OCR plus a language model (SRC-0400). In VLM OCR the same kind of prior rewrites genuine but improbable text. olmOCR-2-7B rewrote 58.63% of scrambled words (CLM-0429). Errors spread to untouched text by up to 7.3x (CLM-0430). A no-correction prompt removes only about 30-50% of the effect (CLM-0431). No PDF font-recovery study measures how often decoding swaps real typos, names, codes or foreign words for plausible text, which is the fabrication rate the charter requires. Testable: plant FaithC4-style perturbations and rare tokens in source documents, build PDFs, remove ToUnicode (and optionally the fonts), run each recovery method, and report the rewrite rate on planted tokens next to CER.
+
+*Inference:* Carrying the VLM rewriting results over to mapping-level decoding is our inference (see critique CLM-0445). A code-to-Unicode map applies document-wide, so one wrong choice corrupts every occurrence. Consistency constraints across occurrences might also dampen rewriting. The size of the effect is unknown.
+
+Evidence: CLM-0429 (SRC-0422, exact), CLM-0430 (SRC-0422, exact), CLM-0431 (SRC-0422, exact), CLM-0405 (SRC-0123, exact), CLM-0403 (SRC-0123, fuzzy), CLM-0012 (SRC-0001, exact)
 
 ### GAP-004 — Context-aware glyph-to-Unicode recovery for complex scripts
 
@@ -43,13 +71,13 @@ Dictionary scoring fails for Arabic (33-40%). Authors ask for AI-based contextua
 
 *Inference:* The GSUB mechanism is our inference, not the authors'.
 
-Evidence: CLM-0012 (SRC-0001, exact), CLM-0013 (SRC-0001, exact), CLM-0025 (SRC-0001, inference)
+Evidence: CLM-0012 (SRC-0001, exact), CLM-0013 (SRC-0001, exact), CLM-0025 (SRC-0001, inference), CLM-0422 (SRC-0401, exact), CLM-0432 (SRC-0422, exact)
 
 ### GAP-005 — Compressed-stream (DEFLATE) recovery beyond byte-level salvage
 
 C9 recovery is ~60% and depends on corruption location. Open: error localisation and correction (Adler-32/CRC-guided search), block resynchronisation after corruption, grammar- or LM-guided reconstruction of content-stream operators, multi-error and truncated streams. Note: the REPDF corpus's C9 files carry 12-30 substituted bytes across 11-28 streams (OBS-0002), so 'single-error' salvage (e.g. one-bit-flip search) does not match even the benchmark.
 
-Evidence: CLM-0004 (SRC-0001, exact), OBS-0002 (observation, script research/experiments/corpus_characterize.py)
+Evidence: CLM-0004 (SRC-0001, exact), OBS-0002 (observation, script research/experiments/corpus_characterize.py), CLM-0100 (SRC-0126, exact), CLM-0102 (SRC-0126, exact), CLM-0108 (SRC-0126, exact), CLM-0131 (SRC-0132, exact), CLM-0136 (SRC-0132, exact)
 
 ### GAP-013 — REPDF benchmark does not match its own description
 
@@ -57,31 +85,39 @@ The paper describes C9 as one modified byte (CLM-0026) but the released corpus f
 
 Evidence: CLM-0026 (SRC-0001, exact), OBS-0002 (observation, script research/experiments/corpus_characterize.py), OBS-0003 (observation, script research/experiments/corpus_characterize.py), OBS-0004 (observation, script research/experiments/corpus_characterize.py), CLM-0022 (SRC-0001, inference)
 
+### GAP-253 — Adler-32 is not a trustworthy oracle: engines ignore checksum failures
+
+qpdf, MuPDF and Ghostscript deliberately treat a zlib Adler-32 mismatch ('incorrect data check') as a normal end of stream because producers in the wild write bad checksums; Ghostscript notes that Adobe, Apple and xpdf accept such files. PDFPundit's C9 salvage accepts a byte-flip candidate on a valid Adler-32 (§4.5/§16) and the charter's provenance grade 3 is 'checksum-verified bit correction, e.g. Adler-32 match'. The base rate of wrong-but-harmless checksums in real files, and hence the false-reject and false-accept rates of checksum-verified correction, are unknown; conversely, the engines silently accept a corrupted stream whose only symptom is a checksum failure.
+
+*Inference:* Testable cheaply: inflate every Flate stream in the harvested engine corpora (OBS-0500) and in a producer-diverse clean corpus, and count streams that decode to completion but fail Adler-32. Copyleft evidence (behaviour only, clean-room): CLM-0512 (MuPDF, AGPL), CLM-0545 (Ghostscript, AGPL).
+
+Evidence: CLM-0505 (SRC-0500, exact), CLM-0512 (SRC-0501, exact), CLM-0545 (SRC-0505, exact)
+
 ### GAP-002 — Producer diversity (non-Word PDFs, scans)
 
 Only Microsoft Word output was tested. LaTeX/pdfTeX (Type1, custom encodings), browser/Skia, InDesign, office suites, scanner pipelines (JBIG2/CCITT/DCT) and linearized/incrementally-updated files may break the carver, font inference and metrics differently.
 
-Evidence: CLM-0008 (SRC-0001, exact), CLM-0009 (SRC-0001, fuzzy)
+Evidence: CLM-0008 (SRC-0001, exact), CLM-0009 (SRC-0001, fuzzy), CLM-0443 (SRC-0427, exact)
 
 ### GAP-003 — Extensible font knowledge beyond a fixed font DB
 
 Font repair fails when the lost font is absent from the pre-built DB. Needed: systematic font identification (name-independent: metrics, glyph shapes, width vectors) and a DB that scales across scripts.
 
-Evidence: CLM-0010 (SRC-0001, exact), CLM-0011 (SRC-0001, fuzzy), CLM-0014 (SRC-0001, exact)
+Evidence: CLM-0010 (SRC-0001, exact), CLM-0011 (SRC-0001, fuzzy), CLM-0014 (SRC-0001, exact), CLM-0407 (SRC-0123, exact)
 
 ### GAP-009 — Baselines against open-source repair engines
 
 REPDF compares only against three end-user tools, not qpdf/pikepdf (which it itself uses), MuPDF, pdf.js, PDFium, Poppler or Ghostscript. The true margin over existing engine recovery is unknown.
 
-Evidence: CLM-0017 (SRC-0001, exact), CLM-0018 (SRC-0001, exact)
+Evidence: CLM-0017 (SRC-0001, exact), CLM-0018 (SRC-0001, exact), CLM-0446 (SRC-0123, exact)
 
 ### GAP-010 — Forensic provenance of recovered vs synthesized content
 
 Template-based repair inserts external fonts (and potentially other synthesized structure) into evidence. Nothing distinguishes recovered bytes from fabricated/substituted ones, reports fabrication rate, or preserves an audit trail — a gap for forensic admissibility. Elevated by Charter Committee 001: a six-grade provenance record plus fabrication and omission rates are now charter success criteria (charter §2, §3c).
 
-*Inference:* Inferred from absence; confirm no later work addresses provenance labelling.
+*Inference:* Forensic tool testing already scores omission and 'existence' (fabrication) errors (CLM-0121, CLM-0123) and file repair has been framed as omission vs fabrication (CLM-0111); nobody applies either to PDF repair output. Still to confirm: no later work labels recovered vs synthesized content in repaired PDFs.
 
-Evidence: CLM-0020 (SRC-0001, fuzzy)
+Evidence: CLM-0020 (SRC-0001, fuzzy), CLM-0111 (SRC-0127, exact), CLM-0121 (SRC-0129, exact), CLM-0123 (SRC-0129, exact), CLM-0105 (SRC-0126, exact), CLM-0445 (SRC-0123, inference)
 
 ### GAP-015 — Tamper-aware repair (hostile and anti-forensic PDFs)
 
@@ -89,7 +125,47 @@ REPDF's threat model is accidental damage only (CLM-0019). Deliberately manipula
 
 *Inference:* The need follows from the forensic use case (Charter Committee 001, FO-B1); literature on shadow attacks and parser differentials is to be linked by the scoping sweep.
 
-Evidence: CLM-0019 (SRC-0001, exact)
+Evidence: CLM-0019 (SRC-0001, exact), CLM-0118 (SRC-0127, exact)
+
+### GAP-052 — A checksum match does not make a stream correction unique (provenance grade 3)
+
+The charter's grade 3 ('corrected and verified', e.g. an Adler-32 match) assumes a passing checksum verifies a correction. In a real forensic repair of zlib data with the Adler-32 as oracle (CLM-0101), 3 fragments kept several candidates that passed inflate, Adler-32 and length checks under a single bit flip (CLM-0103), and double-flip search left up to 40717 candidates per fragment (CLM-0104). The authors resolved this by marking disagreeing bits indeterminate with three-valued logic (CLM-0105) or by manual expert choice (CLM-0106), at a cost of days to more than a year of CPU per fragment (CLM-0107). For PDF FlateDecode streams, nobody has measured how often a unique checksum-passing candidate exists, how often a unique one is wrong, or how to report the ambiguity. Grade 3 needs a uniqueness criterion (a single candidate passing checksum plus content-stream grammar) and an indeterminate state; otherwise it must fall back to grade 2 or 6.
+
+*Inference:* Transfer to PDF is our inference. PDF content streams are often short, and REPDF's C9 files carry 12-30 changed bytes across 11-28 streams (OBS-0002), so both brute-force cost and candidate multiplicity are likely worse than in the 1-2 flip setting of SRC-0126. Testable: for C9 and DMG-007 files, enumerate 1- and 2-flip candidates per damaged stream and count those passing Adler-32 alone versus Adler-32 plus operator-grammar parsing.
+
+Evidence: CLM-0101 (SRC-0126, exact), CLM-0103 (SRC-0126, exact), CLM-0104 (SRC-0126, exact), CLM-0105 (SRC-0126, exact), CLM-0106 (SRC-0126, exact), CLM-0107 (SRC-0126, exact)
+
+### GAP-202 — No evaluation on naturally corrupted font encodings (UDHR natural pairs)
+
+Font-recovery methods are evaluated only on synthetic object deletion with closed-world font sets. CPR deletes whole objects (CLM-0410), and its 40-font DB covered every test font (CLM-0407); REPDF likewise uses synthetic single faults. Real encoding damage is measurable. In the UDHR corpus, 21 of 526 translations (4%) are born-digital PDFs with unrecoverable characters (CLM-0415), often set in ad-hoc fonts (CLM-0426) with wrong many-to-one mappings (CLM-0427). Many have independent Unicode texts at the Unicode Consortium (CLM-0416), giving natural pairs of the kind charter 3(a) allows. Testable: assemble the UDHR pairs, verify each pair (same edition), and score the recovery methods on them.
+
+*Inference:* Whether the Unicode Consortium texts match the PDFs word for word, and the licence terms of the OHCHR PDFs, are unchecked. Pairs must be verified before use (charter 3a).
+
+Evidence: CLM-0415 (SRC-0401, exact), CLM-0416 (SRC-0401, exact), CLM-0427 (SRC-0401, exact), CLM-0410 (SRC-0123, fuzzy), CLM-0407 (SRC-0123, exact)
+
+### GAP-250 — Which copy wins: engine-specific duplicate and trailer rules in reconstruction
+
+When an object number or trailer occurs more than once in a damaged file (incremental updates, partial overwrites, reused object numbers), the six engines resolve it differently during reconstruction. Objects: last copy in the file wins (qpdf, Ghostscript; MuPDF for uncompressed objects); highest generation, then latest (PDFium); generation >= with the ObjStm index used as generation (Poppler); first copy seen unless a same-generation later copy parses (pdf.js). Object-stream members override uncompressed copies (Ghostscript; Poppler; PDFium for generation 0) or not when the uncompressed copy is later in the file (MuPDF). Trailer/Root: newest trailer or root with /Root (qpdf, MuPDF, Poppler, Ghostscript pass 1), first valid trailer with /ID (pdf.js), first trailer in Poppler's catalog-recovery mode, highest-numbered Catalog (Ghostscript). No paper evaluates which rule recovers the intended (latest valid) revision, and PDFPundit's design (§4.4/§17.2) fixes 'last in byte order wins' without evidence.
+
+*Inference:* The rule-per-engine mapping is our reading of the cited code. That these rules yield different documents from the same damaged input is inferred, not yet observed: testable by running all engines on DMG-008/DMG-014 files with a known intended revision and comparing the recovered page content. A disagreement is itself a parser differential (GAP-012) and a tamper-relevant ambiguity (GAP-015/016). Copyleft evidence (behaviour only, clean-room): CLM-0510 (MuPDF, AGPL), CLM-0533/0534 (Poppler, GPL), CLM-0541/0542/0543 (Ghostscript, AGPL).
+
+Evidence: CLM-0501 (SRC-0500, exact), CLM-0510 (SRC-0501, exact), CLM-0517 (SRC-0502, exact), CLM-0518 (SRC-0502, exact), CLM-0525 (SRC-0503, exact), CLM-0533 (SRC-0504, exact), CLM-0534 (SRC-0504, exact), CLM-0541 (SRC-0505, exact), CLM-0542 (SRC-0505, exact), CLM-0543 (SRC-0505, exact)
+
+### GAP-251 — Object-stream carving during reconstruction: engines split, nobody measures it
+
+MuPDF, PDFium, Poppler and Ghostscript parse /ObjStm headers during reconstruction and so recover compressed objects with no usable xref; qpdf explicitly declines to look inside object streams and pdf.js only re-reads XRef streams that survived, so both lose every compressed object once the XRef stream is damaged. PDFPundit plans ObjStm expansion (§14.4), but REPDF's C2 only deletes a classic xref table, so neither the paper's corpus nor any evaluation we know of measures recovery when XRef streams or object streams are damaged (DMG-004, DMG-005), although PDF 1.5+ producers commonly pack most non-stream objects into object streams (share not measured here).
+
+*Inference:* The share of objects held in object streams per producer is not measured here (lead). Copyleft evidence (behaviour only, clean-room): CLM-0510 (MuPDF, AGPL), CLM-0532 (Poppler, GPL), CLM-0542 (Ghostscript, AGPL).
+
+Evidence: CLM-0502 (SRC-0500, exact), CLM-0519 (SRC-0502, exact), CLM-0510 (SRC-0501, exact), CLM-0524 (SRC-0503, exact), CLM-0532 (SRC-0504, exact), CLM-0542 (SRC-0505, exact)
+
+### GAP-252 — Truncated streams are thrown away by most engines
+
+A stream whose end has been cut off is emptied by qpdf, dropped by PDFium, rejected by pdf.js and turned into an I/O error by Ghostscript's pdfi; only MuPDF's repair scan and Poppler read up to EOF. The surviving prefix, often partly inflatable, is therefore lost by most baselines, whereas PDFPundit's design clamps the extent at EOF (§14.3f) and salvages prefixes (§16) — a place where the REPDF reimplementation is stronger than existing engines. How much text and image content prefix salvage adds on realistic truncation (content near EOF, GAP-006) has not been measured by any paper or engine test.
+
+*Inference:* The advantage is inferred from code; measure with C10/DMG-012 files per engine vs PDFPundit prefix salvage. Copyleft evidence (behaviour only, clean-room): CLM-0544 (Ghostscript, AGPL).
+
+Evidence: CLM-0503 (SRC-0500, exact), CLM-0527 (SRC-0503, exact), CLM-0521 (SRC-0502, exact), CLM-0544 (SRC-0505, exact)
 
 ### GAP-006 — Truncation recovery when content/fonts sit near EOF
 
@@ -111,6 +187,62 @@ C7/C8 blank font streams with spaces while keeping file size (OBS-0003), so ever
 
 Evidence: OBS-0003 (observation, script research/experiments/corpus_characterize.py), CLM-0027 (SRC-0002, exact)
 
+### GAP-050 — No tool-testing specification or reference data for PDF repair tools
+
+Forensic tool testing (NIST CFTT) has specifications, test assertions and static reference data for acquisition, write blocking, carving of graphic and video files, deleted-file recovery and string search, but none for document or PDF repair (CLM-0124), and there is no agreed standard to test against (CLM-0125). CFTT already scores carvers by data returned, omitted and not-from-original (CLM-0123) and classifies tool inaccuracy as existence, alteration, association and corruption errors (CLM-0121, CLM-0122). A CFTT-style specification for PDF repair (assertions per error class, graded rather than hash-only scoring (CLM-0127), shared reference damaged/original pairs (CLM-0128)) is missing. The charter's P6 gate needs exactly this: a validation report with tool-testing assertions.
+
+*Inference:* Absence is inferred from NIST's own list of CFTT test areas (2022) and from titles of works citing NIST IR 8354 and Lyle 2010; the live CFTT catalogue was not checked. Corroboration outside this staging: scoping-fonts CLM-0409 (verified) shows CPR counts a recovery as successful when any part of the content is recovered. The chair may add it to the evidence at merge.
+
+Evidence: CLM-0124 (SRC-0129, exact), CLM-0125 (SRC-0129, exact), CLM-0123 (SRC-0129, exact), CLM-0121 (SRC-0129, exact), CLM-0122 (SRC-0129, exact), CLM-0127 (SRC-0129, exact), CLM-0128 (SRC-0129, exact), CLM-0409 (SRC-0123, exact)
+
+### GAP-051 — Source mixing: repair from raw bytes can merge objects from other documents or revisions
+
+Carving-style PDF repair assumes every object found by signature scanning (REPDF, CLM-0137; CPR, CLM-0138) belongs to the one document and revision being repaired. Forensic testing shows carved and recovered data can be mixed from several sources (CLM-0120), that original and overwriting data may be indistinguishable (CLM-0119), and it treats wrong association as a tool error (CLM-0122). The best fragment-reassembly evaluation in this community assumes a priori that all fragments come from one document (CLM-0133). Nobody has measured how often PDF repairers attach foreign objects (another PDF in slack or unallocated space, an embedded PDF, an earlier revision with colliding object numbers) and so produce plausible but fabricated pages.
+
+*Inference:* The transfer to PDF is our inference: PDF object numbers restart at 1 in every file, so objects from two documents by the same producer collide by number and look structurally valid. Testable: splice clusters of PDF B into PDF A (DMG-050) and count association errors (objects of B rendered in A) for a REPDF-style reimplementation, qpdf, mutool and pdf.js.
+
+Evidence: CLM-0137 (SRC-0001, exact), CLM-0138 (SRC-0123, exact), CLM-0120 (SRC-0129, exact), CLM-0119 (SRC-0129, exact), CLM-0122 (SRC-0129, exact), CLM-0133 (SRC-0132, exact)
+
+### GAP-053 — Complementarity of PDF repair engines and per-file tool selection are unmeasured
+
+The only study found that compares two PDF repair approaches file by file (Force Open vs pdftk) found little overlap between the files each one repairs (CLM-0114): combining them raised repaired PDFs by 31.30% (CLM-0115), and its PDF repairs were all-or-nothing (CLM-0113). Its damage was synthetic random-byte overwrites (CLM-0116). Nobody has measured the per-file overlap of modern engines (qpdf, MuPDF, Ghostscript, Poppler, pdf.js, PDFium, REPDF/CPR-style carvers) on damaged PDFs, or how far a per-file selector or ensemble closes the gap between the single best tool and the per-file oracle (research question 5). REPDF and CPR both compare only against commercial web tools.
+
+*Inference:* REPDF's commercial-only baselines: CLM-0017. CPR's: scoping-fonts CLM-0446 (verified, four web services, no open-source engine); add at merge. CPR's code is released (scoping-fonts CLM-0412), so CPR, unlike REPDF, could join the runnable baselines. Testable within the charter 3(b) baseline protocol: report the pairwise Jaccard index of repaired sets, the oracle-best vs single-best gap, and a selector's share of that gap.
+
+Evidence: CLM-0114 (SRC-0127, exact), CLM-0115 (SRC-0127, exact), CLM-0113 (SRC-0127, exact), CLM-0116 (SRC-0127, exact), CLM-0446 (SRC-0123, exact)
+
+### GAP-200 — Producer-assigned character codes defeat font-database mapping
+
+When the producer assigns character codes itself rather than using GlyphIDs (macOS Document Editor: sequential from 21 in order of first appearance, CLM-0411), the codes carry no font-intrinsic identity. Reverse-cmap decoding (REPDF) and FontDB lookup (CPR) then cannot recover text once ToUnicode is lost: CPR reports recovery is impossible for this producer without a CMap (CLM-0404), and 33.3% recovery overall under complete CMap loss (CLM-0402). Open and testable: generate PDFs with producer-internal codes, strip ToUnicode, and compare (a) matching embedded glyph outlines to a font DB, (b) glyph-image OCR, (c) code-sequence decipherment; report CER and fabrication rate against CPR as baseline.
+
+*Inference:* That glyph-outline matching or glyph OCR would recover these fonts is our inference. The DAS glyph-OCR system (SRC-0400) is the obvious candidate but was not read (paywalled) and was never evaluated on this producer class.
+
+Evidence: CLM-0404 (SRC-0123, exact), CLM-0411 (SRC-0123, exact), CLM-0402 (SRC-0123, exact)
+
+### GAP-205 — Code-sequence decipherment (substitution-cipher solving) untried for PDF recovery
+
+When the glyph programs are lost as well (C7/C8, or a missing FontFile), only code sequences, positions and widths remain. Prior encoding-recovery work assumes renderable glyphs (CLM-0414), and CPR recovers 33.3% of files under complete CMap loss (CLM-0402). Stefanovitch names n-gram frequency decipherment of CID strings as viable but unusable without language models (CLM-0418). For high-resource languages it has never been tried on PDFs. The OCR literature solves glyph clusters as substitution ciphers: Ho and Nagy 2000 (SRC-0406), Huang et al. 2007 (SRC-0403), and Scharwaechter and Vogel 2015 (SRC-0407), whose semi-supervised setting fits a partially surviving ToUnicode. Testable: HMM or n-gram decipherment of code sequences, seeded by surviving mappings and constrained by /Widths, scored on CER and fabrication against the FontDB and LLM approaches.
+
+*Inference:* The cipher-OCR papers were screened by title or abstract only. Their transfer to PDF code sequences, and the use of /Widths as a constraint (cf. SRC-0411, glyph widths leak text), are our inference.
+
+Evidence: CLM-0418 (SRC-0401, exact), CLM-0414 (SRC-0123, exact), CLM-0402 (SRC-0123, exact)
+
+### GAP-256 — Header loss: baselines disagree and Ghostscript fails silently
+
+On REPDF's C1 (header overwritten) files the default Ghostscript CLI recovers 0/100 because it sniffs the input as PostScript, while MuPDF recovers 100/100 and pdftotext 94/100; with header and xref loss combined, even Ghostscript's forced PDF interpreter fails on 100/100 yet exits 0, because its repair requires '%PDF' somewhere in the file. The charter's head-to-head protocol (§3b) therefore needs declared per-tool option sets (e.g. forcing PDF interpretation) and output-based rather than exit-code-based success detection; otherwise baseline scores on header damage measure invocation, not recovery. No paper reports open-source engine baselines per damage class.
+
+*Inference:* Installed gs is 10.02.1 (not the pinned HEAD); the source rule (CLM-0540) is unchanged at HEAD. Copyleft evidence (behaviour only, clean-room): CLM-0540 (Ghostscript, AGPL); OBS-0501 runs AGPL/GPL binaries as black boxes only.
+
+Evidence: OBS-0501 (observation, script research/experiments/engine_header_loss.py), CLM-0540 (SRC-0505, exact)
+
+### GAP-257 — Engine regression corpora are an untapped, unlabelled damage source
+
+The public test suites of qpdf, pdf.js, PDFium and Poppler hold 2,873 PDF-like files, 827 of which qpdf flags as damaged and 265 of which need xref reconstruction; pdf.js adds 459 externally hosted test PDFs, largely real users' bug-report attachments, and its recovery code names the regression file behind each workaround. No repair paper evaluates on these corpora, and no per-file label says whether a file carries natural damage, is a hand-made minimal reproduction, or is fuzzer output. Labelled, they could supply the charter's real-world damage source and damage-model evidence, subject to licence and personal-data screening.
+
+*Inference:* Provenance labelling (natural / hand-made / fuzz) needs the engines' issue trackers (pdf.js issue numbers, PDFium bug ids, OSS-Fuzz ids). Some .link targets look like personal documents (e.g. invoices): do not mirror them into the repo. Copyleft: the corpus harvest covers GPL/AGPL checkouts (Poppler, Ghostscript, MuPDF) by path and hash only.
+
+Evidence: OBS-0500 (observation, script research/experiments/engine_test_corpora.py), CLM-0520 (SRC-0502, exact)
+
 ### GAP-016 — Evidence-preserving emission (revisions and signatures)
 
 REPDF re-emits a new file through pikepdf (CLM-0018), which discards earlier revisions and invalidates signatures. Open: append-only incremental repair overlays that keep the original bytes (and a signed revision's ByteRange) intact, and how to choose and report the revision used.
@@ -119,11 +251,59 @@ REPDF re-emits a new file through pikepdf (CLM-0018), which discards earlier rev
 
 Evidence: CLM-0018 (SRC-0001, exact)
 
+### GAP-054 — Syntactic reassembly of out-of-order fragmented PDFs
+
+For OOXML, a syntax-driven method reassembles shuffled cluster-sized fragments: ZIP central-directory offsets place clusters, DEFLATE continuation tests propose the next cluster (CLM-0129), a stored CRC-32 confirms it (CLM-0130), and XML structure filters the false positives that continuation alone admits (CLM-0131). It reconstructed 82.97% of documents (CLM-0132). Out-of-order fragmentation of office documents is common on real NTFS disks (CLM-0134). PDF offers analogous signals: xref byte offsets, /Length, a per-stream Adler-32 and the content-stream operator grammar. No evaluated method reassembles out-of-order fragmented PDFs with them. REPDF tests only contiguous single-fault files, and CPR simulates damage by deleting whole content-related objects (scoping-fonts CLM-0410).
+
+*Inference:* Transfer is our inference. PDF differs: its xref records object offsets rather than per-element CRCs, and its Adler-32 is only in the zlib trailer, so verification is weaker than OOXML's CRC-32 for uncompressed data. Testable: split PDFs from Govdocs1/NapierOne into shuffled 4 KiB clusters (DMG-006) and measure the order-recovery rate and the extractable-text F1 of the reassembled files.
+
+Evidence: CLM-0129 (SRC-0132, exact), CLM-0130 (SRC-0132, exact), CLM-0131 (SRC-0132, exact), CLM-0132 (SRC-0132, exact), CLM-0134 (SRC-0132, exact)
+
+### GAP-204 — Calibrated per-mapping confidence for provenance grading
+
+Recovered code-to-Unicode mappings are accepted on binary verdicts (CPR's O/X LLM judgement, CLM-0401) or on the best dictionary score (REPDF). These fail in known ways on short or low-context codes (CLM-0405, CLM-0403). No method reports calibrated per-mapping or per-glyph confidence. The charter needs one to choose between grade 4 (inferred) and grade 6 (synthesized), or to abstain. Testable: emit posteriors (cipher-solver or HMM marginals, glyph-OCR scores, width-match likelihoods), then measure calibration (ECE, risk-coverage) against known originals and fix abstention thresholds that cap the fabrication rate.
+
+*Inference:* ConfBERT (SRC-0424) and KIE-HVQA (SRC-0423) address OCR confidence and abstention in general. They were screened by abstract only and are not about font mappings.
+
+Evidence: CLM-0401 (SRC-0123, fuzzy), CLM-0405 (SRC-0123, exact), CLM-0403 (SRC-0123, fuzzy)
+
+### GAP-254 — Encrypted files with a lost /ID: engines guess empty, PDFPundit refuses
+
+When the trailer /ID of an encrypted file is missing or damaged, qpdf, MuPDF, PDFium, Poppler and Ghostscript (and pdf.js) fall back to an empty ID or proceed without ID bytes; this only succeeds if the key did not depend on the ID. None searches candidate IDs (other trailers, XRef-stream dictionaries, earlier revisions) and verifies them against /U, which would give a verified (grade 3) repair for the ID-dependent revisions. PDFPundit's design declares any /Encrypt 'Unrepairable in v1', which is weaker than every engine even for blank-user-password files. Recovery of encrypted damaged files (DMG-015) is unevaluated.
+
+*Inference:* Candidate-ID search verified against /U is our proposal. For revision 5/6 (AES-256) the ID is not part of key derivation, so the gap concerns revisions 2-4. pdf.js behaves the same (src/core/xref.js L142, read but not recorded as a claim). Copyleft evidence (behaviour only, clean-room): CLM-0515 (MuPDF, AGPL), CLM-0538 (Poppler, GPL), CLM-0547 (Ghostscript, AGPL).
+
+Evidence: CLM-0506 (SRC-0500, exact), CLM-0515 (SRC-0501, exact), CLM-0530 (SRC-0503, exact), CLM-0538 (SRC-0504, exact), CLM-0547 (SRC-0505, exact)
+
+### GAP-203 — Logical-order reconstruction from positioned glyphs (Indic, vertical scripts)
+
+A correct code-to-Unicode map is not enough, because extraction follows glyph position rather than logical order. Devanagari pre-base vowel signs are stored after the consonant but drawn before it (CLM-0422). Vertical Mongolian lines cannot be recovered at all by tools that assume horizontal lines (CLM-0423). Open: invert script shaping (reordering, conjunct decomposition, RTL ligature order) to turn decoded glyph runs into logical Unicode, measured per script with an order-aware metric. This is the ordering half of GAP-004; GAP-004 covers the mapping half.
+
+*Inference:* Arabic RTL ligature-order errors (pdfminer.six issue #850) and Indic visual-vs-phonetic glyph order (shreevatsa/pdf-glyph-mapping, SRC-0434) are grey literature and not quote-verified.
+
+Evidence: CLM-0422 (SRC-0401, exact), CLM-0423 (SRC-0401, exact)
+
+### GAP-255 — No decompression-bomb or output guard in PDFPundit's salvage path
+
+Engines bound the decoding of hostile streams: MuPDF aborts once decoded output exceeds 200 times the compressed size (with a fixed floor), PDFium caps Flate output at 1 GiB, and qpdf, PDFium, Poppler and Ghostscript add nesting, recursion and repair-count limits. PDFPundit's inflate probe feeds 'the whole tail' of the file (§14.3d) and its byte-flip search is bounded only by an attempt budget (§16); the design has a nesting-depth guard but no output-size, expansion-ratio or time limit. Given the charter's hostile-input safety target, a guard policy and its cost on large legitimate streams are unspecified and untested.
+
+*Inference:* Guard values in qpdf/Poppler/Ghostscript are recorded in the SRC notes, not as claims. Copyleft evidence (behaviour only, clean-room): CLM-0513 (MuPDF, AGPL).
+
+Evidence: CLM-0513 (SRC-0501, exact), CLM-0529 (SRC-0503, exact)
+
 ### GAP-007 — Re-placing orphaned images and content
 
 When placement is lost, images are dumped to files rather than placed on pages; no heuristic reconstructs placement or page order from surviving evidence (e.g., content-stream Do operators, XObject names, MediaBox geometry).
 
 Evidence: CLM-0015 (SRC-0001, exact)
+
+### GAP-055 — Aggregate fabrication and omission rates can hide systematic failure conditions
+
+The charter reports fabrication and omission rates per damage class with confidence intervals. NIST's review argues that digital tools fail systematically, under particular conditions, not randomly, so an error-mitigation analysis rather than an error rate is the right way to manage uncertainty (CLM-0126), and that pass/fail comparisons hide near misses (CLM-0127). No PDF repair evaluation reports a catalogue of failure conditions (producer, filter, font type, damage class) with a test per condition. The P6 validation report and the known-limitations list need one.
+
+*Inference:* Applying this to PDF repair metrics is our inference. Testable: if most fabrication events in the P5 results concentrate in a few (producer x damage-class x font-type) cells, per-condition reporting is required and an aggregate rate misleads.
+
+Evidence: CLM-0126 (SRC-0129, exact), CLM-0127 (SRC-0129, exact)
 
 ### GAP-011 — Structural collateral damage and adjacency
 

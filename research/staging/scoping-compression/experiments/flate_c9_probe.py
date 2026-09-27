@@ -23,6 +23,8 @@ unchanged in C9, so offsets align):
   - blocks_total / blocks_after: DEFLATE blocks in the original stream, and blocks that start
     after the first changed byte (the most that block-level resync, as in Brown 2011 or pugz,
     could reach).
+Also records, per original Flate stream, whether stock zlib (compress level 0-9, default window and
+memLevel) reproduces the stored bytes exactly, i.e. whether the producer's encoder can be replayed.
 Also counts, per C9 file, where the changed bytes fall: inside Flate stream bodies, inside other
 (unfiltered/DCT/undecodable) stream bodies, or outside stream bodies (dictionaries, arrays).
 Block boundaries come from zlib's own inflate(Z_BLOCK) via ctypes (the method zlib's zran.c uses).
@@ -164,8 +166,10 @@ def main() -> None:
             if ores["ret"] != Z_STREAM_END:
                 continue                                  # not a (valid) Flate stream in the original
             nblocks = len(ores["block_ends"])
+            level = next((lv for lv in range(10) if zlib.compress(ores["out"], lv) == ob), "")
             block_rows.append({"file": str(f.relative_to(corpus)), "mode": mode, "stream": idx,
-                               "comp_len": len(ob), "decomp_len": len(ores["out"]), "blocks": nblocks})
+                               "comp_len": len(ob), "decomp_len": len(ores["out"]), "blocks": nblocks,
+                               "stock_zlib_level": level})
             cb = trim_eol(b[s:e])
             diffs = [i for i in range(len(ob)) if ob[i] != cb[i]]
             if not diffs:
@@ -200,6 +204,10 @@ def main() -> None:
         "blocks_per_stream": {"single_block": nb[1], "two_to_five": sum(v for k, v in nb.items() if 2 <= k <= 5),
                               "more_than_five": sum(v for k, v in nb.items() if k > 5),
                               "stats": stats([r["blocks"] for r in block_rows])},
+        "stock_zlib_reproducible": {m: {"streams": sum(1 for r in block_rows if r["mode"] == m),
+                                        "byte_identical": sum(1 for r in block_rows if r["mode"] == m and r["stock_zlib_level"] != ""),
+                                        "levels": dict(Counter(r["stock_zlib_level"] for r in block_rows if r["mode"] == m and r["stock_zlib_level"] != ""))}
+                                    for m in ("saveas", "print")},
         "c9_changed_bytes_by_location": dict(where),
         "c9_files_with_changes_outside_stream_bodies": files_outside,
         "c9_other_stream_body_bytes_by_filter": dict(other_filter),
