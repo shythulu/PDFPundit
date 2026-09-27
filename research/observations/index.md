@@ -137,3 +137,21 @@ On SRC-0123 (CPR, a two-column academic PDF), pymupdf4llm 0.0.29 (PyMuPDF 1.28.2
 - Script: `research/experiments/paper_parsing_comparison.py`
 - Inputs: research/cache/pdf/73f1223104c84ac21b184107ce767150543d1343deec2ae8b197087509be5ca9.pdf (SRC-0123 (CPR) cached PDF, fetched by fetch_fulltext.py)
 
+## OBS-0800
+
+Extending OBS-0201's truncation-pair check to ZIPs other than 0000.zip: the metadata layer (range-fetch first 2MB of the FULL cc-provenance-20230303.csv.gz, decompress, filter by zip-number embedded in file_name) and the zip-member layer (HEAD + central-directory read of a 1.6GB zip via HTTP range requests) both work correctly and quickly, confirming zips 0001/0002 hold both length-cap and rarer disconnect truncation rows (zip 0001 alone: 254 'length' + 1 'disconnect' REFETCHED_SUCCESS rows in the first 12,946-row metadata prefix). However every attempt to actually fetch the paired WARC capture from data.commoncrawl.org failed with HTTP 403 Forbidden (see CLM-0807/SRC-0811), so no prefix-match pairs from a non-0000 zip were obtained this session; two full-script runs (30 pairs across zips 0001/0002, and a reduced 6-pair single-zip run) both timed out (600s and 170s respectively) with zero completed rows, consistent with the per-request retry/backoff (20s/40s/60s) repeatedly firing on the 403s. The sampler design itself (stratified by zip and by truncation type, working within a <200MB budget) is validated as feasible; only the CC WARC-fetch step is currently blocked.
+
+- Result: meta-prefix fetch: 1.33s for 2MB range -> 12,946 rows. zip 0001 central-directory open: 1.19s, 1 HTTP request, 1000 entries listed. zip-0001 rows available: 254 length-truncated + 1 disconnect-truncated (REFETCHED_SUCCESS). CC WARC range-fetch: HTTP 403 Forbidden (reproduced directly, tries=1, no retry). Net: 0 of the ~30 targeted pairs completed; sampler design confirmed workable, CC data-fetch step blocked as of 2026-09-27.
+- Reproduce: `python3 research/experiments/cc_natural_pairs_other_zips.py --meta-bytes 2000000 --zips 0001,0002 --n-length-per-zip 13 --n-disconnect-per-zip 2 --workdir /tmp/cc-safedocs-otherzips --out research/experiments/results/cc_natural_pairs_other_zips.csv (timed out after 600s; diagnostic follow-up isolated the failing step to a single urllib Range GET against data.commoncrawl.org returning HTTP 403)`
+- Script: `research/experiments/cc_natural_pairs_other_zips.py`
+- Inputs: https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/cc-provenance-20230303.csv.gz (first 2,000,000 compressed bytes range-fetched (of 1.29GB total); decompresses to 12,946 rows spanning zip prefixes 0000-0012)
+
+## OBS-0801
+
+Hands-on producer-diversity (GAP-002) and damage-generator (DMG-009/GAP-104) check: six independent PDF producers (LibreOffice/Writer headless, Ghostscript ps2pdf, Chromium headless print-to-pdf, pdflatex, reportlab, pycairo) each produced a small valid PDF, all six verified openable and single-page via pikepdf; two generic fault injectors (zzuf, radamsa) each successfully mutated a real REPDF corpus PDF with byte-level diffs recorded; peepdf-3 successfully performed a full structural scan of the same file; dfxml_python successfully produced a DFXML XML record containing the file's sha256.
+
+- Result: lo_input.pdf 9929B; sample_gs.pdf 2477B; sample_chromium.pdf 25991B; sample.pdf (LaTeX) 16563B; sample_reportlab.pdf 1396B; sample_cairo.pdf 7063B -- all 6 opened by pikepdf, 1 page each. zzuf -r 0.001: same size True, 3301 bytes differing. radamsa -s 1: orig len 411513, mutated len 411596, 389954 bytes differing over the shared prefix. peepdf-3: SHA256 matched original, reported PDF 1.7, 1503 objects, 44 streams, 1 incremental update. dfxml: serialized DFXML XML (461 bytes) contains the file's correct sha256 hex digest. Final script line: 'ALL CHECKS COMPLETED'.
+- Reproduce: `producer_and_generator_checks.sh <scratch-outdir> /home/user/dfrc-korea/repdf/original/saveas/text/Quantum_Computing_Race(saveas).pdf <venv-python3> <radamsa-bin>`
+- Script: `research/experiments/producer_and_generator_checks.sh`
+- Inputs: /home/user/dfrc-korea/repdf/original/saveas/text/Quantum_Computing_Race(saveas).pdf (REPDF corpus original PDF, 411513 bytes)
+

@@ -154,3 +154,16 @@
 | SRC-0504 | Poppler source code (freedesktop poppler) | 2026 |  | extracted | 3 | oa |  |  | pdf-repair, pdf-parsing-robustness, deflate-recovery, font-recovery, glyph-to-unicode, incremental-updates, pdf-security |
 | SRC-0505 | Ghostscript/GhostPDL source code (ArtifexSoftware/ghostpdl) | 2026 |  | extracted | 3 | oa |  |  | pdf-repair, pdf-parsing-robustness, deflate-recovery, font-recovery, glyph-to-unicode, incremental-updates, pdf-security |
 | SRC-0506 | Poppler test-file repository (poppler/test) | 2026 |  | read | 2 | oa |  |  | corpora-datasets, pdf-parsing-robustness |
+| SRC-0800 | digitalcorpora.org Terms of Use / About page |  |  | read |  | oa |  |  | corpora-datasets |
+| SRC-0801 | unicode.org UDHR project decommission notice |  |  | read |  | oa |  |  | corpora-datasets, font-recovery |
+| SRC-0802 | NapierOne dataset entry, AWS Registry of Open Data |  |  | read |  | oa |  |  | corpora-datasets |
+| SRC-0803 | DFRWS 2007 Forensic Carving Challenge README |  |  | read |  | oa |  |  | file-carving, fragment-reassembly, corpora-datasets |
+| SRC-0804 | enssec/squashfs_bitflip_repair README |  |  | read |  | oa |  |  | error-correction, corpora-datasets |
+| SRC-0805 | radamsa LICENCE (gitlab.com/akihe/radamsa) |  |  | read |  | oa |  |  | fuzzing |
+| SRC-0806 | peepdf-3 COPYING (bundled in PyPI package) |  |  | read |  | oa |  |  | pdf-security |
+| SRC-0807 | dfxml_python LICENSE.md |  |  | read |  | oa |  |  | forensic-soundness |
+| SRC-0808 | UCO ontology repository (ucoProject/UCO) |  |  | read |  | oa |  |  | forensic-soundness |
+| SRC-0809 | Arlington PDF Model repository (pdf-association/arlington-pdf-model) |  |  | read |  | oa |  |  | pdf-standards, fuzzing |
+| SRC-0810 | RUB-NDS pdf-attacker repository |  |  | read |  | unknown |  |  | pdf-security, fuzzing |
+| SRC-0811 | Common Crawl data.commoncrawl.org access (observed 403, 2026-09-27) |  |  | read |  | oa |  |  | corpora-datasets |
+| SRC-0812 | SafeDocs Issue Tracker corpus description (digitalcorpora) |  |  | read |  | unknown |  |  | corpora-datasets, forensic-soundness |
