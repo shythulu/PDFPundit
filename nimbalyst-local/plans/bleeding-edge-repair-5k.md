@@ -51,10 +51,13 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-1.1 P4 search plan and screener calibration
 - **Serves:** RQ6; the recall shortfall (committee 002: carving 1 of 4); audit 002 actions A3–A5.
-- **Inputs:** `research/sources/screening.jsonl`; `research/audits/002-screening/`; the hidden gold set (chair only); discovery services [Stage 2: agent A].
+- **Inputs:** `research/sources/screening.jsonl`; `research/audits/002-screening/`; the hidden gold set (chair only); discovery services: Crossref (TOOL-300), CORE (TOOL-306) and Unpaywall (TOOL-310), all keyless; OpenAlex (TOOL-304) and Semantic Scholar (TOOL-305) if the user provides keys; DBLP (TOOL-303) is on Hold because an anti-bot page blocks it here.
 - **Procedure:**
   1. Write one search recipe per community (forensics and carving, LangSec, compression, fonts/OCR, engines, evaluation, CDR, ML-assisted repair): the services, the query strings, the venue filters, and the snowball seeds.
-  2. The carving recipe adds [Stage 2: agent A's route] for 2004–2012 carving and fragment-reassembly work.
+  2. The carving recipe (tested on Crossref by Stage 2 agent A) restricts by container first and only then adds carving terms. Free-text "fragment reassembly" alone returned 76,911 noisy hits. The three routes are:
+     - Digital Investigation (ISSN 1742-2876) up to 2012;
+     - each year's DFRWS proceedings, walked from its front-matter DOI;
+     - IFIP AICT *Advances in Digital Forensics*, with carving terms as a relevance boost.
   3. Adjacency rule: a transferable method is *include* only when it can be written as a PDF procedure; otherwise *maybe*.
   4. Calibration round: two screeners, 20 titles with abstracts, before the sweep. Target include-vs-not kappa ≥ 0.6; report PABAK beside it. If below target, refine the rule and repeat once.
   5. Every judged title is logged, including ones rejected on sight.
@@ -66,7 +69,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-1.2 Full-text and structure pipeline
 - **Serves:** W1 throughput; quote verification.
-- **Inputs:** `research/tools/fetch_fulltext.py`; the parser [Stage 2: agent A, e.g. GROBID CRF or Docling].
+- **Inputs:** `research/tools/fetch_fulltext.py`; PyMuPDF4LLM (TOOL-323, Adopt): in OBS-0601 it kept the heading structure and the two-column reading order that pdftotext and pdfplumber both spliced. For reference lists, trial GROBID CRF (TOOL-317). It needs a Docker daemon, which this container lacks; Stage 4 checks whether it can run.
 - **Procedure:**
   1. Add an optional structured pass after the text cache: sections, reference list, and the limitations and future-work paragraphs.
   2. Pre-filter candidate limitation and future-work sentences for agents. The validator stays the only check: a pre-filtered sentence is a lead until its quote verifies.
@@ -77,8 +80,11 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-1.3 Still-open checks
 - **Serves:** the spec-ready rule (charter §6).
-- **Inputs:** the 29 gaps with `still_open: unknown` (`research/gaps/gaps.jsonl`); forward-citation sources [Stage 2: agent A's coverage OBS].
-- **Procedure:** for each gap's cited sources, collect citing works from the best-covering service; screen them; set `still_open` and `still_open_checked_at`, with the citing works logged.
+- **Inputs:** the 29 gaps with `still_open: unknown` (`research/gaps/gaps.jsonl`); citing works from OpenCitations (TOOL-301), which returns the list; Crossref's `is-referenced-by-count` (TOOL-300) is a count only. OBS-0600 found neither consistently ahead (Crossref higher on 3 of 10 works, OpenCitations on 2), and both show 0 for the 2024+ works.
+- **Procedure:**
+  1. For each gap's cited sources, collect citing works from OpenCitations.
+  2. Where Crossref's count is higher than the list, fill in with Semantic Scholar or OpenAlex (keys needed), or record the shortfall.
+  3. Screen the citing works and set `still_open` and `still_open_checked_at`, with the citing works logged.
 - **Outputs:** updated gap records; a search-log entry per gap.
 - **Acceptance:** every gap is `yes` or `no` with a date, or `unknown` with a stated reason (no citation data).
 - **Effort:** 1 session. **Depends on:** WP-1.1 services.
