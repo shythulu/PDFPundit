@@ -71,6 +71,8 @@ It computes `quote_check`; never set that field by hand. Fix or drop anything it
        - `https://api.crossref.org/works?query.bibliographic=<terms>&query.container-title=<venue>&rows=50`.
      - arXiv: `https://export.arxiv.org/api/query?id_list=<id>` and `https://arxiv.org/pdf/<id>`.
        Search queries return 406, so discover through Crossref, OpenCitations or Parallel Search.
+     - Unpaywall (no key; finds legal open-access copies): `https://api.unpaywall.org/v2/<doi>?email=<project contact>`.
+       Use the project address `research@pdfpundit.invalid`, never a person's email.
      - crates.io (send a User-Agent), PyPI.
   2. Built-in WebFetch for URLs you already know.
   3. **Parallel Search** (`mcp__Parallel_Search__web_search` / `web_fetch`) only for discovery or grey
