@@ -126,6 +126,35 @@ class KBGuards(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("GAP-990: status 'supported' requires", r.stdout)
 
+    def test_polite_get_backs_off_on_429(self) -> None:
+        import http.server
+        import threading
+        import polite_get as pg
+
+        hits = []
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # first request 429, then 200
+                hits.append(1)
+                code = 429 if len(hits) == 1 else 200
+                self.send_response(code)
+                self.end_headers()
+                self.wfile.write(b"ok" if code == 200 else b"slow down")
+
+            def log_message(self, *a):
+                pass
+
+        srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        real_sleep, pg.time.sleep = pg.time.sleep, (lambda s: None)
+        try:
+            body = pg.polite_get(f"http://127.0.0.1:{srv.server_port}/x")
+        finally:
+            pg.time.sleep = real_sleep
+            srv.shutdown()
+        self.assertEqual(body, b"ok")
+        self.assertEqual(len(hits), 2)
+
     def test_clean_main_registries(self) -> None:
         r = run(str(TOOLS / "kb_validate.py"))
         self.assertEqual(r.returncode, 0, r.stdout)

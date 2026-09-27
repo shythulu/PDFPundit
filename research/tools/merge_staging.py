@@ -22,6 +22,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from kbcommon import REGISTRIES, ROOT, dedupe_key, load_jsonl, write_jsonl  # noqa: E402
 
+FULLTEXT_FIELDS = ("fulltext_sha256", "text_sha256", "extractor", "extractor_version",
+                   "fulltext_from", "fulltext_fetched_at", "title_check", "access")
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -50,7 +53,11 @@ def main() -> None:
             remap[r["id"]] = hit["id"]
             hit["aliases"] = sorted(set(hit.get("aliases", [])) | {k for k in keys if k != dedupe_key(hit)})
             hit["topics"] = sorted(set(hit.get("topics", [])) | set(r.get("topics", [])))
-            for f in ("fulltext_sha256", "fulltext_from", "fulltext_fetched_at", "notes_path", "summary"):
+            if r.get("fulltext_sha256") and not hit.get("fulltext_sha256"):
+                for f in FULLTEXT_FIELDS:        # the cached-text fields travel together or not at all
+                    if f in r:
+                        hit[f] = r[f]
+            for f in ("notes_path", "summary", "evidence_grade", "relevance"):
                 if r.get(f) and not hit.get(f):
                     hit[f] = r[f]
         else:

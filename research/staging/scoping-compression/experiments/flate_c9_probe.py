@@ -42,6 +42,7 @@ from collections import Counter
 from pathlib import Path
 
 STREAM_RE = re.compile(rb"stream\r?\n(.*?)endstream", re.S)
+FILTER_RE = re.compile(rb"/Filter\s*/(\w+)")
 Z_OK, Z_STREAM_END, Z_BUF_ERROR, Z_DATA_ERROR, Z_NEED_DICT = 0, 1, -5, -3, 2
 Z_NO_FLUSH, Z_BLOCK = 0, 5
 
@@ -132,6 +133,7 @@ def main() -> None:
     rows, block_rows = [], []
     where = Counter()                 # changed bytes by location: flate body / other body / outside
     files_outside = 0
+    other_filter = Counter()          # /Filter of non-Flate (or undecodable) stream bodies that were hit
     for f in sorted((corpus / "corrupted").rglob("*_stream_zlib.pdf")):
         mode, kind = f.parent.parent.name, f.parent.name
         base = f.name[: -len("_stream_zlib.pdf")]
@@ -147,6 +149,11 @@ def main() -> None:
                 where["flate_stream_body"] += 1
             elif any(s <= i < e for s, e in spans):
                 where["other_stream_body"] += 1
+                s0 = next(s for s, e in spans if s <= i < e)
+                head = a[max(0, s0 - 400):s0]
+                head = head[head.rfind(b"obj"):]
+                m = FILTER_RE.search(head)
+                other_filter[m.group(1).decode() if m else "none"] += 1
             else:
                 where["outside_stream_bodies"] += 1
                 n_out += 1
@@ -195,6 +202,7 @@ def main() -> None:
                               "stats": stats([r["blocks"] for r in block_rows])},
         "c9_changed_bytes_by_location": dict(where),
         "c9_files_with_changes_outside_stream_bodies": files_outside,
+        "c9_other_stream_body_bytes_by_filter": dict(other_filter),
         "damaged_streams": len(rows),
         "damaged_files": len({r["file"] for r in rows}),
         "changed_bytes_per_damaged_stream": dict(sorted(Counter(r["changed_bytes"] for r in rows).items())),

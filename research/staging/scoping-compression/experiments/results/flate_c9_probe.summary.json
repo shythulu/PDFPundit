@@ -18,6 +18,11 @@
   "outside_stream_bodies": 415
  },
  "c9_files_with_changes_outside_stream_bodies": 99,
+ "c9_other_stream_body_bytes_by_filter": {
+  "none": 284,
+  "FlateDecode": 3,
+  "DCTDecode": 17
+ },
  "damaged_streams": 1442,
  "damaged_files": 100,
  "changed_bytes_per_damaged_stream": {

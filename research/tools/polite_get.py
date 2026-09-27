@@ -32,6 +32,7 @@ def polite_get(url: str, accept: str = "*/*", attempts: int = 3) -> bytes:
     LOCKDIR.mkdir(parents=True, exist_ok=True)
     stamp = LOCKDIR / f"{host}.last"
     for attempt in range(attempts):
+        code = None
         with open(LOCKDIR / f"{host}.lock", "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)          # one request per host at a time, container-wide
             last = float(stamp.read_text()) if stamp.exists() else 0.0
@@ -46,9 +47,11 @@ def polite_get(url: str, accept: str = "*/*", attempts: int = 3) -> bytes:
                 return body
             except urllib.error.HTTPError as e:
                 stamp.write_text(str(time.time()))
-                if e.code not in (429, 503) or attempt == attempts - 1:
+                retryable = {429, 503} | ({406} if host == "export.arxiv.org" else set())  # arXiv throttles with 406
+                if e.code not in retryable or attempt == attempts - 1:
                     raise
-        print(f"polite_get: HTTP {e.code} from {host}, backing off 60 s (attempt {attempt + 1})", file=sys.stderr)
+                code = e.code                          # `e` is unbound after the except block
+        print(f"polite_get: HTTP {code} from {host}, backing off 60 s (attempt {attempt + 1})", file=sys.stderr)
         time.sleep(60)
     raise RuntimeError("unreachable")
 

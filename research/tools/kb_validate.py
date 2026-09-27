@@ -311,10 +311,9 @@ def crossref_title(doi: str) -> str | None:
     if cache.exists():
         data = json.loads(cache.read_text())
     else:
-        req = urllib.request.Request(f"https://api.crossref.org/works/{doi}", headers={"User-Agent": UA})
+        from polite_get import polite_get   # paced + 429 back-off, shared with every agent
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.load(resp)
+            data = json.loads(polite_get(f"https://api.crossref.org/works/{doi}", "application/json"))
         except urllib.error.HTTPError as e:
             if e.code != 404:
                 raise

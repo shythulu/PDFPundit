@@ -36,3 +36,4 @@
 {"src": "SRC-0335", "decision": "exclude", "reason_code": "EX-weak", "reason": "Vendor marketing page, 30 files, own engine only; no methodology to reuse.", "stage": "abstract", "by": "scoping-compression", "at": "2026-09-27"}
 {"src": "SRC-0336", "decision": "exclude", "reason_code": "EX-offtopic", "reason": "Encoder-side resilience for a codec PDF does not use.", "stage": "title", "by": "scoping-compression", "at": "2026-09-27"}
 {"src": "SRC-0337", "decision": "exclude", "reason_code": "EX-offtopic", "reason": "LZNT1 chunk carving on NTFS; no stream error recovery beyond Park 2008.", "stage": "title", "by": "scoping-compression", "at": "2026-09-27"}
+{"src": "SRC-0338", "decision": "include", "reason_code": "IN-method", "reason": "Checksum-guided correction of zlib data on real damage, with explicit handling of ambiguous repairs: the direct precedent for provenance grade 3 and for C9.", "stage": "fulltext", "by": "scoping-compression", "at": "2026-09-27"}
