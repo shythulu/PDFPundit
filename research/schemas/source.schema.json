@@ -29,7 +29,8 @@
     "dataset",
     "web",
     "talk",
-    "patent"
+    "patent",
+    "source-code"
    ]
   },
   "title": {
@@ -247,6 +248,20 @@
      "format": "date"
     }
    }
+  },
+  "commit": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "pinned VCS commit for source-code sources"
+  },
+  "license": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "SPDX license of the source (important for source-code: AGPL/GPL = techniques only, never code)"
   }
  }
 }
