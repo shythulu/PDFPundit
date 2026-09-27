@@ -197,8 +197,21 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-3.4 Provenance record
 - **Serves:** charter §3(c); GAP-010, 050; spec-ready rule (the schema must exist).
-- **Inputs:** [Stage 2: agent C] on DFXML, CASE/UCO and NIST CFTT.
-- **Procedure:** a JSON Schema for the per-repair record: input and output hashes; tool, version, configuration; per-element provenance grade with byte ranges; tamper indicators found; learned-model versions and checksums; repair choices where engines differ (GAP-101). Map it to the chosen standard for export.
+- **Inputs:** TOOL-427:
+  - DFXML (dfxml_python 1.0.2, CC0 or LGPL-3.0). A round trip was verified in OBS-0801. It is not on PyPI; install from its git repository at a pinned commit.
+  - CASE/UCO 1.5.0 (Apache-2.0).
+  - The structure of NIST CFTT test specs. Its lack of a document-repair category is carried over from memory and still to be re-checked.
+- **Procedure:**
+  1. Write a JSON Schema for the per-repair record. It holds:
+     - input and output hashes;
+     - tool, version and configuration;
+     - the provenance grade of each element, with byte ranges;
+     - tamper indicators found;
+     - learned-model versions and checksums;
+     - repair choices where engines differ (GAP-101).
+  2. Export the per-file layer (hashes, sizes, byte ranges) as DFXML `fileobject` records.
+  3. Export the repair event (tool, action, evidence used) as a CASE/UCO action chain.
+  4. Test-spec documents follow the CFTT layout: assertions, test cases, results.
 - **Outputs:** `research/schemas/provenance-record.schema.json`; an example record for one REPDF file.
 - **Acceptance:** a forensics-practitioner review on the board signs it off; the example validates.
 - **Effort:** 1 session.
@@ -226,26 +239,43 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-3.7 Natural pairs: truncation
 - **Serves:** charter §3(a) source 1; GAP-100, 006, 017; DMG-100.
-- **Inputs:** OBS-0201 (34 of 35 pairs are exact prefixes); the CC-MAIN-2021-31 truncated and refetched sets; [Stage 2: agent C's sampler and metadata notes].
+- **Inputs:** OBS-0201 (34 of 35 pairs are exact prefixes); the CC-MAIN-2021-31-PDF-UNTRUNCATED corpus (TOOL-404, SRC-0206).
+  - Its metadata CSV and ZIP central directories are range-read from digitalcorpora's S3 without credentials (TOOL-402, OBS-0800): 12,946 metadata rows in 1.3 s.
+  - Stage 2 wrote `research/experiments/cc_natural_pairs_other_zips.py`, which extends OBS-0201's sampler to later ZIPs. Its two runs timed out with no pairs because of the 403s below (OBS-0800).
+  - The truncated captures come from data.commoncrawl.org (TOOL-403). Ranged reads there went from 206 to 403 after a burst of requests on 2026-09-27, so the sampler paces itself and backs off on 403. Stage 4 re-tests at a slow rate.
 - **Procedure:**
   1. Stratify by source ZIP, truncation reason (length cap vs disconnect), size bucket and producer.
   2. For each pair, check that the truncated file is a byte prefix of the refetched file. Reject any pair that isn't.
   3. Keep URLs and hashes in the repository; files only in the cache.
 - **Outputs:** `research/eval/pairs/truncation.jsonl`: `{url, truncated_sha256, full_sha256, truncated_len, full_len, reason, zip, producer}`.
-- **Acceptance:** ≥ 1,000 verified pairs, ≥ 20% of them disconnect truncations (if the metadata allows), within about 10 GB.
-- **Effort:** 1 session. **Unknowns:** the disconnect share in the metadata.
+- **Acceptance:** ≥ 1,000 pairs, each byte-verified as a prefix; within about 10 GB. Disconnect truncations are rare: in the first ~13,000 metadata rows of ZIP 0001, 1 of 255 truncated rows is a disconnect. So scan the metadata across all ZIPs and take every disconnect row, aiming for ≥ 100. Scanning is cheap; only the byte fetches are slow. Report the achieved count and don't pad it.
+- **Effort:** 1 session.
+- **Decision point:** Stage 4 or this WP may find Common Crawl still refusing ranged reads at a slow rate. In that case, the fallback builds each truncated file by cutting the refetched file at the capture length recorded in the metadata. Those pairs carry the grade *metadata-derived, not byte-verified*, and the OBS-0201 check (34 of 35 exact prefixes) is the evidence that the cut is faithful. The board decides whether such pairs may score fidelity or only robustness.
 
 ### WP-3.8 Natural pairs: font encoding
 - **Serves:** charter §3(a) source 2; GAP-202, 201, 203; DMG-200, 201.
-- **Inputs:** the UDHR PDFs (CLM-0415: 21 of 526 corrupted); the unicode.org/udhr texts; [Stage 2: agent C on the OHCHR terms and alignment].
-- **Procedure:** confirm the terms; extract text from each PDF; align it to the reference; classify the failure (no ToUnicode, wrong ToUnicode, producer codes); keep only pairs whose reference matches the PDF's edition.
+- **Inputs:**
+  - **The UDHR PDFs from OHCHR** (CLM-0415: 21 of 526 corrupted). www.ohchr.org returns 403 here. archive.org lists 2022 snapshots, but web.archive.org resets connections from this container. This is an access-gate item: allow one of the hosts, or the user downloads the PDFs.
+  - **Reference texts:** unicode.org stopped hosting UDHR in Unicode in January 2024 (TOOL-405). Use NLTK's `udhr2` package instead: public domain, 1,653,975 bytes, sha256 `0796c314…66c7f3`, reachable on raw.githubusercontent.com.
+  - **Alignment:** difflib (TOOL-406) as a first pass.
+- **Procedure:** confirm the OHCHR terms; extract text from each PDF; align it to the reference; classify the failure (no ToUnicode, wrong ToUnicode, producer codes); keep only pairs whose reference matches the PDF's edition.
 - **Outputs:** `research/eval/pairs/udhr.jsonl`.
 - **Acceptance:** each pair is verified by a second extractor; the terms are recorded.
 - **Effort:** 1 session. **Decision points:** the user, if the terms restrict research use.
 
 ### WP-3.9 Damage models and generators
 - **Serves:** RQ1; charter §3(a); DMG-001..016, 050, 100, 101, 200, 201, 250, 251.
-- **Inputs:** WP-3.7 truncation lengths; NAND bit-flip rates (SRC-0126, CLM-0341); fragmentation statistics (SRC-0137); [Stage 2: agent C on generators and mutators].
+- **Inputs:** WP-3.7 truncation lengths; NAND bit-flip rates (SRC-0126, CLM-0341); fragmentation statistics (SRC-0137).
+  - **Generators:**
+    - radamsa and zzuf (TOOL-421, 422) for byte-level mutation. Both were verified in OBS-0801.
+    - The Arlington TSV grammar (TOOL-424, Apache-2.0, trial) for grammar-aware invalid objects, which fit DMG-009's templates better than blind mutation.
+    - pikepdf (TOOL-426) for structural edits.
+  - **Producers for originals:** LibreOffice, ps2pdf, Chromium print-to-PDF, pdflatex, reportlab and pycairo (TOOL-413..418, all verified in OBS-0801). macOS Quartz output (DMG-201) can't be produced here (TOOL-420); source it from an existing corpus or a contributor's Mac.
+  - **Open questions:**
+    - Parameter datasets: NapierOne (TOOL-408, open licence) is blocked by the proxy here.
+    - The NAND data's licence is unconfirmed (TOOL-407).
+    - The DFRWS 2006 and 2007 challenge images (TOOL-409) are candidates for carving damage.
+    - The shadow-attack artefacts (TOOL-425) have no licence: study and cite them only, never copy them.
 - **Procedure:**
   1. Fit each parameter to its source: the truncation-point distribution, bit-flip rate and burst shape, and fragment-size distribution.
   2. Write a generator spec per DMG: parameters, their fitted values, and a seed.
@@ -256,9 +286,16 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-3.10 Robustness corpora and differential taxonomy
 - **Serves:** GAP-257, 102, 105; the red team's corpus-first alternative (committee 001).
-- **Inputs:** OBS-0500 (2,873 engine regression files); the SafeDocs Issue Tracker corpus (CLM-0293); [Stage 2: agent C's PII procedure and subset plan].
+- **Inputs:** OBS-0500 (2,873 engine regression files); the SafeDocs Issue Tracker corpus (CLM-0293), subset plan in TOOL-411; GovDocs1 (TOOL-412, public domain) as a lower-risk volume source; peepdf-3 (TOOL-423, GPL-3.0, run only as an external command) for triage.
 - **Procedure:**
-  1. Apply the PII procedure before any file is cached.
+  1. Apply the PII procedure (`research/staging/tooling-damage/report.md`) before any file is kept:
+     - screen the filename and the tracker entry before download;
+     - download into a temporary quarantine outside the repository and the cache;
+     - check the Info dictionary, XMP and page-1 text;
+     - delete rejects at once and log only the issue id and "excluded: PII";
+     - if in doubt, exclude.
+     
+     The quarantine step is a chair fix: the procedure as written asks for metadata checks "before caching" but also "never cache, even temporarily", which can't both hold.
   2. Run every engine differentially (WP-3.1).
   3. Cluster failures by signature (engine × error × structural feature) into a taxonomy mapped to C1–C10 and DMG.
 - **Outputs:** `research/eval/robustness/`; a taxonomy OBS.
