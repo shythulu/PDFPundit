@@ -1,0 +1,19 @@
+--- research/experiments/rsprobe/src/main.rs	2026-09-27 17:17:06.500650096 +0000
++++ rsprobe080/src/main.rs
+@@ -47,12 +47,13 @@
+                 Ok(pdf) => {
+                     let cache = hayro::RenderCache::new();
+                     let is = hayro::hayro_interpret::InterpreterSettings::default();
+-                    let rs = hayro::RenderSettings { x_scale: 1.0, y_scale: 1.0,
+-                        bg_color: hayro::vello_cpu::color::palette::css::WHITE, ..Default::default() };
++                    let rs = hayro::RenderSettings::default();
++                    let ps = hayro::PixmapSettings { x_scale: 1.0, y_scale: 1.0,
++                        bg_color: hayro::vello_cpu::color::palette::css::WHITE };
+                     let pages = pdf.pages();
+                     let n = pages.len();
+                     for (i, page) in pages.iter().enumerate() {
+-                        let pix = hayro::render(page, &cache, &is, &rs);
++                        let pix = hayro::render(page, &cache, &is, &rs, &ps);
+                         if i == 0 { std::fs::write(&a[3], pix.into_png().unwrap()).unwrap(); }
+                     }
+                     println!("hayro ok pages={n}");

@@ -1,0 +1,801 @@
+name	producer	zlib_replay	comp_bytes	status	recreated_exact	corr_bytes	cabac_bytes	zlib_compatible	params
+0000	saveas	1	2868	ok	1	154	124	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=77 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=false start=false
+0001	saveas	1	2960	ok	1	111	85	false	win=15 strat=Default hash=Libdeflate4 chain=86 nice=258 match=Greedy add=AddFirst(90) blocks=Dynamic far=true start=false
+0002	saveas	1	7953	ok	1	278	252	false	win=15 strat=Default hash=Libdeflate4 chain=116 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=true start=false
+0003	saveas	1	2671	ok	1	155	125	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=125 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0004	saveas	1	3191	ok	1	203	177	false	win=14 strat=Default hash=Libdeflate4 chain=53 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=true start=false
+0005	saveas	1	6499	ok	1	232	206	true	win=15 strat=Default hash=RandomVector chain=126 nice=258 match=Greedy add=AddFirst(106) blocks=Dynamic far=false start=false
+0006	saveas	1	4625	ok	1	297	268	false	win=15 strat=Default hash=Libdeflate4 chain=47 nice=258 match=Greedy add=AddFirst(69) blocks=Dynamic far=true start=false
+0007	saveas	1	5626	ok	1	452	419	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=113 nice=258 match=Greedy add=AddFirstAndLast(67) blocks=Dynamic far=false start=false
+0008	saveas	1	4846	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=123 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0009	saveas	1	332	ok	1	39	10	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=5 nice=16 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0010	saveas	1	9530	ok	1	42	11	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Mixed far=false start=false
+0011	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0012	saveas	1	337	ok	1	40	15	false	win=10 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(16) blocks=Dynamic far=true start=false
+0013	saveas	1	10818	ok	1	46	15	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0014	saveas	1	4578	ok	1	43	12	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0015	saveas	1	339	ok	1	36	7	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0016	saveas	1	11131	ok	1	35	8	true	win=15 strat=Default hash=RandomVector chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0017	saveas	1	977	ok	1	81	56	false	win=12 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0018	saveas	1	41318	ok	1	222	191	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0019	saveas	1	1189	ok	1	102	73	true	win=12 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=18 nice=32 match=Greedy add=AddFirst(29) blocks=Dynamic far=false start=false
+0020	saveas	1	39144	ok	1	91	60	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0021	saveas	1	1896	ok	1	38	7	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0022	saveas	1	375	ok	1	40	11	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=8 nice=16 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0023	saveas	1	14349	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0024	saveas	1	659	ok	1	67	37	true	win=12 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=56 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0025	saveas	1	18319	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0026	saveas	1	689	ok	1	72	42	true	win=12 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=42 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0027	saveas	1	25227	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=124 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0028	saveas	1	2554	ok	1	67	37	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=101 nice=258 match=Greedy add=AddFirst(246) blocks=Dynamic far=false start=false
+0029	saveas	1	7490	ok	1	45	14	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0030	saveas	1	9124	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0031	saveas	1	311	ok	1	40	15	false	win=10 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(13) blocks=Dynamic far=true start=false
+0032	saveas	1	3323	ok	1	30	0	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0033	saveas	1	424	ok	1	40	15	false	win=11 strat=Default hash=Libdeflate4 chain=6 nice=16 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=false
+0034	saveas	1	7314	ok	1	145	115	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(251) blocks=Dynamic far=false start=false
+0035	saveas	1	437	ok	1	39	14	false	win=11 strat=Default hash=Libdeflate4 chain=9 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0036	saveas	1	4317	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0037	saveas	1	369	ok	1	41	12	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=15 nice=32 match=Greedy add=AddFirst(13) blocks=Dynamic far=false start=false
+0038	saveas	1	12724	ok	1	41	10	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0039	saveas	1	633	ok	1	58	33	false	win=12 strat=Default hash=Libdeflate4 chain=9 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0040	saveas	1	18184	ok	1	52	21	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0041	saveas	1	646	ok	1	61	36	false	win=12 strat=Default hash=Libdeflate4 chain=10 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0042	saveas	1	14809	ok	1	50	19	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0043	saveas	1	2833	ok	1	248	223	false	win=14 strat=Default hash=Libdeflate4 chain=29 nice=32 match=Greedy add=AddFirst(7) blocks=Dynamic far=true start=false
+0044	saveas	1	3245	ok	1	146	116	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=124 nice=258 match=Greedy add=AddFirst(95) blocks=Dynamic far=false start=false
+0045	saveas	1	2467	ok	1	92	62	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=33 nice=258 match=Greedy add=AddFirst(95) blocks=Dynamic far=false start=false
+0046	saveas	1	6420	ok	1	184	154	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=115 nice=258 match=Greedy add=AddFirst(96) blocks=Dynamic far=false start=false
+0047	saveas	1	2907	ok	1	133	107	true	win=15 strat=Default hash=RandomVector chain=69 nice=258 match=Greedy add=AddFirst(92) blocks=Dynamic far=false start=false
+0048	saveas	1	3425	ok	1	142	112	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=76 nice=258 match=Greedy add=AddFirst(92) blocks=Dynamic far=false start=false
+0049	saveas	1	5938	ok	1	189	163	false	win=15 strat=Default hash=Libdeflate4 chain=84 nice=258 match=Greedy add=AddFirst(118) blocks=Dynamic far=true start=false
+0050	saveas	1	6076	ok	1	409	376	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=113 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0051	saveas	1	5957	ok	1	460	427	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=115 nice=258 match=Greedy add=AddFirst(68) blocks=Dynamic far=false start=false
+0052	saveas	1	5292	ok	1	62	35	false	win=15 strat=Default hash=Libdeflate4 chain=123 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0053	saveas	1	3646	ok	1	43	12	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0054	saveas	1	10497	ok	1	45	14	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Mixed far=false start=false
+0055	saveas	1	220	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0056	saveas	1	6027	ok	1	124	94	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(152) blocks=Dynamic far=false start=false
+0057	saveas	1	18198	ok	1	41	10	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0058	saveas	1	9108	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=122 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0059	saveas	1	22992	ok	1	134	103	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0060	saveas	1	302	ok	1	31	6	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0061	saveas	1	4262	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0062	saveas	1	1110	ok	1	86	61	false	win=12 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=false
+0063	saveas	1	67325	ok	1	119	88	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0064	saveas	1	479	ok	1	39	14	true	win=11 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0065	saveas	1	16666	ok	1	53	22	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0066	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0067	saveas	1	355	ok	1	40	11	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=12 nice=32 match=Greedy add=AddFirst(12) blocks=Dynamic far=false start=false
+0068	saveas	1	4340	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=122 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0069	saveas	1	732	ok	1	69	39	true	win=12 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=65 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0070	saveas	1	11299	ok	1	261	231	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=258 match=Greedy add=AddFirst(166) blocks=Mixed far=false start=false
+0071	saveas	1	542	ok	1	54	25	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=19 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=false start=false
+0072	saveas	1	26064	ok	1	49	18	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0073	saveas	1	6676	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0074	saveas	1	9374	ok	1	62	35	false	win=15 strat=Default hash=Libdeflate4 chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0075	saveas	1	3427	ok	1	82	52	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(174) blocks=Dynamic far=false start=false
+0076	saveas	1	3534	ok	1	37	6	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=118 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0077	saveas	1	424	ok	1	50	21	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=4 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0078	saveas	1	11235	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0079	saveas	1	265	ok	1	30	5	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0080	saveas	1	4949	ok	1	90	60	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(211) blocks=Dynamic far=false start=false
+0081	saveas	1	377	ok	1	43	18	false	win=11 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0082	saveas	1	7789	ok	1	36	9	true	win=15 strat=Default hash=RandomVector chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0083	saveas	1	670	ok	1	67	37	true	win=12 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=69 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0084	saveas	1	23164	ok	1	73	42	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0085	saveas	1	526	ok	1	49	24	false	win=11 strat=Default hash=Libdeflate4 chain=15 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0086	saveas	1	20781	ok	1	48	17	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0087	saveas	1	2906	ok	1	264	234	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=118 nice=258 match=Greedy add=AddFirst(8) blocks=Dynamic far=false start=false
+0088	saveas	1	3409	ok	1	26	0	false	win=15 strat=Default hash=Libdeflate4 chain=107 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0089	saveas	1	2686	ok	1	100	70	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=104 nice=258 match=Greedy add=AddFirst(167) blocks=Dynamic far=false start=false
+0090	saveas	1	9108	ok	1	209	183	false	win=15 strat=Default hash=Libdeflate4 chain=86 nice=258 match=Greedy add=AddFirst(104) blocks=Dynamic far=true start=false
+0091	saveas	1	3784	ok	1	201	175	false	win=15 strat=Default hash=Libdeflate4 chain=118 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=true start=false
+0092	saveas	1	3688	ok	1	185	155	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=120 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0093	saveas	1	8624	ok	1	265	239	false	win=15 strat=Default hash=Libdeflate4 chain=102 nice=258 match=Greedy add=AddFirst(233) blocks=Dynamic far=true start=false
+0094	saveas	1	5070	ok	1	375	342	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=95 nice=258 match=Greedy add=AddFirstAndLast(67) blocks=Dynamic far=false start=false
+0095	saveas	1	5918	ok	1	284	254	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=70 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0096	saveas	1	5149	ok	1	367	338	false	win=15 strat=Default hash=Libdeflate4 chain=78 nice=258 match=Greedy add=AddFirstAndLast(68) blocks=Dynamic far=true start=false
+0097	saveas	1	7563	ok	1	56	29	false	win=15 strat=Default hash=Libdeflate4 chain=124 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0098	saveas	1	11047	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0099	saveas	1	17841	ok	1	45	14	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0100	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0101	saveas	1	734	ok	1	69	44	false	win=11 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(28) blocks=Dynamic far=true start=false
+0102	saveas	1	32260	ok	1	132	101	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0103	saveas	1	508	ok	1	43	18	true	win=11 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0104	saveas	1	10796	ok	1	37	6	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0105	saveas	1	551	ok	1	57	27	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=44 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0106	saveas	1	31019	ok	1	72	41	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0107	saveas	1	513	ok	1	50	21	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=20 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0108	saveas	1	22469	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0109	saveas	1	9455	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0110	saveas	1	3274	ok	1	75	49	false	win=13 strat=Default hash=Libdeflate4 chain=118 nice=258 match=Greedy add=AddFirst(222) blocks=Dynamic far=true start=false
+0111	saveas	1	4548	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0112	saveas	1	9800	ok	1	49	18	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0113	saveas	1	587	ok	1	51	26	false	win=11 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0114	saveas	1	12138	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0115	saveas	1	483	ok	1	49	20	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=31 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0116	saveas	1	19801	ok	1	47	16	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0117	saveas	1	3744	ok	1	420	392	false	win=14 strat=Default hash=Libdeflate4 chain=30 nice=32 match=Greedy add=AddFirst(7) blocks=Dynamic far=true start=false
+0118	saveas	1	3399	ok	1	135	109	false	win=15 strat=Default hash=Libdeflate4 chain=82 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=true start=false
+0119	saveas	1	3041	ok	1	120	94	true	win=15 strat=Default hash=RandomVector chain=95 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0120	saveas	1	5594	ok	1	197	171	false	win=15 strat=Default hash=Libdeflate4 chain=97 nice=258 match=Greedy add=AddFirst(90) blocks=Dynamic far=true start=false
+0121	saveas	1	3239	ok	1	140	114	true	win=15 strat=Default hash=RandomVector chain=104 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0122	saveas	1	3657	ok	1	146	116	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=91 nice=258 match=Greedy add=AddFirst(90) blocks=Dynamic far=false start=false
+0123	saveas	1	5814	ok	1	188	162	false	win=15 strat=Default hash=Libdeflate4 chain=103 nice=258 match=Greedy add=AddFirst(104) blocks=Dynamic far=true start=false
+0124	saveas	1	5361	ok	1	401	368	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=116 nice=258 match=Greedy add=AddFirstAndLast(66) blocks=Dynamic far=false start=false
+0125	saveas	1	6404	ok	1	526	493	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0126	saveas	1	6107	ok	1	47	16	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0127	saveas	1	221	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0128	saveas	1	7823	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0129	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0130	saveas	1	6013	ok	1	44	13	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0131	saveas	1	19122	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0132	saveas	1	348	ok	1	30	5	false	win=10 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=true start=false
+0133	saveas	1	22440	ok	1	30	0	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0134	saveas	1	979	ok	1	94	69	false	win=12 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=false
+0135	saveas	1	25148	ok	1	58	27	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0136	saveas	1	590	ok	1	57	28	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0137	saveas	1	38316	ok	1	82	55	true	win=15 strat=Default hash=RandomVector chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0138	saveas	1	379	ok	1	41	12	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=16 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0139	saveas	1	8578	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0140	saveas	1	548	ok	1	55	26	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=27 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0141	saveas	1	24146	ok	1	46	15	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0142	saveas	1	479	ok	1	49	20	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=17 nice=32 match=Greedy add=AddFirst(17) blocks=Dynamic far=false start=false
+0143	saveas	1	5713	ok	1	117	87	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=258 match=Greedy add=AddFirstAndLast(226) blocks=Dynamic far=false start=false
+0144	saveas	1	22992	ok	1	134	103	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0145	saveas	1	217	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0146	saveas	1	7327	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0147	saveas	1	12179	ok	1	46	15	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0148	saveas	1	8736	ok	1	148	118	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirstAndLast(131) blocks=Dynamic far=false start=false
+0149	saveas	1	364	ok	1	47	18	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0150	saveas	1	8256	ok	1	164	134	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(131) blocks=Dynamic far=false start=false
+0151	saveas	1	415	ok	1	42	13	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=5 nice=16 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0152	saveas	1	14787	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0153	saveas	1	397	ok	1	42	13	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=12 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0154	saveas	1	8261	ok	1	44	13	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0155	saveas	1	656	ok	1	57	32	false	win=12 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(32) blocks=Dynamic far=true start=false
+0156	saveas	1	16359	ok	1	251	225	true	win=15 strat=Default hash=RandomVector chain=127 nice=258 match=Greedy add=AddFirst(223) blocks=Dynamic far=false start=false
+0157	saveas	1	540	ok	1	59	29	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=40 nice=258 match=Greedy add=AddFirst(16) blocks=Dynamic far=false start=false
+0158	saveas	1	5907	ok	1	40	9	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0159	saveas	1	3029	ok	1	287	259	false	win=14 strat=Default hash=Libdeflate4 chain=25 nice=32 match=Greedy add=AddFirst(8) blocks=Dynamic far=true start=false
+0160	saveas	1	3368	ok	1	130	104	false	win=14 strat=Default hash=Libdeflate4 chain=64 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=true start=false
+0161	saveas	1	2925	ok	1	89	59	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0162	saveas	1	6276	ok	1	226	200	false	win=15 strat=Default hash=Libdeflate4 chain=82 nice=258 match=Greedy add=AddFirst(90) blocks=Dynamic far=true start=false
+0163	saveas	1	3606	ok	1	155	129	true	win=15 strat=Default hash=RandomVector chain=74 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0164	saveas	1	3904	ok	1	170	144	false	win=15 strat=Default hash=Libdeflate4 chain=91 nice=258 match=Greedy add=AddFirst(90) blocks=Dynamic far=true start=false
+0165	saveas	1	6088	ok	1	208	182	false	win=15 strat=Default hash=Libdeflate4 chain=101 nice=258 match=Greedy add=AddFirst(108) blocks=Dynamic far=true start=false
+0166	saveas	1	5314	ok	1	396	363	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=118 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0167	saveas	1	6484	ok	1	520	487	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=118 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0168	saveas	1	6560	ok	1	65	38	false	win=15 strat=Default hash=Libdeflate4 chain=125 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0169	saveas	1	6199	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=111 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0170	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0171	saveas	1	6162	ok	1	38	7	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0172	saveas	1	14862	ok	1	45	14	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0173	saveas	1	359	ok	1	38	13	false	win=10 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(15) blocks=Dynamic far=true start=false
+0174	saveas	1	8034	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0175	saveas	1	980	ok	1	87	62	false	win=12 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=true start=false
+0176	saveas	1	45026	ok	1	140	109	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0177	saveas	1	591	ok	1	51	26	false	win=11 strat=Default hash=Libdeflate4 chain=9 nice=32 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=true start=false
+0178	saveas	1	39755	ok	1	69	38	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0179	saveas	1	374	ok	1	41	12	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=15 nice=32 match=Greedy add=AddFirst(29) blocks=Dynamic far=false start=false
+0180	saveas	1	9101	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=116 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0181	saveas	1	620	ok	1	63	33	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=48 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0182	saveas	1	12058	ok	1	46	15	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0183	saveas	1	559	ok	1	53	24	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=32 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=false start=false
+0184	saveas	1	25638	ok	1	54	23	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0185	saveas	1	218	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0186	saveas	1	2595	ok	1	66	36	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=114 nice=258 match=Greedy add=AddFirst(246) blocks=Dynamic far=false start=false
+0187	saveas	1	13597	ok	1	59	28	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0188	saveas	1	10635	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0189	saveas	1	293	ok	1	36	7	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=6 nice=16 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0190	saveas	1	4940	ok	1	88	58	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=123 nice=258 match=Greedy add=AddFirst(104) blocks=Dynamic far=false start=false
+0191	saveas	1	489	ok	1	44	19	false	win=11 strat=Default hash=Libdeflate4 chain=6 nice=16 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0192	saveas	1	9118	ok	1	188	158	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(127) blocks=Dynamic far=false start=false
+0193	saveas	1	1454	ok	1	42	15	false	win=15 strat=Default hash=Libdeflate4 chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0194	saveas	1	5692	ok	1	57	30	false	win=14 strat=Default hash=Libdeflate4 chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0195	saveas	1	336	ok	1	39	14	false	win=10 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(14) blocks=Dynamic far=true start=false
+0196	saveas	1	7653	ok	1	44	13	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0197	saveas	1	650	ok	1	61	36	false	win=12 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0198	saveas	1	24282	ok	1	64	33	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0199	saveas	1	559	ok	1	61	32	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=30 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=false start=false
+0200	saveas	1	6696	ok	1	40	9	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0201	saveas	1	3106	ok	1	289	261	true	win=14 strat=Default hash=RandomVector chain=23 nice=32 match=Greedy add=AddFirst(8) blocks=Dynamic far=false start=false
+0202	saveas	1	3098	ok	1	154	128	false	win=14 strat=Default hash=Libdeflate4 chain=58 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=true start=false
+0203	saveas	1	2153	ok	1	140	114	false	win=14 strat=Default hash=Libdeflate4 chain=89 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=true start=false
+0204	saveas	1	8848	ok	1	297	264	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=119 nice=258 match=Greedy add=AddFirst(90) blocks=Dynamic far=false start=false
+0205	saveas	1	2756	ok	1	161	131	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=105 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0206	saveas	1	3262	ok	1	155	129	false	win=14 strat=Default hash=Libdeflate4 chain=46 nice=258 match=Greedy add=AddFirst(86) blocks=Dynamic far=true start=false
+0207	saveas	1	6876	ok	1	251	225	false	win=15 strat=Default hash=Libdeflate4 chain=82 nice=258 match=Greedy add=AddFirst(107) blocks=Dynamic far=true start=false
+0208	saveas	1	4352	ok	1	228	202	false	win=15 strat=Default hash=Libdeflate4 chain=104 nice=258 match=Greedy add=AddFirstAndLast(67) blocks=Dynamic far=true start=false
+0209	saveas	1	5817	ok	1	465	432	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=54 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0210	saveas	1	5120	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0211	saveas	1	6850	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=118 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0212	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0213	saveas	1	220	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0214	saveas	1	17633	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0215	saveas	1	4689	ok	1	43	12	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0216	saveas	1	374	ok	1	41	12	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0217	saveas	1	22484	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0218	saveas	1	6848	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0219	saveas	1	1306	ok	1	114	89	false	win=12 strat=Default hash=Libdeflate4 chain=9 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0220	saveas	1	43540	ok	1	98	67	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0221	saveas	1	1060	ok	1	94	69	false	win=12 strat=Default hash=Libdeflate4 chain=10 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0222	saveas	1	25961	ok	1	77	46	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0223	saveas	1	433	ok	1	44	15	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=30 nice=32 match=Greedy add=AddFirst(29) blocks=Dynamic far=false start=false
+0224	saveas	1	5339	ok	1	38	7	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0225	saveas	1	655	ok	1	68	38	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=52 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0226	saveas	1	9868	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0227	saveas	1	611	ok	1	61	31	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=37 nice=258 match=Greedy add=AddFirst(31) blocks=Dynamic far=false start=false
+0228	saveas	1	19269	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0229	saveas	1	7531	ok	1	47	16	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0230	saveas	1	8793	ok	1	44	13	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0231	saveas	1	8476	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0232	saveas	1	4615	ok	1	87	57	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=258 match=Greedy add=AddFirst(131) blocks=Dynamic far=false start=false
+0233	saveas	1	409	ok	1	47	18	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0234	saveas	1	9840	ok	1	45	14	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0235	saveas	1	408	ok	1	37	12	false	win=11 strat=Default hash=Libdeflate4 chain=6 nice=16 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0236	saveas	1	4396	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0237	saveas	1	421	ok	1	47	18	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=16 nice=32 match=Greedy add=AddFirst(13) blocks=Dynamic far=false start=false
+0238	saveas	1	3922	ok	1	42	11	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0239	saveas	1	676	ok	1	61	36	false	win=12 strat=Default hash=Libdeflate4 chain=15 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0240	saveas	1	12532	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0241	saveas	1	631	ok	1	55	30	false	win=12 strat=Default hash=Libdeflate4 chain=11 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0242	saveas	1	14012	ok	1	48	17	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0243	saveas	1	2848	PredictionFailure	0	0	0	-	-
+0244	saveas	1	3490	ok	1	140	110	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=73 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0245	saveas	1	2807	ok	1	88	62	false	win=15 strat=Default hash=Libdeflate4 chain=60 nice=258 match=Greedy add=AddFirst(86) blocks=Dynamic far=true start=false
+0246	saveas	1	5975	ok	1	175	145	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=115 nice=258 match=Greedy add=AddFirst(101) blocks=Dynamic far=false start=false
+0247	saveas	1	3513	ok	1	150	120	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=90 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0248	saveas	1	3691	ok	1	146	120	false	win=15 strat=Default hash=Libdeflate4 chain=63 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=true start=false
+0249	saveas	1	6102	ok	1	188	162	false	win=15 strat=Default hash=Libdeflate4 chain=92 nice=258 match=Greedy add=AddFirst(106) blocks=Dynamic far=true start=false
+0250	saveas	1	5319	ok	1	399	366	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=110 nice=258 match=Greedy add=AddFirstAndLast(66) blocks=Dynamic far=false start=false
+0251	saveas	1	6455	ok	1	521	488	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=115 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0252	saveas	1	6352	ok	1	52	21	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0253	saveas	1	6378	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=92 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0254	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0255	saveas	1	19559	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0256	saveas	1	6050	ok	1	44	13	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0257	saveas	1	22992	ok	1	134	103	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0258	saveas	1	313	ok	1	31	6	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0259	saveas	1	3867	ok	1	26	0	true	win=15 strat=Default hash=RandomVector chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0260	saveas	1	624	ok	1	57	28	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0261	saveas	1	22464	ok	1	69	38	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0262	saveas	1	970	ok	1	84	59	false	win=12 strat=Default hash=Libdeflate4 chain=25 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0263	saveas	1	64258	ok	1	116	85	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0264	saveas	1	359	ok	1	39	10	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=19 nice=32 match=Greedy add=AddFirst(17) blocks=Dynamic far=false start=false
+0265	saveas	1	4050	ok	1	38	7	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0266	saveas	1	517	ok	1	52	23	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=28 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0267	saveas	1	20703	ok	1	45	14	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=125 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0268	saveas	1	629	ok	1	63	33	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=48 nice=258 match=Greedy add=AddFirst(35) blocks=Dynamic far=false start=false
+0269	saveas	1	13588	ok	1	45	14	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0270	saveas	1	7675	ok	1	42	11	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0271	saveas	1	11334	ok	1	48	17	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0272	saveas	1	12181	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0273	saveas	1	284	ok	1	36	7	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=6 nice=16 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0274	saveas	1	4580	ok	1	81	51	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=103 nice=258 match=Greedy add=AddFirst(125) blocks=Dynamic far=false start=false
+0275	saveas	1	350	ok	1	39	14	false	win=10 strat=Default hash=Libdeflate4 chain=4 nice=8 match=Greedy add=AddFirst(17) blocks=Dynamic far=true start=false
+0276	saveas	1	7683	ok	1	122	92	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=258 match=Greedy add=AddFirst(207) blocks=Dynamic far=false start=false
+0277	saveas	1	356	ok	1	44	15	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0278	saveas	1	15228	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0279	saveas	1	407	ok	1	44	15	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=13 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0280	saveas	1	3441	ok	1	38	7	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0281	saveas	1	537	ok	1	50	25	false	win=11 strat=Default hash=Libdeflate4 chain=9 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0282	saveas	1	17470	ok	1	41	10	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0283	saveas	1	617	ok	1	53	28	false	win=12 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(32) blocks=Dynamic far=true start=false
+0284	saveas	1	14838	ok	1	218	188	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=258 match=Greedy add=AddFirst(172) blocks=Dynamic far=false start=false
+0285	saveas	1	3088	ok	1	295	267	true	win=14 strat=Default hash=RandomVector chain=19 nice=32 match=Greedy add=AddFirst(7) blocks=Dynamic far=false start=false
+0286	saveas	1	3025	ok	1	127	97	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=55 nice=258 match=Greedy add=AddFirst(96) blocks=Dynamic far=false start=false
+0287	saveas	1	2578	ok	1	96	66	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=84 nice=258 match=Greedy add=AddFirst(96) blocks=Dynamic far=false start=false
+0288	saveas	1	6506	ok	1	215	185	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=258 match=Greedy add=AddFirst(94) blocks=Dynamic far=false start=false
+0289	saveas	1	2994	ok	1	135	109	false	win=14 strat=Default hash=Libdeflate4 chain=71 nice=258 match=Greedy add=AddFirst(96) blocks=Dynamic far=true start=false
+0290	saveas	1	3345	ok	1	142	112	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=48 nice=258 match=Greedy add=AddFirst(93) blocks=Dynamic far=false start=false
+0291	saveas	1	6071	ok	1	193	167	false	win=15 strat=Default hash=Libdeflate4 chain=108 nice=258 match=Greedy add=AddFirst(112) blocks=Dynamic far=true start=false
+0292	saveas	1	6008	ok	1	376	343	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirstAndLast(67) blocks=Dynamic far=false start=false
+0293	saveas	1	5984	ok	1	454	421	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=111 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0294	saveas	1	5520	ok	1	74	47	false	win=15 strat=Default hash=Libdeflate4 chain=125 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0295	saveas	1	8492	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0296	saveas	1	7760	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=82 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0297	saveas	1	229	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0298	saveas	1	23176	ok	1	129	98	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0299	saveas	1	220	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0300	saveas	1	6027	ok	1	124	94	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(152) blocks=Dynamic far=false start=false
+0301	saveas	1	18198	ok	1	41	10	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0302	saveas	1	301	ok	1	31	6	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0303	saveas	1	13250	ok	1	46	15	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0304	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0305	saveas	1	268	ok	1	29	5	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0306	saveas	1	8899	ok	1	55	24	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0307	saveas	1	937	ok	1	73	48	false	win=12 strat=Default hash=Libdeflate4 chain=5 nice=16 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=false
+0308	saveas	1	22773	ok	1	65	34	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0309	saveas	1	852	ok	1	68	43	false	win=12 strat=Default hash=Libdeflate4 chain=10 nice=32 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=true start=false
+0310	saveas	1	55093	ok	1	145	114	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0311	saveas	1	578	ok	1	58	29	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=30 nice=32 match=Greedy add=AddFirst(31) blocks=Dynamic far=false start=false
+0312	saveas	1	7564	ok	1	176	146	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(236) blocks=Dynamic far=false start=false
+0313	saveas	1	625	ok	1	61	31	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=41 nice=258 match=Greedy add=AddFirst(28) blocks=Dynamic far=false start=false
+0314	saveas	1	21579	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=124 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0315	saveas	1	7312	ok	1	42	11	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0316	saveas	1	3562	ok	1	80	50	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(174) blocks=Dynamic far=false start=false
+0317	saveas	1	318	ok	1	41	16	false	win=10 strat=Default hash=Libdeflate4 chain=4 nice=8 match=Greedy add=AddFirst(30) blocks=Dynamic far=true start=false
+0318	saveas	1	9997	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0319	saveas	1	2884	ok	1	30	0	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=123 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0320	saveas	1	422	ok	1	39	14	false	win=11 strat=Default hash=Libdeflate4 chain=7 nice=16 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=false
+0321	saveas	1	4782	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0322	saveas	1	283	ok	1	40	11	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0323	saveas	1	7311	ok	1	124	94	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=121 nice=258 match=Greedy add=AddFirstAndLast(89) blocks=Dynamic far=false start=false
+0324	saveas	1	316	ok	1	42	13	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0325	saveas	1	4863	ok	1	46	19	false	win=14 strat=Default hash=Libdeflate4 chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0326	saveas	1	607	ok	1	62	32	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=37 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=false start=false
+0327	saveas	1	7483	ok	1	38	7	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=124 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0328	saveas	1	594	ok	1	63	33	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=57 nice=258 match=Greedy add=AddFirst(37) blocks=Dynamic far=false start=false
+0329	saveas	1	21969	ok	1	62	31	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0330	saveas	1	2964	ok	1	264	239	false	win=14 strat=Default hash=Libdeflate4 chain=16 nice=32 match=Greedy add=AddFirst(8) blocks=Dynamic far=true start=false
+0331	saveas	1	2861	ok	1	115	89	true	win=15 strat=Default hash=RandomVector chain=66 nice=258 match=Greedy add=AddFirst(95) blocks=Dynamic far=false start=false
+0332	saveas	1	2476	ok	1	105	75	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=86 nice=258 match=Greedy add=AddFirst(96) blocks=Dynamic far=false start=false
+0333	saveas	1	6195	ok	1	204	174	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=123 nice=258 match=Greedy add=AddFirst(94) blocks=Dynamic far=false start=false
+0334	saveas	1	2976	ok	1	141	115	false	win=14 strat=Default hash=Libdeflate4 chain=100 nice=258 match=Greedy add=AddFirst(92) blocks=Dynamic far=true start=false
+0335	saveas	1	3120	ok	1	128	98	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=35 nice=258 match=Greedy add=AddFirst(93) blocks=Dynamic far=false start=false
+0336	saveas	1	5883	ok	1	194	168	false	win=15 strat=Default hash=Libdeflate4 chain=65 nice=258 match=Greedy add=AddFirst(105) blocks=Dynamic far=true start=false
+0337	saveas	1	6052	ok	1	386	353	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=119 nice=258 match=Greedy add=AddFirst(69) blocks=Dynamic far=false start=false
+0338	saveas	1	5882	ok	1	448	415	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=116 nice=258 match=Greedy add=AddFirst(69) blocks=Dynamic far=false start=false
+0339	saveas	1	4840	ok	1	62	35	false	win=15 strat=Default hash=Libdeflate4 chain=125 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=false
+0340	saveas	1	16568	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0341	saveas	1	10750	ok	1	50	19	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0342	saveas	1	220	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0343	saveas	1	6027	ok	1	124	94	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(152) blocks=Dynamic far=false start=false
+0344	saveas	1	18198	ok	1	41	10	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0345	saveas	1	219	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0346	saveas	1	5313	ok	1	38	7	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0347	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0348	saveas	1	292	ok	1	24	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0349	saveas	1	9496	ok	1	56	25	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0350	saveas	1	823	ok	1	72	47	false	win=11 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=true start=false
+0351	saveas	1	26198	ok	1	70	39	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0352	saveas	1	668	ok	1	58	33	false	win=11 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(17) blocks=Dynamic far=true start=false
+0353	saveas	1	15538	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0354	saveas	1	331	ok	1	38	9	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=9 nice=32 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0355	saveas	1	4313	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0356	saveas	1	569	ok	1	61	31	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=41 nice=258 match=Greedy add=AddFirst(31) blocks=Dynamic far=false start=false
+0357	saveas	1	16478	ok	1	41	10	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0358	saveas	1	220	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0359	saveas	1	23131	ok	1	133	102	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0360	saveas	1	605	ok	1	54	29	false	win=11 strat=Default hash=Libdeflate4 chain=16 nice=32 match=Greedy add=AddFirst(32) blocks=Dynamic far=true start=false
+0361	saveas	1	27653	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0362	saveas	1	5682	ok	1	42	11	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0363	saveas	1	9299	ok	1	48	17	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0364	saveas	1	217	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0365	saveas	1	10892	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0366	saveas	1	351	ok	1	40	11	true	win=10 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0367	saveas	1	5784	ok	1	112	82	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(112) blocks=Dynamic far=false start=false
+0368	saveas	1	407	ok	1	44	15	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=3 nice=8 match=Greedy add=AddFirstAndLast(10) blocks=Dynamic far=false start=false
+0369	saveas	1	9654	ok	1	38	7	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0370	saveas	1	219	ok	1	23	0	true	win=10 strat=Default hash=RandomVector chain=2 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=false start=false
+0371	saveas	1	6900	ok	1	111	85	true	win=14 strat=Default hash=RandomVector chain=116 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=false start=false
+0372	saveas	1	379	ok	1	37	12	false	win=11 strat=Default hash=Libdeflate4 chain=6 nice=16 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=false
+0373	saveas	1	11617	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0374	saveas	1	633	ok	1	59	34	false	win=12 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(32) blocks=Dynamic far=true start=false
+0375	saveas	1	12858	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0376	saveas	1	603	ok	1	61	31	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=67 nice=258 match=Greedy add=AddFirst(36) blocks=Dynamic far=false start=false
+0377	saveas	1	24760	ok	1	79	48	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0378	saveas	1	2934	ok	1	244	219	false	win=14 strat=Default hash=Libdeflate4 chain=13 nice=32 match=Greedy add=AddFirst(8) blocks=Dynamic far=true start=false
+0379	saveas	1	3023	ok	1	160	130	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=67 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=false start=false
+0380	saveas	1	1799	ok	1	83	53	true	win=13 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=85 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=false start=false
+0381	saveas	1	9540	ok	1	308	275	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0382	saveas	1	3163	ok	1	180	150	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=122 nice=258 match=Greedy add=AddFirst(89) blocks=Dynamic far=false start=false
+0383	saveas	1	3323	ok	1	160	134	false	win=14 strat=Default hash=Libdeflate4 chain=34 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=true start=false
+0384	saveas	1	8014	ok	1	290	257	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=116 nice=258 match=Greedy add=AddFirst(106) blocks=Dynamic far=false start=false
+0385	saveas	1	4308	ok	1	236	206	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=98 nice=258 match=Greedy add=AddFirstAndLast(67) blocks=Dynamic far=false start=false
+0386	saveas	1	5924	ok	1	461	432	false	win=15 strat=Default hash=Libdeflate4 chain=54 nice=258 match=Greedy add=AddFirst(67) blocks=Dynamic far=true start=false
+0387	saveas	1	6527	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=118 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0388	saveas	1	17203	ok	1	39	8	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0389	saveas	1	25886	ok	1	40	9	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0390	saveas	1	7808	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=104 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0391	saveas	1	4441	ok	1	43	12	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0392	saveas	1	377	ok	1	33	8	false	win=10 strat=Default hash=Libdeflate4 chain=3 nice=8 match=Greedy add=AddFirst(10) blocks=Dynamic far=true start=false
+0393	saveas	1	9406	ok	1	30	0	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0394	saveas	1	942	ok	1	77	52	false	win=12 strat=Default hash=Libdeflate4 chain=7 nice=16 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=false
+0395	saveas	1	22405	ok	1	71	40	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=128 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0396	saveas	1	1333	ok	1	118	88	true	win=12 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=43 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0397	saveas	1	86932	ok	1	179	148	true	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=127 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0398	saveas	1	458	ok	1	48	19	true	win=11 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=28 nice=32 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=false
+0399	saveas	1	5229	ok	1	30	0	true	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=126 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=false
+0400	print	0	10289	ok	1	43	12	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=77 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0401	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0402	print	0	29654	ok	1	68	41	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0403	print	0	15991	ok	1	58	31	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0404	print	0	3516	ok	1	207	177	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(108) blocks=Dynamic far=false start=true
+0405	print	0	11095	ok	1	42	15	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0406	print	0	76888	ok	1	5757	5724	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(83) blocks=Dynamic far=true start=true
+0407	print	0	76638	ok	1	5699	5666	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(34) blocks=Dynamic far=true start=false
+0408	print	0	76845	ok	1	5763	5730	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=false
+0409	print	0	76352	ok	1	5718	5685	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(34) blocks=Dynamic far=true start=false
+0410	print	0	48367	ok	1	145	118	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0411	print	0	48020	ok	1	3537	3504	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(104) blocks=Dynamic far=true start=true
+0412	print	0	29798	ok	1	61	34	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0413	print	0	26264	ok	1	55	28	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0414	print	0	57087	ok	1	85	58	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0415	print	0	5965	ok	1	314	281	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(118) blocks=Dynamic far=true start=true
+0416	print	0	6465	ok	1	123	97	false	win=14 strat=Default hash=RandomVector chain=96 nice=258 match=Greedy add=AddFirstAndLast(99) blocks=Dynamic far=false start=true
+0417	print	0	17625	ok	1	77	50	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0418	print	0	52248	ok	1	123	96	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0419	print	0	3395	ok	1	222	192	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(109) blocks=Dynamic far=false start=true
+0420	print	0	10018	ok	1	61	30	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0421	print	0	8948	ok	1	167	141	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(251) blocks=Dynamic far=false start=true
+0422	print	0	26987	ok	1	54	27	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0423	print	0	3204	ok	1	201	171	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(113) blocks=Dynamic far=false start=true
+0424	print	0	25759	ok	1	46	19	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0425	print	0	30954	ok	1	66	39	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0426	print	0	41966	ok	1	84	57	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0427	print	0	6212	ok	1	310	277	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(126) blocks=Dynamic far=true start=true
+0428	print	0	15023	ok	1	59	32	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0429	print	0	11360	ok	1	38	11	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0430	print	0	11667	ok	1	126	100	false	win=15 strat=Default hash=RandomVector chain=98 nice=258 match=Greedy add=AddFirstAndLast(195) blocks=Dynamic far=false start=true
+0431	print	0	67208	ok	1	314	284	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0432	print	0	9738	ok	1	35	8	false	win=14 strat=Default hash=RandomVector chain=77 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0433	print	0	111322	ok	1	136	109	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0434	print	0	3954	ok	1	189	163	false	win=15 strat=Default hash=Libdeflate4 chain=93 nice=258 match=Greedy add=AddFirst(151) blocks=Dynamic far=true start=true
+0435	print	0	5342	ok	1	49	22	false	win=15 strat=Default hash=RandomVector chain=95 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0436	print	0	78506	ok	1	42	15	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0437	print	0	26037	ok	1	95	68	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0438	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0439	print	0	1966	ok	1	110	84	false	win=14 strat=Default hash=Libdeflate4 chain=51 nice=258 match=Greedy add=AddFirst(111) blocks=Dynamic far=true start=true
+0440	print	0	11895	ok	1	39	12	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0441	print	0	21755	ok	1	655	626	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(199) blocks=Dynamic far=false start=true
+0442	print	0	41496	ok	1	64	37	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0443	print	0	6068	ok	1	295	266	false	win=15 strat=Default hash=Libdeflate4 chain=98 nice=258 match=Greedy add=AddFirst(131) blocks=Dynamic far=true start=true
+0444	print	0	40778	ok	1	89	62	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0445	print	0	52462	ok	1	116	89	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0446	print	0	7376	ok	1	131	105	false	win=14 strat=Default hash=RandomVector chain=92 nice=258 match=Greedy add=AddFirst(138) blocks=Dynamic far=false start=true
+0447	print	0	2668	ok	1	175	145	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(123) blocks=Dynamic far=false start=true
+0448	print	0	10244	ok	1	61	30	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0449	print	0	487945	ok	1	152	125	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0450	print	0	27640	ok	1	746	717	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(211) blocks=Dynamic far=true start=true
+0451	print	0	3659	ok	1	173	143	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=93 nice=258 match=Greedy add=AddFirst(116) blocks=Dynamic far=false start=true
+0452	print	0	21279	ok	1	62	35	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0453	print	0	36028	ok	1	52	25	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0454	print	0	33589	ok	1	76	49	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0455	print	0	5914	ok	1	256	230	false	win=15 strat=Default hash=Libdeflate4 chain=98 nice=258 match=Greedy add=AddFirst(156) blocks=Dynamic far=true start=true
+0456	print	0	29916	ok	1	70	43	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0457	print	0	58837	ok	1	131	100	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0458	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0459	print	0	4091	ok	1	283	253	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=68 nice=258 match=Greedy add=AddFirst(30) blocks=Dynamic far=false start=true
+0460	print	0	76688	ok	1	5744	5711	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=true
+0461	print	0	76433	ok	1	5720	5687	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=true
+0462	print	0	76941	ok	1	5824	5791	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(36) blocks=Dynamic far=true start=true
+0463	print	0	76935	ok	1	5768	5735	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=true
+0464	print	0	76631	ok	1	5721	5688	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=true
+0465	print	0	77427	ok	1	5820	5787	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(38) blocks=Dynamic far=true start=true
+0466	print	0	76631	ok	1	5761	5728	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(28) blocks=Dynamic far=true start=true
+0467	print	0	76826	ok	1	5704	5671	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(28) blocks=Dynamic far=true start=true
+0468	print	0	77021	ok	1	5768	5735	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(33) blocks=Dynamic far=true start=true
+0469	print	0	76426	ok	1	5693	5660	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=true
+0470	print	0	76553	ok	1	5751	5718	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=true
+0471	print	0	77262	ok	1	5864	5831	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(31) blocks=Dynamic far=true start=true
+0472	print	0	76542	ok	1	5724	5691	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=true
+0473	print	0	76862	ok	1	5811	5778	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(27) blocks=Dynamic far=true start=false
+0474	print	0	11888	ok	1	66	39	false	win=15 strat=Default hash=RandomVector chain=90 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0475	print	0	47287	ok	1	3559	3526	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=101 nice=258 match=Greedy add=AddFirst(101) blocks=Dynamic far=true start=true
+0476	print	0	38803	ok	1	79	52	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0477	print	0	37668	ok	1	63	36	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0478	print	0	6518	ok	1	110	79	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=97 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0479	print	0	43473	ok	1	97	70	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0480	print	0	7212	ok	1	131	101	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=86 nice=258 match=Greedy add=AddFirstAndLast(102) blocks=Dynamic far=false start=true
+0481	print	0	4957	ok	1	306	273	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(136) blocks=Dynamic far=false start=true
+0482	print	0	27220	ok	1	749	720	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirstAndLast(171) blocks=Dynamic far=false start=true
+0483	print	0	486307	ok	1	144	117	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0484	print	0	5309	ok	1	297	264	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(120) blocks=Dynamic far=false start=true
+0485	print	0	25669	ok	1	60	33	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0486	print	0	32529	ok	1	47	20	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0487	print	0	9735	ok	1	408	375	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(163) blocks=Dynamic far=true start=true
+0488	print	0	26640	ok	1	64	37	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0489	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0490	print	0	17486	ok	1	62	35	false	win=15 strat=Default hash=RandomVector chain=94 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0491	print	0	60492	ok	1	3875	3842	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(119) blocks=Dynamic far=true start=true
+0492	print	0	3382	ok	1	226	196	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=73 nice=258 match=Greedy add=AddFirst(74) blocks=Dynamic far=false start=true
+0493	print	0	33151	ok	1	37	10	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0494	print	0	26254	ok	1	78	51	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0495	print	0	38326	ok	1	44	17	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0496	print	0	2179	ok	1	121	91	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=63 nice=258 match=Greedy add=AddFirst(126) blocks=Dynamic far=false start=true
+0497	print	0	16584	ok	1	45	18	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0498	print	0	55827	ok	1	95	68	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0499	print	0	16128	ok	1	527	498	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirstAndLast(237) blocks=Dynamic far=false start=true
+0500	print	0	111322	ok	1	136	109	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0501	print	0	4836	ok	1	233	207	false	win=15 strat=Default hash=Libdeflate4 chain=87 nice=258 match=Greedy add=AddFirst(118) blocks=Dynamic far=true start=true
+0502	print	0	50460	ok	1	114	87	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0503	print	0	45868	ok	1	105	78	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0504	print	0	18874	ok	1	356	327	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(241) blocks=Dynamic far=true start=true
+0505	print	0	9900	ok	1	189	163	false	win=15 strat=Default hash=RandomVector chain=95 nice=258 match=Greedy add=AddFirst(186) blocks=Dynamic far=false start=true
+0506	print	0	3977	ok	1	205	175	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=94 nice=258 match=Greedy add=AddFirst(157) blocks=Dynamic far=false start=true
+0507	print	0	491971	ok	1	158	131	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0508	print	0	3480	ok	1	195	165	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=95 nice=258 match=Greedy add=AddFirst(134) blocks=Dynamic far=false start=true
+0509	print	0	35588	ok	1	70	43	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0510	print	0	29670	ok	1	68	41	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0511	print	0	9805	ok	1	47	20	false	win=15 strat=Default hash=RandomVector chain=86 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0512	print	0	6467	ok	1	300	267	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=95 nice=258 match=Greedy add=AddFirst(159) blocks=Dynamic far=true start=true
+0513	print	0	6783	ok	1	40	9	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=86 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0514	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0515	print	0	17647	ok	1	65	38	false	win=15 strat=Default hash=RandomVector chain=94 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0516	print	0	33601	ok	1	70	43	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0517	print	0	4234	ok	1	216	190	false	win=15 strat=Default hash=Libdeflate4 chain=91 nice=258 match=Greedy add=AddFirst(114) blocks=Dynamic far=true start=true
+0518	print	0	17514	ok	1	79	52	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0519	print	0	75045	ok	1	5623	5590	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=true
+0520	print	0	75667	ok	1	5713	5680	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(55) blocks=Dynamic far=true start=true
+0521	print	0	75394	ok	1	5755	5722	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(58) blocks=Dynamic far=true start=true
+0522	print	0	75343	ok	1	5654	5621	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(57) blocks=Dynamic far=true start=true
+0523	print	0	75655	ok	1	5709	5676	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(58) blocks=Dynamic far=true start=true
+0524	print	0	50339	ok	1	39	12	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0525	print	0	18935	ok	1	1357	1324	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(100) blocks=Dynamic far=true start=true
+0526	print	0	40658	ok	1	75	48	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0527	print	0	19691	ok	1	33	6	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0528	print	0	41193	ok	1	66	39	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0529	print	0	5956	ok	1	270	240	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(188) blocks=Dynamic far=true start=true
+0530	print	0	6511	ok	1	122	92	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirstAndLast(123) blocks=Dynamic far=false start=true
+0531	print	0	47089	ok	1	104	77	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0532	print	0	14495	ok	1	57	30	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0533	print	0	4001	ok	1	223	197	false	win=15 strat=Default hash=Libdeflate4 chain=97 nice=258 match=Greedy add=AddFirst(113) blocks=Dynamic far=true start=true
+0534	print	0	5491	ok	1	132	102	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=90 nice=258 match=Greedy add=AddFirst(130) blocks=Dynamic far=false start=true
+0535	print	0	10776	ok	1	204	178	false	win=15 strat=Default hash=RandomVector chain=97 nice=258 match=Greedy add=AddFirst(186) blocks=Dynamic far=false start=true
+0536	print	0	2619	ok	1	38	11	false	win=15 strat=Default hash=RandomVector chain=97 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0537	print	0	12473	ok	1	57	30	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0538	print	0	3906	ok	1	229	199	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=97 nice=258 match=Greedy add=AddFirst(114) blocks=Dynamic far=false start=true
+0539	print	0	34999	ok	1	72	45	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0540	print	0	37167	ok	1	71	44	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0541	print	0	10615	ok	1	46	19	false	win=15 strat=Default hash=RandomVector chain=86 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0542	print	0	5718	ok	1	284	254	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(237) blocks=Dynamic far=true start=true
+0543	print	0	7438	ok	1	43	12	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=84 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0544	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0545	print	0	60766	ok	1	3788	3755	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(86) blocks=Dynamic far=true start=true
+0546	print	0	60544	ok	1	3757	3724	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=true
+0547	print	0	61378	ok	1	3903	3870	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=true
+0548	print	0	61281	ok	1	3874	3841	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(27) blocks=Dynamic far=true start=false
+0549	print	0	16113	ok	1	58	31	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0550	print	0	42624	ok	1	2691	2658	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(104) blocks=Dynamic far=true start=true
+0551	print	0	33189	ok	1	37	10	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0552	print	0	7014	ok	1	67	36	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0553	print	0	52838	ok	1	139	112	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0554	print	0	27121	ok	1	84	57	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0555	print	0	1961	ok	1	138	112	false	win=14 strat=Default hash=Libdeflate4 chain=92 nice=258 match=Greedy add=AddFirst(126) blocks=Dynamic far=true start=true
+0556	print	0	15746	ok	1	41	14	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0557	print	0	17512	ok	1	41	14	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0558	print	0	50584	ok	1	95	68	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0559	print	0	6649	ok	1	334	301	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(143) blocks=Dynamic far=true start=true
+0560	print	0	11365	ok	1	57	30	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0561	print	0	42866	ok	1	90	63	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0562	print	0	51662	ok	1	115	88	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0563	print	0	3472	ok	1	223	193	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(140) blocks=Dynamic far=false start=true
+0564	print	0	5111	ok	1	119	89	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=89 nice=258 match=Greedy add=AddFirst(219) blocks=Dynamic far=false start=true
+0565	print	0	486351	ok	1	149	122	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0566	print	0	27082	ok	1	743	714	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirstAndLast(180) blocks=Dynamic far=false start=true
+0567	print	0	3591	ok	1	195	165	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=98 nice=258 match=Greedy add=AddFirst(115) blocks=Dynamic far=false start=true
+0568	print	0	7780	ok	1	41	14	false	win=14 strat=Default hash=RandomVector chain=90 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0569	print	0	26055	ok	1	63	36	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0570	print	0	41182	ok	1	84	57	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0571	print	0	6621	ok	1	339	310	false	win=15 strat=Default hash=Libdeflate4 chain=99 nice=258 match=Greedy add=AddFirst(144) blocks=Dynamic far=true start=true
+0572	print	0	6952	ok	1	41	10	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=78 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0573	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0574	print	0	62626	ok	1	3966	3933	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(83) blocks=Dynamic far=true start=true
+0575	print	0	17531	ok	1	62	35	false	win=15 strat=Default hash=RandomVector chain=94 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0576	print	0	59164	ok	1	3633	3600	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(112) blocks=Dynamic far=true start=true
+0577	print	0	111322	ok	1	136	109	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0578	print	0	390	ok	1	42	17	false	win=12 strat=Default hash=Libdeflate4 chain=7 nice=16 match=Greedy add=AddFirst(74) blocks=Dynamic far=true start=true
+0579	print	0	5009	ok	1	49	22	false	win=15 strat=Default hash=RandomVector chain=93 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0580	print	0	31839	ok	1	104	77	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0581	print	0	75110	ok	1	41	14	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0582	print	0	2150	ok	1	123	97	false	win=14 strat=Default hash=Libdeflate4 chain=52 nice=258 match=Greedy add=AddFirst(116) blocks=Dynamic far=true start=true
+0583	print	0	14436	ok	1	40	13	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0584	print	0	52019	ok	1	87	60	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0585	print	0	21156	ok	1	44	17	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0586	print	0	6107	ok	1	301	272	false	win=15 strat=Default hash=Libdeflate4 chain=98 nice=258 match=Greedy add=AddFirst(126) blocks=Dynamic far=true start=true
+0587	print	0	11514	ok	1	58	31	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0588	print	0	54326	ok	1	122	95	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0589	print	0	45866	ok	1	98	71	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0590	print	0	4148	ok	1	229	199	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=98 nice=258 match=Greedy add=AddFirst(128) blocks=Dynamic far=false start=true
+0591	print	0	5057	ok	1	120	90	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=88 nice=258 match=Greedy add=AddFirst(174) blocks=Dynamic far=false start=true
+0592	print	0	30364	ok	1	787	758	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(207) blocks=Dynamic far=false start=true
+0593	print	0	492420	ok	1	152	125	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0594	print	0	4515	ok	1	218	188	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(115) blocks=Dynamic far=false start=true
+0595	print	0	7281	ok	1	46	15	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=86 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0596	print	0	44581	ok	1	105	78	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0597	print	0	28251	ok	1	60	33	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0598	print	0	6403	ok	1	298	265	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(208) blocks=Dynamic far=true start=true
+0599	print	0	9156	ok	1	36	9	false	win=14 strat=Default hash=RandomVector chain=96 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0600	print	0	8362	ok	1	41	10	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=82 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0601	print	0	111511	ok	1	145	118	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0602	print	0	11667	ok	1	126	100	false	win=15 strat=Default hash=RandomVector chain=98 nice=258 match=Greedy add=AddFirstAndLast(195) blocks=Dynamic far=false start=true
+0603	print	0	67208	ok	1	314	284	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0604	print	0	32015	ok	1	74	47	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0605	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0606	print	0	3732	ok	1	174	144	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=97 nice=258 match=Greedy add=AddFirst(134) blocks=Dynamic far=false start=true
+0607	print	0	23927	ok	1	78	51	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0608	print	0	65347	ok	1	53	26	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0609	print	0	21016	ok	1	1536	1507	false	win=15 strat=Default hash=Libdeflate4 chain=84 nice=258 match=Greedy add=AddFirst(114) blocks=Dynamic far=true start=true
+0610	print	0	18001	ok	1	576	547	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirstAndLast(127) blocks=Dynamic far=false start=true
+0611	print	0	53070	ok	1	84	57	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0612	print	0	5027	ok	1	258	228	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(179) blocks=Dynamic far=true start=true
+0613	print	0	11146	ok	1	57	30	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0614	print	0	7507	ok	1	136	110	false	win=14 strat=Default hash=RandomVector chain=85 nice=258 match=Greedy add=AddFirst(174) blocks=Dynamic far=false start=true
+0615	print	0	53043	ok	1	119	92	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0616	print	0	3105	ok	1	182	152	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(131) blocks=Dynamic far=false start=true
+0617	print	0	9561	ok	1	59	28	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0618	print	0	27467	ok	1	745	716	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirstAndLast(207) blocks=Dynamic far=false start=true
+0619	print	0	8174	ok	1	146	116	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=93 nice=258 match=Greedy add=AddFirst(161) blocks=Dynamic far=false start=true
+0620	print	0	2945	ok	1	180	150	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=97 nice=258 match=Greedy add=AddFirst(121) blocks=Dynamic far=false start=true
+0621	print	0	32228	ok	1	70	43	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0622	print	0	11397	ok	1	45	18	false	win=15 strat=Default hash=RandomVector chain=86 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0623	print	0	34611	ok	1	50	23	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0624	print	0	6133	ok	1	285	256	false	win=15 strat=Default hash=Libdeflate4 chain=94 nice=258 match=Greedy add=AddFirst(198) blocks=Dynamic far=true start=true
+0625	print	0	29623	ok	1	68	41	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0626	print	0	11667	ok	1	126	100	false	win=15 strat=Default hash=RandomVector chain=98 nice=258 match=Greedy add=AddFirstAndLast(195) blocks=Dynamic far=false start=true
+0627	print	0	67208	ok	1	314	284	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0628	print	0	16768	ok	1	61	34	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0629	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0630	print	0	13126	ok	1	797	764	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(115) blocks=Dynamic far=false start=true
+0631	print	0	35642	ok	1	114	87	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0632	print	0	16617	ok	1	63	36	false	win=15 strat=Default hash=RandomVector chain=92 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0633	print	0	24951	ok	1	1810	1777	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(116) blocks=Dynamic far=true start=true
+0634	print	0	11856	ok	1	38	11	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0635	print	0	24427	ok	1	55	28	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0636	print	0	111446	ok	1	138	111	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0637	print	0	43127	ok	1	71	44	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0638	print	0	5403	ok	1	256	226	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(169) blocks=Dynamic far=true start=true
+0639	print	0	15779	ok	1	74	47	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0640	print	0	43335	ok	1	94	67	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0641	print	0	53911	ok	1	118	91	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0642	print	0	3119	ok	1	185	159	false	win=15 strat=Default hash=Libdeflate4 chain=92 nice=258 match=Greedy add=AddFirst(123) blocks=Dynamic far=true start=true
+0643	print	0	7419	ok	1	134	108	false	win=14 strat=Default hash=RandomVector chain=98 nice=258 match=Greedy add=AddFirst(186) blocks=Dynamic far=false start=true
+0644	print	0	486119	ok	1	146	119	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0645	print	0	7705	ok	1	162	132	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(130) blocks=Dynamic far=false start=true
+0646	print	0	2855	ok	1	160	134	false	win=15 strat=Default hash=Libdeflate4 chain=98 nice=258 match=Greedy add=AddFirst(124) blocks=Dynamic far=true start=true
+0647	print	0	24622	ok	1	70	43	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0648	print	0	26346	ok	1	65	38	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0649	print	0	37560	ok	1	52	25	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0650	print	0	6016	ok	1	271	241	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(196) blocks=Dynamic far=true start=true
+0651	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0652	print	0	8437	ok	1	41	10	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0653	print	0	15851	ok	1	60	33	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0654	print	0	31242	ok	1	1932	1899	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(154) blocks=Dynamic far=true start=true
+0655	print	0	18949	ok	1	81	54	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0656	print	0	23523	ok	1	67	40	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0657	print	0	97731	ok	1	47	20	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0658	print	0	1716	ok	1	119	94	false	win=13 strat=Default hash=Libdeflate4 chain=30 nice=32 match=Greedy add=AddFirst(121) blocks=Dynamic far=true start=true
+0659	print	0	12807	ok	1	43	16	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0660	print	0	17500	ok	1	562	533	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirstAndLast(237) blocks=Dynamic far=false start=true
+0661	print	0	54720	ok	1	82	55	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0662	print	0	8192	ok	1	385	356	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(197) blocks=Dynamic far=true start=true
+0663	print	0	40841	ok	1	90	63	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0664	print	0	12628	ok	1	58	31	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0665	print	0	51736	ok	1	118	91	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0666	print	0	3945	ok	1	257	227	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(176) blocks=Dynamic far=false start=true
+0667	print	0	26527	ok	1	57	30	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0668	print	0	486266	ok	1	148	121	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0669	print	0	6462	ok	1	136	106	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=88 nice=258 match=Greedy add=AddFirst(170) blocks=Dynamic far=false start=true
+0670	print	0	3756	ok	1	231	201	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(115) blocks=Dynamic far=false start=true
+0671	print	0	7723	ok	1	44	17	false	win=14 strat=Default hash=RandomVector chain=88 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0672	print	0	25484	ok	1	60	33	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0673	print	0	42685	ok	1	86	59	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0674	print	0	7829	ok	1	376	343	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=98 nice=258 match=Greedy add=AddFirst(162) blocks=Dynamic far=true start=true
+0675	print	0	28079	ok	1	69	42	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0676	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0677	print	0	16052	ok	1	58	31	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0678	print	0	58869	ok	1	3667	3634	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(126) blocks=Dynamic far=true start=true
+0679	print	0	61357	ok	1	3886	3853	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(33) blocks=Dynamic far=true start=true
+0680	print	0	36643	ok	1	2317	2284	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=true start=true
+0681	print	0	77225	ok	1	44	17	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0682	print	0	51701	ok	1	146	119	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0683	print	0	43952	ok	1	3313	3280	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(114) blocks=Dynamic far=true start=true
+0684	print	0	17068	ok	1	40	13	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0685	print	0	51699	ok	1	84	57	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0686	print	0	16946	ok	1	45	18	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0687	print	0	6884	ok	1	332	299	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(130) blocks=Dynamic far=true start=true
+0688	print	0	16089	ok	1	76	49	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0689	print	0	51859	ok	1	116	89	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0690	print	0	42250	ok	1	92	65	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0691	print	0	3816	ok	1	248	218	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(109) blocks=Dynamic far=false start=true
+0692	print	0	7692	ok	1	138	112	false	win=14 strat=Default hash=RandomVector chain=99 nice=258 match=Greedy add=AddFirst(251) blocks=Dynamic far=false start=true
+0693	print	0	27163	ok	1	740	711	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirstAndLast(248) blocks=Dynamic far=false start=true
+0694	print	0	486123	ok	1	152	125	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0695	print	0	3817	ok	1	204	174	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(115) blocks=Dynamic far=false start=true
+0696	print	0	26571	ok	1	65	38	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0697	print	0	41650	ok	1	89	62	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0698	print	0	26010	ok	1	61	34	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0699	print	0	7168	ok	1	366	337	false	win=15 strat=Default hash=Libdeflate4 chain=99 nice=258 match=Greedy add=AddFirst(122) blocks=Dynamic far=true start=true
+0700	print	0	14763	ok	1	59	32	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0701	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0702	print	0	62757	ok	1	3998	3965	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(54) blocks=Dynamic far=true start=true
+0703	print	0	63698	ok	1	3980	3947	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(120) blocks=Dynamic far=true start=true
+0704	print	0	11226	ok	1	37	10	false	win=15 strat=Default hash=RandomVector chain=81 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0705	print	0	32478	ok	1	2000	1971	false	win=15 strat=Default hash=Libdeflate4 chain=97 nice=258 match=Greedy add=AddFirst(119) blocks=Dynamic far=true start=true
+0706	print	0	32830	ok	1	117	90	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0707	print	0	24647	ok	1	79	52	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0708	print	0	26371	ok	1	1917	1884	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(117) blocks=Dynamic far=true start=true
+0709	print	0	42439	ok	1	81	54	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0710	print	0	17302	ok	1	42	15	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0711	print	0	19110	ok	1	596	567	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(159) blocks=Dynamic far=false start=true
+0712	print	0	6176	ok	1	309	280	false	win=15 strat=Default hash=Libdeflate4 chain=92 nice=258 match=Greedy add=AddFirstAndLast(152) blocks=Dynamic far=true start=true
+0713	print	0	49801	ok	1	116	89	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0714	print	0	44562	ok	1	99	72	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0715	print	0	15273	ok	1	61	34	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0716	print	0	4048	ok	1	222	192	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(124) blocks=Dynamic far=false start=true
+0717	print	0	26326	ok	1	56	29	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0718	print	0	491087	ok	1	152	125	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0719	print	0	8859	ok	1	171	141	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=98 nice=258 match=Greedy add=AddFirst(161) blocks=Dynamic far=false start=true
+0720	print	0	3855	ok	1	226	196	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=98 nice=258 match=Greedy add=AddFirst(116) blocks=Dynamic far=false start=true
+0721	print	0	34477	ok	1	75	48	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0722	print	0	28012	ok	1	59	32	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0723	print	0	10827	ok	1	44	17	false	win=15 strat=Default hash=RandomVector chain=89 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0724	print	0	7108	ok	1	139	108	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0725	print	0	9384	ok	1	38	11	false	win=14 strat=Default hash=RandomVector chain=93 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0726	print	0	15770	ok	1	59	32	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0727	print	0	111463	ok	1	138	111	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0728	print	0	11667	ok	1	126	100	false	win=15 strat=Default hash=RandomVector chain=98 nice=258 match=Greedy add=AddFirstAndLast(195) blocks=Dynamic far=false start=true
+0729	print	0	67208	ok	1	314	284	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0730	print	0	11551	ok	1	37	10	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0731	print	0	3574	ok	1	175	145	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=94 nice=258 match=Greedy add=AddFirst(120) blocks=Dynamic far=false start=true
+0732	print	0	7356	ok	1	44	17	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0733	print	0	71686	ok	1	41	14	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0734	print	0	21833	ok	1	83	56	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0735	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0736	print	0	2087	ok	1	132	102	false	win=14 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=83 nice=258 match=Greedy add=AddFirst(115) blocks=Dynamic far=false start=true
+0737	print	0	13984	ok	1	46	19	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0738	print	0	65524	ok	1	99	72	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0739	print	0	42944	ok	1	68	41	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0740	print	0	6138	ok	1	149	118	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0741	print	0	6275	ok	1	119	93	false	win=14 strat=Default hash=RandomVector chain=94 nice=258 match=Greedy add=AddFirst(238) blocks=Dynamic far=false start=true
+0742	print	0	13022	ok	1	57	30	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0743	print	0	54494	ok	1	119	92	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0744	print	0	3425	ok	1	206	180	false	win=15 strat=Default hash=Libdeflate4 chain=93 nice=258 match=Greedy add=AddFirst(110) blocks=Dynamic far=true start=true
+0745	print	0	26000	ok	1	55	28	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0746	print	0	11613	ok	1	58	31	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0747	print	0	9491	ok	1	183	153	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=85 nice=258 match=Greedy add=AddFirst(139) blocks=Dynamic far=false start=true
+0748	print	0	2853	ok	1	209	183	false	win=14 strat=Default hash=Libdeflate4 chain=97 nice=258 match=Greedy add=AddFirst(116) blocks=Dynamic far=true start=true
+0749	print	0	26224	ok	1	50	23	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0750	print	0	43144	ok	1	98	71	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0751	print	0	12202	ok	1	225	199	false	win=15 strat=Default hash=RandomVector chain=86 nice=258 match=Greedy add=AddFirstAndLast(251) blocks=Dynamic far=false start=true
+0752	print	0	6888	ok	1	346	317	false	win=15 strat=Default hash=Libdeflate4 chain=95 nice=258 match=Greedy add=AddFirst(120) blocks=Dynamic far=true start=true
+0753	print	0	25504	ok	1	66	39	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0754	print	0	17517	ok	1	60	33	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0755	print	0	111446	ok	1	138	111	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0756	print	0	11667	ok	1	126	100	false	win=15 strat=Default hash=RandomVector chain=98 nice=258 match=Greedy add=AddFirstAndLast(195) blocks=Dynamic far=false start=true
+0757	print	0	67208	ok	1	314	284	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0758	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0759	print	0	3987	ok	1	205	179	false	win=15 strat=Default hash=Libdeflate4 chain=97 nice=258 match=Greedy add=AddFirst(115) blocks=Dynamic far=true start=true
+0760	print	0	28466	ok	1	37	10	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0761	print	0	77167	ok	1	5818	5785	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(45) blocks=Dynamic far=true start=true
+0762	print	0	76621	ok	1	5827	5794	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(27) blocks=Dynamic far=true start=true
+0763	print	0	76321	ok	1	5715	5682	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(28) blocks=Dynamic far=true start=true
+0764	print	0	75781	ok	1	5713	5680	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=true
+0765	print	0	76909	ok	1	5841	5808	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(27) blocks=Dynamic far=true start=true
+0766	print	0	76821	ok	1	5838	5805	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=101 nice=258 match=Greedy add=AddFirst(45) blocks=Dynamic far=true start=true
+0767	print	0	76800	ok	1	5857	5824	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(45) blocks=Dynamic far=true start=true
+0768	print	0	76763	ok	1	5778	5745	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(45) blocks=Dynamic far=true start=false
+0769	print	0	76230	ok	1	5653	5620	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(57) blocks=Dynamic far=true start=true
+0770	print	0	54326	ok	1	4052	4019	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(88) blocks=Dynamic far=true start=true
+0771	print	0	38216	ok	1	74	47	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0772	print	0	28609	ok	1	53	26	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0773	print	0	6896	ok	1	346	317	false	win=15 strat=Default hash=Libdeflate4 chain=97 nice=258 match=Greedy add=AddFirst(148) blocks=Dynamic far=true start=true
+0774	print	0	15519	ok	1	74	47	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0775	print	0	53866	ok	1	116	89	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0776	print	0	3801	ok	1	230	200	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(121) blocks=Dynamic far=false start=true
+0777	print	0	7267	ok	1	131	105	false	win=14 strat=Default hash=RandomVector chain=97 nice=258 match=Greedy add=AddFirst(186) blocks=Dynamic far=false start=true
+0778	print	0	29825	ok	1	769	740	false	win=15 strat=Default hash=RandomVector chain=100 nice=258 match=Greedy add=AddFirst(114) blocks=Dynamic far=true start=true
+0779	print	0	3752	ok	1	202	176	false	win=15 strat=Default hash=Libdeflate4 chain=93 nice=258 match=Greedy add=AddFirst(119) blocks=Dynamic far=true start=true
+0780	print	0	23628	ok	1	63	36	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0781	print	0	45685	ok	1	101	74	false	win=15 strat=Default hash=RandomVector chain=98 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0782	print	0	7410	ok	1	347	314	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=98 nice=258 match=Greedy add=AddFirst(128) blocks=Dynamic far=true start=true
+0783	print	0	96378	ok	1	125	98	false	win=15 strat=Default hash=RandomVector chain=100 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=true start=true
+0784	print	0	11535	ok	1	45	14	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=77 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0785	print	0	29007	ok	1	1732	1699	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(143) blocks=Dynamic far=true start=true
+0786	print	0	15382	ok	1	37	10	false	win=15 strat=Default hash=RandomVector chain=99 nice=128 match=Lazy { good_length: 8, max_lazy: 16 } add=AddAll blocks=Dynamic far=false start=true
+0787	print	0	76476	ok	1	5717	5684	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(83) blocks=Dynamic far=true start=true
+0788	print	0	77113	ok	1	5828	5795	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(26) blocks=Dynamic far=true start=true
+0789	print	0	76966	ok	1	5784	5751	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=true
+0790	print	0	77020	ok	1	5715	5682	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(27) blocks=Dynamic far=true start=true
+0791	print	0	75790	ok	1	5689	5656	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(35) blocks=Dynamic far=true start=true
+0792	print	0	76356	ok	1	5745	5712	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=true
+0793	print	0	76584	ok	1	5710	5677	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(27) blocks=Dynamic far=true start=true
+0794	print	0	76188	ok	1	5684	5651	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(54) blocks=Dynamic far=true start=true
+0795	print	0	76359	ok	1	5695	5662	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(29) blocks=Dynamic far=true start=true
+0796	print	0	76625	ok	1	5723	5690	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=true
+0797	print	0	77060	ok	1	5765	5732	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(27) blocks=Dynamic far=true start=true
+0798	print	0	76936	ok	1	5744	5711	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=100 nice=258 match=Greedy add=AddFirst(53) blocks=Dynamic far=true start=true
+0799	print	0	34864	ok	1	2574	2541	false	win=15 strat=Default hash=Zlib { hash_mask: 32767, hash_shift: 5 } chain=99 nice=258 match=Greedy add=AddFirst(87) blocks=Dynamic far=true start=false

@@ -1,0 +1,32 @@
+{
+ "date": "2026-10-05",
+ "crates": {
+  "read-fonts": "0.45.0",
+  "skrifa": "0.48.0"
+ },
+ "python": {
+  "fonttools": "4.66.1",
+  "pypdf": "6.19.0"
+ },
+ "files": 50,
+ "fontfile2_programs": 1252,
+ "parsed_ok": 1252,
+ "read_fonts_family_nonempty": 1252,
+ "read_fonts_eq_skrifa": 1252,
+ "read_fonts_eq_fonttools_same_bytes": 1252,
+ "rows_matched_to_obs0907": 889,
+ "read_fonts_eq_obs0907": 889,
+ "distinct_families": 40,
+ "rows_not_in_obs0907": 363,
+ "mismatches": [],
+ "top_families": {
+  "Cambria": 241,
+  "Cambria Math": 65,
+  "Symbol": 60,
+  "Arial": 60,
+  "Rubik Medium": 37,
+  "Noto Serif Thin": 35,
+  "Bricolage Grotesque Light": 35,
+  "Oswald Medium": 34
+ }
+}

@@ -1,0 +1,625 @@
+file,class,engine,rc,produced_output,pages,chars,text_ratio_vs_original,note
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,gs_text,0,0,,0,0.0,"Catalog dictionary not located in file, unable to proceed"
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,hayro,1,0,,,,hayro load-error Invalid
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,lopdf,1,0,,,,lopdf load-error failed parsing cross reference table
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,mutool_clean,0,0,0,,,warning: object missing 'endobj' token
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,mutool_text,1,0,,0,0.0,cannot draw '/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f00.pdf'
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pdfbox_text,0,0,,0,0.0,Error extracting text for document [IOException]: Missing root object specification in trailer.
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pdfcpu_optimize,1,0,,,,optimize: prepare PDF context: read context: xref table: xref table: unexpected eof: stream obj#92: load encoded content: read stream content: EOF
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pdfcpu_validate,1,0,,,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f00.pdf: read context: xref table: xref table: unexpected eof: stream obj#92: load encoded content: read stream content: EOF
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pdfjs,0,0,0,0,0.0,Invalid PDF structure.
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pdfrs,1,0,,,,'startxref' not found.
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pdftotext,1,0,,0,0.0,
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pikepdf,0,0,,,,PdfError: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f00.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pymupdf,0,0,0,0,0.0,
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,pypdfium2,0,0,,,,PdfiumError: Failed to load document (PDFium: Data format error).
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,qpdf_check,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f00.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf,C10,qpdf_rewrite,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f00.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,gs_text,0,0,,0,0.0,"Catalog dictionary not located in file, unable to proceed"
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,hayro,1,0,,,,hayro load-error Invalid
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,lopdf,1,0,,,,lopdf load-error failed parsing cross reference table
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,mutool_clean,0,0,0,,,warning: object missing 'endobj' token
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,mutool_text,1,0,,0,0.0,cannot draw '/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f01.pdf'
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pdfbox_text,0,0,,0,0.0,Error extracting text for document [IOException]: Missing root object specification in trailer.
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pdfcpu_optimize,1,0,,,,optimize: prepare PDF context: read context: xref table: xref table: unexpected eof: stream obj#154: load encoded content: read stream content: EOF
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pdfcpu_validate,1,0,,,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f01.pdf: read context: xref table: xref table: unexpected eof: stream obj#154: load encoded content: read stream content: EOF
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pdfjs,0,0,0,0,0.0,Invalid PDF structure.
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pdfrs,1,0,,,,'startxref' not found.
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pdftotext,1,0,,0,0.0,
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pikepdf,0,0,,,,PdfError: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f01.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pymupdf,0,0,0,0,0.0,
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,pypdfium2,0,0,,,,PdfiumError: Failed to load document (PDFium: Data format error).
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,qpdf_check,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f01.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf,C10,qpdf_rewrite,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f01.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,gs_text,0,1,,2579,1.0,
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.02553
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,lopdf,1,0,,,,lopdf load-error couldn't parse input
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,mutool_clean,0,1,6,,,warning: ... repeated 50 times...
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,mutool_text,0,1,,2583,1.0,warning: ... repeated 7 times...
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pdfbox_text,0,1,,2415,1.0,WARNING: No Unicode mapping for CID+469 (469) in font CIDFont+F21
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pdfcpu_optimize,1,0,,,,optimize: prepare PDF context: read context: xref table: no header version available
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pdfcpu_validate,1,0,,,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f02.pdf: read context: xref table: no header version available
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pdfjs,0,1,6,2520,0.9767,
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pdfrs,1,0,,,,pdfrs open-error file header is missing
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pdftotext,0,1,,2529,1.0,
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pikepdf,0,1,6,,,
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pymupdf,0,1,6,2579,1.0,
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,pypdfium2,0,0,,,,PdfiumError: Failed to load document (PDFium: Data format error).
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf,C1,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,gs_text,0,1,,5055,1.0,
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.10065
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,lopdf,1,0,,,,lopdf load-error couldn't parse input
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,mutool_clean,0,1,6,,,warning: ... repeated 51 times...
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,mutool_text,0,1,,5097,1.0,warning: ... repeated 10 times...
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pdfbox_text,0,1,,5097,1.0,WARNING: No PostScript name data is provided for the font Peignot
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pdfcpu_optimize,1,0,,,,optimize: prepare PDF context: read context: xref table: no header version available
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pdfcpu_validate,1,0,,,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f03.pdf: read context: xref table: no header version available
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pdfjs,0,1,6,5097,1.0,
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pdfrs,1,0,,,,pdfrs open-error file header is missing
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pdftotext,0,1,,5213,1.0,
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pikepdf,0,1,6,,,
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pymupdf,0,1,6,5097,1.0,
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,pypdfium2,0,0,,,,PdfiumError: Failed to load document (PDFium: Data format error).
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf,C1,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,gs_text,0,1,,9760,1.0,
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.0841
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,lopdf,0,1,6,,,lopdf ok pages=6 objects=143
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,mutool_text,0,1,,9758,1.0,warning: repairing PDF document
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pdfbox_text,0,1,,8414,1.0,WARNING: No Unicode mapping for CID+525 (525) in font CIDFont+F15
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pdfjs,0,1,6,9760,1.0,
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pdfrs,1,0,,,,invalid digit found in string
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pdftotext,0,1,,8956,1.0,
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pikepdf,0,1,6,,,
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pymupdf,0,1,6,9760,1.0,
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,pypdfium2,0,1,6,9759,1.0,
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf,C2,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,gs_text,0,1,,7601,1.0,
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.09507
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,lopdf,0,1,6,,,lopdf ok pages=6 objects=165
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,mutool_text,0,1,,7607,1.0,warning: repairing PDF document
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pdfbox_text,0,1,,7149,1.0,WARNING: No Unicode mapping for CID+496 (496) in font CIDFont+F17
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pdfjs,0,1,6,7604,1.0,
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pdfrs,1,0,,,,invalid digit found in string
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pdftotext,0,1,,7331,1.0,
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pikepdf,0,1,6,,,
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pymupdf,0,1,6,7601,1.0,
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,pypdfium2,0,1,6,7614,1.0,
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf,C2,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,gs_text,0,1,,8624,1.0,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.13354
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,lopdf,0,1,6,,,lopdf ok pages=6 objects=165
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,mutool_text,0,1,,8630,1.0,warning: repairing PDF document
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pdfbox_text,0,1,,7460,1.0,WARNING: No Unicode mapping for CID+542 (542) in font CIDFont+F18
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pdfjs,0,1,6,8629,1.0,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pdfrs,1,0,,,,'startxref' not found.
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pdftotext,0,1,,7864,1.0,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pikepdf,0,1,6,,,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pymupdf,0,1,6,8624,1.0,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,pypdfium2,0,1,6,8629,1.0,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf,C3,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,gs_text,0,1,,6591,1.0,
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.11242
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,lopdf,0,1,6,,,lopdf ok pages=6 objects=1671
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,mutool_text,0,1,,6638,1.0,warning: repairing PDF document
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pdfbox_text,0,1,,6638,1.0,WARNING: Format 14 cmap table is not supported and will be ignored
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pdfcpu_validate,0,1,,,,validation ok
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pdfjs,0,1,6,6638,1.0,
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pdfrs,1,0,,,,'startxref' not found.
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pdftotext,0,1,,6750,1.0,
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pikepdf,0,1,6,,,
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pymupdf,0,1,6,6638,1.0,
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,pypdfium2,0,1,6,6637,1.0,
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf,C3,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,gs_text,0,0,,0,0.0,No pages will be processed (FirstPage > LastPage).
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,hayro,1,0,,,,hayro load-error Invalid
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,lopdf,1,0,,,,lopdf load-error couldn't parse input
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,mutool_clean,0,1,1,,,warning: repairing PDF document
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,mutool_text,1,0,,0,0.0,cannot draw '/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f08.pdf'
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pdfbox_text,0,0,,0,0.0,Error extracting text for document [IOException]: Missing root object specification in trailer.
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pdfcpu_optimize,1,0,,,,"optimize: prepare PDF context: validation error (obj#:0): document catalog: catalog Pages: page tree root: missing ""Pages"""
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pdfcpu_validate,1,0,,,,"validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f08.pdf: validation error (obj#:0): document catalog: catalog Pages: page tree root: missing ""Pages"""
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pdfjs,0,0,0,0,0.0,Invalid PDF structure.
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pdfrs,1,0,,,,invalid digit found in string
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pdftotext,1,0,,0,0.0,
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pikepdf,0,0,,,,PdfError: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f08.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pymupdf,0,0,0,0,0.0,
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,pypdfium2,0,0,,,,PdfiumError: Failed to load document (PDFium: Data format error).
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,qpdf_check,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f08.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf,C4,qpdf_rewrite,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f08.pdf: unable to find trailer dictionary while recovering damaged file
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,gs_text,0,0,,0,0.0,No pages will be processed (FirstPage > LastPage).
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,hayro,1,0,,,,hayro load-error Invalid
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,lopdf,0,0,0,,,lopdf ok pages=0 objects=1430
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,mutool_clean,0,1,1,,,syntax error: invalid key in dict
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,mutool_text,1,0,,0,0.0,cannot draw '/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f09.pdf'
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pdfbox_text,0,0,,0,0.0,Error extracting text for document [IOException]: Page tree root must be a dictionary
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pdfcpu_optimize,1,0,,,,optimize: prepare PDF context: validation error (obj#:119): document catalog: dict=rootDict entry=Type invalid dict entry: CatalogTreeRoot
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pdfcpu_validate,1,0,,,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f09.pdf: validation error (obj#:119): document catalog: dict=rootDict entry=Type invalid dict entry: CatalogTreeRoot
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pdfjs,0,0,0,0,0.0,Invalid Root reference.
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pdfrs,1,0,,,,invalid digit found in string
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pdftotext,99,0,,0,0.0,
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pikepdf,0,0,,,,PdfError: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f09.pdf: root of pages tree has no /Kids array
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pymupdf,0,0,0,0,0.0,
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,pypdfium2,0,0,,,,PdfiumError: Failed to load document (PDFium: Data format error).
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,qpdf_check,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f09.pdf: root of pages tree has no /Kids array
+corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf,C4,qpdf_rewrite,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f09.pdf: root of pages tree has no /Kids array
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,gs_text,0,1,,6044,1.0,
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.11249
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,lopdf,0,0,0,,,lopdf ok pages=0 objects=0
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,mutool_text,0,1,,6045,1.0,warning: repairing PDF document
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pdfbox_text,0,1,,5168,1.0,WARNING: No Unicode mapping for CID+482 (482) in font CIDFont+F15
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pdfjs,0,1,6,6018,0.9952,
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pdfrs,1,0,,,,Unexpected token '65535' at 20 - expected 'obj'
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pdftotext,0,1,,5485,1.0,
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pikepdf,0,1,6,,,
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pymupdf,0,1,6,6044,1.0,
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,pypdfium2,0,1,6,6047,1.0,
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf,C5,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,gs_text,0,0,,0,0.0,No pages will be processed (FirstPage > LastPage).
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,hayro,1,0,,,,hayro load-error Invalid
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,lopdf,1,0,,,,lopdf load-error couldn't parse input
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,mutool_clean,0,1,1,,,warning: repairing PDF document
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,mutool_text,1,0,,0,0.0,cannot draw '/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f11.pdf'
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pdfbox_text,0,0,,0,0.0,Error extracting text for document [IOException]: Missing root object specification in trailer.
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pdfcpu_optimize,1,0,,,,"optimize: prepare PDF context: validation error (obj#:0): document catalog: catalog Pages: page tree root: missing ""Pages"""
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pdfcpu_validate,1,0,,,,"validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f11.pdf: validation error (obj#:0): document catalog: catalog Pages: page tree root: missing ""Pages"""
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pdfjs,0,0,0,0,0.0,Invalid Root reference.
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pdfrs,1,0,,,,invalid digit found in string
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pdftotext,1,0,,0,0.0,
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pikepdf,0,0,,,,PdfError: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f11.pdf: unable to find /Root dictionary
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pymupdf,0,0,0,0,0.0,
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,pypdfium2,0,0,,,,PdfiumError: Failed to load document (PDFium: Data format error).
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,qpdf_check,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f11.pdf: unable to find /Root dictionary
+corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf,C5,qpdf_rewrite,2,0,,,,qpdf: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/engsmoke_r4h2qr37/f11.pdf: unable to find /Root dictionary
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,gs_text,0,1,,19667,2.2805,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.09744
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,lopdf,0,1,6,,,lopdf ok pages=6 objects=165
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,mutool_text,0,1,,16836,1.9509,warning: repairing PDF document
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pdfbox_text,0,1,,19463,2.609,"WARNING: No current font, will use default"
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pdfcpu_optimize,0,1,6,,,pdfcpu skipped: page 6: missing required Font: F4
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pdfjs,0,1,6,19122,2.216,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pdfrs,1,0,,,,Unexpected token 'n' at 12 - expected 'obj'
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pdftotext,0,0,,0,0.0,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pikepdf,0,1,6,,,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pymupdf,0,1,6,16549,1.9189,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,pypdfium2,0,1,6,12469,1.445,
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf,C6,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,gs_text,0,1,,7885,2.2645,
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.02862
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,lopdf,0,1,6,,,lopdf ok pages=6 objects=137
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,mutool_text,0,1,,7318,2.1017,warning: repairing PDF document
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pdfbox_text,0,1,,7764,2.6177,"WARNING: No current font, will use default"
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pdfcpu_optimize,0,1,6,,,pdfcpu skipped: page 6: missing required Font: F3
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pdfjs,0,1,6,8070,2.3176,
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pdfrs,1,0,,,,invalid digit found in string
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pdftotext,0,0,,0,0.0,
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pikepdf,0,1,6,,,
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pymupdf,0,1,6,7073,2.0313,
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,pypdfium2,0,1,6,5936,1.7048,
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf,C6,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,gs_text,0,1,,4855,1.0,
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.08359
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,lopdf,0,1,6,,,lopdf ok pages=6 objects=163
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,mutool_text,0,1,,4842,0.9961,warning: non-embedded font using identity encoding: CIDFont+F20 (mapping via )
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pdfbox_text,0,1,,4861,1.0863,WARNING: Using fallback font LiberationSans for CID-keyed TrueType font CIDFont+F20
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pdfjs,0,1,6,4856,1.0,
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pdftotext,0,1,,4675,1.0,
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pikepdf,0,1,6,,,
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pymupdf,0,1,6,4848,0.9986,
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,pypdfium2,0,1,6,4608,0.948,
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf,C7,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,gs_text,0,1,,7198,1.0,
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.07051
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,lopdf,0,1,6,,,lopdf ok pages=6 objects=1670
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,mutool_clean,0,1,6,,,warning: cannot load object (106 0 R) into cache
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,mutool_text,0,1,,4669,0.6413,warning: non-embedded font using identity encoding: BCFAEE+Marhey-Light (mapping via )
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pdfbox_text,0,1,,7279,1.0,WARNING: Using fallback font LiberationSans for CID-keyed TrueType font BCFAEE+Marhey-Light
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pdfcpu_validate,0,1,,,,validation ok
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pdfjs,0,1,6,7280,1.0,
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pdftotext,0,1,,7452,1.0,
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pikepdf,0,1,6,,,
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pymupdf,0,1,6,7280,1.0,
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,pypdfium2,0,1,6,7221,0.9919,
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf,C7,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,gs_text,0,1,,6648,1.2094,
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.05851
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,lopdf,0,1,6,,,lopdf ok pages=6 objects=130
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,mutool_text,0,1,,5739,1.0454,warning: non-embedded font using identity encoding: CIDFont+F18 (mapping via TrueType-UCS2)
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pdfbox_text,0,1,,5417,1.1387,WARNING: Using fallback font LiberationSans for CID-keyed TrueType font CIDFont+F18
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pdfjs,0,1,6,6651,1.2099,
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pdftotext,0,1,,6720,1.3153,
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pikepdf,0,1,6,,,
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pymupdf,0,1,6,5839,1.0622,
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,pypdfium2,0,1,6,5229,0.9516,
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf,C8,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,gs_text,0,1,,8828,0.9908,
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.12017
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,lopdf,0,1,6,,,lopdf ok pages=6 objects=1516
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,mutool_clean,0,1,6,,,warning: cannot load object (112 0 R) into cache
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,mutool_text,0,1,,6265,0.6955,warning: non-embedded font using identity encoding: BCFAEE+Rubik-Medium (mapping via TrueType-UCS2)
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pdfbox_text,0,1,,8372,0.9294,WARNING: Using fallback font LiberationSans for CID-keyed TrueType font BCFAEE+Rubik-Medium
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pdfcpu_optimize,0,1,6,,,optimizing...
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pdfcpu_validate,0,1,,,,validation ok
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pdfjs,0,1,6,8831,0.9804,
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pdftotext,0,1,,8952,0.9822,
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pikepdf,0,1,6,,,
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pymupdf,0,1,6,8785,0.9752,
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,pypdfium2,0,1,6,8746,0.9709,
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,qpdf_check,3,1,,,,qpdf: operation succeeded with warnings
+corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf,C8,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,gs_text,0,1,,4756,0.6955,warning: ignoring zlib error: incorrect data check
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.00411
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,lopdf,0,1,6,,,lopdf ok pages=6 objects=167
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,mutool_clean,0,1,6,,,warning: repairing PDF document
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,mutool_text,1,1,,5051,0.7376,warning: ... repeated 4 times...
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pdfbox_text,0,1,,5051,0.8074,WARNING: No Unicode mapping for CID+587 (587) in font CIDFont+F18
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pdfcpu_optimize,0,1,6,,,pdfcpu skipped: page 2: corrupt content stream (flate)
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pdfjs,0,1,6,5113,0.7475,
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=4
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pdftotext,0,1,,4742,0.733,
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pikepdf,0,1,6,,,
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pymupdf,0,1,6,5041,0.7372,
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,pypdfium2,0,1,6,5488,0.8013,
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,qpdf_check,2,0,,,,qpdf: errors detected
+corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf,C9,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,gs_text,timeout,1,,1713,0.2854,
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.00576
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,lopdf,0,1,6,,,lopdf ok pages=6 objects=122
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,mutool_clean,0,1,6,,,
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,mutool_text,1,1,,2907,0.4832,warning: encountered syntax errors; page may not be correct
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pdfbox_text,0,1,,2662,0.4546,WARNING: Stop reading invalid array from content stream at offset 26890
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pdfcpu_optimize,0,1,6,,,pdfcpu skipped: page 6: corrupt content stream (flate)
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pdfcpu_validate,0,1,,,,validation ok
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pdfjs,0,1,6,2612,0.4351,
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=1
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pdftotext,0,1,,2596,0.4321,
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pikepdf,0,1,6,,,
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pymupdf,0,1,6,2903,0.4836,
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,pypdfium2,0,1,6,3233,0.5373,
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,qpdf_check,2,0,,,,qpdf: errors detected
+corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf,C9,qpdf_rewrite,3,1,6,,,qpdf: operation succeeded with warnings; resulting file may have some problems
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,gs_text,0,1,,9760,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.0841
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=143
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,mutool_text,0,1,,9758,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pdfbox_text,0,1,,8414,,WARNING: No Unicode mapping for CID+525 (525) in font CIDFont+F15
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pdfjs,0,1,6,9760,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pdftotext,0,1,,8956,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pymupdf,0,1,6,9760,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,pypdfium2,0,1,6,9759,,
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,gs_text,0,1,,5794,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.07302
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=180
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,mutool_text,0,1,,5803,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pdfbox_text,0,1,,5312,,WARNING: No Unicode mapping for CID+498 (498) in font CIDFont+F19
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pdfjs,0,1,6,5797,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pdftotext,0,1,,5503,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pymupdf,0,1,6,5794,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,pypdfium2,0,1,6,5803,,
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,gs_text,0,1,,6504,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.08911
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=179
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,mutool_text,0,1,,6504,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pdfbox_text,0,1,,5542,,WARNING: No Unicode mapping for CID+539 (539) in font CIDFont+F19
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pdfjs,0,1,6,6506,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pdftotext,0,1,,5900,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pymupdf,0,1,6,6504,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,pypdfium2,0,1,6,6505,,
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,gs_text,0,1,,6838,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.09335
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=169
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,mutool_text,0,1,,6848,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pdfbox_text,0,1,,6256,,WARNING: No Unicode mapping for CID+587 (587) in font CIDFont+F18
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pdfjs,0,1,6,6840,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pdftotext,0,1,,6469,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pymupdf,0,1,6,6838,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,pypdfium2,0,1,6,6849,,
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/AI_Development_MultiLanguage(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,gs_text,0,1,,8624,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.13354
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=165
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,mutool_text,0,1,,8630,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pdfbox_text,0,1,,7460,,WARNING: No Unicode mapping for CID+542 (542) in font CIDFont+F18
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pdfjs,0,1,6,8629,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pdftotext,0,1,,7864,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pymupdf,0,1,6,8624,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,pypdfium2,0,1,6,8629,,
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,gs_text,0,1,,6044,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.11249
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=150
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,mutool_text,0,1,,6045,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pdfbox_text,0,1,,5168,,WARNING: No Unicode mapping for CID+482 (482) in font CIDFont+F15
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pdfjs,0,1,6,6047,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pdftotext,0,1,,5485,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pymupdf,0,1,6,6044,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,pypdfium2,0,1,6,6047,,
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,gs_text,0,1,,7601,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.09507
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=165
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,mutool_text,0,1,,7607,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pdfbox_text,0,1,,7149,,WARNING: No Unicode mapping for CID+496 (496) in font CIDFont+F17
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pdfjs,0,1,6,7604,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pdftotext,0,1,,7331,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pymupdf,0,1,6,7601,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,pypdfium2,0,1,6,7614,,
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/Next_Decade_Space_Exploration(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,gs_text,0,1,,4849,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.08336
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=187
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,mutool_text,0,1,,4855,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pdfbox_text,0,1,,4422,,WARNING: No Unicode mapping for CID+612 (612) in font CIDFont+F19
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pdfjs,0,1,6,4851,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pdftotext,0,1,,4628,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pymupdf,0,1,6,4849,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,pypdfium2,0,1,6,4855,,
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,gs_text,0,1,,4855,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.08377
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=183
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,mutool_text,0,1,,4861,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pdfbox_text,0,1,,4475,,WARNING: No Unicode mapping for CID+534 (534) in font CIDFont+F20
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pdfjs,0,1,6,4856,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pdftotext,0,1,,4675,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pymupdf,0,1,6,4855,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,pypdfium2,0,1,6,4861,,
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,gs_text,0,1,,2579,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.02553
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=191
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,mutool_text,0,1,,2583,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pdfbox_text,0,1,,2415,,WARNING: No Unicode mapping for CID+469 (469) in font CIDFont+F21
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pdfjs,0,1,6,2580,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pdftotext,0,1,,2529,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pymupdf,0,1,6,2579,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,pypdfium2,0,1,6,2583,,
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,gs_text,0,1,,6003,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.09113
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=125
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,mutool_text,0,1,,6016,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pdfbox_text,0,1,,5856,,WARNING: No Unicode mapping for CID+559 (559) in font CIDFont+F12
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pdfjs,0,1,6,6003,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pdftotext,0,1,,6008,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pymupdf,0,1,6,6003,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,pypdfium2,0,1,6,6017,,
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,gs_text,0,1,,5497,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.05102
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=166
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,mutool_text,0,1,,5490,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pdfbox_text,0,1,,4757,,WARNING: No Unicode mapping for CID+358 (358) in font CIDFont+F17
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pdfjs,0,1,6,5497,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pdftotext,0,1,,5109,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pymupdf,0,1,6,5497,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,pypdfium2,0,1,6,5495,,
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/remote_work_home_office_guidelines(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,gs_text,0,1,,3482,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.04922
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=137
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,mutool_clean,0,1,6,,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,mutool_text,0,1,,3482,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pdfbox_text,0,1,,2966,,WARNING: No Unicode mapping for CID+356 (356) in font CIDFont+F14
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pdfjs,0,1,6,3482,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pdftotext,0,1,,3164,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pikepdf,0,1,6,,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pymupdf,0,1,6,3482,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,pypdfium2,0,1,6,3482,,
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,original,qpdf_rewrite,0,1,6,,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,gs_text,0,1,,4891,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.10184
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=1432
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,mutool_clean,0,1,6,,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,mutool_text,0,1,,4924,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pdfbox_text,0,1,,4923,,WARNING: Format 14 cmap table is not supported and will be ignored
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pdfjs,0,1,6,4924,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pdftotext,0,1,,5026,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pikepdf,0,1,6,,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pymupdf,0,1,6,4924,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,pypdfium2,0,1,6,4924,,
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf,original,qpdf_rewrite,0,1,6,,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,gs_text,0,1,,8910,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.14304
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=1547
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,mutool_clean,0,1,6,,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,mutool_text,0,1,,9008,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pdfbox_text,0,1,,9008,,WARNING: No PostScript name data is provided for the font Peignot
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pdfjs,0,1,6,9008,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pdftotext,0,1,,9114,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pikepdf,0,1,6,,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pymupdf,0,1,6,9008,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,pypdfium2,0,1,6,9008,,
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf,original,qpdf_rewrite,0,1,6,,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,gs_text,0,1,,5055,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.10065
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=1553
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,mutool_clean,0,1,6,,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,mutool_text,0,1,,5097,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pdfbox_text,0,1,,5097,,WARNING: No PostScript name data is provided for the font Peignot
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pdfjs,0,1,6,5097,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pdftotext,0,1,,5213,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pikepdf,0,1,6,,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pymupdf,0,1,6,5097,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,pypdfium2,0,1,6,5095,,
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf,original,qpdf_rewrite,0,1,6,,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,gs_text,0,1,,6591,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.11242
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=1671
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,mutool_clean,0,1,6,,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,mutool_text,0,1,,6638,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pdfbox_text,0,1,,6638,,WARNING: Format 14 cmap table is not supported and will be ignored
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pdfjs,0,1,6,6638,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pdftotext,0,1,,6750,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pikepdf,0,1,6,,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pymupdf,0,1,6,6638,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,pypdfium2,0,1,6,6637,,
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf,original,qpdf_rewrite,0,1,6,,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,gs_text,0,1,,7198,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.05913
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=1689
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,mutool_clean,0,1,6,,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,mutool_text,0,1,,7280,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pdfbox_text,0,1,,7279,,WARNING: Format 14 cmap table is not supported and will be ignored
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pdfjs,0,1,6,7280,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pdftotext,0,1,,7452,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pikepdf,0,1,6,,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pymupdf,0,1,6,7280,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,pypdfium2,0,1,6,7280,,
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf,original,qpdf_rewrite,0,1,6,,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,gs_text,0,1,,5838,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,hayro,0,1,6,,,hayro ok pages=6; page1 nonwhite=0.05557
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,lopdf,0,1,6,,,lopdf ok pages=6 objects=1470
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,mutool_clean,0,1,6,,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,mutool_text,0,1,,5892,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pdfbox_text,0,1,,5891,,WARNING: No PostScript name data is provided for the font Peignot
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pdfcpu_optimize,0,1,6,,,optimizing...
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pdfcpu_validate,0,1,,,,validation ok
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pdfjs,0,1,6,5892,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pdfrs,0,1,6,,,pdfrs ok pages=6 pages_with_decodable_content=6
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pdftotext,0,1,,6052,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pikepdf,0,1,6,,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pymupdf,0,1,6,5892,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,pypdfium2,0,1,6,5890,,
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,qpdf_check,0,1,,,,errors that qpdf cannot detect
+original/saveas/text/remote_work_home_office_guidelines(saveas).pdf,original,qpdf_rewrite,0,1,6,,,

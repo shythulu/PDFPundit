@@ -1,0 +1,80 @@
+pick,variant,exists,qpdf_check_rc,pdfcpu_strict_rc,pdfcpu_relaxed_rc,arlington,arlington_failed_checks,arlington_profile,arlington_note,pdfcpu_strict_note
+C4:saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas),qpdf-repaired,0,,,,,,,,
+C4:print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print),qpdf-repaired,0,,,,,,,,
+C5:saveas/text/remote_work_home_office_guidelines(saveas),qpdf-repaired,0,,,,,,,,
+C10:print/text/PetPal_Smart_PetCare_Products(print),qpdf-repaired,0,,,,,,,,
+C10:print/text+img/global_ev_market_growth_statistics(print),qpdf-repaired,0,,,,,,,,
+original:print/text/global_cloud_datacenter_cooling_failure_report(print),original,1,0,0,0,non-compliant,42,Arlington PDF 1.7 profile,,validation ok
+C1:print/text/global_cloud_datacenter_cooling_failure_report(print),corrupted,1,3,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c00.pdf: read context: xref table: no header version available
+C1:print/text/global_cloud_datacenter_cooling_failure_report(print),qpdf-repaired,1,0,1,0,non-compliant,43,Arlington PDF 1.4 profile,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c00.qpdf.pdf: validation error (obj#:45) (try --mode=relaxed): document catalo
+C1:print/text/global_cloud_datacenter_cooling_failure_report(print),mutool-repaired,1,0,1,0,non-compliant,43,Arlington PDF 1.7 profile,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c00.mutool.pdf: validation error (obj#:4) (try --mode=relaxed): document catal
+original:saveas/text/Lumina_Interior_Lighting_Designbook(saveas),original,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C1:saveas/text/Lumina_Interior_Lighting_Designbook(saveas),corrupted,1,3,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c01.pdf: read context: xref table: no header version available
+C1:saveas/text/Lumina_Interior_Lighting_Designbook(saveas),qpdf-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C1:saveas/text/Lumina_Interior_Lighting_Designbook(saveas),mutool-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+original:print/text+img/global_agriculture_food_security_climate_impact(print),original,1,0,0,0,non-compliant,30,Arlington PDF 1.7 profile,,validation ok
+C2:print/text+img/global_agriculture_food_security_climate_impact(print),corrupted,1,3,0,0,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validation ok
+C2:print/text+img/global_agriculture_food_security_climate_impact(print),qpdf-repaired,1,0,0,0,non-compliant,30,Arlington PDF 1.7 profile,,validation ok
+C2:print/text+img/global_agriculture_food_security_climate_impact(print),mutool-repaired,1,0,0,0,non-compliant,30,Arlington PDF 1.7 profile,,validation ok
+original:print/text/Next_Decade_Space_Exploration(print),original,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+C2:print/text/Next_Decade_Space_Exploration(print),corrupted,1,3,0,0,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validation ok
+C2:print/text/Next_Decade_Space_Exploration(print),qpdf-repaired,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+C2:print/text/Next_Decade_Space_Exploration(print),mutool-repaired,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+original:print/text/Evolution_Biodegradable_Plastics(print),original,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+C3:print/text/Evolution_Biodegradable_Plastics(print),corrupted,1,3,0,0,not-parsed,,,Exception: Couldn't parse stream caused by exception: Document doesn't contain startxref keyword in the last 1024 bytes,validation ok
+C3:print/text/Evolution_Biodegradable_Plastics(print),qpdf-repaired,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+C3:print/text/Evolution_Biodegradable_Plastics(print),mutool-repaired,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+original:saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas),original,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C3:saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas),corrupted,1,3,0,0,not-parsed,,,Exception: Couldn't parse stream caused by exception: Document doesn't contain startxref keyword in the last 1024 bytes,validation ok
+C3:saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas),qpdf-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C3:saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas),mutool-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+original:saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas),original,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C4:saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas),corrupted,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c06.pdf: validation error (obj#:119) (try --mode=relaxed): document catalog: d
+C4:saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas),mutool-repaired,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: Pages not found,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c06.mutool.pdf: read context: xref table: missing trailer Root
+original:print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print),original,1,0,0,0,non-compliant,38,Arlington PDF 1.7 profile,,validation ok
+C4:print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print),corrupted,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c07.pdf: validation error (obj#:0) (try --mode=relaxed): document catalog: dic
+C4:print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print),mutool-repaired,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: Pages not found,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c07.mutool.pdf: read context: xref table: missing trailer Root
+original:saveas/text/remote_work_home_office_guidelines(saveas),original,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C5:saveas/text/remote_work_home_office_guidelines(saveas),corrupted,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c08.pdf: validation error (obj#:0) (try --mode=relaxed): document catalog: dic
+C5:saveas/text/remote_work_home_office_guidelines(saveas),mutool-repaired,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: Pages not found,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c08.mutool.pdf: read context: xref table: missing trailer Root
+original:print/text/NeoHome_Smart_Appliances_Catalog_v5(print),original,1,0,0,0,non-compliant,30,Arlington PDF 1.7 profile,,validation ok
+C5:print/text/NeoHome_Smart_Appliances_Catalog_v5(print),corrupted,1,3,1,0,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c09.pdf: validation error (obj#:5) (try --mode=relaxed): document catalog: cat
+C5:print/text/NeoHome_Smart_Appliances_Catalog_v5(print),qpdf-repaired,1,0,1,0,non-compliant,31,Arlington PDF 1.7 profile,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c09.qpdf.pdf: validation error (obj#:46) (try --mode=relaxed): document catalo
+C5:print/text/NeoHome_Smart_Appliances_Catalog_v5(print),mutool-repaired,1,0,1,0,non-compliant,31,Arlington PDF 1.7 profile,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c09.mutool.pdf: validation error (obj#:4) (try --mode=relaxed): document catal
+original:print/text/smart_factory_robot_malfunction_analysis(print),original,1,0,0,0,non-compliant,28,Arlington PDF 1.7 profile,,validation ok
+C6:print/text/smart_factory_robot_malfunction_analysis(print),corrupted,1,3,0,0,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validation ok
+C6:print/text/smart_factory_robot_malfunction_analysis(print),qpdf-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C6:print/text/smart_factory_robot_malfunction_analysis(print),mutool-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C6:print/text/Evolution_Biodegradable_Plastics(print),corrupted,1,3,0,0,not-parsed,,,Exception: Couldn't parse stream caused by exception: can not locate xref table,validation ok
+C6:print/text/Evolution_Biodegradable_Plastics(print),qpdf-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C6:print/text/Evolution_Biodegradable_Plastics(print),mutool-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+original:print/text/UrbanRide_Electric_Bike_Scooter_Series(print),original,1,0,0,0,non-compliant,40,Arlington PDF 1.7 profile,,validation ok
+C7:print/text/UrbanRide_Electric_Bike_Scooter_Series(print),corrupted,1,3,0,0,non-compliant,20,Arlington PDF 1.7 profile,,validation ok
+C7:print/text/UrbanRide_Electric_Bike_Scooter_Series(print),qpdf-repaired,1,0,0,0,non-compliant,20,Arlington PDF 1.7 profile,,validation ok
+C7:print/text/UrbanRide_Electric_Bike_Scooter_Series(print),mutool-repaired,1,0,0,0,non-compliant,20,Arlington PDF 1.7 profile,,validation ok
+original:saveas/text/open_source_software_contribution_guidelines_multilang(saveas),original,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C7:saveas/text/open_source_software_contribution_guidelines_multilang(saveas),corrupted,1,3,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C7:saveas/text/open_source_software_contribution_guidelines_multilang(saveas),qpdf-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C7:saveas/text/open_source_software_contribution_guidelines_multilang(saveas),mutool-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+original:saveas/text/Evolution_Biodegradable_Plastics(saveas),original,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C8:saveas/text/Evolution_Biodegradable_Plastics(saveas),corrupted,1,3,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C8:saveas/text/Evolution_Biodegradable_Plastics(saveas),qpdf-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+C8:saveas/text/Evolution_Biodegradable_Plastics(saveas),mutool-repaired,1,0,0,0,compliant,0,Arlington PDF 1.7 profile,,validation ok
+original:print/text/remote_work_home_office_guidelines(print),original,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+C8:print/text/remote_work_home_office_guidelines(print),corrupted,1,3,0,0,non-compliant,18,Arlington PDF 1.7 profile,,validation ok
+C8:print/text/remote_work_home_office_guidelines(print),qpdf-repaired,1,0,0,0,non-compliant,18,Arlington PDF 1.7 profile,,validation ok
+C8:print/text/remote_work_home_office_guidelines(print),mutool-repaired,1,0,0,0,non-compliant,18,Arlington PDF 1.7 profile,,validation ok
+original:print/text/health_wellbeing_digital_age_guidelines_multilang(print),original,1,0,0,0,non-compliant,26,Arlington PDF 1.7 profile,,validation ok
+C9:print/text/health_wellbeing_digital_age_guidelines_multilang(print),corrupted,1,2,0,0,not-parsed,,,Exception: Caught unexpected runtime exception during validation caused by exception: Wrapped org.verapdf.exceptions.VeraPDFParserException: Error while parsing object : 44 0 caused by exception: Erro,validation ok
+C9:print/text/health_wellbeing_digital_age_guidelines_multilang(print),qpdf-repaired,1,2,1,0,non-compliant,29,Arlington PDF 1.7 profile,,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c16.qpdf.pdf: validation error (obj#:68) (try --mode=relaxed): document catalo
+C9:print/text/health_wellbeing_digital_age_guidelines_multilang(print),mutool-repaired,1,2,0,0,non-compliant,29,Arlington PDF 1.7 profile,,validation ok
+original:print/text/AI_Development_MultiLanguage(print),original,1,0,0,0,non-compliant,36,Arlington PDF 1.7 profile,,validation ok
+C9:print/text/AI_Development_MultiLanguage(print),corrupted,1,2,0,0,not-parsed,,,Exception: Caught unexpected runtime exception during validation caused by exception: Wrapped org.verapdf.exceptions.VeraPDFParserException: Error while parsing object : 67 0 caused by exception: Erro,validation ok
+C9:print/text/AI_Development_MultiLanguage(print),qpdf-repaired,1,2,0,0,non-compliant,37,Arlington PDF 1.7 profile,,validation ok
+C9:print/text/AI_Development_MultiLanguage(print),mutool-repaired,1,2,0,0,non-compliant,37,Arlington PDF 1.7 profile,,validation ok
+original:print/text/PetPal_Smart_PetCare_Products(print),original,1,0,0,0,non-compliant,40,Arlington PDF 1.7 profile,,validation ok
+C10:print/text/PetPal_Smart_PetCare_Products(print),corrupted,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: Document doesn't contain startxref keyword in the last 1024 bytes,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c18.pdf: read context: xref table: xref table: unexpected eof: stream obj#154:
+C10:print/text/PetPal_Smart_PetCare_Products(print),mutool-repaired,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: Pages not found,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c18.mutool.pdf: read context: xref table: missing trailer Root
+original:print/text+img/global_ev_market_growth_statistics(print),original,1,0,0,0,non-compliant,38,Arlington PDF 1.7 profile,,validation ok
+C10:print/text+img/global_ev_market_growth_statistics(print),corrupted,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: Document doesn't contain startxref keyword in the last 1024 bytes,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c19.pdf: read context: xref table: xref table: unexpected eof: stream obj#92: 
+C10:print/text+img/global_ev_market_growth_statistics(print),mutool-repaired,1,2,1,1,not-parsed,,,Exception: Couldn't parse stream caused by exception: Pages not found,validate /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/tmp/oracles_gk8kw79b/c19.mutool.pdf: read context: xref table: missing trailer Root

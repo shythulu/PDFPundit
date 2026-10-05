@@ -1,0 +1,51 @@
+TOOL-350	PASS	qpdf version 12.4.2: rewrite C2	rc=3	qpdf: operation succeeded with warnings; resulting file may have some problems
+TOOL-350	PASS	qpdf version 12.4.2: --check output	rc=0	errors that qpdf cannot detect
+TOOL-350	PASS	qpdf version 12.4.2: --suppress-recovery C2	rc=2	qpdf: /home/user/dfrc-korea/repdf/corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf (offset 681632): xref not found
+TOOL-351	PASS	mutool version 1.28.0: clean -gggg C2	rc=0	pages=6; warning: repairing PDF document
+TOOL-351	PASS	mutool version 1.28.0: clean -gggg -s C2	rc=0	pages=6
+TOOL-351	PASS	mutool version 1.28.0: draw -q -F txt C2	rc=0	13856 bytes
+TOOL-351	PASS	mutool version 1.28.5: clean -gggg C2	rc=0	pages=6; warning: repairing PDF document
+TOOL-351	PASS	mutool version 1.28.5: clean -gggg -s C2	rc=0	pages=6
+TOOL-351	PASS	mutool version 1.28.5: draw -q -F txt C2	rc=0	13856 bytes
+TOOL-352	PASS	pymupdf 1.28.2 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv-old/bin/python): open C2	rc=0	pages=6 chars=9221
+TOOL-354	PASS	pypdfium2 5.13.0 (153.0.7999.0): open + save C2	rc=0	pages=6 saved_pages=6
+TOOL-352	PASS	pymupdf 1.28.2 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv/bin/python): open C2	rc=0	pages=6 chars=9221
+TOOL-354	PASS	pypdfium2 5.14.0 (156.0.8076.0): open + save C2	rc=0	pages=6 saved_pages=6
+TOOL-353	PASS	pdfjs-dist 6.3.289: engine_smoke_pdfjs.mjs C2	rc=0	{"ok":true,"pages":6,"chars":7604,"error":null}
+TOOL-353	PASS	pdfjs-dist 6.4.299: engine_smoke_pdfjs.mjs C2	rc=0	{"ok":true,"pages":6,"chars":7604,"error":null}
+TOOL-355	PASS	pdfcpu 0.15.0: validate -m relaxed C2	rc=0	validation ok
+TOOL-355	PASS	pdfcpu 0.16.1: validate -m relaxed C2	rc=0	validation ok
+TOOL-356	PASS	pdfbox 3.0.8: export:text C2	rc=0	12363 bytes
+TOOL-356	PASS	pdfbox 3.0.8: decode C2	rc=0	pages=6
+TOOL-357	PASS	pdftotext version 26.09.0: pdftotext C2	rc=0	13155 bytes
+TOOL-357	PASS	pdftotext version 26.10.0: pdftotext C2	rc=0	13155 bytes
+TOOL-358	PASS	gs 10.08.0: pdfwrite C2	rc=0	pages=6
+TOOL-358	PASS	gs 10.08.0: txtwrite C2	rc=0	16415 bytes
+TOOL-358	PASS	gs 10.08.0: -dPDFSTOPONERROR C2	rc=1	Error: /syntaxerror in --runpdf--
+TOOL-359	PASS	lopdf 0.45.0 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs071/rsprobe): C2	rc=0	lopdf ok pages=6 objects=165
+TOOL-361	PASS	hayro (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs071/rsprobe): C2	rc=0	hayro ok pages=6; png 99708 bytes
+TOOL-359	PASS	lopdf 0.45.0 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs080/rsprobe): C2	rc=0	lopdf ok pages=6 objects=165
+TOOL-361	PASS	hayro (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs080/rsprobe): C2	rc=0	hayro ok pages=6; png 134959 bytes
+TOOL-362	PASS	arlington-pdf-model-checker --version	rc=0	arlington-pdf-model-checker 1.30.2
+TOOL-362	PASS	verapdf (greenfield) on the print original	rc=1	FAIL /home/user/dfrc-korea/repdf/original/print/text/Next_Decade_Space_Exploration(print).pdf 1b
+TOOL-364	PASS	zlib runtime (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv-old/bin/python)	rc=0	1.3
+TOOL-364	PASS	zlib runtime (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv/bin/python)	rc=0	1.3
+TOOL-364	PASS	zlib runtime (/usr/bin/python3)	rc=0	1.3
+TOOL-366	PASS	pfprobe (preflate-rs 0.7.6) on 3 Flate streams of the Save As original	rc=0	ok corrections=178 roundtrip=true; ok corrections=96 roundtrip=true; ok corrections=290 roundtrip=true
+TOOL-368	PASS	infgen -h	rc=0	infgen 3.6
+TOOL-372	PASS	rapidfuzz 3.14.6: CER page 1 C2 vs original (PyMuPDF text, whitespace-normalised)	rc=0	CER 0.0 (1889 chars normalised, 1933 raw)
+TOOL-373	PASS	jiwer 4.0.0: WER same pair	rc=0	WER 0.0
+TOOL-375	PASS	scikit-image 0.26.0: SSIM MuPDF vs PDFium, page 1 of the original, 72 dpi gray	rc=0	SSIM 0.9398 (pypdfium2 5.14.0)
+TOOL-382	PASS	tesseract 5.5.3: OCR page 1 of the print original at 200 dpi (PDFium)	rc=0	1896 chars, CER vs text layer 0.0011
+TOOL-413	FAIL	soffice --headless --convert-to pdf (LibreOffice 24.2.7.2 420(Build:2))	rc=0	-1 bytes, pages=err FileNotFoundError; Writer module present: False; Error: source file could not be loaded
+TOOL-414	PASS	ps2pdf (/usr/bin/ps2pdf, gs 10.02.1)	rc=0	2444 bytes, pages=1
+TOOL-415	PASS	chromium --headless --print-to-pdf (Chromium 141.0.7390.37)	rc=0	23278 bytes, pages=1
+TOOL-416	PASS	pdflatex (pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026))	rc=0	13542 bytes, pages=1
+TOOL-417	PASS	reportlab 5.0.1	rc=0	1360 bytes, pages=1
+TOOL-418	PASS	pycairo 1.29.1	rc=0	5727 bytes, pages=1
+TOOL-426	PASS	pikepdf 10.14.0 (libqpdf 12.4.1): open producer outputs	rc=0	pages per file: 1,1,1,1,1 (5 of 6 producers made a file)
+TOOL-426	PASS	pikepdf 10.16.0 (libqpdf 12.4.2): open producer outputs	rc=0	pages per file: 1,1,1,1,1 (5 of 6 producers made a file)
+TOOL-421	PASS	radamsa (Radamsa 0.8a)	rc=0	orig 685037 mutated 685122 differing 668882
+TOOL-422	PASS	zzuf (zzuf 0.15)	rc=0	orig 685037 mutated 685037 differing 5486
+TOOL-423	PASS	peepdf-3 5.4.1: peepdf -l <ORIG>	rc=0	SHA256: f8789bab516f38ac72ad291b12db95436078c419d6b6a5dc50fd7f3b8686b3c8 | PDF Format Version: 1.7 | Objects: 165 | Streams: 42 | Errors: 0
+TOOL-323	PASS	pymupdf4llm 1.28.2: CPR paper to Markdown	rc=0	7.0 s, 52604 chars, headings 39, 'References' headings 1

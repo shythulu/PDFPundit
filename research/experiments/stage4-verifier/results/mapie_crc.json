@@ -1,0 +1,63 @@
+{
+ "mapie": "1.5.0",
+ "sklearn": "1.9.1",
+ "numpy": "2.4.6",
+ "seed": 20260927,
+ "runs": [
+  {
+   "name": "synthetic make_classification n=3000",
+   "n_train": 1200,
+   "n_calib": 900,
+   "n_test": 900,
+   "positive_rate": 0.4993,
+   "target_precision": 0.9,
+   "confidence_level": 0.9,
+   "n_valid_params": 14,
+   "best_predict_param": 0.74,
+   "valid_param_range": [
+    0.74,
+    0.87
+   ],
+   "test_predicted_positive": 284,
+   "test_precision": 0.9401,
+   "test_recall": 0.5947,
+   "verdict": "target met on held-out data"
+  },
+  {
+   "name": "engine smoke: text_ratio>=0.9 from class+engine",
+   "n_train": 53,
+   "n_calib": 40,
+   "n_test": 40,
+   "positive_rate": 0.6391,
+   "target_precision": 0.8,
+   "confidence_level": 0.9,
+   "n_valid_params": 0,
+   "best_predict_param": null,
+   "verdict": "abstained: no threshold certified at this calibration size"
+  }
+ ],
+ "obs_derived_input": {
+  "rows": 133,
+  "classes": [
+   "C1",
+   "C10",
+   "C2",
+   "C3",
+   "C4",
+   "C5",
+   "C6",
+   "C7",
+   "C8",
+   "C9"
+  ],
+  "engines": [
+   "gs_text",
+   "mutool_text",
+   "pdfbox_text",
+   "pdfjs",
+   "pdftotext",
+   "pymupdf",
+   "pypdfium2"
+  ]
+ }
+}
