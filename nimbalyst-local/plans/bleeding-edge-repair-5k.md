@@ -14,8 +14,8 @@ planStatus:
     - repair
     - evaluation
   created: "2026-09-27"
-  updated: "2026-10-05T19:00:00.000Z"
-  progress: 35
+  updated: "2026-10-05T19:45:00.000Z"
+  progress: 40
 ---
 # Bleeding-edge PDF repair — 5,000 ft work packages
 
@@ -26,8 +26,8 @@ planStatus:
 > success criteria and constraints are in [research/charter.md](../../research/charter.md).
 > Tool picks cite `TOOL-` entries in `research/tooling/ledger.jsonl` (verdicts Adopt, Trial, Assess,
 > Hold). Rev 1 fills the tool slots from the four Stage 2 ledgers and folds in PR #16's measured
-> evidence (committee 004). Stage 4 re-verifies the picks hands-on; until then a pick marked
-> *(2026-09-27)* was last run before the container restart.
+> evidence (committee 004). Rev 2: Stage 4's verifier re-ran every Adopt and Trial pick hands-on on
+> 2026-10-05, after the container restart, and installed every WP-3.1 pin (OBS-1200..1215, committee 005).
 
 ## How to read a WP
 | Field | Meaning |
@@ -53,7 +53,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-1.1 P4 search plan and screener calibration
 - **Serves:** RQ6; the recall shortfall (committee 002: carving 1 of 4); audit 002 actions A3–A5.
-- **Inputs:** `research/sources/screening.jsonl`; `research/audits/002-screening/`; the hidden gold set (chair only); discovery services: Crossref (TOOL-300), CORE (TOOL-306) and Unpaywall (TOOL-310), all keyless; OpenAlex (TOOL-304) and Semantic Scholar (TOOL-305) if the user provides keys; DBLP (TOOL-303) is on Hold because an anti-bot page blocks it here.
+- **Inputs:** `research/sources/screening.jsonl`; `research/audits/002-screening/`; the hidden gold set (chair only); discovery services: Crossref (TOOL-300) and Unpaywall (TOOL-310), keyless; CORE (TOOL-306), which now refuses keyless requests (429 twice, 20 minutes apart; OBS-1208) and so needs a free key; OpenAlex (TOOL-304), which answers keyless but showed 0 of its daily quota left, so a key is recommended; Semantic Scholar (TOOL-305), keyless, with a key optional; DBLP (TOOL-303) is on Hold because an anti-bot page blocks it here.
 - **Procedure:**
   1. Write one search recipe per community (forensics and carving, LangSec, compression, fonts/OCR, engines, evaluation, CDR, ML-assisted repair): the services, the query strings, the venue filters, and the snowball seeds.
   2. The carving recipe (tested on Crossref by Stage 2 agent A) restricts by container first and only then adds carving terms. Free-text "fragment reassembly" alone returned 76,911 noisy hits. The three routes are:
@@ -71,7 +71,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 
 ### WP-1.2 Full-text and structure pipeline
 - **Serves:** W1 throughput; quote verification.
-- **Inputs:** `research/tools/fetch_fulltext.py`; PyMuPDF4LLM (TOOL-323, Adopt): in OBS-0601 it kept the heading structure and the two-column reading order that pdftotext and pdfplumber both spliced. For reference lists, trial GROBID CRF (TOOL-317). It needs a Docker daemon, which this container lacks; Stage 4 checks whether it can run.
+- **Inputs:** `research/tools/fetch_fulltext.py`; PyMuPDF4LLM (TOOL-323, Adopt): in OBS-0601 it kept the heading structure and the two-column reading order that pdftotext and pdfplumber both spliced. For reference lists, trial GROBID CRF (TOOL-317). Stage 4 could not run it: the container has no Docker daemon, and setting one up is a provisioning item for the user (access gate). If Docker is not provided, GROBID moves to Assess and reference lists come from Crossref's `reference` field where the publisher deposits one.
 - **Procedure:**
   1. Add an optional structured pass after the text cache: sections, reference list, and the limitations and future-work paragraphs.
   2. Pre-filter candidate limitation and future-work sentences for agents. The validator stays the only check: a pre-filtered sentence is a lead until its quote verifies.
@@ -85,7 +85,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 - **Inputs:** the 29 gaps with `still_open: unknown` (`research/gaps/gaps.jsonl`); citing works from OpenCitations (TOOL-301), which returns the list; Crossref's `is-referenced-by-count` (TOOL-300) is a count only. OBS-0600 found neither consistently ahead (Crossref higher on 3 of 10 works, OpenCitations on 2), and both show 0 for the 2024+ works.
 - **Procedure:**
   1. For each gap's cited sources, collect citing works from OpenCitations.
-  2. Where Crossref's count is higher than the list, fill in with Semantic Scholar or OpenAlex (keys needed), or record the shortfall.
+  2. Where Crossref's count is higher than the list, fill in with Semantic Scholar or OpenAlex (both answer keyless, but OpenAlex's keyless quota runs out; OBS-1208), or record the shortfall.
   3. Screen the citing works and set `still_open` and `still_open_checked_at`, with the citing works logged.
 - **Outputs:** updated gap records; a search-log entry per gap.
 - **Acceptance:** every gap is `yes` or `no` with a date, or `unknown` with a stated reason (no citation data).
@@ -188,31 +188,31 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
   | Engine | TOOL | Pin | Option sets (`config_id`) | Licence |
   |---|---|---|---|---|
   | qpdf | 350 (Adopt) | **12.4.2** static release binary; never apt 11.9.0, which segfaults on OBS-0500's file (OBS-0701) | `default` (`qpdf in out`, recovery on, CLM-0702); `ignore-xref-streams`; `decode-specialized` (`--decode-level=specialized --object-streams=disable`); strict control `--suppress-recovery` | Apache-2.0 |
-  | MuPDF `mutool` | 351 (Adopt) | 1.28.x (1.28.0 conda-forge tested; tag 1.28.5 has no conda build) | `clean -gg`; `clean -gggg`; `clean -gggg -s` (CLM-0704) | AGPL, binary only |
+  | MuPDF `mutool` | 351 (Adopt) | **1.28.0** (conda-forge). A 1.28.5 source build regresses on C1: `draw -F txt` exits 1 on two C1 files and extracts about half the text 1.28.0 gets (OBS-1203). Run 1.28.5 as a second build to track it | `clean -gg`; `clean -gggg`; `clean -gggg -s` (CLM-0704) | AGPL, binary only |
   | PyMuPDF | 352 (Adopt) | 1.28.2 (MuPDF 1.28.2) | open + save; also the first renderer | AGPL, binary only |
   | Ghostscript | 358 (Adopt) | 10.08.0 (conda-forge) | `-o out.pdf -sDEVICE=pdfwrite` (repairs by default); `-sDEVICE=txtwrite`; strict control `-dPDFSTOPONERROR` (CLM-0705); force the PDF interpreter on header loss (OBS-0501) | AGPL, binary only |
   | PDFBox | 356 (Adopt) | 3.0.8 | `decode in out`; `export:text` | Apache-2.0 |
-  | pdf.js | 353 (Adopt) | pdfjs-dist 6.4.299 (6.3.289 tested) | defaults (`stopAtErrors` false, CLM-0706) | Apache-2.0 |
-  | pypdfium2 | 354 (Adopt) | 5.14.0 (5.13.0 tested) | open + `save()`; also the second renderer | BSD-3 / Apache-2.0 |
-  | Poppler | 357 (Adopt) | 26.10.0 (26.09.0 tested) | `pdftotext`; `pdftocairo` as a third renderer | GPL, binary only |
-  | pikepdf | 426 (Adopt) | 10.16.0 (10.16.0 itself not run) | open + save | MPL-2.0 |
-  | pdfcpu | 355 (Trial) | 0.16.1 (0.15.0 tested) | `optimize`; `validate -m strict` belongs to WP-3.3 | Apache-2.0 |
+  | pdf.js | 353 (Adopt) | pdfjs-dist 6.4.299 (verified, OBS-1202) | defaults (`stopAtErrors` false, CLM-0706) | Apache-2.0 |
+  | pypdfium2 | 354 (Adopt) | 5.14.0 (verified) | open + `save()`; also the second renderer | BSD-3 / Apache-2.0 |
+  | Poppler | 357 (Adopt) | 26.10.0 (source build, HarfBuzz off; verified). conda-forge stops at 26.09.0 | `pdftotext`; `pdftocairo` as a third renderer | GPL, binary only |
+  | pikepdf | 426 (Adopt) | 10.16.0 (verified) | open + save | MPL-2.0 |
+  | pdfcpu | 355 (Trial) | 0.16.1 (verified) with its own `XDG_CONFIG_HOME`: it refuses every command if it finds a 0.15.0 config | `optimize`; `validate -m strict` belongs to WP-3.3 | Apache-2.0 |
   | lopdf | 359 (Adopt) | 0.45.0 | load + save. The weakest loader (0 of 2 on C1, C4, C5; OBS-0700), so it measures the product emitter's starting point, not a strong baseline | MIT |
-  | hayro | 361 (Trial) | 0.8.0 (0.7.1 tested) | load + render; its per-class output matched pdf.js in OBS-0700 | Apache-2.0 / MIT |
+  | hayro | 361 (Trial) | 0.8.0 (verified). Its render API changed; the probe needs `research/experiments/stage4-verifier/rsprobe080/main.rs.patch` | load + render; its per-class output matched pdf.js in OBS-0700 | Apache-2.0 / MIT |
 
   CPR (WP-3.6) and REPDF (WP-3.5) are references with their own WPs, not harness adapters.
 - **Procedure:**
   1. One adapter per tool: `repair(in_path, out_dir, config_id) -> RunRecord`. Copyleft engines run as external binaries only; no copyleft code enters the harness or the product.
   2. Each run is in a subprocess with a wall-clock limit (default 60 s), a memory limit (default 2 GB) and no network.
   3. Every output is extracted and rendered by ≥ 2 engines (WP-3.2).
-  4. Versions come from the pins above; the adapter records the version string the tool reports. Installs: static release binaries (qpdf, pdfcpu), conda-forge (mutool, gs, Poppler), the Maven jar (PDFBox), npm (pdf.js), PyPI (PyMuPDF, pypdfium2, pikepdf) and crates.io (lopdf, hayro). The hosts are listed at the access gate.
+  4. Versions come from the pins above; the adapter records the version string the tool reports. Installs: static release binaries (qpdf, pdfcpu), conda-forge (mutool, gs, Poppler), the Maven jar (PDFBox), npm (pdf.js), PyPI (PyMuPDF, pypdfium2, pikepdf) and crates.io (lopdf, hayro). The hosts are listed at the access gate. The install steps that worked after the restart, without apt, are in the headers of `research/experiments/stage4-verifier/rerun_smoke.sh` and `research/experiments/stage4-verifier/build_pins.sh`.
   5. Score outputs, not exit codes. OBS-0700: no engine produced anything on C10, only mutool produced output on C4 (1 page kept), and every text engine stayed under a 0.95 text ratio on C9. "Produced output" is not fidelity.
 - **Outputs:** `research/eval/harness/`; runs as JSONL: `{input_sha256, tool, version, config_id, exit_code, signal, wall_ms, max_rss_mb, output_sha256, text_paths, render_dir, stderr_tail}`.
 - **Acceptance:**
   - reruns of the same input and config give the same output hash (or the tool is marked non-deterministic);
   - a timeout, a crash and a segfault are each recorded, not fatal (OBS-0500's qpdf segfault is the test);
   - the header-loss case scores Ghostscript with PDF forced, per OBS-0501.
-- **Effort:** 2 sessions. **Depends on:** Stage 2 ledger; Stage 4 verification.
+- **Effort:** 2 sessions. **Depends on:** Stage 2 ledger (re-verified: the engine and oracle smoke tests reproduce exactly at seed 20260927, OBS-1200, OBS-1201).
 - **Decision points:** the option sets per tool are frozen in the pre-registration.
 
 ### WP-3.2 Metric suite
@@ -222,12 +222,12 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
   | Measure | Tool | Verdict | Note |
   |---|---|---|---|
   | CER, WER | rapidfuzz 3.14.6 (TOOL-372), jiwer 4.0.0 (TOOL-373) | Adopt | they agreed on every file (OBS-0704) |
-  | Grapheme-aware CER for multilingual pages | dinglehopper 0.11.0 (TOOL-374) | Trial *(2026-09-27)* | |
+  | Grapheme-aware CER for multilingual pages | dinglehopper 0.11.0 (TOOL-374) | Trial | re-verified, OBS-1213 |
   | Flexible character accuracy | built here over rapidfuzz alignments (TOOL-380) | Assess | no package exists (SRCH-0705); FCA's paper is cited from memory and needs a source |
   | Text reference | Tesseract 5.5.3 (TOOL-382) on the original's render, `OMP_THREAD_LIMIT=1 tesseract page.png - -l eng --psm 3`, about 1 s per page | Adopt | the original's text layer is not the reference: 2 of 19 Print to PDF originals hold only 50–60% of the visible text in it (OBS-0708) |
-  | Second OCR vote | docTR 1.1.0 (TOOL-383), 6–7 s per page | Trial *(2026-09-27)* | |
+  | Second OCR vote | docTR 1.1.0 (TOOL-383), 6–7 s per page | Trial | re-verified, OBS-1213 |
   | SSIM | scikit-image 0.26.0 (TOOL-375) | Adopt | within one renderer only: PyMuPDF and pypdfium2 differ by up to SSIM 0.904 on undamaged originals, which overlaps C7/C8 damage (OBS-0706) |
-  | Perceptual distance | LPIPS 0.1.4, AlexNet, CPU (TOOL-376) | Trial *(2026-09-27)* | 0.17 s per pair; C9 damage 0.42–0.57 vs renderer floor ≤ 0.049 |
+  | Perceptual distance | LPIPS 0.1.4, AlexNet, CPU (TOOL-376) | Trial | re-verified, OBS-1213; 0.17 s per pair; C9 damage 0.42–0.57 vs renderer floor ≤ 0.049 |
   | Structure diff | DeepDiff 9.1.0 over `qpdf --json=2 --json-stream-data=none` (TOOL-377) | Assess | canonicalize the object graph first: a rewrite renumbers objects and raw diffs explode |
   | Planted tokens | built here, modelled on FaithC4 (TOOL-379) and scored with rapidfuzz | Assess | do not vendor FaithC4's scorer, which depends on AGPL and GPL libraries |
   | VLM OCR | olmOCR-2, LightOnOCR-2, PaddleOCR-VL, DeepSeek-OCR-2 (TOOL-384) | Hold | none shown feasible on 4 CPUs; their language priors are the GAP-201 risk |
@@ -348,8 +348,8 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 - **Serves:** RQ3; GAP-003, 004, 200, 201.
 - **Inputs:**
   - SRC-0123 (the CPR paper) and SRC-0700 (its code, BeenyHail/CPR at 9ecd685). Licence CC BY-NC 4.0 (CLM-0700): run as a baseline only, never copied (clean-room rule). TOOL-385, **Assess**.
-  - **Step 1 (no LLM)** ran on 20 sampled REPDF files after patching 28 Windows-only paths (OBS-0704). It fell below the PyMuPDF null baseline on C1–C3 and C7–C9, beat it on C4, C6 and one C5 file, and recovered nothing from either C10 file.
-  - **Step 2** calls llama3.1:8b (Q4_K_M, 4.92 GB) through a local Ollama server (TOOL-386, Assess). The host registry.ollama.ai is an access-gate item. As published it sets no temperature or seed (CLM-0701), so it has no deterministic mode.
+  - **Step 1 (no LLM)** ran on 20 sampled REPDF files after patching 28 Windows-only paths (OBS-0704; reproduced exactly in Stage 4, OBS-1212). It fell below the PyMuPDF null baseline on C1–C3 and C7–C9, beat it on C4, C6 and one C5 file, and recovered nothing from either C10 file.
+  - **Step 2** calls llama3.1:8b (Q4_K_M, 4.92 GB) through a local Ollama server (TOOL-386, Assess). registry.ollama.ai answers (the model manifest returns 200, OBS-1208), but no blob was fetched; the download is an access-gate item. As published it sets no temperature or seed (CLM-0701), so it has no deterministic mode.
   - OBS-0907: in Print to PDF files every embedded TrueType program keeps its family in the `name` table, so font identity comes from there first; CPR's font matching is compared against that.
 - **Procedure:**
   1. Apply the local determinism patch (temperature 0, fixed seed in the Ollama payload, CLM-0701) and record its diff in `research/eval/cpr/PATCH.md`. Never commit CPR code itself.
@@ -368,7 +368,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 - **Inputs:** OBS-0201 (34 of 35 pairs are exact prefixes); the CC-MAIN-2021-31-PDF-UNTRUNCATED corpus (TOOL-404, SRC-0206).
   - Its metadata CSV and ZIP central directories are range-read from digitalcorpora's S3 without credentials (TOOL-402, OBS-0800): 12,946 metadata rows in 1.3 s.
   - Stage 2 wrote `research/experiments/cc_natural_pairs_other_zips.py`, which extends OBS-0201's sampler to later ZIPs. Its two runs timed out with no pairs because of the 403s below (OBS-0800).
-  - The truncated captures come from data.commoncrawl.org (TOOL-403). Ranged reads there went from 206 to 403 after a burst of requests on 2026-09-27, so the sampler paces itself and backs off on 403. Stage 4 re-tests at a slow rate.
+  - The truncated captures come from data.commoncrawl.org (TOOL-403). Ranged reads there went from 206 to 403 after a burst of requests on 2026-09-27. Paced at 2–3 s with back-off on 403, Stage 4 got 30 of 30 ranged reads (206) and read a real WARC record of a truncated PDF (OBS-1207). No AWS account is needed; the sampler keeps the pacing.
 - **Procedure:**
   1. Stratify by source ZIP, truncation reason (length cap vs disconnect), size bucket and producer.
   2. For each pair, check that the truncated file is a byte prefix of the refetched file. Reject any pair that isn't.
@@ -376,7 +376,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 - **Outputs:** `research/eval/pairs/truncation.jsonl`: `{url, truncated_sha256, full_sha256, truncated_len, full_len, reason, zip, producer}`.
 - **Acceptance:** ≥ 1,000 pairs, each byte-verified as a prefix; within about 10 GB. Disconnect truncations are rare: in the first ~13,000 metadata rows of ZIP 0001, 1 of 255 truncated rows is a disconnect. So scan the metadata across all ZIPs and take every disconnect row, aiming for ≥ 100. Scanning is cheap; only the byte fetches are slow. Report the achieved count and don't pad it.
 - **Effort:** 1 session.
-- **Decision point:** Stage 4 or this WP may find Common Crawl still refusing ranged reads at a slow rate. In that case, the fallback builds each truncated file by cutting the refetched file at the capture length recorded in the metadata. Those pairs carry the grade *metadata-derived, not byte-verified*, and the OBS-0201 check (34 of 35 exact prefixes) is the evidence that the cut is faithful. The board decides whether such pairs may score fidelity or only robustness.
+- **Decision point:** Stage 4 found paced reads work (OBS-1207), so byte-verified pairs are the plan. If this WP finds Common Crawl refusing ranged reads again, the fallback builds each truncated file by cutting the refetched file at the capture length recorded in the metadata. Those pairs carry the grade *metadata-derived, not byte-verified*, and the OBS-0201 check (34 of 35 exact prefixes) is the evidence that the cut is faithful. The board decides whether such pairs may score fidelity or only robustness.
 
 ### WP-3.8 Natural pairs: font encoding
 - **Serves:** charter §3(a) source 2; GAP-202, 201, 203; DMG-200, 201.
@@ -400,9 +400,9 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
     - radamsa and zzuf (TOOL-421, 422) for byte-level mutation. Both were verified in OBS-0801.
     - The Arlington TSV grammar (TOOL-424, Apache-2.0, trial) for grammar-aware invalid objects, which fit DMG-009's templates better than blind mutation.
     - pikepdf (TOOL-426) for structural edits.
-  - **Producers for originals:** LibreOffice, ps2pdf, Chromium print-to-PDF, pdflatex, reportlab and pycairo (TOOL-413..418, all verified in OBS-0801). macOS Quartz output (DMG-201) can't be produced here (TOOL-420); source it from an existing corpus or a contributor's Mac.
+  - **Producers for originals:** LibreOffice, ps2pdf, Chromium print-to-PDF, pdflatex, reportlab and pycairo (TOOL-413..418, verified in OBS-0801). After the restart all but LibreOffice pass again (OBS-1209): its Writer module is gone and reinstalling it needs apt (access gate). pdflatex now comes from a scratch TeX Live 2026 install (`research/experiments/stage4-verifier/texlive_install.sh`). macOS Quartz output (DMG-201) can't be produced here (TOOL-420); source it from an existing corpus or a contributor's Mac.
   - **Open questions:**
-    - Parameter datasets: NapierOne (TOOL-408, open licence) is blocked by the proxy here.
+    - Parameter datasets: NapierOne (TOOL-408, open licence). Its bucket now lists through the path-style URL `s3.eu-north-1.amazonaws.com/napierone.com/` (OBS-1208); no data file has been read yet.
     - The NAND data's licence is unconfirmed (TOOL-407).
     - The DFRWS 2006 and 2007 challenge images (TOOL-409) are candidates for carving damage.
     - The shadow-attack artefacts (TOOL-425) have no licence: study and cite them only, never copy them.
@@ -455,7 +455,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
   1. **One primary endpoint** and its claim form. Against REPDF the claim is non-inferiority per stratum (CLM-1065): our lower 95% bound on REPDF's metric is at least REPDF's point estimate minus a stated margin. Against qpdf, MuPDF and the other baselines, superiority on the primary endpoint with Holm correction.
   2. **A fabrication ceiling** and **a plausible-but-wrong ceiling** (WP-3.2, CLM-1059).
   3. **The minimum margin** and the suite size from a power estimate on WP-3.5's per-file variance.
-  4. **The auto-accept threshold** as a risk target, not a fixed constant: certifying at most 2% wrong auto-picks at 95% confidence needs about 150 error-free labelled slots (rule of three, CLM-1061). The calibrator is Platt scaling below about 1,000 slots (CLM-1060) or conformal risk control (MAPIE, TOOL-470) if Stage 4 verifies it.
+  4. **The auto-accept threshold** as a risk target, not a fixed constant: certifying at most 2% wrong auto-picks at 95% confidence needs about 150 error-free labelled slots (rule of three, CLM-1061). The calibrator is Platt scaling below about 1,000 slots (CLM-1060) or conformal risk control (MAPIE, TOOL-470, verified in Stage 4: OBS-1205). On our 40-row calibration set MAPIE finds no valid threshold and abstains, which is the right answer at that size.
   5. The baselines and option sets (WP-3.1), the statistics (WP-3.2) and the held-out corruptor rule (WP-3.11).
 - **Outputs:** `research/preregistration.md`, committed before P5.
 - **Acceptance:** the user signs off the endpoint and the margins; every number in the file has a cited source or a stated derivation.
@@ -465,7 +465,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 - **Serves:** RQ5; GAP-155; HYP-152; the design changes in CLM-1075 and CLM-1076.
 - **Inputs:**
   - CLM-1057: every toolpath runs in seconds, so selection is generate-and-validate (run all candidates, then pick) rather than predict-then-act.
-  - CLM-1060 (Platt scaling), TOOL-470 (MAPIE 1.5.0, Trial without a hands-on run; Stage 4 runs it or downgrades it), CLM-1061 (risk-targeted threshold).
+  - CLM-1060 (Platt scaling), TOOL-470 (MAPIE 1.5.0, Trial, verified in Stage 4: 14 valid thresholds and test precision 0.94 on a synthetic target; abstains on our 40 rows; OBS-1205), CLM-1061 (risk-targeted threshold).
   - WP-3.3 oracle outputs (one row per candidate), WP-3.2 fidelity labels (agreement with the known original).
   - CLM-1063: render comparators pay a 50% false-positive rate at 80% true-positive in an 11-reader study, so render similarity alone cannot label a repair correct.
 - **Procedure:**
@@ -489,7 +489,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
 - **Inputs:**
   - OBS-0901: stock zlib 1.3 at level 6 reproduces 2,074 of 2,074 sampled Save As streams once memLevel is swept, but only 1 of 1,264 Print to PDF streams.
   - OBS-0905: xref offset bias is 0 for every Save As file and +1 for every Print to PDF file.
-  - OBS-0907: Print to PDF embeds one anonymous TrueType font instance per page and keeps the family in the `name` table.
+  - OBS-0907: Print to PDF embeds one anonymous TrueType font instance per page and keeps the family in the `name` table. The pure-Rust fontations crates (read-fonts and skrifa, TOOL-465) parse all 1,252 embedded programs and agree with fontTools on all 889 family rows (OBS-1204), so the product can read the same facts.
   - OBS-0908: preflate-rs reproduces Save As streams only from a profile's parameters, not from per-stream estimates (47 of 399), and fingerprints the Print to PDF encoder as a zlib-like lazy matcher with different limits.
 - **Procedure:**
   1. For each producer in the corpus (Word Save As, Microsoft Print to PDF; then WP-3.9's producers), record: the replay parameters (level, memLevel, strategy, window), the xref offset bias, the EOL style, per-page font instances, the encoder fingerprint, and the first bytes of every Flate stream.
@@ -562,3 +562,4 @@ WP-1.4, 2.3, 3.13, 3.14 ─▶ WP-4.2 (board) ─▶ WP-4.1 ─▶ WP-4.3
 |---|---|---|---|
 | 0 | 2026-09-27 | Skeleton from the P1 evidence; tool slots open | Stage 1.5 merge and committee 002 |
 | 1 | 2026-10-05 | Filled the tool slots (WP-3.1, 3.2, 3.3, 3.6) from the Stage 2 ledgers; folded in PR #16: WP-1.4 rule rows, WP-2.3 hypothesis table, WP-3.3 rewritten around uniqueness and false accepts, WP-3.5 attribution run and non-inferiority, WP-3.9 C9 model and EOL fixture, WP-3.11 grouped splits and held-out corruptors, WP-3.12 risk-targeted threshold; added WP-3.13 (selection and abstention) and WP-3.14 (producer profiles); WP-4.2 maps PR #16's ranked changes to WPs | Stage 2 tooling (agents A–D), the PR #16 ingest (agent E) and committee 004 |
+| 2 | 2026-10-05 | Stage 4 verifier results: WP-3.1 pins MuPDF 1.28.0 (1.28.5 regresses on C1) and marks the other pins verified; WP-1.1 and 1.3 record which discovery services need keys now (CORE does); WP-1.2 records that GROBID could not run; WP-3.2's Trial metrics, WP-3.6's Step 1, WP-3.12/3.13's MAPIE and WP-3.14's fontations are verified; WP-3.7 switches to byte-verified pairs now that paced Common Crawl reads work; WP-3.9 notes LibreOffice needs reinstalling | Stage 4 verifier (OBS-1200..1215) and committee 005 |
