@@ -1,0 +1,48 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "screening",
+ "title": "Screening decision",
+ "type": "object",
+ "required": [
+  "src",
+  "decision",
+  "reason_code",
+  "stage",
+  "by",
+  "at"
+ ],
+ "properties": {
+  "src": {
+   "type": "string",
+   "pattern": "^SRC-\\d{4}$"
+  },
+  "decision": {
+   "enum": [
+    "include",
+    "exclude",
+    "maybe"
+   ]
+  },
+  "reason_code": {
+   "type": "string",
+   "description": "see vocab.json screening_reasons"
+  },
+  "reason": {
+   "type": "string"
+  },
+  "stage": {
+   "enum": [
+    "title",
+    "abstract",
+    "fulltext"
+   ]
+  },
+  "by": {
+   "type": "string"
+  },
+  "at": {
+   "type": "string",
+   "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+  }
+ }
+}

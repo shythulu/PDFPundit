@@ -1,0 +1,139 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "observation",
+ "title": "Reproducible observation (experiment or measurement we ran)",
+ "type": "object",
+ "required": [
+  "id",
+  "statement",
+  "script",
+  "command",
+  "tools",
+  "inputs",
+  "result",
+  "date",
+  "provenance"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^OBS-\\d{4}$"
+  },
+  "statement": {
+   "type": "string",
+   "description": "what was observed, in one or two sentences"
+  },
+  "script": {
+   "type": "string",
+   "description": "repo-relative path of the committed script that reproduces it"
+  },
+  "command": {
+   "type": "string",
+   "description": "exact command line"
+  },
+  "tools": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "name",
+     "version"
+    ],
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "version": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "inputs": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "path"
+    ],
+    "properties": {
+     "path": {
+      "type": "string"
+     },
+     "sha256": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "note": {
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    }
+   },
+   "description": "input files/dirs; external corpora by path + commit note"
+  },
+  "result": {
+   "type": "string",
+   "description": "summary of the result, with the key numbers"
+  },
+  "result_path": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "repo-relative path of a committed result file (CSV/JSON)"
+  },
+  "date": {
+   "type": "string",
+   "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+  },
+  "provenance": {
+   "type": "object",
+   "required": [
+    "agent",
+    "method",
+    "added_at"
+   ],
+   "properties": {
+    "agent": {
+     "type": "string",
+     "description": "role of the agent that created the record, e.g. 'chair', 'scoping-backward'"
+    },
+    "method": {
+     "enum": [
+      "crossref",
+      "dblp",
+      "opencitations",
+      "arxiv",
+      "openalex",
+      "semantic-scholar",
+      "core",
+      "parallel-search",
+      "parallel-fetch",
+      "webfetch",
+      "websearch",
+      "local-file",
+      "memory",
+      "user",
+      "derived"
+     ]
+    },
+    "search_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^SRCH-\\d{4}$"
+    },
+    "added_at": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  }
+ }
+}

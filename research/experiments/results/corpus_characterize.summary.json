@@ -1,0 +1,584 @@
+{
+ "C1/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 12,
+   "median": 12.0,
+   "max": 12
+  },
+  "corrupt_span": {
+   "min": 12,
+   "median": 12.0,
+   "max": 12
+  },
+  "diff_bytes": {
+   "min": 11,
+   "median": 12.0,
+   "max": 12
+  },
+  "streams_hit": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x44": 4,
+   "0xde": 2,
+   "0x42": 2
+  },
+  "top_repl_share_min": 0.0833,
+  "outliers": []
+ },
+ "C1/print": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 12,
+   "median": 12.0,
+   "max": 12
+  },
+  "corrupt_span": {
+   "min": 12,
+   "median": 12.0,
+   "max": 12
+  },
+  "diff_bytes": {
+   "min": 11,
+   "median": 12.0,
+   "max": 12
+  },
+  "streams_hit": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x18": 2,
+   "0x03": 2,
+   "0x50": 2
+  },
+  "top_repl_share_min": 0.0833,
+  "outliers": []
+ },
+ "C2/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": -39094,
+   "median": -30414.0,
+   "max": -21294
+  },
+  "orig_span": {
+   "min": 21294,
+   "median": 30414.0,
+   "max": 39094
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 0.8749,
+   "max": 0.9891
+  },
+  "outliers": []
+ },
+ "C2/print": {
+  "files": 50,
+  "size_delta": {
+   "min": -3972,
+   "median": -3492.0,
+   "max": -2452
+  },
+  "orig_span": {
+   "min": 2452,
+   "median": 3492.0,
+   "max": 3972
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 0.9945,
+   "max": 0.9988
+  },
+  "outliers": []
+ },
+ "C3/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": -215,
+   "median": -211.0,
+   "max": -210
+  },
+  "orig_span": {
+   "min": 210,
+   "median": 211.0,
+   "max": 215
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 0.9992,
+   "max": 0.9999
+  },
+  "outliers": []
+ },
+ "C3/print": {
+  "files": 50,
+  "size_delta": {
+   "min": -24,
+   "median": -24.0,
+   "max": -23
+  },
+  "orig_span": {
+   "min": 23,
+   "median": 24.0,
+   "max": 24
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 0.9999,
+   "max": 1.0
+  },
+  "outliers": []
+ },
+ "C4/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": -122,
+   "median": -90.0,
+   "max": -47
+  },
+  "orig_span": {
+   "min": 172,
+   "median": 205.0,
+   "max": 243
+  },
+  "corrupt_span": {
+   "min": 99,
+   "median": 116.5,
+   "max": 136
+  },
+  "kept_fraction": {
+   "min": 0.9996,
+   "max": 1.0
+  },
+  "outliers": []
+ },
+ "C4/print": {
+  "files": 50,
+  "size_delta": {
+   "min": -128,
+   "median": -93.0,
+   "max": -45
+  },
+  "orig_span": {
+   "min": 78,
+   "median": 105.5,
+   "max": 128
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 9.5,
+   "max": 35
+  },
+  "kept_fraction": {
+   "min": 0.9998,
+   "max": 1.0
+  },
+  "outliers": []
+ },
+ "C5/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": -8,
+   "median": -8.0,
+   "max": -8
+  },
+  "orig_span": {
+   "min": 8,
+   "median": 8.0,
+   "max": 8
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "outliers": []
+ },
+ "C5/print": {
+  "files": 50,
+  "size_delta": {
+   "min": -8,
+   "median": -8.0,
+   "max": -8
+  },
+  "orig_span": {
+   "min": 8,
+   "median": 8.0,
+   "max": 8
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "outliers": []
+ },
+ "C6/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": -402565,
+   "median": -346.0,
+   "max": -218
+  },
+  "orig_span": {
+   "min": 26683,
+   "median": 35138.0,
+   "max": 436310
+  },
+  "corrupt_span": {
+   "min": 26285,
+   "median": 34698.0,
+   "max": 93866
+  },
+  "kept_fraction": {
+   "min": 0.0774,
+   "max": 0.9999
+  },
+  "outliers": [
+   "corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_font_mapping_loss.pdf"
+  ]
+ },
+ "C6/print": {
+  "files": 50,
+  "size_delta": {
+   "min": -411,
+   "median": -243.5,
+   "max": -153
+  },
+  "orig_span": {
+   "min": 265722,
+   "median": 939381.5,
+   "max": 1917849
+  },
+  "corrupt_span": {
+   "min": 265569,
+   "median": 939066.0,
+   "max": 1917675
+  },
+  "kept_fraction": {
+   "min": 0.9995,
+   "max": 0.9999
+  },
+  "outliers": []
+ },
+ "C7/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 229389,
+   "median": 374283.0,
+   "max": 3047474
+  },
+  "corrupt_span": {
+   "min": 229389,
+   "median": 374283.0,
+   "max": 3047474
+  },
+  "diff_bytes": {
+   "min": 164999,
+   "median": 291953.0,
+   "max": 2921257
+  },
+  "streams_hit": {
+   "min": 13,
+   "median": 20.0,
+   "max": 22
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x20": 50
+  },
+  "top_repl_share_min": 1.0,
+  "outliers": []
+ },
+ "C7/print": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 425049,
+   "median": 1204346.5,
+   "max": 2048979
+  },
+  "corrupt_span": {
+   "min": 425049,
+   "median": 1204346.5,
+   "max": 2048979
+  },
+  "diff_bytes": {
+   "min": 308942,
+   "median": 944412.5,
+   "max": 1285451
+  },
+  "streams_hit": {
+   "min": 11,
+   "median": 19.0,
+   "max": 22
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x20": 50
+  },
+  "top_repl_share_min": 1.0,
+  "outliers": []
+ },
+ "C8/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 229389,
+   "median": 374283.0,
+   "max": 3047474
+  },
+  "corrupt_span": {
+   "min": 229389,
+   "median": 374283.0,
+   "max": 3047474
+  },
+  "diff_bytes": {
+   "min": 168880,
+   "median": 299513.5,
+   "max": 2929827
+  },
+  "streams_hit": {
+   "min": 19,
+   "median": 32.0,
+   "max": 39
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x20": 50
+  },
+  "top_repl_share_min": 1.0,
+  "outliers": []
+ },
+ "C8/print": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 453193,
+   "median": 1258279.5,
+   "max": 2074605
+  },
+  "corrupt_span": {
+   "min": 453193,
+   "median": 1258279.5,
+   "max": 2074605
+  },
+  "diff_bytes": {
+   "min": 317349,
+   "median": 958390.0,
+   "max": 1300248
+  },
+  "streams_hit": {
+   "min": 22,
+   "median": 38.0,
+   "max": 44
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x20": 50
+  },
+  "top_repl_share_min": 1.0,
+  "outliers": []
+ },
+ "C9/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 235353,
+   "median": 372206.0,
+   "max": 3032417
+  },
+  "corrupt_span": {
+   "min": 235353,
+   "median": 372206.0,
+   "max": 3032417
+  },
+  "diff_bytes": {
+   "min": 13,
+   "median": 21.0,
+   "max": 29
+  },
+  "streams_hit": {
+   "min": 11,
+   "median": 17.0,
+   "max": 28
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x11": 3,
+   "0x5e": 2,
+   "0x30": 2
+  },
+  "top_repl_share_min": 0.0345,
+  "outliers": []
+ },
+ "C9/print": {
+  "files": 50,
+  "size_delta": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "orig_span": {
+   "min": 428535,
+   "median": 1227496.5,
+   "max": 2050574
+  },
+  "corrupt_span": {
+   "min": 428535,
+   "median": 1227496.5,
+   "max": 2050574
+  },
+  "diff_bytes": {
+   "min": 12,
+   "median": 22.5,
+   "max": 30
+  },
+  "streams_hit": {
+   "min": 12,
+   "median": 18.0,
+   "max": 26
+  },
+  "kept_fraction": {
+   "min": 1.0,
+   "max": 1.0
+  },
+  "top_repl_byte": {
+   "0x88": 2,
+   "0xf7": 2,
+   "0x34": 2
+  },
+  "top_repl_share_min": 0.0385,
+  "outliers": []
+ },
+ "C10/saveas": {
+  "files": 50,
+  "size_delta": {
+   "min": -928079,
+   "median": -124527.5,
+   "max": -82414
+  },
+  "orig_span": {
+   "min": 82414,
+   "median": 124527.5,
+   "max": 928079
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 0.7,
+   "max": 0.7
+  },
+  "outliers": []
+ },
+ "C10/print": {
+  "files": 50,
+  "size_delta": {
+   "min": -623492,
+   "median": -378974.5,
+   "max": -137266
+  },
+  "orig_span": {
+   "min": 137266,
+   "median": 378974.5,
+   "max": 623492
+  },
+  "corrupt_span": {
+   "min": 0,
+   "median": 0.0,
+   "max": 0
+  },
+  "kept_fraction": {
+   "min": 0.7,
+   "max": 0.7
+  },
+  "outliers": []
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "input_meta_sha256": "6a57355beeaad4c5a9e414e9cb044b34877136da94f80d7c871a788b71636b9a",
+ "eligible_rows": 218,
+ "picked": 40,
+ "checked": 35,
+ "prefix_match": 34,
+ "capture_len_values": [
+  1048576
+ ],
+ "warc_truncated_values": [
+  "length"
+ ],
+ "chunked": 0,
+ "errors": [
+  "error: HTTPError: HTTP Error 403: Forbidden",
+  "error: HTTPError: HTTP Error 403: Forbidden",
+  "error: HTTPError: HTTP Error 403: Forbidden",
+  "error: HTTPError: HTTP Error 403: Forbidden",
+  "error: HTTPError: HTTP Error 403: Forbidden"
+ ]
+}

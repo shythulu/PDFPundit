@@ -1,0 +1,55 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "search",
+ "title": "Search / fetch log entry",
+ "type": "object",
+ "required": [
+  "id",
+  "at",
+  "agent",
+  "tool",
+  "query",
+  "paid"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^SRCH-\\d{4}$"
+  },
+  "at": {
+   "type": "string",
+   "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+  },
+  "agent": {
+   "type": "string"
+  },
+  "tool": {
+   "type": "string",
+   "description": "parallel.web_search | parallel.web_fetch | crossref | dblp | opencitations | arxiv | webfetch | websearch | ..."
+  },
+  "query": {
+   "type": "string"
+  },
+  "hits": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "paid": {
+   "type": "boolean",
+   "description": "true for Parallel Search calls (count against the campaign cap)"
+  },
+  "calls": {
+   "type": "integer",
+   "minimum": 1,
+   "description": "number of paid calls this entry represents (default 1)"
+  },
+  "notes": {
+   "type": [
+    "string",
+    "null"
+   ]
+  }
+ }
+}

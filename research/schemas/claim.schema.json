@@ -1,0 +1,144 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "claim",
+ "title": "Claim / limitation / future-work statement extracted from a source",
+ "type": "object",
+ "required": [
+  "id",
+  "src",
+  "kind",
+  "text",
+  "provenance"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^CLM-\\d{4}$"
+  },
+  "src": {
+   "type": "string",
+   "pattern": "^SRC-\\d{4}$"
+  },
+  "kind": {
+   "enum": [
+    "assumption",
+    "code",
+    "critique",
+    "dataset",
+    "future-work",
+    "limitation",
+    "method",
+    "metric",
+    "result"
+   ]
+  },
+  "text": {
+   "type": "string",
+   "description": "our paraphrase"
+  },
+  "quote": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "verbatim span from the source full text (short; fair use)"
+  },
+  "page": {
+   "type": [
+    "integer",
+    "null"
+   ],
+   "description": "PHYSICAL page index (1-based) of the cached PDF; required for multi-page sources"
+  },
+  "quote_check": {
+   "enum": [
+    "exact",
+    "fuzzy",
+    "wrong-page",
+    "not-found",
+    "no-fulltext",
+    "no-quote",
+    "short",
+    "unpaged",
+    "partial",
+    null
+   ],
+   "description": "set by kb_validate --write only; never hand-set"
+  },
+  "tags": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "provenance": {
+   "type": "object",
+   "required": [
+    "agent",
+    "method",
+    "added_at"
+   ],
+   "properties": {
+    "agent": {
+     "type": "string",
+     "description": "role of the agent that created the record, e.g. 'chair', 'scoping-backward'"
+    },
+    "method": {
+     "enum": [
+      "crossref",
+      "dblp",
+      "opencitations",
+      "arxiv",
+      "openalex",
+      "semantic-scholar",
+      "core",
+      "parallel-search",
+      "parallel-fetch",
+      "webfetch",
+      "websearch",
+      "local-file",
+      "memory",
+      "user",
+      "derived"
+     ]
+    },
+    "search_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^SRCH-\\d{4}$"
+    },
+    "added_at": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "locator": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "description": "code citation: file inside the cached checkout of the source's repo@commit",
+   "required": [
+    "path",
+    "line_start",
+    "line_end"
+   ],
+   "properties": {
+    "path": {
+     "type": "string"
+    },
+    "line_start": {
+     "type": "integer",
+     "minimum": 1
+    },
+    "line_end": {
+     "type": "integer",
+     "minimum": 1
+    }
+   }
+  }
+ }
+}
