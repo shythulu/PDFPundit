@@ -14,9 +14,14 @@ What is actually verified (and what is not):
 - Every quote is found in that cached text (`quote_check` is computed here, never hand-set):
   exact | fuzzy (>=95) | wrong-page | not-found | no-fulltext | short (<8 words; code <20 chars)
   | unpaged (multi-page source, no page) | partial (a number in the paraphrase is not in the quote).
-  Only exact/fuzzy count as verified.
+  Only exact/fuzzy count as verified. The number rule (`partial`) needs no cache and is checked
+  always; range endpoints ("12-30") count as two numbers, identifiers (Adler-32, C9) as none.
+- The cache is gitignored, so on a machine without it a claim whose recorded quote_check is
+  exact/fuzzy keeps that status (it was computed by this tool with --write where the text was
+  cached, and --write does not erase it); the run reports how many quotes it could not re-check.
 - Code citations: the quote must appear in the cited lines (+-5) of the file at the pinned commit.
-- Observations: the reproducing script must exist in the repo; local inputs must match their hash.
+- Observations: the reproducing script must exist in the repo; local inputs must match their hash;
+  an input with neither a sha256 nor a pinned commit in its note is reported as unpinned.
 - NOT verified: that a quote *supports* the paraphrase beyond its numbers (entailment), and that
   a source is what its registry says beyond the title check done at fetch time.
 Rules on top: gaps above `candidate`, damage classes at `accepted`, and `spec-ready` hypotheses
@@ -29,6 +34,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -100,7 +106,10 @@ def check_ids_and_refs(recs) -> None:
                "HYP": "hypothesis", "TOOL": "tool", "DMG": "damage", "SRCH": "search"}
 
     def ref(value, where: str) -> None:
-        if value and value not in ids[kind_of[value.split("-")[0]]]:
+        if not value:
+            return
+        kind = kind_of.get(str(value).split("-")[0])
+        if kind is None or value not in ids[kind]:
             err(f"{where}: unknown reference {value}")
 
     for r, _ in recs["source"]:
@@ -196,10 +205,11 @@ def quote_status(claim: dict, src: dict | None) -> str:
 
     if len(nq.split()) < MIN_QUOTE_WORDS:
         return "short"
+    missing = numbers_in(claim.get("text", "")) - numbers_in(quote)
     sha = src.get("fulltext_sha256")
     pages = fulltext_pages(sha) if sha else None
     if pages is None:
-        return "no-fulltext"
+        return "partial" if missing else "no-fulltext"   # the number rule needs no cached text
     real_pages = [p for p in pages if p.strip()]
     page = claim.get("page")
     if page is None and len(real_pages) > 1:
@@ -215,16 +225,21 @@ def quote_status(claim: dict, src: dict | None) -> str:
         status = _match(nq, whole)
         if status is None:
             return "not-found"
-    missing = numbers_in(claim.get("text", "")) - numbers_in(quote)
     return "partial" if missing else status
 
 
 def check_quotes(recs, write: bool) -> set[str]:
     srcs = {r["id"]: r for r, _ in recs["source"]}
     verified: set[str] = set()
+    kept = 0
     for r, _ in recs["claim"]:
         status = quote_status(r, srcs.get(r.get("src")))
         stored = r.get("quote_check")
+        if status == "no-fulltext" and stored in VERIFIED:
+            # The cache is per-machine. A verified status was computed by this tool (--write) where
+            # the text or checkout was cached; without it here, keep the record rather than erase it.
+            status = stored
+            kept += 1
         if status in VERIFIED and r.get("kind") != "critique":
             verified.add(r["id"])
         if write:
@@ -242,6 +257,9 @@ def check_quotes(recs, write: bool) -> set[str]:
             warn(f"{r['id']}: quote found, but not at the cited page/lines")
         elif status == "no-fulltext" and r.get("quote"):
             warn(f"{r['id']}: cannot verify quote — {r.get('src')} has no cached full text/checkout here")
+    if kept:
+        warn(f"{kept} quote(s) kept their recorded quote_check: the source text or checkout is not cached "
+             f"on this machine (fetch_fulltext.py / fetch_code.py, then --write, re-verifies them)")
     return verified
 
 
@@ -258,6 +276,8 @@ def check_observations(recs) -> set[str]:
             if inp.get("sha256") and p.is_file() and sha256_file(p) != inp["sha256"]:
                 err(f"{r['id']}: input {inp['path']} no longer matches its recorded sha256")
                 ok = False
+            elif not inp.get("sha256") and not re.search(r"\b[0-9a-f]{7,64}\b|\bcommit\b", inp.get("note") or ""):
+                warn(f"{r['id']}: input {inp['path']} is unpinned (no sha256, no commit in its note)")
         if r.get("result_path") and not (REPO / r["result_path"]).exists():
             err(f"{r['id']}: result_path {r['result_path']} does not exist")
             ok = False

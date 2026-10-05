@@ -120,8 +120,10 @@ def code_checkout(url: str, commit: str) -> Path:
     return CODECACHE / f"{repo_slug(url)}@{commit[:12]}"
 
 
-# Numbers that carry meaning in a claim's paraphrase (skips ids such as C9, CLM-0012, PDF-1.7).
-_NUM = re.compile(r"(?<![A-Za-z\-\d.])\d+(?:[.,]\d+)*")
+# Numbers that carry meaning in a claim's paraphrase (skips ids such as C9, CLM-0012, PDF-1.7,
+# Adler-32, CC-MAIN-2021-31). A range "12-30" / "11–28" yields both endpoints.
+_NUM = re.compile(r"(?<![A-Za-z\-\d.])\d+(?:[.,]\d+)*(?:\s?[-–]\s?\d+(?:[.,]\d+)*)?")
+_RANGE_SEP = re.compile(r"\s?[-–]\s?")
 
 
 def _canon_number(n: str) -> str:
@@ -131,4 +133,5 @@ def _canon_number(n: str) -> str:
 
 
 def numbers_in(text: str) -> set[str]:
-    return {_canon_number(n) for n in _NUM.findall(unicodedata.normalize("NFKC", text))}
+    return {_canon_number(part) for tok in _NUM.findall(unicodedata.normalize("NFKC", text))
+            for part in _RANGE_SEP.split(tok)}

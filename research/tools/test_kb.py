@@ -105,6 +105,51 @@ class KBGuards(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("CLM-9900: numbers", r.stdout)
 
+    def test_number_rule_applies_without_cached_text(self) -> None:
+        # The cache is gitignored; the number rule needs no cache, so it must still fire.
+        put("sources/registry.jsonl", [source("SRC-9905", "Uncached paper",
+                                              fulltext_sha256="1" * 64, text_sha256="1" * 64)])
+        put("sources/claims.jsonl", [{
+            "id": "CLM-9904", "src": "SRC-9905", "kind": "result", "text": "Recovers 97% of the text.",
+            "quote": "recovers most of the text in the damaged files we tried", "page": 1,
+            "quote_check": "exact", "provenance": PROV}])
+        r = validate()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("CLM-9904: numbers ['97']", r.stdout)
+
+    def test_range_endpoints_count_as_numbers(self) -> None:
+        from kbcommon import numbers_in
+        self.assertEqual(numbers_in("12-30 bytes in 11–28 streams, 1,000 files, 90,67 %"),
+                         {"12", "30", "11", "28", "1000", "90.67"})
+        self.assertEqual(numbers_in("Adler-32, CC-MAIN-2021-31, olmOCR-2-7B, PDF-1.7, C9, CLM-0012"), set())
+        text = "each file differs in 12 bytes from its original and never in more than that"
+        put("sources/registry.jsonl", [self._paper_with_cached_text(text)])
+        put("sources/claims.jsonl", [{"id": "CLM-9905", "src": "SRC-9902", "kind": "result",
+                                      "text": "Each file differs in 12-30 bytes.", "quote": text, "page": None,
+                                      "provenance": PROV}])
+        r = validate()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("CLM-9905: numbers ['30']", r.stdout)
+
+    def test_recorded_verified_status_survives_a_missing_cache(self) -> None:
+        # On a fresh clone the gitignored cache is absent: a tool-recorded exact/fuzzy must still count
+        # as evidence, and --write must not overwrite it with no-fulltext.
+        put("sources/registry.jsonl", [source("SRC-9906", "Uncached paper",
+                                              fulltext_sha256="2" * 64, text_sha256="2" * 64)])
+        put("sources/claims.jsonl", [{
+            "id": "CLM-9906", "src": "SRC-9906", "kind": "result", "text": "The method works on damaged files.",
+            "quote": "the method works on every one of the damaged files we tried", "page": 1,
+            "quote_check": "exact", "provenance": PROV}])
+        put("gaps/gaps.jsonl", [{
+            "id": "GAP-991", "title": "t", "statement": "s", "type": "method-weakness",
+            "evidence": ["CLM-9906"], "scores": {"impact": 3, "feasibility": 3, "novelty": 3, "confidence": 3},
+            "status": "supported", "still_open": "unknown", "provenance": PROV}])
+        r = validate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("quote(s) kept their recorded quote_check", r.stdout)
+        written = [json.loads(ln) for ln in (STG / "sources/claims.jsonl").read_text().splitlines() if ln]
+        self.assertEqual(written[0]["quote_check"], "exact")
+
     def test_short_quote_rejected(self) -> None:
         put("sources/registry.jsonl", [self._paper_with_cached_text("tiny quote here and more words")])
         put("sources/claims.jsonl", [{"id": "CLM-9901", "src": "SRC-9902", "kind": "result",
