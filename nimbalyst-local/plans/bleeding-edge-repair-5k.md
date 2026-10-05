@@ -61,7 +61,7 @@ The research harness lives under `research/eval/` (Python 3.11, pinned in `resea
   3. Adjacency rule: a transferable method is *include* only when it can be written as a PDF procedure; otherwise *maybe*.
   4. Calibration round: two screeners, 20 titles with abstracts, before the sweep. Target include-vs-not kappa ≥ 0.6; report PABAK beside it. If below target, refine the rule and repeat once.
   5. Every judged title is logged, including ones rejected on sight.
-- **Outputs:** `research/reviews/p4-search-plan.md`; calibration results in `research/audits/003-calibration/`.
+- **Outputs:** `research/reviews/p4-search-plan.md`; calibration results in `research/audits/004-calibration/` (003 is the independent review).
 - **Acceptance:** calibration kappa ≥ 0.6, or the shortfall is reported to the board with the reason.
 - **Effort:** 1 session. **Depends on:** Stage 2 ledger; the API-account gate (keys change the recipes).
 - **Decision points:** which keyed services the user provisions.
