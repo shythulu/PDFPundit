@@ -5,17 +5,19 @@ PDFPundit past the state of the art in PDF repair. It is built for agents pickin
 cold, as well as for humans.
 
 ## Status
-- **Stage:** P1 scoping sweep, starting.
+- **Stage:** Stage 2 tooling research, in progress. Two of the four tooling ledgers (literature pipeline, damage and corpora) are merged; the 5k plan is a rev 0 skeleton whose tool slots they fill.
   - P0 (foundations) is done.
   - The Charter Committee (001) is done: all three members approved with changes, 12 blocking issues were resolved, and one partial rejection was escalated to and decided by the user.
-- **Program plan:** `nimbalyst-local/plans/bleeding-edge-repair-10k.md` (rev 3)
-- **Charter:** `charter.md` (rev 2)
-- **Evidence so far:**
-  - 2 sources and 27 claims;
-  - 4 reproducible observations of how the REPDF corpus is actually damaged (`observations/index.md`);
-  - 16 gaps and 16 proposed damage classes.
-- **Paid search used:** 1 of 80.
-- **Next:** the scoping sweep (4 literature communities, an engine source study, a screening audit), then tooling research.
+  - The P1 scoping sweep (committee 002) is done: five agents, a blind screening audit (`audits/002-screening/`), 10k rev 4 and charter rev 2.2.
+  - An independent review of the whole knowledge base (committee 003, `audits/003-independent-review/`) reproduced the REPDF observations and re-verified the claims; its fixes are in.
+- **Program plan:** `nimbalyst-local/plans/bleeding-edge-repair-10k.md` (rev 4); work packages: `nimbalyst-local/plans/bleeding-edge-repair-5k.md` (rev 0)
+- **Charter:** `charter.md` (rev 2.2)
+- **Evidence so far** (live counts: `python research/tools/kb_validate.py` prints them):
+  - 163 sources (159 screening decisions: 138 include, 3 maybe, 18 exclude) and 279 claims, of which 262 are verified quotes or code citations (9 are critiques, which never count);
+  - 17 reproducible observations, 5 of them on how the REPDF corpus is actually damaged (`observations/index.md`);
+  - 51 gaps, 23 proposed damage classes, 3 draft hypotheses, 54 tooling verdicts.
+- **Paid search used:** 22 of 80.
+- **Next:** the remaining Stage 2 agents (engines/oracles/metrics, wildcard scout), hands-on tool verification, the batched access request, then the review board on the 5k plan.
 
 *(This section is rewritten at the end of every stage.)*
 
@@ -48,7 +50,7 @@ The `.md` views marked GENERATED are rebuilt from the JSONL files by `tools/rend
 - **Evidence:** three kinds count, all machine-checked.
   - **Verified quotes:** found in the cached full text, at least 8 words, on the right page, and every number in the paraphrase appears in the quote.
   - **Code citations:** found in the cited lines of the file at a pinned commit.
-  - **Observations:** a committed script with hashed inputs.
+  - **Observations:** a committed script with hashed inputs (external corpora are pinned by commit; the validator flags inputs that have neither).
 
   Our own critiques are inference, never evidence. Anything from memory is a lead.
 - **Decisions:** committee minutes live in `committees/`. Decisions that affect the product become ADRs in `docs/adr/`.

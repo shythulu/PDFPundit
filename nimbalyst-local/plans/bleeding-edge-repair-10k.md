@@ -21,7 +21,7 @@ planStatus:
 > **Altitude:** this is the broad view: goal, questions, workstreams, order, gates and risks.
 > Specifics live elsewhere:
 > - success criteria and metrics: [research/charter.md](../../research/charter.md)
-> - work packages, tools and procedures: [bleeding-edge-repair-5k.md](bleeding-edge-repair-5k.md) (P3 deliverable, not written yet)
+> - work packages, tools and procedures: [bleeding-edge-repair-5k.md](bleeding-edge-repair-5k.md) (P3 deliverable; rev 0 skeleton, tool slots being filled from the Stage 2 ledger)
 > - evidence: [research/README.md](../../research/README.md)
 
 ## Destination

@@ -167,7 +167,7 @@ All are reported per class with confidence intervals.
 - **What counts as evidence.** Three kinds, all machine-checked by `research/tools/kb_validate.py`:
   - a **verified quote**: in the cached text, ≥8 words, correct page, and every number in the paraphrase present in the quote;
   - a **code citation**: quote found in the cited lines of the file at the pinned commit;
-  - a **reproducible observation** (`OBS-`): committed script, hashed inputs.
+  - a **reproducible observation** (`OBS-`): committed script, hashed inputs (or a pinned commit for an external corpus).
   - Critiques (`kind: critique`) are our own inference and **never count as evidence**.
 - **Spec-ready.** A hypothesis is spec-ready only when all of these hold:
   - it has a measurable metric and a `refute_if`;
