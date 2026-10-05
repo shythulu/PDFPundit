@@ -30,7 +30,7 @@ REGISTRIES = {
 }
 
 # Source types whose full text must be a real document of that work (title-checked, no ad-hoc .txt).
-DOCUMENT_TYPES = {"paper", "preprint", "thesis", "standard", "book", "patent"}
+DOCUMENT_TYPES = {"paper", "preprint", "thesis", "standard", "book", "patent", "report"}
 
 
 def load_jsonl(path: Path) -> list[dict]:
