@@ -7,7 +7,7 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 | id | prio | title | type | status | open? | ev | inf | ws | damage | hyp |
 |---|---|---|---|---|---|---|---|---|---|---|
 | GAP-001 | 4.4 | Realistic and compound damage corpus | explicit-future-work | supported | unknown | 18/18 | 1 | W3 | C1, C2, C3, C4, C5, C6, C7, C8, C9, C10 |  |
-| GAP-008 | 4.4 | Evaluation metric that measures extractable, faithful text | evaluation-weakness | supported | unknown | 9/11 | 2 | W3 |  |  |
+| GAP-008 | 4.4 | Evaluation metric that measures extractable, faithful text | evaluation-weakness | supported | unknown | 11/11 | 2 | W3 |  |  |
 | GAP-100 | 4.4 | Real-world truncation benchmark from crawl natural pairs | untested-condition | supported | yes | 7/7 | 0 | W3 | C10, DMG-100 |  |
 | GAP-101 | 4.4 | Ambiguity-aware repair (repair differentials as reported decisions) | method-weakness | supported | yes | 6/6 | 0 | W1 | DMG-009, DMG-011 |  |
 | GAP-104 | 4.4 | Revision-aware tamper detection that survives damage and repair | untested-condition | supported | yes | 9/9 | 0 | W1 | DMG-009, DMG-008, DMG-014 |  |
@@ -70,7 +70,7 @@ Evidence: CLM-0006 (SRC-0001, exact), CLM-0007 (SRC-0001, exact), CLM-0023 (SRC-
 
 OCR-of-original ground truth and exact word match reward visible-but-unsearchable output, mix OCR error into the score, and ignore reading order, layout, and non-text structure. A metric suite separating extractability, visual fidelity, structure, and fabrication is needed.
 
-Evidence: CLM-0016 (SRC-0001, no-fulltext), CLM-0028 (SRC-0001, no-fulltext), CLM-0024 (SRC-0001, inference), CLM-0127 (SRC-0129, exact), CLM-0123 (SRC-0129, exact), CLM-0409 (SRC-0123, exact), CLM-0435 (SRC-0422, exact), CLM-0437 (SRC-0427, exact), CLM-0438 (SRC-0427, exact), CLM-0439 (SRC-0427, fuzzy), CLM-0440 (SRC-0427, exact), CLM-0442 (SRC-0427, exact), CLM-0444 (SRC-0427, inference)
+Evidence: CLM-0016 (SRC-0001, exact), CLM-0028 (SRC-0001, exact), CLM-0024 (SRC-0001, inference), CLM-0127 (SRC-0129, exact), CLM-0123 (SRC-0129, exact), CLM-0409 (SRC-0123, exact), CLM-0435 (SRC-0422, exact), CLM-0437 (SRC-0427, exact), CLM-0438 (SRC-0427, exact), CLM-0439 (SRC-0427, fuzzy), CLM-0440 (SRC-0427, exact), CLM-0442 (SRC-0427, exact), CLM-0444 (SRC-0427, inference)
 
 ### GAP-100 — Real-world truncation benchmark from crawl natural pairs
 

@@ -154,6 +154,7 @@
 | SRC-0504 | Poppler source code (freedesktop poppler) | 2026 |  | extracted | 3 | oa |  |  | pdf-repair, pdf-parsing-robustness, deflate-recovery, font-recovery, glyph-to-unicode, incremental-updates, pdf-security |
 | SRC-0505 | Ghostscript/GhostPDL source code (ArtifexSoftware/ghostpdl) | 2026 |  | extracted | 3 | oa |  |  | pdf-repair, pdf-parsing-robustness, deflate-recovery, font-recovery, glyph-to-unicode, incremental-updates, pdf-security |
 | SRC-0506 | Poppler test-file repository (poppler/test) | 2026 |  | read | 2 | oa |  |  | corpora-datasets, pdf-parsing-robustness |
+| SRC-0700 | CPR source code (BeenyHail/CPR) | 2025 |  | read | 2 | oa |  |  | pdf-repair, glyph-to-unicode, llm-repair, font-recovery |
 | SRC-0800 | digitalcorpora.org Terms of Use / About page |  |  | read |  | oa |  |  | corpora-datasets |
 | SRC-0801 | unicode.org UDHR project decommission notice |  |  | read |  | oa |  |  | corpora-datasets, font-recovery |
 | SRC-0802 | NapierOne dataset entry, AWS Registry of Open Data |  |  | read |  | oa |  |  | corpora-datasets |
