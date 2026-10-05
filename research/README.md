@@ -5,21 +5,22 @@ PDFPundit past the state of the art in PDF repair. It is built for agents pickin
 cold, as well as for humans.
 
 ## Status
-- **Stage:** Stage 3 synthesis is done; Stage 4 (re-validation: a contrarian scout and a hands-on verifier) is next.
+- **Stage:** Stage 4 re-validation is done; the access gate (one batched request to the user) and then Stage 5 (the review board) are next.
   - P0 (foundations) is done.
   - The Charter Committee (001) is done: all three members approved with changes, 12 blocking issues were resolved, and one partial rejection was escalated to and decided by the user.
   - The P1 scoping sweep (committee 002) is done: five agents, a blind screening audit (`audits/002-screening/`), 10k rev 4 and charter rev 2.2.
   - An independent review of the whole knowledge base (committee 003, `audits/003-independent-review/`) reproduced the REPDF observations and re-verified the claims; its fixes are in.
   - Stage 2 tooling is done: four ledgers (literature pipeline, engines/oracles/metrics, damage and corpora, cross-field wildcard). PR #16, a parallel study on main, was ingested and its committed scripts reproduced (agent E). Committee 004 (`committees/004-stage2-tooling.md`) records every decision.
   - Stage 3 is done: 5k rev 1 fills the tool slots and adds WP-3.13 (selection and abstention) and WP-3.14 (producer profiles); 10k rev 5; charter rev 2.3.
-- **Program plan:** `nimbalyst-local/plans/bleeding-edge-repair-10k.md` (rev 5); work packages: `nimbalyst-local/plans/bleeding-edge-repair-5k.md` (rev 1)
+  - Stage 4 is done (committee 005, `committees/005-stage4-revalidation.md`). The hands-on verifier re-ran the Adopt and Trial picks after the container restart (OBS-1200..1215; 5k rev 2). The contrarian scout overturned or narrowed seven choices (OBS-1100..1104; 5k rev 3, 10k rev 6): a second pure-Rust replay oracle, per-file replay calibration, per-script OCR, cluster-aware certification, font leakage across splits, truncation strata, and a board flag on lopdf as sole loader.
+- **Program plan:** `nimbalyst-local/plans/bleeding-edge-repair-10k.md` (rev 6); work packages: `nimbalyst-local/plans/bleeding-edge-repair-5k.md` (rev 3)
 - **Charter:** `charter.md` (rev 2.3)
 - **Evidence so far** (live counts: `python research/tools/kb_validate.py` prints them):
-  - 170 sources (159 screening decisions: 138 include, 3 maybe, 18 exclude) and 366 claims, of which 349 are verified quotes or code citations (9 are critiques, which never count);
-  - 51 reproducible observations (`observations/index.md`), including the REPDF damage characterization and the reproduction of PR #16's C9 numbers;
-  - 53 gaps, 23 proposed damage classes, 6 hypotheses, 118 tooling verdicts (32 Adopt, 28 Trial, 34 Assess, 24 Hold).
-- **Paid search used:** 25 of 80.
-- **Next:** Stage 4 re-validation (the contrarian scout looks for newer alternatives; the verifier re-runs the Adopt and Trial picks after the container restart), then one batched access request to the user, then the review board on the 5k plan.
+  - 178 sources (167 screening decisions: 146 include, 3 maybe, 18 exclude) and 383 claims, of which 366 are verified quotes or code citations (9 are critiques, which never count);
+  - 72 reproducible observations (`observations/index.md`), including the REPDF damage characterization, the reproduction of PR #16's C9 numbers and the Stage 4 re-runs;
+  - 63 gaps, 23 proposed damage classes, 6 hypotheses, 138 tooling verdicts (31 Adopt, 33 Trial, 44 Assess, 30 Hold).
+- **Paid search used:** 30 of 80.
+- **Next:** one batched access request to the user (API keys, blocked hosts, provisioning, user-only contacts; `staging/verifier/access.md` and committee 005's escalations), then Stage 5: a review board of six on the 5k plan, with replication seats (the DEFLATE reviewer runs both replay oracles on all 1,444 damaged-stream counterparts). Then the cold-start test and the research-vs-specs recommendation.
 
 *(This section is rewritten at the end of every stage.)*
 
