@@ -174,3 +174,11 @@
 | SRC-1003 | Corrupted PDF repair beyond REPDF: literature, real-world malformation data, and benchmark corpora | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | pdf-repair, corpora-datasets, pdf-parsing-robustness, evaluation-metrics |
 | SRC-1004 | Repair-method (toolpath) selection, human escalation, and evaluation methodology for PDFPundit | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | toolpath-selection, evaluation-metrics, program-repair, forensic-soundness |
 | SRC-1005 | Repair heuristics in existing PDF implementations vs. PDFPundit's planned carver | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | pdf-repair, pdf-parsing-robustness, incremental-updates, parser-differentials |
+| SRC-1100 | Distribution-Free Prediction Sets for Two-Layer Hierarchical Models | 2018 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1101 | Distribution-free inference with hierarchical data | 2023 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1102 | Learn then Test: Calibrating Predictive Algorithms to Achieve Risk Control | 2021 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1103 | Conformal Risk Control | 2022 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1104 | zlib-bitexact-rs: bit-exact pure-Rust port of stock zlib 1.3.1 deflate | 2026 | GitHub / crates.io | read | 3 | oa |  |  | deflate-recovery, compression-error-resilience |
+| SRC-1105 | Valid Per-Field Selective Risk Control for Document Extraction: Three Failure Modes, a Validity Ladder, and When Conditioning Pays | 2026 | arXiv | read | 3 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1106 | Hierarchical Group-Conditional Conformal Risk Control for Selective Prediction in Language Models | 2026 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1107 | Counting Documents Is Not Counting Text: Unit Bias in Web-PDF Corpus Statistics | 2026 | arXiv | read | 3 | oa | yes |  | corpora-datasets, text-extraction, evaluation-metrics |

@@ -32,6 +32,7 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 | GAP-250 | 4.0 | Which copy wins: engine-specific duplicate and trailer rules in reconstruction | contradiction | supported | unknown | 10/10 | 0 | W1 | C5, DMG-008, DMG-014 | HYP-301 |
 | GAP-251 | 4.0 | Object-stream carving during reconstruction: engines split, nobody measures it | untested-condition | supported | unknown | 6/6 | 0 | W1 | C2, DMG-004, DMG-005 |  |
 | GAP-252 | 4.0 | Truncated streams are thrown away by most engines | method-weakness | supported | unknown | 4/4 | 0 | W1 | C10, DMG-012 |  |
+| GAP-350 | 4.0 | A bit-exact pure-Rust zlib port replays every Save As stream, but its API needs a fork | tooling-gap | supported | yes | 2/2 | 0 | WP-3.3 | C9 |  |
 | GAP-006 | 3.8 | Truncation recovery when content/fonts sit near EOF | untested-condition | supported | unknown | 3/3 | 0 | W1 | C10 |  |
 | GAP-012 | 3.8 | Cross-viewer consistency of repaired output | evaluation-weakness | supported | unknown | 8/8 | 0 | W3 |  |  |
 | GAP-014 | 3.8 | Offset-preserving synthetic damage overstates recoverability | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 | C7, C8 |  |
@@ -44,19 +45,28 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 | GAP-205 | 3.8 | Code-sequence decipherment (substitution-cipher solving) untried for PDF recovery | cross-field-transfer | supported | yes | 4/4 | 0 | W1 | C6, C7, C8 |  |
 | GAP-256 | 3.8 | Header loss: baselines disagree and Ghostscript fails silently | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 | C1, DMG-003, DMG-001 |  |
 | GAP-257 | 3.8 | Engine regression corpora are an untapped, unlabelled damage source | evaluation-weakness | supported | unknown | 2/2 | 0 | W3 | DMG-009, DMG-011 |  |
+| GAP-353 | 3.8 | An -l eng OCR reference is invalid on half of REPDF's pages | evaluation-weakness | supported | yes | 1/1 | 0 | WP-3.2 | C1, C2, C3, C4, C5, C6, C7, C8, C9, C10 |  |
+| GAP-354 | 3.8 | Auto-accept certification ignores clustering of slots within documents | method-weakness | supported | unknown | 5/5 | 0 | WP-3.13 |  |  |
 | GAP-016 | 3.6 | Evidence-preserving emission (revisions and signatures) | method-weakness | candidate | unknown | 5/5 | 0 | W1 | DMG-014 |  |
 | GAP-054 | 3.6 | Syntactic reassembly of out-of-order fragmented PDFs | cross-field-transfer | supported | unknown | 5/5 | 0 | W1 | DMG-006 |  |
 | GAP-103 | 3.6 | Verified equivalence and omission accounting for normalizing rewrites | method-weakness | supported | unknown | 4/4 | 0 | W1 | DMG-014 |  |
 | GAP-204 | 3.6 | Calibrated per-mapping confidence for provenance grading | method-weakness | supported | yes | 3/3 | 0 | W1 | C6, C7, C8 |  |
 | GAP-254 | 3.6 | Encrypted files with a lost /ID: engines guess empty, PDFPundit refuses | method-weakness | supported | unknown | 5/5 | 0 | W1 | C3, DMG-015 |  |
 | GAP-300 | 3.6 | Stream-level C9 repair gains are not measured on REPDF's OCR word metric | evaluation-weakness | supported | unknown | 6/6 | 0 | W3 | C9 | HYP-302 |
+| GAP-351 | 3.6 | Replay parameters can be self-calibrated per file; producer profiles may be unnecessary for replay | contradiction | supported | unknown | 2/2 | 0 | WP-3.14 | C9 |  |
+| GAP-356 | 3.6 | lopdf, the assumed sole emitter, is the weakest pure-Rust loader on C1, C4, C5 and C10 | tooling-gap | supported | unknown | 1/1 | 0 | WP-4.2 | C1, C4, C5, C9, C10 |  |
+| GAP-357 | 3.6 | REPDF C7/C8 leave no font programs, so glyph-based recovery cannot be evaluated on them | evaluation-weakness | supported | unknown | 1/1 | 0 | WP-3.8 | C7, C8 |  |
 | GAP-017 | 3.4 | How common are incremental updates in real PDFs? | contradiction | supported | unknown | 2/2 | 0 | W3 | DMG-008, DMG-014 |  |
 | GAP-106 | 3.4 | Choosing a trustworthy conformance oracle | evaluation-weakness | supported | unknown | 5/5 | 0 | W3 |  |  |
 | GAP-153 | 3.4 | Content models to reconstruct unknown bytes in non-prose PDF streams | cross-field-transfer | supported | yes | 5/5 | 0 | W1 | C9, C10, DMG-002, DMG-003 |  |
 | GAP-203 | 3.4 | Logical-order reconstruction from positioned glyphs (Indic, vertical scripts) | stated-limitation | supported | yes | 2/2 | 0 | W1 | C6, C8 |  |
 | GAP-255 | 3.4 | No decompression-bomb or output guard in PDFPundit's salvage path | method-weakness | supported | unknown | 2/2 | 0 | W1 | DMG-009 |  |
+| GAP-355 | 3.4 | Truncation pairs need token-weighted units, linearization strata and engine-specific recoverability | evaluation-weakness | supported | unknown | 4/4 | 0 | WP-3.7 | C10 |  |
+| GAP-358 | 3.4 | Grouped splits by base document leak font mappings across splits | evaluation-weakness | supported | unknown | 1/1 | 0 | WP-3.11 | C6, C8 |  |
 | GAP-007 | 3.2 | Re-placing orphaned images and content | method-weakness | supported | unknown | 1/1 | 0 | W1 | C4, C5, C10 |  |
 | GAP-301 | 3.2 | Stripping one EOL before 'endstream' is ambiguous when the stream data ends in CR | method-weakness | supported | unknown | 4/4 | 0 | W1 | C9 |  |
+| GAP-352 | 3.2 | Grade-3 uniqueness is untested under a per-file calibrated replay parameter | untested-condition | candidate | unknown | 2/2 | 0 | WP-3.3 | C9 |  |
+| GAP-359 | 3.2 | Plausible-but-wrong text from tolerant loaders is common on font damage | evaluation-weakness | supported | unknown | 2/2 | 0 | WP-3.2 | C6, C8, C10 |  |
 | GAP-055 | 3.0 | Aggregate fabrication and omission rates can hide systematic failure conditions | evaluation-weakness | supported | yes | 2/2 | 0 | W3 |  |  |
 | GAP-011 | 2.8 | Structural collateral damage and adjacency | stated-limitation | supported | unknown | 1/1 | 0 | W1 | C4 |  |
 
@@ -256,6 +266,14 @@ A stream whose end has been cut off is emptied by qpdf, dropped by PDFium, rejec
 
 Evidence: CLM-0503 (SRC-0500, exact), CLM-0527 (SRC-0503, exact), CLM-0521 (SRC-0502, exact), CLM-0544 (SRC-0505, exact)
 
+### GAP-350 — A bit-exact pure-Rust zlib port replays every Save As stream, but its API needs a fork
+
+WP-3.3 picks preflate-rs's token predictor (TOOL-476) as the product's pure-Rust replay oracle: 395 of 400 Save As streams, a mirrored private struct, panics with forced parameters (OBS-0908). zlib-bitexact-rs, a BSD-3 port of stock zlib 1.3.1, reproduces 400 of 400 including those 5, with memLevel sets equal to stock zlib's on all 800 sampled streams and no panics (OBS-1100). Its published API is fixed at level 9, memLevel 8 (CLM-1105), so the product would carry a small patch (level and memLevel as arguments) or upstream it; deflate_fast (levels 1-3) and non-default strategies are not ported. Neither tool replays Print to PDF.
+
+*Inference:* Settle in Stage 4/P4: run the patched crate on all 1,445 REPDF C9 counterparts and on WP-3.9's other producers (levels 1-9 where they occur), then decide TOOL-476 vs TOOL-500 for D3.
+
+Evidence: OBS-1100 (observation, script research/experiments/stage4-contrarian/zbx_replay/zbx_replay.py), CLM-1105 (SRC-1104, exact)
+
 ### GAP-006 — Truncation recovery when content/fonts sit near EOF
 
 Print-to-PDF truncation recovers ~35% vs 99.6% for Save As; the authors' layout explanation is an untested hypothesis. Open: verify the layout cause, partial decoding of truncated streams, and inference from surviving fragments.
@@ -350,6 +368,22 @@ The public test suites of qpdf, pdf.js, PDFium and Poppler hold 2,873 PDF-like f
 
 Evidence: OBS-0500 (observation, script research/experiments/engine_test_corpora.py), CLM-0520 (SRC-0502, exact)
 
+### GAP-353 — An -l eng OCR reference is invalid on half of REPDF's pages
+
+WP-3.2 pins Tesseract -l eng as the text reference and WP-3.5 uses it as the Google Document AI substitute. Three of REPDF's six pages per document are Han, Devanagari or Arabic, where -l eng recovers 2.5-9.2% of the characters; the page's tessdata_best script model recovers 88.9-96.1% (OBS-1102). REPDF-comparable recall and the non-inferiority table (CLM-1065) need a per-script reference and per-script strata and margins.
+
+*Inference:* Settle in P4: OCR every REPDF original with the per-script models and docTR/RapidOCR as second votes; report per-script agreement and set margins per script stratum.
+
+Evidence: OBS-1102 (observation, script research/experiments/stage4-contrarian/ocr_script_recall.py)
+
+### GAP-354 — Auto-accept certification ignores clustering of slots within documents
+
+WP-3.12 sizes the auto-accept certificate at about 150 error-free slots (CLM-1061) and WP-3.13 calibrates with Platt or MAPIE. Conformal and LTT guarantees assume exchangeable or i.i.d. calibration rows (CLM-1100, CLM-1102); on document extraction fields cluster with a design effect of 1.84-2.45 (CLM-1106), so slot-level certificates overstate the evidence about twofold (CLM-1107), and a document-level certificate is near-vacuous at 800 documents (CLM-1108). Marginal guarantees can also fail per group (CLM-1110).
+
+*Inference:* Our slots (streams, fonts, pages) cluster by base document and producer (CLM-1064). Report the design effect on WP-3.13's calibration fold and certify at document level or with a cluster-corrected or hierarchical method (CLM-1111); REPDF's 50 base documents cannot certify 2% at document level.
+
+Evidence: CLM-1106 (SRC-1105, exact), CLM-1107 (SRC-1105, exact), CLM-1108 (SRC-1105, exact), CLM-1102 (SRC-1102, exact), CLM-1110 (SRC-1106, exact)
+
 ### GAP-016 — Evidence-preserving emission (revisions and signatures)
 
 REPDF re-emits a new file through pikepdf (CLM-0018), which discards earlier revisions and invalidates signatures. Open: append-only incremental repair overlays that keep the original bytes (and a signed revision's ByteRange) intact, and how to choose and report the revision used.
@@ -398,6 +432,30 @@ PR #16 counts its C9 gains as damaged Flate streams restored byte-exact: about 3
 
 Evidence: CLM-1032 (SRC-1000, exact), CLM-1062 (SRC-1000, exact), CLM-1030 (SRC-1000, exact), CLM-1065 (SRC-1000, exact), OBS-1014 (observation, script research/experiments/pr16/headline_c9.py), OBS-1000 (observation, script research/experiments/pr16/c9exp.py)
 
+### GAP-351 — Replay parameters can be self-calibrated per file; producer profiles may be unnecessary for replay
+
+WP-3.14 and OBS-0908 make producer-profile parameters a model input for product replay, because preflate-rs's per-stream estimation recovers only 47 of 399. Exact replay over the file's own intact Flate streams (no producer label) calibrates memLevel {7} in 50 of 50 C9 Save As files and that calibration reproduces 819 of 819 damaged streams' originals (OBS-1101). For Print to PDF calibration is empty in 50 of 50 files, so a profile would not help replay there either.
+
+*Inference:* Profiles may still carry non-replay facts (xref bias, EOL, fonts; OBS-0905, OBS-0907). Untested: files with few intact streams, multi-producer incremental updates, and producers whose streams use several parameter sets within one file.
+
+Evidence: OBS-1101 (observation, script research/experiments/stage4-contrarian/selfcal.py), OBS-1100 (observation, script research/experiments/stage4-contrarian/zbx_replay/zbx_replay.py)
+
+### GAP-356 — lopdf, the assumed sole emitter, is the weakest pure-Rust loader on C1, C4, C5 and C10
+
+The product assumes lopdf as its loader and emitter (TOOL-359). Across all 1,100 REPDF files, hayro-syntax 0.8.0 alone opens C1 (100/100) and C10 Save As (50/50) with correct page counts; lopdf 0.45.0 opens none of them and opens C4 Save As and C5 Print with 0 correct page counts; pdfrum 0.4.0 recovers all C5 Print text and more C9 text than lopdf (OBS-1103).
+
+*Inference:* Flag for WP-4.2, not decided here: a tolerant reader (hayro-syntax or pdfrum) in front of lopdf's writer, or a different writer (TOOL-505, 508, 509), are options. Emit paths of the challengers were not tested.
+
+Evidence: OBS-1103 (observation, script research/experiments/stage4-contrarian/rust_loaders/src/main.rs)
+
+### GAP-357 — REPDF C7/C8 leave no font programs, so glyph-based recovery cannot be evaluated on them
+
+C7 and C8 remove every embedded font program, referenced or orphaned, and C8 every CMap stream as well (OBS-1104). Glyph-shape OCR, glyph-name inference and font-program table lookups have no input on these classes; only font names, encodings, widths and content codes survive.
+
+*Inference:* Methods that need glyph outlines (TOOL-514, HYP-300-style font checks, CPR's glyph matching if it uses outlines) must be evaluated on natural pairs or a generator that strips ToUnicode but keeps programs; REPDF C8 tests name/width/context inference only.
+
+Evidence: OBS-1104 (observation, script research/experiments/stage4-contrarian/font_inventory.py)
+
 ### GAP-017 — How common are incremental updates in real PDFs?
 
 Caradoc's authors report that the majority of real-world files they parsed used incremental updates, some several (CLM-0202). In a 1,000-file sample of the refetched SafeDocs CC-MAIN-2021-31 corpus, Tika reports at least one incremental update in 276 of 1042 rows, about 26% (OBS-0200). DMG-008 and DMG-014 need this rate to weight damage, and it also sets how often revision-aware repair (GAP-016) matters. Open: measure it with one explicit definition (count of %%EOF-terminated sections, with hybrid-reference and linearized files counted separately) on the same samples.
@@ -438,6 +496,22 @@ Engines bound the decoding of hostile streams: MuPDF aborts once decoded output 
 
 Evidence: CLM-0513 (SRC-0501, exact), CLM-0529 (SRC-0503, exact)
 
+### GAP-355 — Truncation pairs need token-weighted units, linearization strata and engine-specific recoverability
+
+WP-3.7 stratifies truncation pairs by ZIP, reason, size and producer. A 2026 study of the same corpus finds truncated files are 23.06% of documents but hold 63.08% of the text (CLM-1112), that recoverability differs 8.4x between PyMuPDF and PDFium on identical fragments (CLM-1114), that 72.4% of truncated files open and yield no text (CLM-1115), and that linearized files recover far less under PyMuPDF (1.1% vs 18.5%, CLM-1116).
+
+*Inference:* Add linearization as a stratum, report token-weighted as well as document-weighted results, score 'opens with no text' as plausible-but-wrong, and treat the upper bound as engine-specific.
+
+Evidence: CLM-1112 (SRC-1107, exact), CLM-1114 (SRC-1107, exact), CLM-1115 (SRC-1107, exact), CLM-1116 (SRC-1107, exact)
+
+### GAP-358 — Grouped splits by base document leak font mappings across splits
+
+WP-3.11 groups REPDF by base document. Leaving one Save As base document out, 93.1% of its ToUnicode entries (font name, code) also appear in other documents' maps, and 94.0% of those agree (OBS-1104). A C6/C8 decoder, selector or font DB fitted on the other documents therefore already holds most of a held-out document's mapping.
+
+*Inference:* Either group by font family as well as base document, or add a held-out font set and report results on unseen fonts separately; otherwise C6/C8 scores measure font-DB lookup on REPDF's few Word fonts, not generalization (GAP-003).
+
+Evidence: OBS-1104 (observation, script research/experiments/stage4-contrarian/font_inventory.py)
+
 ### GAP-007 — Re-placing orphaned images and content
 
 When placement is lost, images are dumped to files rather than placed on pages; no heuristic reconstructs placement or page order from surviving evidence (e.g., content-stream Do operators, XObject names, MediaBox geometry).
@@ -451,6 +525,22 @@ When /Length is missing or wrong, engines take a stream's extent from the next '
 *Inference:* The rule's failure rate in the wild is unmeasured. Testable: in REPDF originals and engine regression corpora, count streams whose /Length-delimited data ends in 0x0D followed by a single LF, then remove /Length and record which engines and which PDFPundit carver rule lose that byte. A carver that tries both trimmings and keeps the one where zlib ends exactly is a cheap fix for Flate streams.
 
 Evidence: OBS-1012 (observation, script research/experiments/pr16/crosscheck_obs0300.py), CLM-1051 (SRC-1000, exact), CLM-1055 (SRC-1000, exact), CLM-0526 (SRC-0503, exact)
+
+### GAP-352 — Grade-3 uniqueness is untested under a per-file calibrated replay parameter
+
+WP-3.3's grade-3 rule counts candidates that pass replay at any swept parameter. With the file's own calibration fixed (memLevel 7 in every Save As file, OBS-1101), replay accepts a candidate only at one parameter set, which may remove survivors such as OBS-0903's Adler collision and trailer rewrite. Neither the plan nor OBS-0903/0904 measured survivors under a calibrated parameter.
+
+*Inference:* Re-run OBS-0903/0904's enumeration with replay restricted to the file's calibrated parameters; report survivor counts both ways.
+
+Evidence: OBS-1101 (observation, script research/experiments/stage4-contrarian/selfcal.py), OBS-1100 (observation, script research/experiments/stage4-contrarian/zbx_replay/zbx_replay.py)
+
+### GAP-359 — Plausible-but-wrong text from tolerant loaders is common on font damage
+
+pdfrum returns text for every C6 Save As file but less than half of it is right (recall 0.578, precision 0.485); on C8 both lopdf and pdfrum return text at precision 0.57-0.71 Save As and 0.14 Print (OBS-1103). A loader that opens and returns text is not a weak success signal on these classes but a source of confident wrong text.
+
+*Inference:* WP-3.2's plausible-but-wrong KPI should be measured on null-repair loader output too, with character precision reported beside recall.
+
+Evidence: OBS-1103 (observation, script research/experiments/stage4-contrarian/rust_loaders/src/main.rs), CLM-1115 (SRC-1107, exact)
 
 ### GAP-055 — Aggregate fabrication and omission rates can hide systematic failure conditions
 

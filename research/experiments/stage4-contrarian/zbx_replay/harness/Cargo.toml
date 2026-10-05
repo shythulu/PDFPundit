@@ -1,0 +1,10 @@
+[package]
+name = "zbx_replay"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zlib-bitexact-rs = { path = "../zlib-bitexact-rs-0.131.1" }
+
+[profile.release]
+opt-level = 3

@@ -1,0 +1,147 @@
+{
+ "documents": [
+  "AI_Development_MultiLanguage(saveas).pdf",
+  "NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf",
+  "climate_crisis_preparedness_community_action_guidelines_multilang(saveas).pdf",
+  "smart_factory_robot_malfunction_analysis(saveas).pdf"
+ ],
+ "ARABIC": {
+  "pages": 4,
+  "tess_eng": {
+   "recall_mean": 0.0251,
+   "recall_min": 0.0131,
+   "precision_mean": 0.0387,
+   "seconds_mean": 2.6
+  },
+  "tess_script": {
+   "recall_mean": 0.9375,
+   "recall_min": 0.9157,
+   "precision_mean": 0.9843,
+   "seconds_mean": 2.47
+  },
+  "tess_all": {
+   "recall_mean": 0.8752,
+   "recall_min": 0.8037,
+   "precision_mean": 0.9265,
+   "seconds_mean": 11.45
+  },
+  "rapidocr": {
+   "recall_mean": 0.018,
+   "recall_min": 0.0037,
+   "precision_mean": 0.4063,
+   "seconds_mean": 7.39
+  },
+  "rapid_script": {
+   "recall_mean": 0.7805,
+   "recall_min": 0.6587,
+   "precision_mean": 0.9954,
+   "seconds_mean": 10.71
+  }
+ },
+ "DEVANAGARI": {
+  "pages": 4,
+  "tess_eng": {
+   "recall_mean": 0.0353,
+   "recall_min": 0.0249,
+   "precision_mean": 0.0545,
+   "seconds_mean": 2.93
+  },
+  "tess_script": {
+   "recall_mean": 0.8894,
+   "recall_min": 0.8016,
+   "precision_mean": 0.8953,
+   "seconds_mean": 3.01
+  },
+  "tess_all": {
+   "recall_mean": 0.806,
+   "recall_min": 0.5344,
+   "precision_mean": 0.852,
+   "seconds_mean": 14.7
+  },
+  "rapidocr": {
+   "recall_mean": 0.0313,
+   "recall_min": 0.0191,
+   "precision_mean": 0.351,
+   "seconds_mean": 7.06
+  },
+  "rapid_script": {
+   "recall_mean": 0.7254,
+   "recall_min": 0.4906,
+   "precision_mean": 0.89,
+   "seconds_mean": 10.12
+  }
+ },
+ "HAN": {
+  "pages": 4,
+  "tess_eng": {
+   "recall_mean": 0.0916,
+   "recall_min": 0.0499,
+   "precision_mean": 0.0846,
+   "seconds_mean": 2.4
+  },
+  "tess_script": {
+   "recall_mean": 0.9607,
+   "recall_min": 0.9375,
+   "precision_mean": 0.9636,
+   "seconds_mean": 1.87
+  },
+  "tess_all": {
+   "recall_mean": 0.9067,
+   "recall_min": 0.8376,
+   "precision_mean": 0.9138,
+   "seconds_mean": 11.43
+  },
+  "rapidocr": {
+   "recall_mean": 0.9934,
+   "recall_min": 0.9829,
+   "precision_mean": 0.9977,
+   "seconds_mean": 7.73
+  },
+  "rapid_script": {
+   "recall_mean": 0.9934,
+   "recall_min": 0.9829,
+   "precision_mean": 0.9977,
+   "seconds_mean": 7.5
+  }
+ },
+ "LATIN": {
+  "pages": 12,
+  "tess_eng": {
+   "recall_mean": 0.9823,
+   "recall_min": 0.9665,
+   "precision_mean": 0.9818,
+   "seconds_mean": 2.72
+  },
+  "tess_script": {
+   "recall_mean": 0.9922,
+   "recall_min": 0.985,
+   "precision_mean": 0.9929,
+   "seconds_mean": 3.16
+  },
+  "tess_all": {
+   "recall_mean": 0.9915,
+   "recall_min": 0.9812,
+   "precision_mean": 0.9892,
+   "seconds_mean": 4.59
+  },
+  "rapidocr": {
+   "recall_mean": 0.9706,
+   "recall_min": 0.8973,
+   "precision_mean": 0.9974,
+   "seconds_mean": 10.25
+  },
+  "rapid_script": {
+   "recall_mean": 0.9627,
+   "recall_min": 0.8588,
+   "precision_mean": 0.9975,
+   "seconds_mean": 11.5
+  }
+ },
+ "versions": {
+  "rapidocr": "3.9.2",
+  "onnxruntime": "1.30.0",
+  "tesseract": "tesseract 5.5.1",
+  "tesserocr": "2.11.0",
+  "pymupdf": "1.28.2"
+ }
+}
