@@ -13,7 +13,7 @@ How each REPDF class changes the bytes (all 1,000 files vs their originals): C1 
 
 ## OBS-0002
 
-REPDF's C9 files are not single-byte corruptions: each of the 100 C9 files differs from its original in 12-30 bytes spread across 11-28 distinct stream bodies (size unchanged), contradicting the paper's 'modifying a random byte' (CLM-0026).
+REPDF's C9 files are not single-byte corruptions: each of the 100 C9 files differs from its original in 12-30 bytes spread across 11-28 distinct stream bodies (size unchanged). The paper only says C9 modifies 'a random byte within a zlib-compressed stream' (CLM-0026): that holds per damaged stream, but the paper does not say that 11-28 streams per file are hit.
 
 - Result: C9/saveas diff_bytes 13/21/29, streams_hit 11/17/28; C9/print diff_bytes 12/22.5/30, streams_hit 12/18/26 (min/median/max). Replacement bytes are varied (top replacement byte covers <=4% of changes).
 - Reproduce: `python3 research/experiments/corpus_characterize.py /home/user/dfrc-korea/repdf research/experiments/results/corpus_characterize`
