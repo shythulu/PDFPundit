@@ -49,12 +49,14 @@ Sorted by priority. `ev` = verified evidence (quotes, code citations, observatio
 | GAP-103 | 3.6 | Verified equivalence and omission accounting for normalizing rewrites | method-weakness | supported | unknown | 4/4 | 0 | W1 | DMG-014 |  |
 | GAP-204 | 3.6 | Calibrated per-mapping confidence for provenance grading | method-weakness | supported | yes | 3/3 | 0 | W1 | C6, C7, C8 |  |
 | GAP-254 | 3.6 | Encrypted files with a lost /ID: engines guess empty, PDFPundit refuses | method-weakness | supported | unknown | 5/5 | 0 | W1 | C3, DMG-015 |  |
+| GAP-300 | 3.6 | Stream-level C9 repair gains are not measured on REPDF's OCR word metric | evaluation-weakness | supported | unknown | 6/6 | 0 | W3 | C9 | HYP-302 |
 | GAP-017 | 3.4 | How common are incremental updates in real PDFs? | contradiction | supported | unknown | 2/2 | 0 | W3 | DMG-008, DMG-014 |  |
 | GAP-106 | 3.4 | Choosing a trustworthy conformance oracle | evaluation-weakness | supported | unknown | 5/5 | 0 | W3 |  |  |
 | GAP-153 | 3.4 | Content models to reconstruct unknown bytes in non-prose PDF streams | cross-field-transfer | supported | yes | 5/5 | 0 | W1 | C9, C10, DMG-002, DMG-003 |  |
 | GAP-203 | 3.4 | Logical-order reconstruction from positioned glyphs (Indic, vertical scripts) | stated-limitation | supported | yes | 2/2 | 0 | W1 | C6, C8 |  |
 | GAP-255 | 3.4 | No decompression-bomb or output guard in PDFPundit's salvage path | method-weakness | supported | unknown | 2/2 | 0 | W1 | DMG-009 |  |
 | GAP-007 | 3.2 | Re-placing orphaned images and content | method-weakness | supported | unknown | 1/1 | 0 | W1 | C4, C5, C10 |  |
+| GAP-301 | 3.2 | Stripping one EOL before 'endstream' is ambiguous when the stream data ends in CR | method-weakness | supported | unknown | 4/4 | 0 | W1 | C9 |  |
 | GAP-055 | 3.0 | Aggregate fabrication and omission rates can hide systematic failure conditions | evaluation-weakness | supported | yes | 2/2 | 0 | W3 |  |  |
 | GAP-011 | 2.8 | Structural collateral damage and adjacency | stated-limitation | supported | unknown | 1/1 | 0 | W1 | C4 |  |
 
@@ -386,6 +388,14 @@ When the trailer /ID of an encrypted file is missing or damaged, qpdf, MuPDF, PD
 
 Evidence: CLM-0506 (SRC-0500, exact), CLM-0515 (SRC-0501, exact), CLM-0530 (SRC-0503, exact), CLM-0538 (SRC-0504, exact), CLM-0547 (SRC-0505, exact)
 
+### GAP-300 — Stream-level C9 repair gains are not measured on REPDF's OCR word metric
+
+PR #16 counts its C9 gains as damaged Flate streams restored byte-exact: about 39% of 1,445 (218 inflate-error + 324 grammar-localized + 20 small fonts; reproduced by OBS-1014), and says itself that the effect on REPDF's OCR word metric was not measured (CLM-1032). PDFPundit's planned Dice metric over a Myers alignment is LCS-F1 and not comparable with REPDF's OCR word recall on renders (CLM-1062). Every C9 file has 7-26 damaged Flate streams (OBS-1000), most of them fonts, so the share of pages whose text renders and extracts correctly need not track the share of streams restored. No mapping from per-stream fidelity to REPDF's per-file C9 figure exists, so a C9 non-inferiority claim (CLM-1065) cannot yet be derived from stream results.
+
+*Inference:* That page-text recall can diverge from the stream share is our inference: a page's text needs its content stream and every font it draws with, and a restored font helps only if its glyphs appear on the page; keep-all prefix and suffix salvage already keeps 59% of decoded bytes (OBS-1003). Testable on the 100 C9 files with a REPDF-comparable OCR word-recall harness (5k plan WP-3.5): prefix salvage vs the PR #16 search ladder, paired per file (HYP-302).
+
+Evidence: CLM-1032 (SRC-1000, exact), CLM-1062 (SRC-1000, exact), CLM-1030 (SRC-1000, exact), CLM-1065 (SRC-1000, exact), OBS-1014 (observation, script research/experiments/pr16/headline_c9.py), OBS-1000 (observation, script research/experiments/pr16/c9exp.py)
+
 ### GAP-017 — How common are incremental updates in real PDFs?
 
 Caradoc's authors report that the majority of real-world files they parsed used incremental updates, some several (CLM-0202). In a 1,000-file sample of the refetched SafeDocs CC-MAIN-2021-31 corpus, Tika reports at least one incremental update in 276 of 1042 rows, about 26% (OBS-0200). DMG-008 and DMG-014 need this rate to weight damage, and it also sets how often revision-aware repair (GAP-016) matters. Open: measure it with one explicit definition (count of %%EOF-terminated sections, with hybrid-reference and linearized files counted separately) on the same samples.
@@ -431,6 +441,14 @@ Evidence: CLM-0513 (SRC-0501, exact), CLM-0529 (SRC-0503, exact)
 When placement is lost, images are dumped to files rather than placed on pages; no heuristic reconstructs placement or page order from surviving evidence (e.g., content-stream Do operators, XObject names, MediaBox geometry).
 
 Evidence: CLM-0015 (SRC-0001, exact)
+
+### GAP-301 — Stripping one EOL before 'endstream' is ambiguous when the stream data ends in CR
+
+When /Length is missing or wrong, engines take a stream's extent from the next 'endstream' and strip one EOL before it (PDFium, CLM-0526); PR #16 proposes the same rule (CLM-1051), and no surveyed engine uses decompression to find the extent (CLM-1055). If the data's last byte is 0x0D and the producer wrote a bare LF, the pair CR LF reads as one EOL and the data loses its last byte. Our own C9 probe (research/experiments/flate_c9_probe.py) did exactly this on 3 of 1,445 damaged Flate streams, all Print to PDF, each ending in zlib byte 0x0D followed by one LF (OBS-1012), so OBS-0300/0301/0302 undercount by 3. For Flate data the zlib end (Z_STREAM_END with a matching Adler-32 and every byte consumed) can decide between the two trimmings; for unfiltered or non-Flate streams there is no such oracle.
+
+*Inference:* The rule's failure rate in the wild is unmeasured. Testable: in REPDF originals and engine regression corpora, count streams whose /Length-delimited data ends in 0x0D followed by a single LF, then remove /Length and record which engines and which PDFPundit carver rule lose that byte. A carver that tries both trimmings and keeps the one where zlib ends exactly is a cheap fix for Flate streams.
+
+Evidence: OBS-1012 (observation, script research/experiments/pr16/crosscheck_obs0300.py), CLM-1051 (SRC-1000, exact), CLM-1055 (SRC-1000, exact), CLM-0526 (SRC-0503, exact)
 
 ### GAP-055 — Aggregate fabrication and omission rates can hide systematic failure conditions
 

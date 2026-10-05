@@ -1,0 +1,10 @@
+Counter({'flagged': 343, 'true_before_flag': 343, 'no_flag': 60})
+input distance flag - true_off quantiles: [-8, -4, -3, -1, 1, 6, 34, 251, 14131]
+true off within [flag-64, flag+8]: 0.918
+true off within [flag-256, flag+8]: 0.948
+true off within [flag-1024, flag+8]: 0.959
+true off within [flag-4096, flag+8]: 0.988
+
+real	0m19.140s
+user	0m18.747s
+sys	0m0.099s
