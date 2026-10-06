@@ -176,12 +176,12 @@ OCR can only help when the page renders with the correct glyph shapes: C6 (font 
 
 ### Inferences
 - **Why OCR is an alignment oracle rather than a text source:** every code occurs many times, so noisy OCR plus a majority vote per code gives a clean map. Each OCR'd line is aligned to the code sequence of the same line (known positions from the content stream) with edit-distance alignment; votes accumulate per code; OCR stops once every used code has ≥k consistent votes (sampling lines, not whole pages). The resulting map then decodes the entire document exactly, with correct spacing and order, and yields a proper `/ToUnicode`. Arabic and Hindi need cluster-level (glyph-n-gram) votes and the reordering noted in §4.
-- **Pure-Rust packaging:** use tract or rten plus PaddleOCR ONNX models: det ~4.75 MB plus rec ~8 MB per script, ~30–40 MB for en/fr/es + ar + hi + zh (estimate; the zh rec model size was not verified). ocrs alone covers only en/fr/es. For a v1 single binary, OCR is a reasonable **optional download or feature-gated component**, and the plan already parks OCR in "Pundit+". Per-glyph rendering plus shape matching (§2) gives most of the benefit without any model.
+- **Pure-Rust packaging:** use tract or rten plus PaddleOCR ONNX models: det ~4.75 MB plus rec ~8 MB per script, ~30–40 MB for en/fr/es + ar + hi + zh (estimate; the PP-OCRv4 zh rec model is 10.9 MB, so ~35–45 MB is safer). ocrs alone covers only en/fr/es. For a v1 single binary, OCR is a reasonable **optional download or feature-gated component**; the plan schedules it as the optional, feature-gated M9 (it was parked in "Pundit+" until 2026-10-04; see [outlined_text_and_ocr.md §5](outlined_text_and_ocr.md)). Per-glyph rendering plus shape matching (§2) gives most of the benefit without any model.
 - **Rendering for OCR:** hayro can rasterize the page, but only with the original font program (C6 and ToUnicode-lost cases). For C8 there is nothing correct to render.
 
 ### Gaps
 - No published character error rates for ocrs, and no CPU latency numbers for tract-run PaddleOCR on typical pages, were found.
-- The Chinese PP-OCRv5 mobile rec ONNX size was not verified.
+- The Chinese PP-OCRv5 mobile rec ONNX size was not verified. The PP-OCRv4 Chinese/English rec ONNX (`ch_PP-OCRv4_rec_infer.onnx`, as packaged in RapidOCR 1.4.4) is 10.9 MB, measured 2026-10-04; see [outlined_text_and_ocr.md §3](outlined_text_and_ocr.md).
 - No published study of OCR-to-glyph-code alignment accuracy was found beyond Stefanovitch's user-typed variant.
 
 ---
