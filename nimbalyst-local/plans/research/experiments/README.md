@@ -24,12 +24,14 @@ git clone https://github.com/dfrc-korea/REPDF repdf-repo
 | `outline_loss.py` | Per document: non-whitespace characters extractable from the text layer, Save As vs Print to PDF, plus glyph-run paths and contours in the Print file. | `python3 outline_loss.py repdf-repo` |
 | `glyph_count.py` | Glyphs shown via text operators per page language, Save As vs Print, plus outline contours (the 4.7% / 16.5% / 25.2% table). | `python3 glyph_count.py` (expects `repdf-repo/` beside it) |
 | `outline_fonts.py` | Fonts used per page (Save As) against outlined Print pages; finds the two always-outlined fonts. | `python3 outline_fonts.py` (expects `repdf-repo/` beside it) |
+| `font_fstype.py` | OS/2 `fsType` (embedding permission) and outline table of every embedded font program, against which Print pages draw outlines; shows the two outlined fonts are the only Preview & Print fonts (needs `fontTools`). | `python3 font_fstype.py [repdf-repo]` |
 | `ocr_outlined.py` | Renders English and Chinese pages (PDFium, 200 dpi), OCRs them with PaddleOCR PP-OCRv4 via RapidOCR, and scores text-layer vs OCR recall against the Save As text. Writes `ocr/ocr_outlined.jsonl`. Needs `pypdf`, `pypdfium2`, `rapidocr-onnxruntime`. | `python3 ocr_outlined.py [n_docs]` (expects `repdf-repo/` beside it) |
 | `ocr_summary.py` | Pools `ocr_outlined.jsonl` by language and by whether the Print page has outlines. | `python3 ocr_summary.py [jsonl]` |
 
-The outlined-text scripts need `pypdf` (6.19 was used); the OCR script also
-needs `pypdfium2` and `rapidocr-onnxruntime` (1.4.4 was used, which bundles the
-PP-OCRv4 ONNX models). onnxruntime is C++, which is fine for research and dev
+The outlined-text scripts need `pypdf` (6.19 was used) and `font_fstype.py`
+also `fontTools` (4.66); the OCR script also needs `pypdfium2` and
+`rapidocr-onnxruntime` (1.4.4 was used, which bundles the PP-OCRv4 ONNX
+models). onnxruntime is C++, which is fine for research and dev
 tooling but not for the product build.
 
 Known gap: the step that wrote the per-stream `cases/` directory (`<id>.z`
