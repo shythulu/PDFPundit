@@ -247,7 +247,7 @@ pub enum Location {
 }
 
 pub struct Finding {
-    pub id: String,                          // stable per run, e.g. "C2-001"
+    pub id: String,                          // stable per run, e.g. "C2-001", "OUTLINE-001"
     pub class: FindingKind,
     pub severity: Severity,
     pub location: Location,
@@ -261,6 +261,7 @@ pub enum Repairability {
     Interactive(InteractionKind),            // FontPick / FontSubstitution
     Partial(String),                         // best-effort; explains the loss
     Unrepairable(String),
+    NotApplicable,                           // Info findings (§5.6): nothing to repair
 }
 ```
 
@@ -469,13 +470,16 @@ pub enum ResolutionStatus {
 
 - **Outlines**: each glyph is a filled path (`m/l/c/h … f` under a `cm`). There
   is no font, no codes and no `/ToUnicode`. Microsoft Print to PDF does this
-  for some fonts. In the REPDF originals it outlines **4.7% of all glyphs**
-  (16.5% on English pages, 25.2% on Chinese pages) in **43 of the 50** Print to
-  PDF files, and none in Save As files. The trigger is the font (two TrueType
-  faces with unrestricted `fsType`), not a licence flag.
+  for some fonts. In the REPDF originals it outlines **4.7% of all glyphs in
+  the Print to PDF files** (16.5% on English pages, 25.2% on Chinese pages) in
+  **43 of the 50** of them, and none in Save As files. The trigger is the
+  font's embedding permission: the two outlined faces are the only two in the
+  corpus with OS/2 `fsType` 4 (Preview & Print); Word's Save As embeds them,
+  Print to PDF embeds the other 42 and outlines these.
 - **Type3 fonts**: glyphs are content-stream procedures. Codes exist, but the
-  "font program" is PDF drawing operators. None in the REPDF corpus; Chrome
-  emits them when a font's embedding is restricted.
+  "font program" is PDF drawing operators. None in the REPDF corpus; Chrome's
+  PDF backend (Skia) falls back to them when a font is not embeddable, and
+  also for variable fonts, bare CFF fonts and mask-filtered text.
 - **Images of text** (scans, flattened exports).
 
 PDF has no native SVG; text that began as SVG arrives as one of these three.
@@ -484,8 +488,10 @@ Evidence and scripts: [research addendum](research/research_notes/Corrupted%20PD
 Handling:
 
 - **Repair**: nothing special. Outlined glyphs are ordinary content-stream
-  operators, so they survive whenever the stream survives (carving keeps
-  streams verbatim). The C9 Adler-checked byte search works on them unchanged;
+  operators, so they survive whenever the stream survives and is copied
+  verbatim, which both emit strategies do (§17.4); they are then visible as
+  long as the viewer draws the rest of the page. The C9 Adler-checked byte
+  search works on them unchanged;
   the grammar localizer is weaker, because a corrupted coordinate digit is
   still a valid number. §15 classifies path-only typeless streams as `Content`.
 - **Detection** (v1, no model): `diagnose.rs` emits an `Info` finding of kind
@@ -494,7 +500,8 @@ Handling:
   are not corruption classes and never trigger a pass. They feed Markdown
   export (M8), the retention check (§17.4) and evaluation strata (§8). Without
   the `ocr` feature, Markdown export writes a visible note on each flagged page
-  (`<!-- 412 glyphs on this page are drawn as outlines and were not extracted -->`)
+  (`<!-- text drawn as outlines on this page (9 paths, 412 contours) was not extracted -->`;
+  one filled path is usually a whole line, so glyphs cannot be counted)
   instead of dropping the words silently. The detector found no false positives
   on REPDF, whose documents carry no vector art; its precision on real-world
   files is untested.
@@ -519,7 +526,8 @@ layer.
   rule. Pages are rasterised with `hayro` at 200 dpi.
 - **Models**: detection 4.75 MB, Chinese/English recognition 10.9 MB,
   Devanagari 7.9 MB, Arabic 7.8 MB, direction classifier 0.6 MB, plus a Latin
-  recognition model for en/fr/es. That is about 35–45 MB, so models are
+  recognition model for en/fr/es. That is about 35–45 MB (an estimate; only
+  the three PP-OCRv4 files were measured), so models are
   **downloaded on first use** into the asset dir and checked against SHA-256
   hashes pinned in an `ocr-models.json` manifest; an `ocr-bundled` feature
   embeds them for offline builds. The download is opt-in, like every other
@@ -1211,9 +1219,12 @@ are included (keeps the CMap small).
 | — (extra) | `/Encrypt` present in trailer/carve ⇒ `Unrepairable("decrypt first")` |
 | — (info) | filled paths with ≥3 curve segments ⇒ `OutlinedText` per page; Type3 font in use ⇒ `Type3Text` (§5.6; never a repair) |
 
-Each detector yields `Finding{ class, severity, location, evidence, repair }`;
-`repair` is set from the class's `Repairability` (Auto / Interactive / Partial /
-Unrepairable) so the UI knows which need a prompt before running.
+Each detector yields `Finding{ class, severity, location, evidence, repair }`.
+For `FindingKind::Corruption(class)` and `Encrypted`, `repair` is set from the
+class's `Repairability` (Auto / Interactive / Partial / Unrepairable) so the UI
+knows which need a prompt before running; the info kinds (`OutlinedText`,
+`Type3Text`) carry `Repairability::NotApplicable` and never enter
+`JobKind::Repair { passes }`.
 
 ## 20. Edge-case catalogue (each ⇒ a `tests/fixtures.rs` case)
 
