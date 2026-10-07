@@ -930,11 +930,12 @@ CHOMP_DURS = [.45, .3, .2, .45, .28, .28, .35, 1.6]
 # on, it hangs from the mouth and gets slurped up: only its lower rows show,
 # then (first row past the end) just the crumbs.
 CHOMP_DOC = [(50, 18, 0), (50, 18, 0), (50, 34, 0), (50, 54, 4), (50, 54, 9), (50, 54, 16), None, None]
-WCHOMP_DOC = [(12, 3, 0), (12, 3, 0), (12, 11, 0), (12, 19, 2), (12, 19, 5), (12, 19, 8), None, None]
+WCHOMP_DOC = [(12, 3, 0), (12, 3, 0), (12, 11, 0), (12, 19, 2), (12, 19, 5), None, None, None]   # no crumbs at this size
 CHOMP_FX = [[], [], [], [(79, 10, 'CHOMP!', 'M')], [(28, 12, 'nom', 'm')],
             [(28, 12, 'nom', 'm'), (81, 15, 'nom', 'M')], [(80, 12, 'gulp', 'C')], []]
 WCHOMP_FX = [[], [], [], [], [(28, 1, 'nom', 'm')], [(28, 1, 'nom', 'M')], [], []]
-CRUMBS = [(-3, 9, 'W'), (2, 11, 'R'), (12, 10, 'W'), (15, 7, 'W'), (-5, 4, 'R')]   # 'nom nom' frame, around the doc
+CRUMBS = [(-3, 9, 'paper'), (2, 11, 'ink'), (12, 10, 'paper'), (15, 7, 'paper'), (-5, 4, 'ink')]   # once the doc is gone
+CRUMB_COL = {'paper': lambda: mix(R('W'), '#ffffff', .4), 'ink': lambda: '#e0445c'}
 
 
 def pix_at(cv, x, py, grid):
@@ -942,13 +943,13 @@ def pix_at(cv, x, py, grid):
     cv.pix(x, py // 2, ([[None]] if py % 2 else []) + grid)
 
 
-def draw_chomp_doc(cv, at, grid, step):
+def draw_chomp_doc(cv, at, grid):
     x, py, first = at
     if first < len(grid):
         pix_at(cv, x, py, grid[first:])
-    if CHOMP[step][5] == 'nom nom':
+    else:                                          # all eaten: only crumbs left
         for dx, dy, k in CRUMBS:
-            pix_at(cv, x + dx, py + dy, [[mix(R(k), '#ffffff', .4) if k == 'W' else '#e0445c']])
+            pix_at(cv, x + dx, py + dy, [[CRUMB_COL[k]()]])
 
 
 def frame_chomp(step):
@@ -964,7 +965,7 @@ def frame_chomp(step):
     if p['plate'] is not None:
         draw_plate(cv, p['plate'])
     if at:
-        draw_chomp_doc(cv, at, doc_grid(), step)
+        draw_chomp_doc(cv, at, doc_grid())
         if step < 2:
             cv.rich(at[0] + 13, at[1] // 2 + 3, '{W/m} thesis_ar.pdf +2 {/_}')
     if step == 0:
@@ -1310,8 +1311,9 @@ def frame_widget(state, step=None):
     if p['plate'] is not None:
         cv.pix(1, 11, plate_grid(30, 6, p['plate']))
     if state == 'chomp':
-        if at and at[2] < 8:
-            pix_at(cv, at[0], at[1], mini_doc_grid()[at[2]:])
+        mini = mini_doc_grid()
+        if at and at[2] < len(mini):               # None (or a first row past the end) = eaten
+            pix_at(cv, at[0], at[1], mini[at[2]:])
         for x, y, t, k in WCHOMP_FX[step]:
             cv.rich(x, y, f'{{{k}}}{t}')
         whint(cv, hint, [R('m'), R('M'), R('W')] if hint.startswith('»') else T['tag'])

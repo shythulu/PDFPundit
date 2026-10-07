@@ -101,18 +101,19 @@ step 4. The mockup loops step 8 instead.
 
 ### Chomp (drop without drag tracking)
 
-Defined by `CHOMP`, `CHOMP_DURS`, `CHOMP_DOC` and `CHOMP_FX` in `generate.py`.
+Defined by `CHOMP`, `CHOMP_DURS`, `CHOMP_DOC`, `CHOMP_FX` and `CRUMBS` in `generate.py`.
 A paste has no position, so the files land on the head, centred over the mouth.
 Two pose fields were added for it: `chew` (happy shut eyes, mouth still drawn)
 and `puff` (cheeks filled out). Both default to off, so the other frames are
 unchanged. From step 4 the file hangs from the mouth and gets shorter; `CHOMP_DOC`
-gives the first doc row drawn.
+gives the first doc row drawn; a first row past the end means the file is all
+eaten and only `CRUMBS` are drawn.
 
 | Step | Caption | Pose | File (cell x, pixel row, first row) | Ring glow | Hold |
 | --- | --- | --- | --- | --- | --- |
 | 1 | plop | eyes .5, ears .6, meme .4, plate in place | (50, 18, 0), on the forehead, with the name label | 0 | 0.45 s |
 | 2 | looks up | pitch .18, eyes open, mouth .15 | (50, 18, 0) | .3 | 0.3 s |
-| 3 | jaw drops | mouth .8, plate gone | (50, 34, 0), falling between the eyes | .6 | 0.2 s |
+| 3 | jaw drops | mouth .8, plate gone | (50, 34, 0), falling between the eyes (it overlaps their inner rims by about a cell) | .6 | 0.2 s |
 | 4 | chomp | chew, puff .6 | (50, 54, 4), hanging from the mouth; "CHOMP!" | 0 | 0.45 s |
 | 5 | nom | chew, puff 1 | (50, 54, 9); "nom" | 0 | 0.28 s |
 | 6 | nom nom | chew, puff .5 | crumbs only; "nom" twice | 0 | 0.28 s |
@@ -122,7 +123,8 @@ gives the first doc row drawn.
 The hint line goes "plop · 3 pdfs landed on the cat" → "the cat has noticed
 something" → "the cat is eating your pdfs" → "c h o m p" → "nom" → "nom nom nom"
 → "gulp" → "burp. 3 pdfs queued for repair". The widget uses `WCHOMP_DOC` and
-`WCHOMP_FX` and shorter hints.
+`WCHOMP_FX` and shorter hints. At widget size there are no crumbs and no
+"CHOMP!" text, which would not fit.
 
 ### Widget drop animation
 
