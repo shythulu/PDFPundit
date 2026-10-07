@@ -465,6 +465,7 @@ def logo_grid(word='PDFPUNDIT', gap=2):
 # A pose drives the face: yaw turns the head (features slide round a sphere),
 # pitch tips it up, eo opens the eyes, gx/gy aim the pupils, ears perks the
 # ears, mouth opens the jaw (0 = the resting half-open mouth, 1 = ready to eat).
+# chew shuts the eyes happily but keeps the mouth; puff fills out the cheeks.
 FUR = ['#ffffff', '#f5eff5', '#e2d8e4', '#bcaec2', '#8a7c91']
 LINE = '#3a2d3c'
 EAR_L = ((6.0, 27), (8.5, 1.0), (27.5, 12.5))
@@ -473,7 +474,7 @@ EAR_L_IN = ((10.2, 22), (10.4, 5.8), (22.5, 13.8))
 
 def pose(**kw):
     p = dict(yaw=0.0, pitch=0.0, eo=0.0, mouth=0.0, gx=0.0, gy=0.0, ears=0.0, happy=False,
-             meme=1.0, plate=0.0)
+             meme=1.0, plate=0.0, chew=False, puff=0.0)
     p.update(kw)
     return p
 
@@ -531,15 +532,19 @@ def ear_pts(tri, side, p):
     return out
 
 
+_MINW = 0.0   # minimum line half-width in model units; set by cat_grid for small cats
+
+
 def cat_sample(x, y, p, ears):
     op = p['mouth']
     happy = p['happy']
     col = None
     hx, hy = 31 + p['yaw'] * 2.5, 31 - p['pitch'] * 1.5
     h1, e1 = fluffy(x, y, hx, hy, 24.5, 18.5, .035, 0.7)
-    jy = 38.5 - p['pitch'] * 4
-    h2, _ = fluffy(x, y, 15 + p['yaw'] * 3.5, jy, 13, 10.5, .07, 2.1)
-    h2b, _ = fluffy(62 - x, y, 15 - p['yaw'] * 3.5, jy, 13, 10.5, .07, 2.1)
+    jy = 38.5 - p['pitch'] * 4 + p['puff']
+    jrx, jry = 13 + 2 * p['puff'], 10.5 + p['puff']
+    h2, _ = fluffy(x, y, 15 + p['yaw'] * 3.5 - p['puff'], jy, jrx, jry, .07, 2.1)
+    h2b, _ = fluffy(62 - x, y, 15 - p['yaw'] * 3.5 - p['puff'], jy, jrx, jry, .07, 2.1)
     h3 = op > .25 and ell(x, y, 31 + p['yaw'] * 4, 44 + 3.5 * op - p['pitch'] * 3, 11, 8 * op) <= 1
     head = h1 or h2 or h2b or h3
 
@@ -577,8 +582,8 @@ def cat_sample(x, y, p, ears):
 
     # eyes: lids lift from the judging squint (eo 0) to wide (eo 1)
     eo = p['eo']
-    if happy:
-        if abs(ell(fx, fy, ecx, ecy + 1.2, 5, 3) - 1) < 0.3 and fy < ecy + 1.2:
+    if happy or p['chew']:
+        if abs(ell(fx, fy, ecx, ecy + 1.2, 5, 3) - 1) < (0.55 if _MINW else 0.3) and fy < ecy + 1.2:
             col = LINE
     else:
         ry = 3.0 + 1.4 * eo
@@ -599,7 +604,7 @@ def cat_sample(x, y, p, ears):
             hlx, hly = (ecx - 1.6, ecy - 1.8) if eo > .25 else (ecx + 1.4, lidline + 0.9)
             if (fx - hlx) ** 2 + (fy - hly) ** 2 < (1.0 if eo > .25 else 0.35):
                 col = '#ffffff' if eo > .25 else '#dfe2cf'
-        elif de <= 1.3 + 0.1 * eo and abs(fy - lidline) < 0.8 + 0.4 * eo:
+        elif de <= 1.3 + 0.1 * eo and abs(fy - lidline) < max(0.8 + 0.4 * eo, _MINW):
             col = LINE
         elif de <= 1 and fy > lowlid and eo <= .5:
             col = mix(col, '#8a7c91', .45)                     # puffy lower lid
@@ -617,7 +622,7 @@ def cat_sample(x, y, p, ears):
 
     # mouth: interpolates from the resting half-open mouth to fully open
     for a_, b_ in (((31, 38.6), (31, 40.2)),):
-        if seg(X, fy, a_, b_) < 0.6:
+        if seg(X, fy, a_, b_) < max(0.6, _MINW):
             col = LINE
     if not happy:
         mm = m * (1 - op)
@@ -627,7 +632,7 @@ def cat_sample(x, y, p, ears):
         md = ell(fx, fy, mcx, mcy, mrx, mry)
         if op < .5:
             for a_, b_ in (((31, 40.2), (28.8, 41.2)), ((28.8, 41.2), (27.2, 40.7))):
-                if seg(X, fy, a_, b_) < 0.6:
+                if seg(X, fy, a_, b_) < max(0.6, _MINW):
                     col = LINE
         if fy >= top:
             if md <= 1:
@@ -660,7 +665,7 @@ def whiskers(x, y, p, col):
     lift = -1.6 * op
     for a, b in (((22.5, 40.0), (1.0, 36.5 + lift)), ((22.5, 41.5), (0.5, 42.2 + lift)),
                  ((23.0, 43.0), (2.5, 47.6 + lift))):
-        if seg(X, wy, a, b) < 0.4:
+        if seg(X, wy, a, b) < max(0.4, _MINW * 0.6):
             fade = 1 - max(0, (a[0] - X) / (a[0] - b[0])) * 0.5
             col = mix(col or BG(), '#fbf7fb', .8 * fade)
     return col
@@ -698,8 +703,10 @@ def plate_px(x, y, cx, cy, rx, ry, w):
 
 
 def cat_grid(scale, p='closed', glow=0.0):
+    global _MINW
     if isinstance(p, str):
         p = POSES[p]
+    _MINW = 0.5 / scale if scale < 0.5 else 0.0   # keep 1-px lines on the widget-size cat
     ears = [(ear_pts(EAR_L, s, p), ear_pts(EAR_L_IN, s, p)) for s in (-1, 1)]
     Wd = round(62 * scale)
     Hd = round(56 * scale / 2) * 2
@@ -812,15 +819,15 @@ def draw_plate(cv, off):
                 cv.c[j][i] = [' ', R('w'), BG()]
 
 
-def gaze_to(doc):
+def gaze_to(doc, cat_x=CAT_X, cat_y=CAT_Y, scale=CAT_S, doc_px=(12, 16)):
     """Aim the pupils at the middle of the dragged file (cat model space)."""
-    px = (doc[0] + 6 - CAT_X) / CAT_S
-    py = ((doc[1] - CAT_Y) * 2 + 8) / CAT_S
+    px = (doc[0] + doc_px[0] / 2 - cat_x) / scale
+    py = ((doc[1] - cat_y) * 2 + doc_px[1] / 2) / scale
     return max(-1, min(1, (px - 31) / 22)), max(-1, min(1, (py - 28) / 18))
 
 
-def frame_main(step=None):
-    drag = step is not None
+def main_panels():
+    """The idle screen without the cat: logo, tagline and the four side panels."""
     cv = Canvas(W, H)
     cv.pix(12, 1, logo_grid())
     tag = '·∙· f u r e n s i c   p d f   r e p a i r ·∙·'
@@ -850,7 +857,17 @@ def frame_main(step=None):
     for i, t in enumerate(['{D}engine   {W}pure rust', '{D}network  {G}off', '{D}fonts    {W}bundled',
                            '{D}theme    {M}' + T['name'].split()[-1], '{D}history  {W}57 files', '{D}originals{G} untouched']):
         sb.line(24 + i, ' ' + t)
+    return cv
 
+
+def main_hotkeys(cv):
+    cv.rich(1, 36, ' ' + '  '.join([hk('B', 'browse'), hk('H', 'history'), hk('S', 'setup'),
+                                     hk('T', 'theme'), hk('?', 'help'), hk('Q', 'quit')]))
+
+
+def frame_main(step=None):
+    drag = step is not None
+    cv = main_panels()
     if drag:
         p, doc, glow, dim, hint_kind, _ = DRAG[step]
         if p['eo'] > 0:
@@ -877,13 +894,96 @@ def frame_main(step=None):
                       (29, 25, '∙', 'W'), (82, 29, '*', 'm'), (28, 18, '·', 'B')])
         hint = '·∙· drop a pdf on the cat ·∙·'
         cv.gtext((W - len(hint)) // 2, 35, hint, T['tag'], sym=True)
-    cv.rich(1, 36, ' ' + '  '.join([hk('B', 'browse'), hk('H', 'history'), hk('S', 'setup'),
-                                     hk('T', 'theme'), hk('?', 'help'), hk('Q', 'quit')]))
+    main_hotkeys(cv)
     if drag:
         statusbar(cv, ['node 1', '{M}dragging 3 files', '{G}offline'], '112×38 {c}│{W} 11:38')
     else:
         statusbar(cv, ['node 1', 'idle', '0 queued', '{G}offline'], '112×38 {c}│{W} 11:38')
     return cv
+
+
+# ── the drop reaction without drag tracking: the chomp ────────────────────
+# Only kitty (OSC 72) tells the app about a file while it is dragged over the
+# window. Everywhere else the paths arrive as a paste on drop, with no position.
+# So the files land on the cat's head and it eats them. In kitty the cat tracks
+# the drag (DRAG) and, on release, carries on from CHOMP's 'chomp' step.
+CHOMP = [   # pose, ring glow, side-panel dim, hint, widget hint, caption
+    (pose(eo=.5, ears=.6, meme=.4), 0, .15,
+     '·∙· plop · 3 pdfs landed on the cat ·∙·', '·∙ plop · 3 pdfs ∙·', 'the drop: plop'),
+    (pose(pitch=.18, ears=1, eo=1, mouth=.15, meme=0, plate=2), .3, .3,
+     '·∙· the cat has noticed something ·∙·', '·∙ the cat has noticed ∙·', 'looks up'),
+    (pose(pitch=.05, ears=.8, eo=1, mouth=.8, meme=0, plate=None), .6, .45,
+     '» the cat is eating your pdfs «', '» nom time «', 'jaw drops'),
+    (pose(chew=True, puff=.6, ears=.3, meme=0, plate=None), 0, .45,
+     '» c h o m p «', '» c h o m p «', 'chomp'),
+    (pose(chew=True, puff=1, ears=.2, meme=0, plate=None), 0, .4,
+     '·∙· nom ·∙·', '·∙ nom ∙·', 'nom'),
+    (pose(chew=True, puff=.5, ears=.2, meme=0, plate=None), 0, .35,
+     '·∙· nom nom nom ·∙·', '·∙ nom nom nom ∙·', 'nom nom'),
+    (pose(eo=.5, pitch=-.05, puff=.15, meme=0, plate=None), 0, .25,
+     '·∙· gulp ·∙·', '·∙ gulp ∙·', 'gulp'),
+    (pose(happy=True, meme=0, plate=None), 0, .1,
+     '·∙· burp. 3 pdfs queued for repair ·∙·', '·∙ burp. 3 queued ∙·', 'burp'),
+]
+CHOMP_DURS = [.45, .3, .2, .45, .28, .28, .35, 1.6]
+# The file: (x cell, top pixel row, first doc row drawn), or None. From 'chomp'
+# on, it hangs from the mouth and gets slurped up: only its lower rows show,
+# then (first row past the end) just the crumbs.
+CHOMP_DOC = [(50, 18, 0), (50, 18, 0), (50, 34, 0), (50, 54, 4), (50, 54, 9), (50, 54, 16), None, None]
+WCHOMP_DOC = [(12, 3, 0), (12, 3, 0), (12, 11, 0), (12, 19, 2), (12, 19, 5), (12, 19, 8), None, None]
+CHOMP_FX = [[], [], [], [(79, 10, 'CHOMP!', 'M')], [(28, 12, 'nom', 'm')],
+            [(28, 12, 'nom', 'm'), (81, 15, 'nom', 'M')], [(80, 12, 'gulp', 'C')], []]
+WCHOMP_FX = [[], [], [], [], [(28, 1, 'nom', 'm')], [(28, 1, 'nom', 'M')], [], []]
+CRUMBS = [(-3, 9, 'W'), (2, 11, 'R'), (12, 10, 'W'), (15, 7, 'W'), (-5, 4, 'R')]   # 'nom nom' frame, around the doc
+
+
+def pix_at(cv, x, py, grid):
+    """cv.pix with the top edge given in pixel rows (two per cell)."""
+    cv.pix(x, py // 2, ([[None]] if py % 2 else []) + grid)
+
+
+def draw_chomp_doc(cv, at, grid, step):
+    x, py, first = at
+    if first < len(grid):
+        pix_at(cv, x, py, grid[first:])
+    if CHOMP[step][5] == 'nom nom':
+        for dx, dy, k in CRUMBS:
+            pix_at(cv, x + dx, py + dy, [[mix(R(k), '#ffffff', .4) if k == 'W' else '#e0445c']])
+
+
+def frame_chomp(step):
+    p, glow, dim, hint, _, _ = CHOMP[step]
+    at = CHOMP_DOC[step]
+    if at and p['eo'] > 0:
+        p = dict(p)
+        p['gx'], p['gy'] = gaze_to((at[0], at[1] / 2))
+    cv = main_panels()
+    cv.dim_rect(0, 8, 27, 26, dim)
+    cv.dim_rect(85, 8, 27, 26, dim)
+    cv.pix(CAT_X, CAT_Y, cat_grid(CAT_S, p, glow=glow))
+    if p['plate'] is not None:
+        draw_plate(cv, p['plate'])
+    if at:
+        draw_chomp_doc(cv, at, doc_grid(), step)
+        if step < 2:
+            cv.rich(at[0] + 13, at[1] // 2 + 3, '{W/m} thesis_ar.pdf +2 {/_}')
+    if step == 0:
+        sparkles(cv, [(48, 9, '*', 'M'), (63, 8, '·', 'Y'), (47, 12, '∙', 'C'), (62, 13, '*', 'm')])
+    for x, y, t, k in CHOMP_FX[step]:
+        cv.rich(x, y, f'{{{k}}}{t}')
+    stops = [R('m'), R('M'), R('W')] if hint.startswith('»') else T['tag']
+    cv.gtext((W - len(hint)) // 2, 35, hint, stops, sym=True)
+    main_hotkeys(cv)
+    if step == len(CHOMP) - 1:
+        statusbar(cv, ['node 1', '{C}3 queued', '{G}offline'], '112×38 {c}│{W} 11:38')
+    else:
+        statusbar(cv, ['node 1', '{M}eating 3 pdfs', '{G}offline'], '112×38 {c}│{W} 11:38')
+    return cv
+
+
+def frame_chomp_anim():
+    return {'frames': [frame_chomp(i) for i in range(len(CHOMP))], 'durs': CHOMP_DURS,
+            'captions': [c[5] for c in CHOMP], 'key': 'cf'}
 
 
 QUEUE_A = [
@@ -1149,6 +1249,180 @@ def frame_themes():
     return cv
 
 
+
+# ── widget mode: the whole app as a 32×16 cat-head tile ───────────────────
+# Chosen automatically when the terminal is smaller than 112×38 (UI plan D5).
+# The cat is half the full cat's width and height (a quarter of its area),
+# with one status line and a compact status bar underneath.
+WW, WH = 32, 16
+WCAT_S = CAT_S / 2
+WCAT_X, WCAT_Y = 1, 0
+WDRAG_DOC = [(25, 0), (25, 1), (25, 2), (25, 3), (25, 5), (24, 7), (21, 8), (18, 9)]   # down the edge, clear of the eyes
+WPOSES = {
+    'idle': pose(),
+    'working': pose(happy=True, meme=0, plate=None),
+    'needs': pose(eo=1, ears=1, meme=0, plate=None, gy=.1),
+    'done': pose(happy=True, meme=0, plate=None),
+}
+
+
+def mini_doc_grid():
+    """The dragged PDF at widget scale (7×8 px)."""
+    m = {'o': '#8f8597', 'W': '#f7f3f8', 'f': '#c9bfcf', 'l': '#b5acbb', 'R': '#e0445c'}
+    rows = ["ooooo..", "oWWWfo.", "oWlWffo", "oWWWWWo", "oRRRRRo", "oWllWWo", "oWWWWWo", "ooooooo"]
+    return [[m.get(v) for v in r] for r in rows]
+
+
+def wstatus(cv, left, right=''):
+    y = cv.h - 1
+    cv.fill(0, y, cv.w, 1, 'b')
+    cv.rich(0, y, left, bg='b')
+    if right:
+        cv.rich(cv.w - len(plain(right)), y, right, bg='b')
+
+
+def whint(cv, text, stops, blink=False):
+    x = (cv.w - len(text)) // 2
+    cv.gtext(x, WH - 2, text, stops, sym=True)
+    if blink:
+        for i in range(len(text)):
+            cv.blink.add((x + i, WH - 2))
+
+
+def frame_widget(state, step=None):
+    cv = Canvas(WW, WH)
+    glow = 0.0
+    if state == 'drop':
+        p, _, glow, _, hint_kind, _ = DRAG[step]
+        doc = WDRAG_DOC[step]
+        if p['eo'] > 0:
+            p = dict(p)
+            p['gx'], p['gy'] = gaze_to(doc, WCAT_X, WCAT_Y, WCAT_S, (7, 8))
+    elif state == 'chomp':
+        p, glow, _, _, hint, _ = CHOMP[step]
+        at = WCHOMP_DOC[step]
+        if at and p['eo'] > 0:
+            p = dict(p)
+            p['gx'], p['gy'] = gaze_to((at[0], at[1] / 2), WCAT_X, WCAT_Y, WCAT_S, (7, 8))
+    else:
+        p = WPOSES[state]
+    cv.pix(WCAT_X, WCAT_Y, cat_grid(WCAT_S, p, glow=glow))
+    if p['plate'] is not None:
+        cv.pix(1, 11, plate_grid(30, 6, p['plate']))
+    if state == 'chomp':
+        if at and at[2] < 8:
+            pix_at(cv, at[0], at[1], mini_doc_grid()[at[2]:])
+        for x, y, t, k in WCHOMP_FX[step]:
+            cv.rich(x, y, f'{{{k}}}{t}')
+        whint(cv, hint, [R('m'), R('M'), R('W')] if hint.startswith('»') else T['tag'])
+        if step == len(CHOMP) - 1:
+            wstatus(cv, ' {Y}PDFPuNDiT', '{C}3 queued ')
+        else:
+            wstatus(cv, ' {Y}PDFPuNDiT', '{M}3 pdfs ')
+    elif state == 'drop':
+        cv.pix(doc[0], doc[1], mini_doc_grid())
+        if hint_kind == 'feed':
+            whint(cv, '» release to feed «', [R('m'), R('M'), R('W')], blink=True)
+        elif hint_kind == 'notice':
+            whint(cv, '·∙ the cat has noticed ∙·', T['tag'])
+        else:
+            whint(cv, '·∙ feed me a pdf ∙·', T['tag'])
+        wstatus(cv, ' {Y}PDFPuNDiT', '{M}3 pdfs ')
+    elif state == 'idle':
+        whint(cv, '·∙ feed me a pdf ∙·', T['tag'])
+        wstatus(cv, ' {Y}PDFPuNDiT', '{G}offline ')
+    elif state == 'working':
+        cv.bar(1, WH - 2, 24, .43, T['bar2'])
+        cv.rich(27, WH - 2, '{W}3{D}/{W}7')
+        wstatus(cv, ' {Y}PDFPuNDiT {D}invoice_sc…', '{W}3/7 ')
+    elif state == 'needs':
+        cv.put(WW - 2, 0, '‼', 'M')
+        cv.blink.add((WW - 2, 0))
+        cv.rich(2, WH - 2, '{M}‼ {C}thesis_ar.pdf {D}· {W}zoom me')
+        for i in range(2, 29):
+            cv.blink.add((i, WH - 2))
+        wstatus(cv, ' {Y}PDFPuNDiT', '{M}‼ 1 {W}4/7 ')
+    elif state == 'done':
+        cv.rich(1, WH - 2, '{M}burp.')
+        cv.rich(WW - 13, WH - 2, '{G}6√ {Y}1~ {R}1×')
+        wstatus(cv, ' {Y}PDFPuNDiT', '{G}7 done ')
+    return cv
+
+
+WTITLE = 'pdfpundit · 32×16'
+WSTATES = [('idle', 'idle: the meme, behind its plate'), ('working', 'working: contented, batch progress'),
+           ('needs', 'needs you: stares, ‼ blinks, "zoom me"'), ('done', 'done: burp, with the tally')]
+
+
+def frame_widget_states():
+    return {'row': [(frame_widget(s), WTITLE, cap) for s, cap in WSTATES]}
+
+
+def frame_widget_drop():
+    return {'frames': [frame_widget('drop', i) for i in range(len(DRAG))], 'durs': DRAG_DURS,
+            'captions': [d[5] for d in DRAG], 'thumb': (None, .6), 'key': 'wf'}
+
+
+def frame_widget_chomp():
+    return {'frames': [frame_widget('chomp', i) for i in range(len(CHOMP))], 'durs': CHOMP_DURS,
+            'captions': [c[5] for c in CHOMP], 'thumb': (None, .6), 'key': 'wc'}
+
+
+DESK_NOTES = [
+    ('#fd7ca5', '# case 2026-091 · exhibit log'),
+    ('#887882', ''),
+    ('#e7c5d8', '## 14:02 received from custodian'),
+    ('#c6b7c0', '- 7 pdfs, 3 damaged on the seized laptop'),
+    ('#c6b7c0', '- originals imaged, sha256 recorded (hashes.txt)'),
+    ('#887882', ''),
+    ('#e7c5d8', '## 14:10 repair'),
+    ('#c6b7c0', '- fed to pdfpundit (custody mode on)'),
+    ('#c6b7c0', '- thesis_ar.pdf needs a font decision'),
+    ('#a3daa3', '- report_2024.repaired.pdf re-diagnosed clean'),
+    ('#887882', ''),
+    ('#e7c5d8', '## next'),
+    ('#c6b7c0', '- attach custody reports to exhibit E-14'),
+    ('#c6b7c0', '- markdown export of minutes_q3 for review'),
+    ('#887882', '~'),
+    ('#887882', '~'),
+    ('#887882', '~'),
+]
+DESK_SHELL = [
+    ('#9ed0c4', '~/cases/2026-091/evidence ❯ ls'),
+    ('#8fb0f2', 'contract_signed.pdf   minutes_q3.pdf'),
+    ('#8fb0f2', 'invoice_scan.pdf      payroll_locked.pdf'),
+    ('#8fb0f2', 'report_2024.pdf       thesis_ar.pdf'),
+    ('#a3daa3', 'report_2024.repaired.pdf'),
+    ('#c6b7c0', 'report_2024.custody.json'),
+    ('#9ed0c4', '~/cases/2026-091/evidence ❯ sha256sum -c hashes.txt'),
+    ('#c6b7c0', 'report_2024.pdf: OK'),
+    ('#c6b7c0', 'thesis_ar.pdf: OK'),
+    ('#9ed0c4', '~/cases/2026-091/evidence ❯ █'),
+]
+
+
+def frame_desktop():
+    """The widget as a tile on a tiled desktop, beside an editor and a shell."""
+    return {'desktop': frame_widget('working')}
+
+
+def desktop_html(widget):
+    """Rendered at page time, like every other frame, so colour classes keep their order."""
+    a = T['ansi']
+    notes = ''.join(f'<div style="color:{c}">{html.escape(t) or "&nbsp;"}</div>' for c, t in DESK_NOTES)
+    shell = ''.join(f'<div style="color:{c}">{html.escape(t)}</div>' for c, t in DESK_SHELL)
+    cat = render(widget)
+    return f"""<div class="desk" style="background:{mix(a['K'], '#000000', .35)}">
+<div class="dbar" style="background:{a['K']};color:{a['w']}"><span class="ws" style="background:{a['m']};color:{a['W']}">1</span><span class="ws">2</span><span class="ws">3</span>
+<span style="color:{a['D']}">case-2026-091</span><span class="clk">Sat 26 Sep · 14:12</span></div>
+<div class="tiles">
+<div class="tile" style="background:{a['K']};border-color:{a['D']}"><div class="dt" style="color:{a['D']}">nvim — case-2026-091/notes.md</div><div class="dtx">{notes}</div></div>
+<div class="dcol">
+<div class="tile" style="background:{a['K']};border-color:{a['D']}"><div class="dt" style="color:{a['D']}">zsh — ~/cases/2026-091/evidence</div><div class="dtx">{shell}</div></div>
+<div class="tile wtile" style="background:{a['K']};border-color:{a['m']}"><div class="dt" style="color:{a['M']}">pdfpundit</div><div class="s" style="background:{BG()}">{cat}</div></div>
+</div></div></div>"""
+
+
 # ── page ──────────────────────────────────────────────────────────────────
 CSS = """
 *{box-sizing:border-box}
@@ -1181,16 +1455,36 @@ h1 span{color:#ff7ad1}
 .strip figure{margin:0}
 .strip .s{zoom:.27;border-radius:6px}
 .strip figcaption{font-size:11px;color:#8a7a8e;margin-top:4px}
+.row{display:grid;grid-template-columns:repeat(2,max-content);gap:18px 24px}
+.row figure{margin:0}
+.row figcaption{font-size:11px;color:#8a7a8e;margin-top:6px;max-width:292px}
+.desk{width:966px;border-radius:8px;overflow:hidden;border:1px solid #2a1c2e;box-shadow:0 18px 60px rgba(0,0,0,.7)}
+.dbar{display:flex;gap:10px;align-items:center;font-size:12px;padding:5px 10px}
+.dbar .ws{padding:0 7px;border-radius:3px}
+.dbar .clk{margin-left:auto}
+.tiles{display:flex;gap:6px;padding:6px}
+.tile{border:1px solid;border-radius:4px;overflow:hidden}
+.tiles>.tile{flex:1}
+.dcol{display:flex;flex-direction:column;gap:6px}
+.dt{font-size:11px;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.dtx{font-size:13px;line-height:17px;padding:8px 10px;white-space:pre}
+.wtile .s{padding:6px 8px}
 @keyframes bl{50%{opacity:0}}
 """
 
 
-def page(frames, bare=False):
+def page(frames, bare=False, left=False):
     body = []
     css = [CSS]
     for label, cv, title in frames:
         if label:
             body.append(f'<div class="fl">{label}</div>')
+        if isinstance(cv, dict) and 'row' in cv:
+            body.append(row_html(cv['row']))
+            continue
+        if isinstance(cv, dict) and 'desktop' in cv:
+            body.append(desktop_html(cv['desktop']))
+            continue
         body.append('<div class="term"><div class="tb"><span class="d"></span><span class="d"></span>'
                     f'<span class="d"></span><span class="t">{title}</span></div>')
         if isinstance(cv, dict):
@@ -1211,7 +1505,7 @@ def page(frames, bare=False):
 <style>{''.join(css)}</style>
 </head>
 <body{' style="padding:12px"' if bare else ''}>
-<div class="wrap">
+<div class="wrap"{' style="margin:0"' if left else ''}>
 {'' if bare else HEADER}
 {''.join(body)}
 </div>
@@ -1222,9 +1516,22 @@ def page(frames, bare=False):
 
 HEADER = """<h1><span>PDFPUNDiT</span> — ANSI BBS mockups</h1>
 <p class="sub">112×38 cells, truecolor. Theme: <b>DarkBerry Blackwater</b> (default; the Mire, Fen and Wisp flavours and a few others are in the theme chooser). The main way in is
-<b>dropping PDFs on the cat's face</b>: it opens its mouth when a file hovers over it, eats it, and the
+<b>dropping PDFs on the cat's face</b>. In kitty it watches the file come in and opens wide (frame 2);
+in every other terminal the file lands on its head when dropped and it eats it (frame 2b). Then the
 batch repairs itself. It only asks you something when a decision really needs a human.
+It also shrinks to a 32×16 cat-head widget for tiling desktops (frames 7–9).
 Generated by <code>pdfpundit-ansi-bbs/generate.py</code>; see the README beside it.</p>"""
+
+
+def term_html(cv, title):
+    return ('<div class="term"><div class="tb"><span class="d"></span><span class="d"></span>'
+            f'<span class="d"></span><span class="t">{title}</span></div>'
+            f'<div class="s" style="background:{BG()}">{render(cv)}</div></div>')
+
+
+def row_html(items):
+    return ('<div class="row">' + ''.join(f'<figure>{term_html(cv, title)}<figcaption>{cap}</figcaption></figure>'
+                                          for cv, title, cap in items) + '</div>')
 
 
 def crop(cv, x, y, w, h):
@@ -1235,6 +1542,8 @@ def crop(cv, x, y, w, h):
 
 
 def anim_html(a, css):
+    key = a.get('key', 'af')
+    rect, zoom = a.get('thumb', ((24, 5, 88, 31), None))
     total = sum(a['durs'])
     t = 0
     frames, thumbs = [], []
@@ -1247,10 +1556,12 @@ def anim_html(a, css):
             kf = f'0%{{visibility:hidden}}{s:.2f}%{{visibility:visible}}100%{{visibility:visible}}'
         else:
             kf = f'0%{{visibility:hidden}}{s:.2f}%{{visibility:visible}}{e:.2f}%{{visibility:hidden}}100%{{visibility:hidden}}'
-        css.append(f'@keyframes af{i}{{{kf}}}')
-        frames.append(f'<div class="s af" style="background:{BG()};animation:af{i} {total:.2f}s step-end infinite">'
+        css.append(f'@keyframes {key}{i}{{{kf}}}')
+        frames.append(f'<div class="s af" style="background:{BG()};animation:{key}{i} {total:.2f}s step-end infinite">'
                       f'{render(cv)}</div>')
-        thumbs.append(f'<figure><div class="s" style="background:{BG()}">{render(crop(cv, 24, 5, 88, 31))}</div>'
+        tcv = crop(cv, *rect) if rect else cv
+        zs = f';zoom:{zoom}' if zoom else ''
+        thumbs.append(f'<figure><div class="s" style="background:{BG()}{zs}">{render(tcv)}</div>'
                       f'<figcaption>{i + 1} · {a["captions"][i]}</figcaption></figure>')
     return (f'<div class="anim">{"".join(frames)}</div></div>'
             f'<div class="strip">{"".join(thumbs)}</div>')
@@ -1264,9 +1575,15 @@ def frame_drag():
 FRAMES = [
     ('<b>Frame 1</b> — idle. The cat is the drop target; menus and history sit to the side.',
      lambda: frame_main(), 'pdfpundit — 112×38 — DarkBerry Blackwater'),
-    ('<b>Frame 2</b> — dragging PDFs toward the cat (8 frames, loops). It perks its ears, turns and looks up at '
-     'the file, follows it down, and opens wide as it arrives. The drop ring fades in and the side panels step back.',
+    ('<b>Frame 2</b> — dragging PDFs toward the cat, in kitty only (8 frames, loops). kitty\'s drag-and-drop '
+     'protocol (OSC 72) reports the drag before the drop. The cat perks its ears, turns and looks up at '
+     'the file, follows it down, and opens wide as it arrives. The drop ring fades in and the side panels step back. '
+     'On release it carries on from frame 2b\'s chomp.',
      frame_drag, 'pdfpundit — 112×38 — DarkBerry Blackwater — drop target active'),
+    ('<b>Frame 2b</b> — the drop reaction in every other terminal (8 frames, loops). They report nothing until '
+     'the drop, when the paths arrive as a paste with no position. So the files land on the cat\'s head: it '
+     'looks up, drops its jaw, chomps, chews, gulps and burps, and the files are queued.',
+     frame_chomp_anim, 'pdfpundit — 112×38 — DarkBerry Blackwater — eating'),
     ('<b>Frame 3</b> — the batch repairs itself. thesis_ar.pdf is parked (‼) on a font decision; '
      'the runner moved on. The cat still takes more files.', frame_batch,
      'pdfpundit — 112×38 — DarkBerry Blackwater — repairing…'),
@@ -1278,6 +1595,15 @@ FRAMES = [
     ('<b>Frame 6</b> — theme chooser (<b>T</b>). Each theme shows its 16 ANSI colours (bright over normal) '
      'and logo ramp; the right side breaks the selected theme into roles, gradients and a live sample.',
      frame_themes, 'pdfpundit — 112×38 — DarkBerry Blackwater — theme'),
+    ('<b>Frame 7</b> — widget mode. In a terminal smaller than 112×38 the whole app becomes a 32×16 cat '
+     "head (half the full cat's width and height) with one status line. Enlarging the tile brings the full "
+     'UI back.', frame_widget_states, WTITLE),
+    ("<b>Frame 8</b> — the widget's drop reaction in kitty: the same 8 poses as frame 2, at widget scale.",
+     frame_widget_drop, WTITLE + ' · drop'),
+    ("<b>Frame 8b</b> — the widget's chomp, for every other terminal: frame 2b at widget scale.",
+     frame_widget_chomp, WTITLE + ' · chomp'),
+    ('<b>Frame 9</b> — in context: the widget tile on a tiled desktop, beside an editor and a shell. '
+     'When a decision is needed, zooming the tile switches to the full UI.', frame_desktop, ''),
 ]
 
 
@@ -1292,15 +1618,31 @@ def main(out=OUT):
     print('wrote', os.path.normpath(out))
 
 
+FULL_PX, WIDGET_PX, DESK_PX = (992, 680), (322, 332), (992, 640)
+
+
+def step_name(d):
+    return d[5].split(":")[-1].strip().replace(" ", "-")
+
+
 def still_frames():
-    """Every screen as a still, including each step of the drag animation."""
-    yield '01-idle', frame_main(), FRAMES[0][2]
+    """Every screen as a still (name, canvas or dict, title, window px), animation steps included."""
+    yield '01-idle', frame_main(), FRAMES[0][2], FULL_PX
     for i, d in enumerate(DRAG):
-        yield f'02-drag-{i + 1}-{d[5].split(":")[-1].strip().replace(" ", "-")}', frame_main(i), FRAMES[1][2]
-    yield '03-batch', frame_batch(), FRAMES[2][2]
-    yield '04-font-pick', frame_fontpick(frame_batch()), FRAMES[3][2]
-    yield '05-result', frame_result(), FRAMES[4][2]
-    yield '06-theme-chooser', frame_themes(), FRAMES[5][2]
+        yield f'02-drag-{i + 1}-{step_name(d)}', frame_main(i), FRAMES[1][2], FULL_PX
+    for i, c in enumerate(CHOMP):
+        yield f'02b-chomp-{i + 1}-{step_name(c)}', frame_chomp(i), FRAMES[2][2], FULL_PX
+    yield '03-batch', frame_batch(), FRAMES[3][2], FULL_PX
+    yield '04-font-pick', frame_fontpick(frame_batch()), FRAMES[4][2], FULL_PX
+    yield '05-result', frame_result(), FRAMES[5][2], FULL_PX
+    yield '06-theme-chooser', frame_themes(), FRAMES[6][2], FULL_PX
+    for s, name in (('idle', 'idle'), ('working', 'working'), ('needs', 'needs-you'), ('done', 'done')):
+        yield f'07-widget-{name}', frame_widget(s), WTITLE, WIDGET_PX
+    for i, d in enumerate(DRAG):
+        yield f'08-widget-drop-{i + 1}-{step_name(d)}', frame_widget('drop', i), WTITLE, WIDGET_PX
+    for i, c in enumerate(CHOMP):
+        yield f'08b-widget-chomp-{i + 1}-{step_name(c)}', frame_widget('chomp', i), WTITLE, WIDGET_PX
+    yield '09-tiled-desktop', frame_desktop(), '', DESK_PX
 
 
 def render_frames(outdir=os.path.join(HERE, 'frames')):
@@ -1309,13 +1651,13 @@ def render_frames(outdir=os.path.join(HERE, 'frames')):
         sys.exit('Chrome/Chromium not found; cannot render frames/*.png')
     os.makedirs(outdir, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
-        for name, cv, title in still_frames():
+        for name, cv, title, (w, h) in still_frames():
             src = os.path.join(tmp, name + '.html')
             with open(src, 'w') as f:
-                f.write(page([('', cv, title)], bare=True))
+                f.write(page([('', cv, title)], bare=True, left=w < 900))   # Chrome won't go narrower than ~500 px
             png = os.path.join(outdir, name + '.png')
             subprocess.run([chrome, '--headless=new', '--disable-gpu', '--hide-scrollbars',
-                            '--window-size=992,680', f'--screenshot={png}', 'file://' + src],
+                            f'--window-size={w},{h}', f'--screenshot={png}', 'file://' + src],
                            check=True, capture_output=True)
             print('wrote', os.path.relpath(png, HERE))
 

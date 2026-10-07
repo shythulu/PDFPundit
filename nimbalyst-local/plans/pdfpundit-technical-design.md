@@ -107,7 +107,12 @@ pdfpundit/                       # single crate (+ tools/ workspace member)
 │  ├─ config.rs                + # Config (config.toml), app-dirs resolution
 │  ├─ library.rs                 # HistoryStore trait + JSON backend
 │  ├─ catbg.rs                   # (shelved 2026-09-26) random cat: fetch/convert/cache; see feature plan
-│  ├─ ui/                        # ← framework/layout/theme designed in pdfpundit-ui-design.md
+│  ├─ ui/                        # ← designed in pdfpundit-ui-design.md ("UI modules")
+│  │  ├─ cat.rs                + # cat renderer: Pose + size + theme → cells, at any scale
+│  │  ├─ director.rs           + # cat timeline: app state + time → pose (chomp; kitty drag tracking; moods)
+│  │  ├─ view.rs               + # ViewModel derived from QueueEntry / BatchState / interactions
+│  │  ├─ layout/               + # the Layout seam: full.rs (112×38), widget.rs (32×16); choose() by size + pin
+│  │  └─ theme.rs                # themes: DarkBerry flavours (palette.json) + others
 │  └─ pdf/
 │     ├─ model.rs              + # shared types: CorruptionClass, Finding, ObjId…
 │     ├─ lexer.rs              + # tolerant byte-level PDF object parser
@@ -497,8 +502,10 @@ ask_case_details = true           # the cat asks for case ref + examiner once pe
 log_path = ""                     # "" = data_dir()/custody.log (append-only, hash-chained)
 
 [ui]
-theme = "default"                 # theme names defined by the UI plan (deferred)
+theme = "DarkBerry Blackwater"    # see the UI plan, D3
 mouse = true
+layout = "auto"                   # auto | full | widget; auto = widget below 112×38 (UI plan D5)
+request_resize = true             # widget: ask the terminal to grow when a decision is needed
 # cat_background / cat_refresh_hours and [catapi] are shelved with the random-cat feature.
 # The cat face itself has no settings: it is always on.
 ```
@@ -564,7 +571,7 @@ threshold `recovery ≥ baseline − 2%`); `corpus-full` nightly; `dist`
 | 4 | `pdf/diagnose.rs` C1–C10 detectors + `/Encrypt` detector; analysis panel findings tree; corpus classification test | M4 |
 | 5 | **Parallel track from step 2:** `tools/build-templates` (read-fonts extraction, harfrust shaped gmaps, lopdf template emit, fontindex); runtime `pdf/fontdb.rs` loader + scorer; system-font enumeration (fontique) + `FontResolution`; `ui/fontpick.rs` + substitution menu + rendezvous | M5 |
 | 6 | `pdf/emit.rs` (RebuildDoc, strategy selector, template harvest, verification); `pdf/repair.rs` passes in order C9→C10→C5→C4→C6→C7→C8; `/ToUnicode` rebuild; image extraction; context-menu actions + pass checklist; re-diagnose loop | M6 |
-| 7 | `src/bin/corpus.rs` + scoring; scorer weight tuning; cat face + drag animation + themes + banner (random-cat fetch shelved); third-party-viewer spot-check of a corpus sample; cargo-dist CI; docs | M7 |
+| 7 | `src/bin/corpus.rs` + scoring; scorer weight tuning; cat face + drop animations (chomp; kitty drag tracking) + themes + banner (random-cat fetch shelved); third-party-viewer spot-check of a corpus sample; cargo-dist CI; docs | M7 |
 | 8 | **Spike `hayro-interpret` glyph API first, alongside step 3** (Markdown is v1); then `pdf/export/*` behind the default `feature = "export"`; spdf wiring; Markdown emitter; export action + quality harness | M8 |
 
 Critical path: 1 → 3 → 4 → 6. The font DB (step 5) is the long pole for M6's

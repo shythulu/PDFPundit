@@ -201,7 +201,7 @@ Chosen stack (a pure-Rust, single-process TUI):
 | Layer | Chosen approach | Rationale |
 | --- | --- | --- |
 | App shell | **Terminal UI — framework TBD** (candidates: ratatui vs. the Charm/lipgloss stack; see [pdfpundit-ui-design.md](pdfpundit-ui-design.md)) | Pure-Rust, single self-contained binary per OS, no webview or system deps. The framework, layout, and theme are decided in the UI plan; the engine is UI-agnostic. |
-| Input / drag-drop | `crossterm` events + terminal path-paste | Keyboard + mouse in-terminal. Dragging a file onto most terminals pastes its absolute path; the input layer captures that as an "add file" action. A `browse…` action opens a `.pdf`-filtered filesystem picker. |
+| Input / drag-drop | `crossterm` events + terminal path-paste, plus kitty's `OSC 72` | Keyboard + mouse in-terminal. Dragging a file onto most terminals pastes its absolute path; the input layer captures that as an "add file" action. In kitty, the app also opts in to kitty's drag-and-drop protocol, parsed by our own code, so the cat can track a drag. A `browse…` action opens a `.pdf`-filtered filesystem picker. |
 | Forensic engine | Custom Rust carver + reconstructor, orchestrated by a job runner on **std threads + mpsc** (no async runtime); streams a typed `JobEvent` stream to the UI | The core of the app: byte-level object carving, xref/trailer rebuild, object-graph reconstruction, and the C1–C10 repair passes. Runs off the UI thread; progress/findings stream to whatever UI consumes the events. |
 | PDF core | **lopdf** (pure Rust) to build/emit the template + repaired doc (REPDF used Python `pikepdf`) | lopdf models objects/dictionaries/streams and re-serializes a valid file. The carver operates below lopdf on raw bytes when the file is too broken to parse. **Pure-Rust only — no `qpdf`/`mupdf`/`pdfium` FFI** (see crate stack). |
 | Font tooling | `skrifa`/`read-fonts` (or `allsorts`/`ttf-parser`) for glyf/cmap/hmtx (REPDF used Python `fonttools`) | Reads `glyphorder`/`cmap`/`W` metrics from bundled fonts to drive code→Unicode inference and metric restoration. |
@@ -445,9 +445,13 @@ status bar says so, and nothing about the repair itself changes.
 - [ ] Batch harness measuring text/image recovery across the REPDF corpus vs. the paper's numbers.
 - [ ] Themes: DarkBerry flavours (Blackwater default) plus the others, the theme
       chooser, the block-pixel logo; about screen.
-- [ ] The cat face, bundled and drawn by the app: the meme start pose, the drag
-      animation (10 frames at most), eating and contented states. See
-      `pdfpundit-ansi-bbs.mockup.html`.
+- [ ] The cat face, bundled and drawn by the app: the meme start pose, the
+      chomp on drop, drag tracking in kitty (each 10 frames at most), and the
+      contented states. See `pdfpundit-ansi-bbs.mockup.html` (frames 2 and 2b)
+      and UI plan D2.
+- [ ] Widget mode: a 32×16 cat-head tile for tiling desktops, chosen
+      automatically below 112×38. It has one status line, and a "needs you"
+      state that sends the user to zoom the tile (UI plan D5; mockup frames 7–9).
 - [ ] `cargo-dist` binaries/installers for macOS, Windows, Linux via CI matrix.
 - [ ] Docs / README with usage.
 
@@ -483,7 +487,13 @@ status bar says so, and nothing about the repair itself changes.
 - **UI framework undecided (open):** the terminal-UI framework/styling stack is not yet chosen — see [pdfpundit-ui-design.md](pdfpundit-ui-design.md). To keep this a non-blocking decision, the engine is UI-agnostic (emits the `JobEvent` stream + view data), so the choice can be made and changed without engine impact. The known trade-space: ratatui (mature, manual styling, easy cell-buffer backdrop compositing) vs. the Charm/lipgloss stack (prebuilt styles/components — the "library of styles" the user wants — younger, async-first, string-composition makes the cat backdrop harder).
 - **Retro vs legibility:** CRT/scanline effects and the cat background must never hurt readability of findings — the wallpaper is dimmed and panels stay opaque; decoration is subordinate to reliable results.
 - **Cat background = network + secret (shelved with the feature):** fetching cats reaches the internet, which a forensic tool often shouldn't do unprompted — so it's opt-in, off by default, with an offline mode and bundled fallback. The embedded thecatapi key is obfuscated and kept out of source, but can't be truly secret (acceptable: cats only).
-- **Terminals don't report a drag until the drop.** During an operating-system drag, the terminal passes no hover or mouse-move events to the app. The path only arrives as a paste when the file is dropped. So the cat can't watch a file that is still being dragged over it, and the mockup's animation would have to play as a quick reaction right after the drop. Check whether any target terminal (for example kitty or WezTerm) supports a drag-and-drop protocol that reports hover. If none does, redesign the animation around the drop.
+- **Widget-mode limits:** most tiling WMs ignore a terminal's request to resize
+  itself, so in widget mode a pending decision relies on the user zooming the
+  tile when the cat says "zoom me". Tiles smaller than 32×16 get a one-line
+  fallback (`=^..^= 3/7 ‼`) rather than a cat. The half-scale cat needs lines
+  at least a pixel thick to stay readable. The mockup handles that; the real
+  renderer (UI plan, "UI modules") must too.
+- **Terminals don't report a drag until the drop (resolved 2026-10-07).** During an operating-system drag, most terminals pass no hover or mouse-move events to the app, whatever the TUI library; the path only arrives as a paste on drop. The fix is two drop reactions (UI plan D2): everywhere, the cat eats the files on drop (the chomp); in kitty 0.47+, whose `OSC 72` protocol reports the drag, it also tracks the file before eating it. As of 2026-10-07 only kitty ships the protocol. Ghostty has it partly built in libghostty-vt, so recheck Ghostty, WezTerm and foot before release.
 
 ## Success Criteria
 
