@@ -1,0 +1,7 @@
+{"src": "SRC-0500", "decision": "include", "reason_code": "IN-core", "reason": "qpdf recovery code (xref rebuild, stream length, flate, /ID)", "stage": "fulltext", "by": "engine-study", "at": "2026-09-27"}
+{"src": "SRC-0501", "decision": "include", "reason_code": "IN-core", "reason": "MuPDF repair code (pdf-repair.c et al.); AGPL, behaviour only", "stage": "fulltext", "by": "engine-study", "at": "2026-09-27"}
+{"src": "SRC-0502", "decision": "include", "reason_code": "IN-core", "reason": "pdf.js recovery mode, tolerant parser, font/ToUnicode fallbacks", "stage": "fulltext", "by": "engine-study", "at": "2026-09-27"}
+{"src": "SRC-0503", "decision": "include", "reason_code": "IN-core", "reason": "PDFium RebuildCrossRef, stream length, flate", "stage": "fulltext", "by": "engine-study", "at": "2026-09-27"}
+{"src": "SRC-0504", "decision": "include", "reason_code": "IN-core", "reason": "Poppler constructXRef, stream length, fonts; GPL, behaviour only", "stage": "fulltext", "by": "engine-study", "at": "2026-09-27"}
+{"src": "SRC-0505", "decision": "include", "reason_code": "IN-core", "reason": "Ghostscript pdfi repair; AGPL, behaviour only", "stage": "fulltext", "by": "engine-study", "at": "2026-09-27"}
+{"src": "SRC-0506", "decision": "include", "reason_code": "IN-eval", "reason": "Poppler test PDFs; control set for encryption/signatures, few damaged files", "stage": "fulltext", "by": "engine-study", "at": "2026-09-27"}

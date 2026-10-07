@@ -1,0 +1,79 @@
+{
+  "n_sources": 10,
+  "crossref_zero": 4,
+  "crossref_nonzero": 6,
+  "opencitations_zero": 5,
+  "opencitations_nonzero": 5,
+  "rows": [
+    {
+      "id": "SRC-0119",
+      "doi": "10.1109/das.2018.64",
+      "field": "fonts/OCR (IEEE DAS 2018)",
+      "crossref_is_referenced_by_count": 0,
+      "opencitations_citers": 0
+    },
+    {
+      "id": "SRC-0123",
+      "doi": "10.1016/j.fsidi.2026.302054",
+      "field": "forensics (FSI:DI 2026)",
+      "crossref_is_referenced_by_count": 0,
+      "opencitations_citers": 0
+    },
+    {
+      "id": "SRC-0001",
+      "doi": "10.1016/j.fsidi.2026.302061",
+      "field": "forensics (FSI:DI 2026)",
+      "crossref_is_referenced_by_count": 0,
+      "opencitations_citers": 0
+    },
+    {
+      "id": "SRC-0125",
+      "doi": "10.1016/j.diin.2013.06.003",
+      "field": "compression (Digital Investigation)",
+      "crossref_is_referenced_by_count": 5,
+      "opencitations_citers": 6
+    },
+    {
+      "id": "SRC-0303",
+      "doi": "10.1145/3588195.3592992",
+      "field": "compression (ACM, rapidgzip)",
+      "crossref_is_referenced_by_count": 10,
+      "opencitations_citers": 7
+    },
+    {
+      "id": "SRC-0411",
+      "doi": "10.56553/popets-2023-0069",
+      "field": "security/fonts (PoPETs)",
+      "crossref_is_referenced_by_count": 6,
+      "opencitations_citers": 4
+    },
+    {
+      "id": "SRC-0413",
+      "doi": "10.1145/2733373.2806219",
+      "field": "fonts/ML (ACM MM, DeepFont)",
+      "crossref_is_referenced_by_count": 97,
+      "opencitations_citers": 92
+    },
+    {
+      "id": "SRC-0426",
+      "doi": "10.1109/jcdl.2017.7991564",
+      "field": "PDF/IR (IEEE JCDL)",
+      "crossref_is_referenced_by_count": 40,
+      "opencitations_citers": 42
+    },
+    {
+      "id": "SRC-0112",
+      "doi": "10.1109/tifs.2024.3445733",
+      "field": "forensics (IEEE TIFS)",
+      "crossref_is_referenced_by_count": 2,
+      "opencitations_citers": 0
+    },
+    {
+      "id": "SRC-0407",
+      "doi": "10.1109/icdar.2015.7333716",
+      "field": "OCR (IEEE ICDAR)",
+      "crossref_is_referenced_by_count": 0,
+      "opencitations_citers": 0
+    }
+  ]
+}

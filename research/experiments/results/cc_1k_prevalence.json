@@ -1,0 +1,101 @@
+{
+ "inputs": {
+  "cc-provenance-20230324-1k.csv": {
+   "url": "https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/cc-provenance-20230324-1k.csv",
+   "sha256": "6a57355beeaad4c5a9e414e9cb044b34877136da94f80d7c871a788b71636b9a"
+  },
+  "pdfinfo-20230324-1k.csv": {
+   "url": "https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/pdfinfo-20230324-1k.csv",
+   "sha256": "9cb86996c9b84d2172c19b11fe19d377e90abf868d4cb88f29d4a66414722832"
+  },
+  "tika-20230714-1k.csv": {
+   "url": "https://digitalcorpora.s3.amazonaws.com/corpora/files/CC-MAIN-2021-31-PDF-UNTRUNCATED/metadata/tika-20230714-1k.csv",
+   "sha256": "0c315f6c7e6f6ff2ca5782df9a14835a8fe6452455cf19b8743666d37ff2698f"
+  }
+ },
+ "provenance": {
+  "rows": 1045,
+  "unique_files": 1000,
+  "cc_truncated": {
+   "(not truncated)": 827,
+   "length": 218
+  },
+  "fetched_status": {
+   "ADDED_TO_REPOSITORY": 827,
+   "REFETCHED_SUCCESS": 218
+  }
+ },
+ "pdfinfo": {
+  "rows": 1045,
+  "exit_value": {
+   "0": 1041,
+   "1": 4
+  },
+  "timeout": {
+   "f": 1045
+  },
+  "rows_with_stderr": 19,
+  "stderr_message_classes": {
+   "Syntax Error (N): Illegal character <X> in hex string": 34,
+   "Syntax Error: Expected the optional content group list, but wasn't able to find it, or it isn't an A": 4,
+   "Syntax Warning: Invalid least number of objects reading page offset hints table": 4,
+   "Syntax Error: Can't get Fields array<X>": 2,
+   "Syntax Warning: Unknown Metadata type: '???'": 2,
+   "Syntax Error (N):": 2,
+   "Syntax Warning: May not be a PDF file (continuing anyway)": 2,
+   "Command Line Error: Incorrect password": 1,
+   "Syntax Error: Suspects object is wrong type (boolean)": 1,
+   "Syntax Error: Couldn't read xref table": 1,
+   "Syntax Error: Couldn't find trailer dictionary": 1,
+   "Syntax Error: Unterminated string": 1,
+   "Syntax Error: End of file inside dictionary": 1,
+   "Syntax Error: Expected the default config, but wasn't able to find it, or it isn't a Dictionary": 1
+  }
+ },
+ "tika": {
+  "rows": 1045,
+  "parse_status": {
+   "OK": 1041,
+   "PARSE_EXCEPTION": 4
+  },
+  "container_exception_first_line": {
+   "org.apache.tika.exception.AccessPermissionException: Content extraction for accessibility is not allowed.": 2,
+   "org.apache.tika.exception.EncryptedDocumentException: Unable to process: document is encrypted": 1,
+   "java.io.IOException: Page tree root must be a dictionary": 1
+  },
+  "mime": {
+   "application/pdf": 1034,
+   "application/illustrator": 8,
+   "text/plain; charset=ISO-8859-15": 1,
+   "text/html; charset=UTF-8": 2
+  },
+  "encrypted": {
+   "f": 1019,
+   "t": 22,
+   "": 4
+  },
+  "has_signature": {
+   "": 1038,
+   "t": 7
+  },
+  "pdf_contains_damaged_font": {
+   "f": 1036,
+   "": 7,
+   "t": 2
+  },
+  "pdf_incremental_updates": {
+   "": 3,
+   "0": 766,
+   "1": 252,
+   "2": 14,
+   "3": 5,
+   "4": 1,
+   "5": 1,
+   "7": 1,
+   "11": 1,
+   "36": 1
+  },
+  "rows_with_ge1_incremental_update": 276,
+  "rows_with_incremental_update_value": 1042
+ }
+}

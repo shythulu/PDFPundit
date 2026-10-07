@@ -1,0 +1,145 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "hypothesis",
+ "title": "Testable research hypothesis (feeds experiment specs)",
+ "type": "object",
+ "required": [
+  "gaps",
+  "id",
+  "metric",
+  "provenance",
+  "readiness",
+  "refute_if",
+  "statement",
+  "status"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^HYP-\\d{3}$"
+  },
+  "gaps": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^GAP-\\d{3}$"
+   },
+   "minItems": 1
+  },
+  "statement": {
+   "type": "string"
+  },
+  "metric": {
+   "type": "string",
+   "description": "measurable success criterion"
+  },
+  "baseline": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "data": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "tools": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "pattern": "^TOOL-\\d{3}$"
+   }
+  },
+  "readiness": {
+   "type": "object",
+   "required": [
+    "measurable",
+    "data_reachable",
+    "baselines_verified",
+    "verified_gap"
+   ],
+   "properties": {
+    "measurable": {
+     "type": "boolean"
+    },
+    "data_reachable": {
+     "type": "boolean"
+    },
+    "baselines_verified": {
+     "type": "boolean"
+    },
+    "verified_gap": {
+     "type": "boolean"
+    }
+   }
+  },
+  "status": {
+   "enum": [
+    "draft",
+    "spec-ready",
+    "needs-research",
+    "specced",
+    "running",
+    "done",
+    "rejected"
+   ]
+  },
+  "notes": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "provenance": {
+   "type": "object",
+   "required": [
+    "agent",
+    "method",
+    "added_at"
+   ],
+   "properties": {
+    "agent": {
+     "type": "string",
+     "description": "role of the agent that created the record, e.g. 'chair', 'scoping-backward'"
+    },
+    "method": {
+     "enum": [
+      "crossref",
+      "dblp",
+      "opencitations",
+      "arxiv",
+      "openalex",
+      "semantic-scholar",
+      "core",
+      "parallel-search",
+      "parallel-fetch",
+      "webfetch",
+      "websearch",
+      "local-file",
+      "memory",
+      "user",
+      "derived"
+     ]
+    },
+    "search_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^SRCH-\\d{4}$"
+    },
+    "added_at": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "refute_if": {
+   "type": "string",
+   "minLength": 10,
+   "description": "the observable result that would refute the hypothesis"
+  }
+ }
+}

@@ -15,7 +15,7 @@ planStatus:
     - repair
     - cross-platform
   created: "2026-07-15"
-  updated: "2026-09-26T12:00:00.000Z"
+  updated: "2026-10-07T12:00:00.000Z"
   progress: 0
 ---
 # PDFPundit — Rust Multiplatform PDF Analysis & Repair Tool
@@ -110,6 +110,9 @@ of **`spdf`** (MIT), driven by our own pure-Rust `PdfEngine` (no PDFium).
 - Keep a searchable history of analyzed/repaired files with per-run findings.
 - Export a PDF to **high-quality Markdown** (headings, paragraphs, lists, tables,
   images, links) with correct Unicode, in reading order — pure-Rust, no PDFium.
+- Account for text that has no font behind it (glyphs drawn as vector outlines,
+  Type3 glyph procedures, images of text): flag it in diagnosis, never drop it
+  silently, and read it back with an optional pure-Rust OCR feature.
 
 ## Non-Goals (v1)
 
@@ -119,8 +122,9 @@ of **`spdf`** (MIT), driven by our own pure-Rust `PdfEngine` (no PDFium).
 - Re-implementing REPDF's server or web UI — we adopt its *method*, not its hosting.
 - A headless CLI or scripted batch mode. Dropped on 2026-09-26: it would be a
   way around the cat, and the cat is the only way in (see Goal).
-- Office/non-PDF input conversion and OCR of scanned pages for Markdown export
-  (spdf's LibreOffice/Tesseract paths) — deferred to the "Pundit+" phase.
+- Office/non-PDF input conversion (spdf's LibreOffice path) — deferred to the
+  "Pundit+" phase. OCR is no longer deferred: it is planned as the optional,
+  feature-gated M9 on pure-Rust PaddleOCR, not spdf's Tesseract path.
 
 ## Prior Art & Repair Method (REPDF)
 
@@ -228,7 +232,8 @@ fallback. Crate versions/health verified on crates.io (Jul 2026).
 | System-font enumeration (output option) | **`fontique`** (0.11, Linebender) | hand-rolled dir scan + `read-fonts` | "Use system fonts" substitution mode: match by family/PS name via DirectWrite/CoreText/fontconfig (dlopen'd) — OS platform-API FFI, the sole FFI exception. |
 | Render previews / thumbnails / font-pick preview | **`hayro`** (0.7, pure-Rust rasterizer) + `hayro-syntax`/`hayro-interpret` | — | The `hayro` family (author LaurenzV) is a full pure-Rust PDF stack; `hayro-interpret`/`hayro-syntax` can also cross-check our carve results. No native renderer needed. |
 | Image extract/decode (step 5) | **`image`** (0.25, narrow features) + **`hayro-jpeg2000`** (0.4) | — | DCTDecode/JPXDecode streams are complete JPEG/JP2 files — extracted **verbatim, no decode**; only Flate rasters need decode + PNG-encode. (Standalone `jpeg-decoder`/`png` dropped — already bundled in `image`.) |
-| Text extraction (benchmark eval) | **`hayro-interpret`** | rasterize (`hayro`) + OCR | To score recovered vs. original text against the corpus. (`pdf-extract` dropped — pins lopdf 0.42, would compile a duplicate lopdf tree + 4 redundant font crates.) |
+| Text extraction (benchmark eval) | **`hayro-interpret`** | rasterize (`hayro`) + OCR | To score recovered vs. original text against the corpus. (`pdf-extract` dropped — pins lopdf 0.42, would compile a duplicate lopdf tree + 4 redundant font crates.) The REPDF-comparable score is OCR-based (REPDF used Google Cloud Document AI): dev-tooling scripts outside the binary, Document AI per release and local PaddleOCR in CI. |
+| OCR (`feature = "ocr"`, M9) | **`tract-onnx`** + PaddleOCR ONNX models (det + per-script rec) | `rten` + `ocrs` (Latin only) | Reads text drawn as outlines, Type3 glyphs and scans; alignment oracle for font inference; text-versus-visual check. Models (~35–45 MB) download on first use, hash-pinned. Tesseract/onnxruntime/MNN bindings excluded (C/C++). |
 | Char encoding / Unicode | `encoding_rs`, `unicode-normalization` | — | Normalize during font-inference scoring against word dictionaries. |
 | **MD export — glyph extraction** | our **pure-Rust `PdfEngine`** on `hayro-interpret` | — | Feeds per-glyph items (text + bbox + font attrs) into spdf, replacing spdf's PDFium `spdf-pdf`. Keeps export FFI-free. |
 | **MD export — layout/tables** | `spdf-projection` + `spdf-types` + `spdf-processing` (MIT) | (our own projection if spdf's API churns) | Engine-agnostic spatial-grid projection: columns, reading order, tables, faux-bold dedup. The hard layout logic, reused not rebuilt. |
@@ -242,7 +247,8 @@ used; the `hayro` family (incl. `hayro-jpeg2000`) covers rendering and JPEG2000 
 pure Rust. For Markdown export we adopt `spdf`'s engine-agnostic crates
 (`spdf-projection`/`-types`/`-processing`) but **not** its PDFium (`spdf-pdf`),
 LibreOffice (`spdf-convert`), or Tesseract (`spdf-ocr`) backends — we supply a
-pure-Rust `PdfEngine` on `hayro-interpret` instead. This keeps a single clean
+pure-Rust `PdfEngine` on `hayro-interpret` instead, and OCR comes from
+`tract-onnx` running PaddleOCR models (M9). This keeps a single clean
 binary and trivial cross-platform builds, and avoids AGPL (`mupdf`) / large-binary
 (`pdfium`) concerns. Trade-off accepted: the worst-case structural-recovery ceiling
 rests on our own carver rather than a battle-tested C library.
@@ -389,7 +395,7 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 
 ### M3 — Forensic engine primitives (steps 2–5)
 - [ ] Object carver: raw-byte `obj/endobj/stream` scan recovering objects + stream lengths, incl. expanding `/ObjStm` containers (mandatory for PDF ≥1.5).
-- [ ] Stream inflate + classifier (image vs content by `/Subtype`/operators).
+- [ ] Stream inflate + classifier (image vs content by `/Subtype`/operators, counting path operators so outline-only pages still classify as content).
 - [ ] Page extraction (`/Contents`, `/MediaBox`) + resource analysis.
 - [ ] XRef/trailer rebuild + object-graph reconstruction (`/Root`→`/Pages`→`/Page`).
 - [ ] Job runner (std threads + mpsc channels) streaming progress + findings to the UI.
@@ -399,6 +405,7 @@ is fine since it only fetches cats. (The actual key lives outside the repo.)
 - [ ] Detectors for C1–C10 emitting `Finding`s with severity + object location.
 - [ ] Diagnostics panel: findings grouped by severity, expandable detail.
 - [ ] Correctly classify each corpus file by its known corruption suffix.
+- [ ] Info findings (no repair) for pages that draw text as outlines or with Type3 fonts.
 
 ### M5 — Template / font database (steps 1, 6)
 - [ ] `tools/build-templates`: offline generator producing template PDFs (full-embedded
@@ -442,7 +449,7 @@ status bar says so, and nothing about the repair itself changes.
       compare them against the report.
 
 ### M7 — Benchmark, retro polish & packaging
-- [ ] Batch harness measuring text/image recovery across the REPDF corpus vs. the paper's numbers.
+- [ ] Batch harness measuring text/image recovery across the REPDF corpus vs. the paper's numbers, including REPDF's own OCR word-recall metric (Document AI per release, local PaddleOCR in CI) and a text-versus-visual gap.
 - [ ] Themes: DarkBerry flavours (Blackwater default) plus the others, the theme
       chooser, the block-pixel logo; about screen.
 - [ ] The cat face, bundled and drawn by the app: the meme start pose, the
@@ -464,9 +471,18 @@ status bar says so, and nothing about the repair itself changes.
       links (`/Annots`), image extraction + refs, code/quote heuristics.
 - [ ] `Export → <name>.md` action in the Actions panel; "repair → export" one-shot flow.
 - [ ] Quality harness: compare export against reference Markdown for a sample set.
+- [ ] Pages with outlined text get a visible "not extracted" note in the export unless OCR (M9) is enabled.
+
+### M9 — OCR (optional, `feature = "ocr"`)
+- [ ] Spike: run PaddleOCR det/rec ONNX models under `tract-onnx`; measure op coverage and CPU time per page.
+- [ ] `pdf/ocr.rs`: `hayro` rasterise → detect → recognise; per-script models; opt-in, hash-pinned model download (plus an `ocr-bundled` build).
+- [ ] Outlined, Type3 and image text into Markdown export, marked as OCR-derived.
+- [ ] Optional `<name>.searchable.pdf` with an invisible text layer; the forensic `<name>.repaired.pdf` is never changed by OCR.
+- [ ] Alignment oracle: OCR sampled lines to vote code→character maps for font inference (C6, lost `/ToUnicode`, Type3).
+- [ ] Text-versus-visual check after repair; also unlocks Markdown export of scans.
 
 ### Future — the "Pundit+" phase (out of v1 scope)
-- OCR pass (`spdf-ocr`/Tesseract or pure-Rust) to rebuild text layers on scanned/image-only documents — also unlocks Markdown export of scans.
+- OCR beyond M9: layout-aware OCR of whole scanned documents and handwriting.
 - Standards deep-dive: full PDF/A validation & conversion.
 - Optional AI-assisted findings explanations / repair suggestions.
 
@@ -482,6 +498,7 @@ status bar says so, and nothing about the repair itself changes.
 - **Pure-Rust ceiling (decided):** no C FFI — carver/rebuilder is entirely ours on `lopdf`, rendering via the `hayro` family. Accepted trade-off: no battle-tested C library (`qpdf`/`mupdf`) to lean on for the nastiest structural cases, so our carver's robustness is the ceiling. Mitigate with the corpus benchmark harness.
 - **Font tooling parity (reduced):** REPDF leans on `fonttools`+`pikepdf`. The `fontations`/"oxidize" stack (`read-fonts`/`skrifa`) covers CID/CFF *reading* well; the immature part (CFF *subsetting*/writing) is sidestepped because we embed the *full* font program bytes rather than subsetting. Residual risk is narrow: correctly reading CID charset/FDSelect and generating `/ToUnicode` for composite Type0 fonts. Still worth an early spike on a C7/C8 CJK/CFF corpus file. Arabic/Hindi correctness also needs `harfrust` shaping, not just glyph lookup.
 - **Markdown export depends on two unknowns:** (1) `hayro-interpret` must expose per-glyph text + bbox + font attributes for our `PdfEngine` adapter — verify with a spike alongside M3, since Markdown is now v1; if it doesn't, we extend hayro or fall back to our own content-stream interpreter. (2) `spdf` is early (v0.2.0-alpha) — API churn risk; mitigated because its projection core is small and MIT, so we can vendor/fork if needed.
+- **Text without a font:** Microsoft Print to PDF draws fonts with the Preview & Print embedding permission as vector outlines (4.7% of glyphs in the REPDF Print to PDF originals; 16.5% of English and 25.2% of Chinese glyphs). Font inference, `/ToUnicode` rebuild and text-layer metrics cannot see that text, while REPDF's OCR metric counts it. Mitigated by the outlined-text finding, OCR scoring in the harness, and the M9 OCR feature. Open: tract latency for the OCR models, and weak Arabic OCR (73.6–81.3% line accuracy).
 - **Markdown emitter is ours:** spdf outputs text/JSON, not Markdown — the GFM formatter (esp. table rendering and heading inference) is net-new work and where "high quality" is won or lost.
 - **Terminal drag-drop UX:** drop-on-terminal behavior varies by emulator (most paste the path). The `browse…` picker is the guaranteed fallback.
 - **UI framework undecided (open):** the terminal-UI framework/styling stack is not yet chosen — see [pdfpundit-ui-design.md](pdfpundit-ui-design.md). To keep this a non-blocking decision, the engine is UI-agnostic (emits the `JobEvent` stream + view data), so the choice can be made and changed without engine impact. The known trade-space: ratatui (mature, manual styling, easy cell-buffer backdrop compositing) vs. the Charm/lipgloss stack (prebuilt styles/components — the "library of styles" the user wants — younger, async-first, string-composition makes the cat backdrop harder).
@@ -499,7 +516,7 @@ status bar says so, and nothing about the repair itself changes.
 
 - Drop a corrupted PDF (or browse to it); PDFPundit identifies its corruption type(s) against C1–C10 within a second or two, shown in the retro UI.
 - Produce a `<name>.repaired.pdf` that renders in Chrome and re-diagnoses clean for the targeted findings — the original file is untouched.
-- On the REPDF corpus, match or beat the paper's results (avg text recovery ≈90.67%): ≈100% on C1–C5, ≈99% on C7, ≈90% on C6/C8, with the interactive font picker lifting the known-hard Arabic / "Print to PDF" cases above REPDF's automatic-only scores.
+- On the REPDF corpus, scored with REPDF's own OCR word-recall metric, match or beat the paper's results (avg text recovery ≈90.67%): ≈100% on C1–C5, ≈99% on C7, ≈90% on C6/C8, with the interactive font picker lifting the known-hard Arabic / "Print to PDF" cases above REPDF's automatic-only scores.
 - Extract embedded images to standalone files during repair (REPDF ≈94.75% image recovery) and re-place them when the content stream allows.
 - Export a multi-column PDF to Markdown in correct reading order with headings, lists, best-effort GFM tables, and image refs — and on a font-broken PDF, the repaired-then-exported Markdown has correct Unicode where raw extraction would be garbled.
 - Runs identically on macOS, Windows, and Linux from a single self-contained binary.

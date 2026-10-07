@@ -14,7 +14,7 @@ planStatus:
     - tui
     - design
   created: "2026-07-16"
-  updated: "2026-07-17T06:40:00.000Z"
+  updated: "2026-10-04T04:30:00.000Z"
   progress: 0
 ---
 # PDFPundit — Technical Design (v1)
@@ -236,6 +236,13 @@ pub enum CorruptionClass {                   // + code() "C1".."C10", label(), c
     C8FontResourcesDeleted, C9ZlibTampered, C10Truncated,
 }
 
+pub enum FindingKind {                       // what a Finding is about
+    Corruption(CorruptionClass),
+    Encrypted,                               // §19 extra row
+    OutlinedText { glyph_runs: u32, contours: u32 },   // §5.6, Info only
+    Type3Text { font: ObjId },                         // §5.6, Info only
+}
+
 pub enum Severity { Info, Warning, Error }
 pub struct ByteSpan { pub start: u64, pub end: u64 }    // half-open, original-file offsets
 
@@ -247,8 +254,8 @@ pub enum Location {
 }
 
 pub struct Finding {
-    pub id: String,                          // stable per run, e.g. "C2-001"
-    pub class: CorruptionClass,
+    pub id: String,                          // stable per run, e.g. "C2-001", "OUTLINE-001"
+    pub class: FindingKind,
     pub severity: Severity,
     pub location: Location,
     pub summary: String,
@@ -261,6 +268,7 @@ pub enum Repairability {
     Interactive(InteractionKind),            // FontPick / FontSubstitution
     Partial(String),                         // best-effort; explains the loss
     Unrepairable(String),
+    NotApplicable,                           // Info findings (§5.6): nothing to repair
 }
 ```
 
@@ -294,7 +302,9 @@ second or two" budget.
 3. Mark landmarks inside a confirmed stream span dead (spurious keyword bytes).
 4. Missing `endobj` → object ends at next header/EOF (note `NoEndobj`).
 5. Classify `ObjectKind` from `/Type`//`/Subtype`; typeless streams classify by
-   content (`BT/ET/Tf/Tj` → content stream; image magic / `/Image` → image).
+   content (content-stream grammar: text operators **or** dense path/graphics
+   operators → content stream; image magic / `/Image` → image). See §15: a
+   text-operator test alone misses pages whose text is drawn as outlines.
 6. **Expand `/ObjStm` containers** (inflate, parse `First`/`N`, re-carve
    embedded objects); decode xref streams for diagnosis only.
 
@@ -460,6 +470,102 @@ pub enum ResolutionStatus {
   select-all bulk action. Delivered through the same interaction rendezvous
   (`InteractionKind::FontSubstitution`).
 
+### 5.6 Text without a font: outlines, Type3 glyphs, images
+
+§5.2–5.5 assume every word reaches the page as character codes shown with
+`Tj`/`TJ` through a font. Some producers draw text another way:
+
+- **Outlines**: each glyph is a filled path (`m/l/c/h … f` under a `cm`). There
+  is no font, no codes and no `/ToUnicode`. Microsoft Print to PDF does this
+  for some fonts. In the REPDF originals it outlines **4.7% of all glyphs in
+  the Print to PDF files** (16.5% on English pages, 25.2% on Chinese pages) in
+  **43 of the 50** of them, and none in Save As files. The trigger is the
+  font's embedding permission: the two outlined faces are the only two in the
+  corpus with OS/2 `fsType` 4 (Preview & Print); Word's Save As embeds them,
+  Print to PDF embeds the other 42 and outlines these.
+- **Type3 fonts**: glyphs are content-stream procedures. Codes exist, but the
+  "font program" is PDF drawing operators. None in the REPDF corpus; Chrome's
+  PDF backend (Skia) falls back to them when a font is not embeddable, and
+  also for variable fonts, bare CFF fonts and mask-filtered text.
+- **Images of text** (scans, flattened exports).
+
+PDF has no native SVG; text that began as SVG arrives as one of these three.
+Evidence and scripts: [research addendum](research/research_notes/Corrupted%20PDF%20repair%20beyond%20REPDF/outlined_text_and_ocr.md).
+
+Handling:
+
+- **Repair**: nothing special. Outlined glyphs are ordinary content-stream
+  operators, so they survive whenever the stream survives and is copied
+  verbatim, which both emit strategies do (§17.4); they are then visible as
+  long as the viewer draws the rest of the page. The C9 Adler-checked byte
+  search works on them unchanged;
+  the grammar localizer is weaker, because a corrupted coordinate digit is
+  still a valid number. §15 classifies path-only typeless streams as `Content`.
+- **Detection** (v1, no model): `diagnose.rs` emits an `Info` finding of kind
+  `OutlinedText { glyph_runs, contours }` (location: the page) for filled paths
+  with ≥3 curve segments, and `Type3Text { font }` for Type3 fonts in use. These
+  are not corruption classes and never trigger a pass. They feed Markdown
+  export (M8), the retention check (§17.4) and evaluation strata (§8). Without
+  the `ocr` feature, Markdown export writes a visible note on each flagged page
+  (`<!-- text drawn as outlines on this page (9 paths, 412 contours) was not extracted -->`;
+  one filled path is usually a whole line, so glyphs cannot be counted)
+  instead of dropping the words silently. The detector found no false positives
+  on REPDF, whose documents carry no vector art; its precision on real-world
+  files is untested.
+- **Recovery without a model** (idea, unmeasured): match each outline,
+  normalised by its `cm`, against candidate glyph outlines read with skrifa
+  (document fonts, bundled DB, system fonts via fontique). A TrueType quadratic
+  converts to a cubic Bézier exactly, so unless the producer simplifies curves a
+  matched glyph should agree up to coordinate rounding. Type3 procedures can be
+  rendered and shape-matched the same way.
+- **Recovery with OCR**: §5.7.
+
+### 5.7 OCR (`pdf/ocr.rs`, `feature = "ocr"`)
+
+OCR covers what code-level inference cannot: outlined text, Type3 and image
+text, and an independent visual reading for verification. It stays out of the
+default build because of model size, and it never replaces a surviving text
+layer.
+
+- **Engine**: `tract-onnx` (pure Rust) running PaddleOCR detection + per-script
+  recognition ONNX models; `rten` + `ocrs` is the Latin-only fallback.
+  Tesseract, onnxruntime and MNN bindings are C/C++ and excluded by the no-FFI
+  rule. Pages are rasterised with `hayro` at 200 dpi.
+- **Models**: detection 4.75 MB, Chinese/English recognition 10.9 MB,
+  Devanagari 7.9 MB, Arabic 7.8 MB, direction classifier 0.6 MB, plus a Latin
+  recognition model for en/fr/es. That is about 35–45 MB (an estimate; only
+  the three PP-OCRv4 files were measured), so models are
+  **downloaded on first use** into the asset dir and checked against SHA-256
+  hashes pinned in an `ocr-models.json` manifest; an `ocr-bundled` feature
+  embeds them for offline builds. The download is opt-in, like every other
+  network use.
+- **Uses, in order of value**:
+  1. **Export of outlined, Type3 and image text.** Markdown export takes
+     OCR text for regions flagged by §5.6 and marks it as OCR-derived. An
+     optional *searchable copy* (`<name>.searchable.pdf`) adds an invisible
+     (`3 Tr`) text layer; the forensic `<name>.repaired.pdf` is never altered
+     by OCR.
+  2. **Alignment oracle for §5.2** when the page renders with the right glyphs
+     (C6 orphaned fonts, lost or wrong `/ToUnicode`, Type3): OCR sampled lines,
+     align to the code sequences of the same lines, majority-vote a code→char
+     map, stop once every used code has k consistent votes. Not for C7/C8,
+     whose renders show substitute glyphs.
+  3. **Text-versus-visual gate** in §17.4: OCR the repaired render and compare
+     it with the extracted text; a gap flags right-`/ToUnicode`-wrong-glyph
+     outputs that every structural gate passes.
+  4. **Scanned pages**: rebuild a text layer (previously Pundit+ only).
+- **Measured on REPDF** (PaddleOCR PP-OCRv4 via onnxruntime in Python, as a
+  stand-in for the tract build; 200 dpi PDFium renders): on Print to PDF pages
+  that contain outlines, the text layer keeps 70.8% of English words and 56.4%
+  of Chinese characters; OCR reaches 87.3% and 99.7%, against 90.0% and 99.7%
+  for OCR of the Save As originals. English word recall is held down by the
+  Chinese recognition model merging words (character recall 93.5%), so Latin
+  pages should use a Latin model.
+- **Provenance**: every OCR-derived string carries `TextSource::Ocr { model,
+  confidence }`; findings and reports list the pages whose text came from OCR.
+- **Open**: tract latency for these models on CPU is unmeasured; Arabic
+  recognition is weak (73.6–81.3% line accuracy).
+
 ## 6. Persistence & config (`library.rs`, `config.rs`)
 
 **JSON store** (user decision) behind a minimal trait (`upsert_file`,
@@ -548,7 +654,7 @@ reloads in strict lopdf, hayro smoke-renders, re-diagnoses clean), **scorer**
 prompted cancels cleanly).
 
 **Corpus harness (`src/bin/corpus.rs`):** headless run over the REPDF corpus
-(1,000 files). Text-recovery metric: extract text from repaired vs pristine
+(1,000 files). Text-layer metric: extract text from repaired vs pristine
 via `hayro-interpret` (also serving as the M8 glyph-API spike), normalize (NFC, casefold, collapse
 whitespace), word-level Myers diff via the `similar` crate;
 `recovery = 2·matched / (len_orig + len_repaired)`. Image recovery:
@@ -556,10 +662,37 @@ decoded-pixel hash matches / originals. Emits `corpus_results.csv` and an
 aggregate table against the paper's baselines (C1–C5 ≈100%, C7 ≈99%, C6/C8
 ≈90%, C9 ≈60%, C10 35–99%).
 
+**OCR metric (REPDF-comparable).** The text-layer metric cannot see outlined
+text (§5.6), and REPDF does not score the text layer: it OCRs the original and
+the repaired PDF with **Google Cloud Document AI** and reports word recall
+against the original's OCR ([REPDF §5.3](REPDF-Repairing-corrupted-PDF-files-through-f_2026_Forensic-Science-Interna.pdf)).
+The baselines above are only comparable under that metric. Harness scripts
+(`tools/ocr-eval/`, dev tooling, outside the product binary and its no-FFI rule):
+
+- **Release runs: Document AI**, Enterprise Document OCR processor. Send the
+  PDF files themselves, as REPDF's wording suggests it did, with native PDF
+  parsing off so every word is OCR'd (REPDF's README says Chrome's viewer was
+  used "for all assessments", so Chrome/PDFium renders are the alternative to
+  check once). Pin a processor version (`pretrained-ocr-v2.1-2024-08-07`, or the
+  frozen `pretrained-ocr-v1.2-2022-11-10` for zero drift); REPDF does not state
+  which version it used, so exact replication is not guaranteed. At $1.50 per
+  1,000 pages a full run (≈6,000 repaired + 600 original pages) costs about
+  $10. Only the public corpus is ever uploaded, never user files.
+- **CI and nightly: local PaddleOCR** (the same models as `feature = "ocr"`,
+  run through onnxruntime in Python): free, offline, deterministic. Calibrate it
+  once against Document AI on the originals and report both numbers whenever a
+  release run exists.
+- Score `ocr_word_recall = matched / len_orig` (bag of words; REPDF does not
+  say whether its matching is order-aware), character recall for zh, and a
+  per-file **text-versus-visual gap** (OCR recall − text-layer recall). Stratify
+  every table by creation method and by the file's outlined-glyph share, since
+  Print to PDF files carry text the text-layer metric never counts.
+
 **CI (GitHub Actions):** `lint` (fmt + clippy -D warnings); `test` on
 {ubuntu, macos, windows}; `corpus-smoke` PR gate (~30 cached corpus files,
-threshold `recovery ≥ baseline − 2%`); `corpus-full` nightly; `dist`
-(cargo-dist) on tags.
+threshold `recovery ≥ baseline − 2%` on both the text-layer metric and the
+PaddleOCR recall); `corpus-full` nightly; `dist` (cargo-dist) on tags; the
+Document AI run is manual, per release.
 
 ## 9. Build order (dependency-ordered, mapped to plan milestones)
 
@@ -572,7 +705,8 @@ threshold `recovery ≥ baseline − 2%`); `corpus-full` nightly; `dist`
 | 5 | **Parallel track from step 2:** `tools/build-templates` (read-fonts extraction, harfrust shaped gmaps, lopdf template emit, fontindex); runtime `pdf/fontdb.rs` loader + scorer; system-font enumeration (fontique) + `FontResolution`; `ui/fontpick.rs` + substitution menu + rendezvous | M5 |
 | 6 | `pdf/emit.rs` (RebuildDoc, strategy selector, template harvest, verification); `pdf/repair.rs` passes in order C9→C10→C5→C4→C6→C7→C8; `/ToUnicode` rebuild; image extraction; context-menu actions + pass checklist; re-diagnose loop | M6 |
 | 7 | `src/bin/corpus.rs` + scoring; scorer weight tuning; cat face + drop animations (chomp; kitty drag tracking) + themes + banner (random-cat fetch shelved); third-party-viewer spot-check of a corpus sample; cargo-dist CI; docs | M7 |
-| 8 | **Spike `hayro-interpret` glyph API first, alongside step 3** (Markdown is v1); then `pdf/export/*` behind the default `feature = "export"`; spdf wiring; Markdown emitter; export action + quality harness | M8 |
+| 8 | **Spike `hayro-interpret` glyph API first, alongside step 3** (Markdown is v1); then `pdf/export/*` behind the default `feature = "export"`; spdf wiring; Markdown emitter (outlined-text notes from §5.6); export action + quality harness | M8 |
+| 9 | **Spike tract on the PaddleOCR det/rec ONNX models first** (op coverage, CPU latency per page); then `pdf/ocr.rs` behind `feature = "ocr"`: hayro rasterise → detect → recognise, model download + hash pinning; OCR text into Markdown export and the searchable copy; alignment oracle for §5.2; text-versus-visual gate in §17.4 | M9 |
 
 Critical path: 1 → 3 → 4 → 6. The font DB (step 5) is the long pole for M6's
 font passes and starts as soon as step 2 finishes — `tools/build-templates`
@@ -893,7 +1027,12 @@ Priority: (1) explicit `/Subtype`/`/Type` if present and sane; else (2) **conten
 sniff** of the (inflated) bytes:
 
 - JPEG SOI `FF D8 FF`, PNG `89 50 4E 47`, JP2 `00 00 00 0C 6A 50` → `Image`.
-- Contains text operators `BT`…`ET` with `Tj`/`TJ`/`Tf` → `Content`.
+- Tokenizes as content-stream grammar → `Content`: ≥90% of operator tokens
+  come from the ISO 32000 operator set and operand counts fit, whether the
+  operators are text (`BT`…`ET`, `Tf`, `Tj`/`TJ`) or path and graphics state
+  (`m l c v y re h f f* S n cm q Q gs`). A text-operator test alone misses a
+  tag-stripped (C5) stream whose page draws its text as outlines (§5.6).
+  REPDF's classifier uses text operators or `Do` only, so it shares the gap.
 - Only `Do` XObject invocations, no text → `Form`.
 - Starts with `%!PS` or has `begincmap`/`endcmap` → `CMap`.
 - Font table magic `00 01 00 00` / `OTTO` / `true`/`ttcf` → `FontFile`.
@@ -1011,7 +1150,12 @@ fn choose_strategy(sel:&[CorruptionClass], carve:&CarveReport, graph:&ObjectGrap
 Post-emit **verification** (always): reload output with strict `lopdf`
 (`Document::load_mem`) — must succeed; `hayro` render page 1..=N to a null canvas
 — must not error; re-run `diagnose` on the output — targeted classes must be gone.
-Results populate `RepairReport.verification`.
+Results populate `RepairReport.verification`. A retention check compares the
+output's text-show operators **and** path fills with the carve's, so a repair
+that drops an outlined-text stream is caught (§5.6). With `feature = "ocr"`, an
+extra text-versus-visual check OCRs sampled lines of the repaired render and
+compares them with the extracted text; a large gap marks the output `Partial`
+(§5.7).
 
 ## 18. Font DB, inference & `/ToUnicode` (`pdf/fontdb.rs`)
 
@@ -1085,10 +1229,14 @@ are included (keeps the CMap small).
 | C9 | any stream whose `salvage_inflate` returns `Prefix`/`ByteFlip`/`Unrecoverable` |
 | C10 | `file_len` < declared/`startxref` expectations, or a stream span clamped `TruncatedAtEof` |
 | — (extra) | `/Encrypt` present in trailer/carve ⇒ `Unrepairable("decrypt first")` |
+| — (info) | filled paths with ≥3 curve segments ⇒ `OutlinedText` per page; Type3 font in use ⇒ `Type3Text` (§5.6; never a repair) |
 
-Each detector yields `Finding{ class, severity, location, evidence, repair }`;
-`repair` is set from the class's `Repairability` (Auto / Interactive / Partial /
-Unrepairable) so the UI knows which need a prompt before running.
+Each detector yields `Finding{ class, severity, location, evidence, repair }`.
+For `FindingKind::Corruption(class)` and `Encrypted`, `repair` is set from the
+class's `Repairability` (Auto / Interactive / Partial / Unrepairable) so the UI
+knows which need a prompt before running; the info kinds (`OutlinedText`,
+`Type3Text`) carry `Repairability::NotApplicable` and never enter
+`JobKind::Repair { passes }`.
 
 ## 20. Edge-case catalogue (each ⇒ a `tests/fixtures.rs` case)
 
@@ -1105,3 +1253,7 @@ Unrepairable) so the UI knows which need a prompt before running.
 - Type0/Identity-H CID font (code==gid) vs. simple font with `/Differences`
   encoding; Arabic positional-form gids resolved only via shaped `.gmap` entries.
 - Multi-filter stream (`[/ASCII85Decode /FlateDecode]`).
+- Page whose text is drawn only as outlines (no `BT`/`ET`), carved as a
+  typeless C5 orphan: must classify as `Content` and raise `OutlinedText`.
+- Type3 font whose glyph procedures are the only text source: `Type3Text`
+  finding; no `/FontFile*` expected, so C7 must not fire.
