@@ -413,6 +413,9 @@ fn runs_of(
         let Some(page) = page_input_id(ctx, index) else {
             continue;
         };
+        // A page's /Contents pieces are one stream: a font set in one
+        // governs text in the next. A form starts afresh.
+        let mut page_state = FontState::default();
         for piece in ctx.graph.page_content(ctx.carve, page, decode) {
             let Some(bytes) = decode(piece.stream) else {
                 continue;
@@ -426,8 +429,14 @@ fn runs_of(
                 let resources = Object::Dictionary(piece.resources.dict.clone());
                 slots_naming(ctx, &resources, font)
             };
-            let mut on = false;
+            let mut form_state = FontState::default();
+            let state = if piece.via.is_empty() {
+                &mut page_state
+            } else {
+                &mut form_state
+            };
             for op in content_ops(&bytes) {
+                let on = state.on;
                 let mut run = CodeRun {
                     codes: Vec::new(),
                     breaks: Vec::new(),
@@ -435,7 +444,18 @@ fn runs_of(
                 match (op.op, op.operands.last()) {
                     (b"Tf", _) => {
                         if let [.., Object::Name(s), _] = op.operands.as_slice() {
-                            on = ours.contains(s);
+                            state.on = ours.contains(s);
+                        }
+                        continue;
+                    }
+                    (b"q", _) => {
+                        state.saved.push(state.on);
+                        continue;
+                    }
+                    (b"Q", _) => {
+                        // An unbalanced Q leaves the state as it is.
+                        if let Some(on) = state.saved.pop() {
+                            state.on = on;
                         }
                         continue;
                     }
@@ -467,6 +487,14 @@ fn runs_of(
         }
     }
     runs
+}
+
+/// Whether the current text font is one of the target's slots, and the
+/// values `q` saved (the font is part of the graphics state).
+#[derive(Default)]
+struct FontState {
+    on: bool,
+    saved: Vec<bool>,
 }
 
 /// The codes of string `t`: big-endian pairs (a trailing odd byte dropped),

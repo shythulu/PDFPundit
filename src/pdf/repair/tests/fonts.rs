@@ -2,7 +2,7 @@
 //! questions, with the two-font test database (the test font, and the same
 //! program with a shuffled `.gmap`) and a 50-word English list, as in T-28.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lopdf::{Document, LoadOptions};
 
@@ -1093,6 +1093,83 @@ fn assembled_tounicode_covers_exactly_the_used_codes_in_small_blocks() {
         "page 2 has ink"
     );
     assert!(extract_text(&out, &ExtractOptions::default()).is_ok());
+}
+
+/// The golden with page 1's content split in two after its `Tf`, and the
+/// second piece opening with `q /F9 16 Tf Q` (`/F9` a standard Helvetica):
+/// the text is shown in another stream than the one that set its font,
+/// after a `Q` restored that font.
+fn split_contents() -> Vec<u8> {
+    rewrite_golden(|objects| {
+        let content = objects[&11]
+            .as_stream()
+            .unwrap()
+            .decompressed_content()
+            .unwrap();
+        let text = String::from_utf8(content).unwrap();
+        let at = text.find(" Tf\n").unwrap() + " Tf\n".len();
+        let first = text[..at].as_bytes().to_vec();
+        let second = format!("q\n/F9 16 Tf\nQ\n{}", &text[at..]).into_bytes();
+        objects.insert(11, Object::Stream(Stream::new(Dictionary::new(), first)));
+        objects.insert(23, Object::Stream(Stream::new(Dictionary::new(), second)));
+        let mut helvetica = Dictionary::new();
+        helvetica.set("Type", Object::Name(b"Font".to_vec()));
+        helvetica.set("Subtype", Object::Name(b"Type1".to_vec()));
+        helvetica.set("BaseFont", Object::Name(b"Helvetica".to_vec()));
+        objects.insert(24, Object::Dictionary(helvetica));
+        let page1 = objects.get_mut(&3).unwrap().as_dict_mut().unwrap();
+        page1.set(
+            "Contents",
+            Object::Array(vec![Object::Reference((11, 0)), Object::Reference((23, 0))]),
+        );
+        let resources = page1.get_mut(b"Resources").unwrap().as_dict_mut().unwrap();
+        let fonts = resources.get_mut(b"Font").unwrap().as_dict_mut().unwrap();
+        fonts.set("F9", Object::Reference((24, 0)));
+    })
+}
+
+/// The two-byte codes of every hex string in page `page`'s golden content.
+fn golden_codes(page: usize) -> BTreeSet<u16> {
+    let doc = Document::load_mem(&golden_pdf()).unwrap();
+    let id = doc.get_pages()[&(page as u32 + 1)];
+    let content = doc.get_page_content(id);
+    let text = String::from_utf8(content).unwrap();
+    let mut out = BTreeSet::new();
+    for piece in text.split('<').skip(1) {
+        let hex = &piece[..piece.find('>').unwrap()];
+        for c in hex.as_bytes().chunks(4) {
+            out.insert(u16::from_str_radix(std::str::from_utf8(c).unwrap(), 16).unwrap());
+        }
+    }
+    out
+}
+
+#[test]
+fn a_font_set_in_one_content_stream_governs_the_next() {
+    let input = analysed(corrupt(C7FontStreamDeleted, &split_contents(), 0));
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
+    let ran = run_pass(
+        &input,
+        C7FontStreamDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut UseBest,
+        &[],
+    );
+    assert_eq!(ran.report.outcome, PassOutcome::Fixed, "{:?}", ran.report);
+    let doc = load_strict(&ran.output);
+    let mapped: BTreeSet<u16> = blocks(&tounicode_of(&doc, 0))
+        .into_iter()
+        .flat_map(|(_, c)| c)
+        .collect();
+    let drawn = golden_codes(0);
+    assert!(!drawn.is_empty());
+    assert!(
+        drawn.is_subset(&mapped),
+        "unmapped: {:?}",
+        drawn.difference(&mapped).collect::<Vec<_>>()
+    );
+    assert_eq!(text_of(&ran.output), golden_text());
 }
 
 #[test]
