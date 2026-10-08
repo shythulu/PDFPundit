@@ -15,7 +15,10 @@
 //!    exactly on EOL + `endstream`; (b) the one `endstream` between the data
 //!    and the next header that is framed as EOL + `endstream` + optional
 //!    whitespace + `endobj` (two or more: nothing, carry on); (c) an indirect
-//!    `/Length` (T-07 rule 2); (d) the inflate probe (T-07 rule 1); (e) the
+//!    `/Length` (T-07 rule 2), which is tried right after (a) and before (b),
+//!    as TD §14.3 orders it: a resolved length is declared evidence, like
+//!    (a), and an exact fit must win over a framed `endstream` that the
+//!    data itself holds; (d) the inflate probe (T-07 rule 1); (e) the
 //!    last `endstream` before the next header; (f) the end of the file, or
 //!    the next header when there is one ([`LengthSource::TruncatedAtEof`]
 //!    either way; [`CarveNote::NoEndstream`] marks the second). The scanned
@@ -55,15 +58,17 @@
 //!    container; an entry that is out of range, out of order, names its own
 //!    container or does not parse is skipped ([`CarveNote::ObjStmEntryBad`]).
 //!    Packed values are never streams and `/Extends` is not followed, so
-//!    expansion never recurses; a visited set keyed by the container's offset
-//!    expands each container once.
+//!    expansion never recurses (a visited set keyed by the container's offset
+//!    is only a guard). The offsets kept strictly increase.
 //! 4. **Container-offset precedence** (D-031, defaulted): `objects` is kept
 //!    in container-offset order, each packed object right after its
 //!    container, so among the copies of one id ([`CarveReport::copies`]) the
-//!    last is the one whose top-level holder starts latest. That copy wins
-//!    ([`CarveReport::winner`]) and the others are shadows. lopdf and hayro
-//!    let the top-level copy win instead; `with_objstm_and_plain_copy` pins
-//!    which rule is applied.
+//!    last is the one whose top-level holder starts latest
+//!    ([`CarveReport::last_by_container_offset`]). That is D-031's ordering
+//!    only: which copy wins is T-10's call, which also applies D-032's gate
+//!    (a copy that is `Unparsed` or `TruncatedAtEof` does not win). lopdf and
+//!    hayro order the top-level copy last instead;
+//!    `with_objstm_and_plain_copy` pins which order is applied.
 //! 5. **Xref streams** are decoded for diagnosis only ([`XrefStream`]): their
 //!    rows, and their `/Root`, `/Info`, `/ID` and `/Encrypt` entries as
 //!    trailer candidates.
@@ -73,7 +78,10 @@
 //!    [`Orphan::Dict`] (an [`Orphan::Stream`] when `stream` follows it), a
 //!    `stream` keyword whose data ends at `endstream` or a complete inflate
 //!    is a dictionary-less [`Orphan::Stream`], and anything else is a
-//!    [`CarveNote::UnexplainedSpan`].
+//!    [`CarveNote::UnexplainedSpan`]. Orphans count toward [`MAX_OBJECTS`].
+//!    A dictionary there is read no further than the next `endstream` or
+//!    `endobj`, and rung (b) looks its framed `endstream`s up in a list made
+//!    once, so the sweep stays linear however many orphans a gap holds.
 // T-09 is the first caller outside the tests.
 #![cfg_attr(not(test), allow(dead_code))]
 
@@ -121,6 +129,9 @@ pub(crate) const MAX_XREF_ROWS: usize = 1_000_000;
 /// work outgrow the file.
 const DECODE_BUDGET_PER_BYTE: usize = 64;
 const DECODE_FLOOR: usize = 16 << 20;
+/// Deflate's greatest expansion: a 258-byte match in two bits, so no byte
+/// of Flate input decodes to more than 1,032 bytes.
+const MAX_INFLATE_RATIO: usize = 1032;
 /// A probe's end is trusted when `endstream` or EOF follows within this many
 /// bytes of whitespace (T-07 rule 1).
 const PROBE_SLACK: usize = 2;
@@ -344,7 +355,7 @@ pub(crate) enum EntryFault {
     /// past the data.
     OutOfRange,
     /// The offset is not above the previous in-range one or not below the
-    /// next.
+    /// next, or not above an earlier entry that was kept.
     NonMonotonic,
     /// The entry names its own container.
     SelfReference,
@@ -396,9 +407,12 @@ impl CarveReport {
         self.objects.iter().filter(move |o| o.declared_id == id)
     }
 
-    /// The copy of `id` that wins: the last of [`CarveReport::copies`]. The
-    /// others are its shadows.
-    pub(crate) fn winner(&self, id: ObjId) -> Option<&CarvedObject> {
+    /// The last of [`CarveReport::copies`]: the copy whose top-level holder
+    /// starts latest. This applies D-031's ordering only, not which copy
+    /// wins: T-10 decides that and applies D-032's gate on top (a copy that
+    /// is `Unparsed` or `TruncatedAtEof` does not win), so this may be a
+    /// copy that loses.
+    pub(crate) fn last_by_container_offset(&self, id: ObjId) -> Option<&CarvedObject> {
         self.copies(id).last()
     }
 
@@ -567,7 +581,13 @@ fn carve_with(buf: &[u8], cancel: &dyn Fn() -> bool, caps: Caps) -> Result<Carve
         decoding: &mut decoding,
         rungs: RungCounts::default(),
     };
-    gaps::sweep(&mut ladder, &mut classify, &mut poll, &mut report)?;
+    gaps::sweep(
+        &mut ladder,
+        &mut classify,
+        caps.objects,
+        &mut poll,
+        &mut report,
+    )?;
     report.stats.rungs.add(ladder.rungs);
     Ok(report)
 }
@@ -796,6 +816,31 @@ impl Decoding {
         self.left -= n.min(self.left);
     }
 
+    /// `raw` through `chain` within [`Decoding::cap`]. What decodes is
+    /// charged. A decode that fails may have produced output before failing
+    /// (an Adler mismatch is found after a full inflate), so it is charged
+    /// the most its input could have produced ([`output_bound`]), and the
+    /// whole cap when it reached the cap or its chain has no such bound. So
+    /// a file of failing decodes cannot outgrow the budget either, and one
+    /// small damaged stream does not use up what the others need.
+    fn decode(&mut self, raw: &[u8], chain: &[(Filter, Option<Dictionary>)]) -> Option<Vec<u8>> {
+        let cap = self.cap();
+        match streams::decode_chain(raw, chain, cap) {
+            Ok(out) => {
+                self.spend(out.len());
+                Some(out)
+            }
+            Err(e) => {
+                let bound = match e {
+                    streams::DecodeError::CapHit => None,
+                    _ => output_bound(raw.len(), chain),
+                };
+                self.spend(bound.map_or(cap, |b| b.min(cap)));
+                None
+            }
+        }
+    }
+
     /// Rule 1's probe over `buf[start..end]`: the input a complete inflate
     /// consumes, if it completes. Each region is probed once per carve.
     fn probe(&mut self, buf: &[u8], start: usize, end: usize) -> Option<usize> {
@@ -813,6 +858,25 @@ impl Decoding {
         self.probes.insert((start, end), done);
         done
     }
+}
+
+/// The most every stage of `chain` together can produce from `len` bytes,
+/// stage by stage; `None` when a stage's output is not bounded by a
+/// multiple of its input (LZW, an unknown filter).
+fn output_bound(len: usize, chain: &[(Filter, Option<Dictionary>)]) -> Option<usize> {
+    chain.iter().try_fold(len, |n, (f, _)| {
+        let ratio = match f {
+            Filter::Flate => MAX_INFLATE_RATIO,
+            // `z` is one byte for four zeros.
+            Filter::Ascii85 => 4,
+            // A length byte and one byte for up to 128 copies.
+            Filter::RunLength => 64,
+            // Two digits a byte; an image codec's data passes through.
+            Filter::AsciiHex | Filter::Dct | Filter::Jpx | Filter::Ccitt | Filter::Jbig2 => 1,
+            Filter::Lzw | Filter::Unknown(_) => return None,
+        };
+        Some(n.saturating_mul(ratio))
+    })
 }
 
 /// What the extent ladder works with: the file, its landmarks, the indirect
@@ -879,12 +943,7 @@ impl Ladder<'_> {
 
         // (b) The unique-endstream rule (lopdf's definition of the data's end).
         let candidates = within(&self.lm.endstreams, start..region_end);
-        let framed: Vec<usize> = candidates
-            .iter()
-            .copied()
-            .filter(|&at| framed_endstream(buf, at))
-            .collect();
-        match framed.as_slice() {
+        match within(&self.lm.framed_endstreams, start..region_end) {
             [at] => {
                 self.rungs.unique_endstream += 1;
                 return scanned(strip_eol(buf, start, *at), *at);

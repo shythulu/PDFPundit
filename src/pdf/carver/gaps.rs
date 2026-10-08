@@ -5,8 +5,8 @@ use std::ops::Range;
 use lopdf::{Dictionary, Object};
 
 use super::{
-    Cancelled, CarveNote, CarveReport, Classifier, Ladder, LengthSource, Orphan, Poll, dict_kind,
-    range, region_end, span,
+    Cancelled, Cap, CarveNote, CarveReport, Classifier, Ladder, LengthSource, Orphan, Poll,
+    dict_kind, range, region_end, span,
 };
 use crate::pdf::lexer::{self, Lexer, Tok, is_reg, is_ws};
 
@@ -16,13 +16,19 @@ const MIN_SOLID: usize = 16;
 
 /// Finds the orphans and unexplained spans in every gap of the carve: the
 /// runs outside objects, xref tables, trailers and `startxref` values.
+/// Orphans count toward `max_objects` with the objects already carved;
+/// the sweep stops at the cap with [`CarveNote::CapHit`]. `poll` ticks once
+/// per gap and once per orphan tried, so a gap of many orphans still sees a
+/// cancel.
 pub(super) fn sweep(
     ladder: &mut Ladder<'_>,
     classify: &mut Classifier,
+    max_objects: usize,
     poll: &mut Poll<'_>,
     report: &mut CarveReport,
 ) -> Result<(), Cancelled> {
     let buf = ladder.buf;
+    let mut room = max_objects.saturating_sub(report.objects.len());
     for gap in gaps(ladder, report) {
         poll.tick()?;
         let mut pos = gap.start;
@@ -31,8 +37,19 @@ pub(super) fn sweep(
             if !solid_at_least(buf, pos, gap.end, MIN_SOLID) {
                 break;
             }
+            poll.tick()?;
+            let rungs = ladder.rungs;
             match orphan_at(ladder, classify, pos, gap.end) {
+                Some(_) if room == 0 => {
+                    ladder.rungs = rungs;
+                    let note = CarveNote::CapHit(Cap::Objects);
+                    if !report.notes.contains(&note) {
+                        report.notes.push(note);
+                    }
+                    return Ok(());
+                }
                 Some(orphan) => {
+                    room -= 1;
                     pos = orphan.span().end as usize;
                     report.orphans.push(orphan);
                 }
@@ -126,11 +143,14 @@ fn orphan_at(
 ) -> Option<Orphan> {
     let buf = ladder.buf;
     let window = &buf[..end];
+    // A dictionary does not run past `endstream` or `endobj`: one that
+    // never closes leaves the orphans after it alone.
+    let dict_window = &buf[..dict_end(ladder, pos, end)];
     if window[pos..].starts_with(b"<<")
-        && let Ok(p) = lexer::parse_value(window, pos, 0)
+        && let Ok(p) = lexer::parse_value(dict_window, pos, 0)
         && let Object::Dictionary(dict) = p.value
     {
-        let mut lx = Lexer::new(window, p.end);
+        let mut lx = Lexer::new(dict_window, p.end);
         if lx.next() == Tok::Kw(&b"stream"[..]) {
             return Some(stream_orphan(ladder, classify, pos, dict, lx.pos, end));
         }
@@ -162,6 +182,16 @@ fn orphan_at(
             None
         }
     }
+}
+
+/// Where a dictionary from `pos` must end: the first `endstream` or
+/// `endobj` from there, or `end`.
+fn dict_end(ladder: &Ladder<'_>, pos: usize, end: usize) -> usize {
+    let first = |list: &[usize]| list.get(list.partition_point(|&at| at < pos)).copied();
+    [first(&ladder.lm.endstreams), first(&ladder.lm.endobjs)]
+        .into_iter()
+        .flatten()
+        .fold(end, usize::min)
 }
 
 /// The stream orphan from `pos` whose `stream` keyword ends at `kw_end`.

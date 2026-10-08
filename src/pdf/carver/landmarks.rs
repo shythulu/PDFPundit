@@ -30,6 +30,10 @@ pub(super) struct Landmarks {
     pub(super) bad_headers: Vec<usize>,
     pub(super) endobjs: Vec<usize>,
     pub(super) endstreams: Vec<usize>,
+    /// The `endstreams` framed for rung (b) ([`super::framed_endstream`]),
+    /// found once so that the rung costs a binary search however far a
+    /// stream's region reaches.
+    pub(super) framed_endstreams: Vec<usize>,
     pub(super) xrefs: Vec<usize>,
     pub(super) startxrefs: Vec<usize>,
     pub(super) trailers: Vec<usize>,
@@ -97,6 +101,12 @@ pub(super) fn scan(buf: &[u8], cap: usize, poll: &mut Poll<'_>) -> Result<Landma
             Hit::Eof(at) => out.eofs.push(at),
         }
     }
+    out.framed_endstreams = out
+        .endstreams
+        .iter()
+        .copied()
+        .filter(|&at| super::framed_endstream(buf, at))
+        .collect();
     Ok(out)
 }
 

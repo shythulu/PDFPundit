@@ -22,9 +22,9 @@ fn stream_object(num: u32, dict: &str, data: &[u8], tail: &[u8]) -> Vec<u8> {
     out
 }
 
-fn winner_dict(r: &CarveReport, id: ObjId) -> &Dictionary {
+fn last_dict(r: &CarveReport, id: ObjId) -> &Dictionary {
     match &r
-        .winner(id)
+        .last_by_container_offset(id)
         .unwrap_or_else(|| panic!("no copy of {id:?}"))
         .body
     {
@@ -303,7 +303,7 @@ fn the_objstm_golden_yields_every_packed_object() {
     // The pages are reachable only through the object stream.
     for page in [3, 4] {
         assert!(memmem::find(&buf, format!("\n{page} 0 obj").as_bytes()).is_none());
-        assert_eq!(r.winner((page, 0)).unwrap().kind, Page);
+        assert_eq!(r.last_by_container_offset((page, 0)).unwrap().kind, Page);
     }
     // Packed objects follow their container in the list.
     let order: Vec<ObjId> = ids(&r);
@@ -331,11 +331,11 @@ fn both_copy_orders_pick_the_greater_container_offset() {
         let copies: Vec<&CarvedObject> = r.copies((4, 0)).collect();
         assert_eq!(copies.len(), 2, "{order:?}");
         assert!(copies[0].span.start < copies[1].span.start, "{order:?}");
-        let winner = r.winner((4, 0)).unwrap();
+        let winner = r.last_by_container_offset((4, 0)).unwrap();
         assert!(std::ptr::eq(winner, copies[1]));
         // The later copy says A4, whichever kind of copy it is.
         assert_eq!(
-            media_box(winner_dict(&r, (4, 0))),
+            media_box(last_dict(&r, (4, 0))),
             [0, 0, 595, 842],
             "{order:?}"
         );
@@ -369,7 +369,7 @@ fn a_recursive_objstm_terminates() {
     assert!(container_notes(&r, 15).is_empty());
     for (num, container) in [(1, 13), (2, 13), (3, 15), (7, 15)] {
         assert_eq!(
-            r.winner((num, 0)).unwrap().origin,
+            r.last_by_container_offset((num, 0)).unwrap().origin,
             Origin::Compressed((container, 0))
         );
     }
@@ -398,7 +398,10 @@ fn bad_objstm_offsets_skip_those_entries_only() {
     assert_eq!(compressed_ids(&r), [(1, 0), (2, 0), (5, 0), (6, 0)]);
     let classic = carved(&fixtures::golden_pdf());
     for num in [1, 2, 5, 6] {
-        assert_eq!(r.winner((num, 0)).unwrap().body, object(&classic, num).body);
+        assert_eq!(
+            r.last_by_container_offset((num, 0)).unwrap().body,
+            object(&classic, num).body
+        );
     }
 }
 
@@ -422,7 +425,7 @@ fn an_objstm_header_is_checked_before_expansion() {
     let r = carved(&objstm_file(2, first, &data, zlib));
     assert_eq!(compressed_ids(&r), [(2, 0), (3, 0)]);
     assert_eq!(
-        r.winner((3, 0)).unwrap().body,
+        r.last_by_container_offset((3, 0)).unwrap().body,
         Body::Primitive(Object::String(
             b"three".to_vec(),
             lopdf::StringFormat::Literal
@@ -450,6 +453,44 @@ fn an_objstm_header_is_checked_before_expansion() {
         index: 2,
         fault: EntryFault::Missing
     }));
+}
+
+#[test]
+fn objstm_offsets_kept_strictly_increase() {
+    // Offsets 0 50 60 10 20: 60 and 10 each break order with a neighbour,
+    // and 20 then sits below 50, which was kept, so it goes too.
+    let header = b"2 0 3 50 4 60 5 10 6 20 ";
+    let mut body = vec![b' '; 70];
+    for (at, value) in [
+        (0, &b"(two)"[..]),
+        (10, b"5"),
+        (20, b"6"),
+        (50, b"(three)"),
+        (60, b"4"),
+    ] {
+        body[at..at + value.len()].copy_from_slice(value);
+    }
+    let data = [&header[..], &body].concat();
+    let r = carved(&objstm_file(5, header.len(), &data, zlib));
+    assert_eq!(compressed_ids(&r), [(2, 0), (3, 0)]);
+    let bad: Vec<u32> = container_notes(&r, 1)
+        .iter()
+        .filter_map(|n| match n {
+            CarveNote::ObjStmEntryBad {
+                index,
+                fault: EntryFault::NonMonotonic,
+            } => Some(*index),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(bad, [2, 3, 4]);
+    assert_eq!(
+        r.last_by_container_offset((3, 0)).unwrap().body,
+        Body::Primitive(Object::String(
+            b"three".to_vec(),
+            lopdf::StringFormat::Literal
+        ))
+    );
 }
 
 #[test]
@@ -677,7 +718,121 @@ fn two_orphans_in_one_gap_are_both_found() {
     assert!(unexplained(&r).is_empty());
 }
 
+#[test]
+fn an_orphan_dictionary_is_read_no_further_than_endobj() {
+    // The first dictionary's string never closes: read to the gap's end, it
+    // would swallow the second orphan.
+    let buf = b"1 0 obj\n1\nendobj\n<< /Type /Page /T (unclosed >>\nendobj\n<< /Type /Font /Subtype /Type1 >>\nendobj\n3 0 obj\n3\nendobj\n";
+    let r = carved(buf);
+    let kinds: Vec<&ObjectKind> = r.orphans.iter().map(Orphan::kind).collect();
+    assert_eq!(kinds, [&ObjectKind::Page, &ObjectKind::Font]);
+    for o in &r.orphans {
+        assert!(damaged_text(buf, o.span()).ends_with("endobj"));
+    }
+}
+
+/// One object, then a gap of `n` orphan dictionaries.
+fn many_orphans(n: usize) -> Vec<u8> {
+    let mut buf = b"1 0 obj\n1\nendobj\n".to_vec();
+    buf.extend(b"<< /Type /Page /Rotate 90 >>\n".repeat(n));
+    buf
+}
+
+#[test]
+fn orphans_count_toward_the_object_cap() {
+    let buf = many_orphans(10);
+    assert_eq!(carved(&buf).orphans.len(), 10);
+    let r = carved_with(
+        &buf,
+        Caps {
+            landmarks: MAX_LANDMARKS,
+            objects: 5,
+        },
+    );
+    assert_eq!(r.objects.len(), 1);
+    assert_eq!(r.orphans.len(), 4);
+    let caps = r
+        .notes
+        .iter()
+        .filter(|n| **n == CarveNote::CapHit(Cap::Objects));
+    assert_eq!(caps.count(), 1);
+}
+
+#[test]
+fn the_sweep_polls_cancel_once_per_orphan() {
+    let buf = many_orphans(10_000);
+    let polls = Cell::new(0u64);
+    let count = || {
+        polls.set(polls.get() + 1);
+        false
+    };
+    let r = carve(&buf, &count).expect("not cancelled");
+    assert_eq!(r.orphans.len(), 10_000);
+    // Two landmarks and one header before the sweep: the orphans account
+    // for nearly every poll.
+    let total = polls.get();
+    assert!(total >= 10_000 / 256, "{total} polls");
+    // So a cancel in the last 20 polls comes while the sweep runs, and stops it.
+    let polls = Cell::new(0u64);
+    let late = || {
+        polls.set(polls.get() + 1);
+        polls.get() > total - 20
+    };
+    assert!(matches!(carve(&buf, &late), Err(Cancelled)));
+}
+
 // ---- memory and robustness ----
+
+#[test]
+fn a_failed_decode_does_not_drain_the_budget() {
+    // Two xref streams: the first's data does not inflate, the second's does.
+    let rows = [1u8, 0, 9, 0];
+    let good = zlib(&rows);
+    let dict = |len: usize| {
+        format!("<< /Type /XRef /Size 1 /W [1 2 1] /Length {len} /Filter /FlateDecode >>")
+    };
+    let mut buf = stream_object(1, &dict(4), b"junk", b"\nendstream\nendobj\n");
+    buf.extend(stream_object(
+        2,
+        &dict(good.len()),
+        &good,
+        b"\nendstream\nendobj\n",
+    ));
+    let r = carved(&buf);
+    assert!(r.xref_streams[0].rows.is_empty());
+    assert_eq!(
+        r.xref_streams[1].rows,
+        [XrefRow {
+            num: 0,
+            fields: [1, 9, 0]
+        }]
+    );
+}
+
+#[test]
+fn a_failed_decode_is_charged_what_its_input_could_produce() {
+    let flate = [(Filter::Flate, None)];
+    let mut d = Decoding::new(0);
+    assert!(d.decode(b"junk data", &flate).is_none());
+    assert_eq!(DECODE_FLOOR - d.left, 9 * MAX_INFLATE_RATIO);
+    // An Adler mismatch found after the whole output: charged no less than it.
+    let data = vec![7u8; 100_000];
+    let mut z = zlib(&data);
+    *z.last_mut().unwrap() ^= 1;
+    let mut d = Decoding::new(0);
+    assert!(d.decode(&z, &flate).is_none());
+    assert!(DECODE_FLOOR - d.left >= data.len());
+    // A bomb that reaches the cap is charged the cap.
+    let bomb = zlib(&vec![0u8; DECODE_FLOOR + 1]);
+    let mut d = Decoding::new(0);
+    assert!(d.decode(&bomb, &flate).is_none());
+    assert_eq!(d.left, 0);
+    // A chain whose output is not bounded by its input is charged the cap.
+    let lzw = [(Filter::Lzw, None)];
+    let mut d = Decoding::new(0);
+    assert!(d.decode(&[0xFF; 8], &lzw).is_none());
+    assert_eq!(d.left, 0);
+}
 
 #[test]
 fn heap_bytes_counts_orphans_packed_objects_and_xref_rows() {

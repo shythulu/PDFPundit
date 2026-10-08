@@ -27,9 +27,10 @@ pub(super) fn expand_objstms(
     let top = std::mem::take(&mut report.objects);
     let mut room = max_objects.saturating_sub(top.len());
     let mut capped = false;
-    // Packed values are never streams and `/Extends` is not followed, so
-    // nothing here recurses; the set makes sure each container, keyed by
-    // where it starts, is expanded once.
+    // Expansion ends by construction: packed values are never streams, so
+    // never containers, and `/Extends` is not followed. Each top-level object
+    // starts at its own offset, so the set never refuses one; it is only a
+    // guard should a later change let one container be reached twice.
     let mut visited = BTreeSet::new();
     let mut out = Vec::with_capacity(top.len());
     for mut o in top {
@@ -162,8 +163,9 @@ fn index(header: &[u8], n: usize) -> Vec<(i64, i64)> {
 }
 
 /// Each entry's fault, if any. Out of range first; then, among the in-range
-/// offsets in index order, any not strictly between its neighbours; then an
-/// entry naming its own container.
+/// offsets in index order, any not strictly between its neighbours, and
+/// then any of the rest not above every earlier survivor; then an entry
+/// naming its own container.
 fn faults(pairs: &[(i64, i64)], body_len: usize, own: u32) -> Vec<Option<EntryFault>> {
     let mut out: Vec<Option<EntryFault>> = pairs
         .iter()
@@ -180,6 +182,22 @@ fn faults(pairs: &[(i64, i64)], body_len: usize, own: u32) -> Vec<Option<EntryFa
         let before_next = in_range.get(i + 1).is_none_or(|&j| off < pairs[j].1);
         if !(after_prev && before_next) {
             out[k] = Some(EntryFault::NonMonotonic);
+        }
+    }
+    // An entry can pass its neighbours when they fail themselves (offsets
+    // `0 50 60 10 20` keep 0, 50 and 20), so the survivors are thinned once
+    // more until they strictly increase. Each entry's data then ends at the
+    // next survivor's offset, never before its own.
+    let mut last = None;
+    for &k in &in_range {
+        if out[k].is_some() {
+            continue;
+        }
+        let off = pairs[k].1;
+        if last.is_some_and(|l| off <= l) {
+            out[k] = Some(EntryFault::NonMonotonic);
+        } else {
+            last = Some(off);
         }
     }
     for (k, &(num, _)) in pairs.iter().enumerate() {
@@ -200,16 +218,13 @@ fn decode_objstm(
     decoding: &mut Decoding,
 ) -> Option<(Vec<u8>, bool)> {
     let chain = streams::filters_of(dict);
-    let cap = decoding.cap();
     let out = match chain.split_last() {
         None => (raw.to_vec(), false),
         Some(((Filter::Flate, None), earlier)) => {
             let pre = if earlier.is_empty() {
                 Cow::Borrowed(raw)
             } else {
-                let pre = streams::decode_chain(raw, earlier, cap).ok()?;
-                decoding.spend(pre.len());
-                Cow::Owned(pre)
+                Cow::Owned(decoding.decode(raw, earlier)?)
             };
             let r = streams::inflate(&pre, decoding.cap());
             decoding.spend(r.out.len());
@@ -218,11 +233,7 @@ fn decode_objstm(
             }
             (r.out, r.status != InflateStatus::Done)
         }
-        Some(_) => {
-            let out = streams::decode_chain(raw, &chain, cap).ok()?;
-            decoding.spend(out.len());
-            (out, false)
-        }
+        Some(_) => (decoding.decode(raw, &chain)?, false),
     };
     Some(out)
 }
@@ -248,11 +259,8 @@ pub(super) fn xref_streams(buf: &[u8], decoding: &mut Decoding, report: &mut Car
             encrypt: key(b"Encrypt"),
         };
         let chain = streams::filters_of(dict);
-        let decoded = streams::decode_chain(&buf[range(*data)], &chain, decoding.cap()).ok();
-        let rows = match decoded.and_then(|d| {
-            decoding.spend(d.len());
-            rows(dict, &d, &mut rows_left, &mut capped)
-        }) {
+        let decoded = decoding.decode(&buf[range(*data)], &chain);
+        let rows = match decoded.and_then(|d| rows(dict, &d, &mut rows_left, &mut capped)) {
             Some(rows) => rows,
             None => {
                 o.notes.push(CarveNote::XrefStreamUndecodable);
