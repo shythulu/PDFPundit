@@ -200,9 +200,29 @@ impl RebuildDoc {
 
     /// Writes `font` and maps each `(page index, slot)` of `slots` to it,
     /// in place of the font the slot names (module docs, "Template
-    /// assembly").
+    /// assembly"). A `font` equal to one already written serves its slots
+    /// too: one subtree per font and code map, in first-use order.
     pub(crate) fn substitute(&mut self, slots: Vec<PageSlot>, font: Harvest) {
-        self.assembled.push((slots, font));
+        match self.assembled.iter_mut().find(|(_, f)| *f == font) {
+            Some((served, _)) => served.extend(slots),
+            None => self.assembled.push((slots, font)),
+        }
+    }
+
+    /// Harvests each of `substitutions` from `fonts` and
+    /// [substitutes](Self::substitute) it; a font `fonts` cannot harvest is
+    /// [`EmitError::Write`].
+    pub(crate) fn assemble(
+        &mut self,
+        substitutions: &[Substitution],
+        fonts: &FontDb,
+    ) -> Result<(), EmitError> {
+        for s in substitutions {
+            let font = template::harvest_from(fonts, &s.font_id, &s.used_codes)
+                .map_err(|e| EmitError::Write(format!("font {}: {e}", s.font_id)))?;
+            self.substitute(vec![(s.page, s.slot.as_bytes().to_vec())], font);
+        }
+        Ok(())
     }
 }
 
@@ -211,6 +231,13 @@ impl RebuildDoc {
 /// `carve`, `graph`, `remap` and `page_tree` must come from `ctx.bytes`, and
 /// `page_tree` from `remap`. A font `fonts` cannot harvest is
 /// [`EmitError::Write`].
+///
+/// This is the stand-alone form, as [`emit_resave`] is Resave's: it takes
+/// every stream's C9 salvage. The repair's `TemplateAssemble` candidate is
+/// [`emit_doc`] of the passes' [`RebuildDoc`], substituted through the same
+/// [`RebuildDoc::substitute`], which takes only the streams the C9 pass
+/// swapped. The two give the same bytes for the same substitutions whenever
+/// the C9 pass swapped every salvaged stream, or none changed.
 pub(crate) fn emit_template_assemble(
     carve: &CarveReport,
     graph: &ObjectGraph,
@@ -222,23 +249,7 @@ pub(crate) fn emit_template_assemble(
 ) -> Result<Vec<u8>, EmitError> {
     let mut doc = RebuildDoc::new(remap.clone());
     doc.swapped.extend(ctx.salvage.by_obj.keys().copied());
-    // One subtree per font and code map, in first-use order.
-    let mut groups: Vec<(&str, &BTreeMap<u16, char>, Vec<PageSlot>)> = Vec::new();
-    for s in substitutions {
-        let slot = (s.page, s.slot.as_bytes().to_vec());
-        match groups
-            .iter_mut()
-            .find(|(id, used, _)| *id == s.font_id && **used == s.used_codes)
-        {
-            Some((_, _, slots)) => slots.push(slot),
-            None => groups.push((&s.font_id, &s.used_codes, vec![slot])),
-        }
-    }
-    for (id, used, slots) in groups {
-        let font = template::harvest_from(fonts, id, used)
-            .map_err(|e| EmitError::Write(format!("font {id}: {e}")))?;
-        doc.substitute(slots, font);
-    }
+    doc.assemble(substitutions, fonts)?;
     emit_doc(doc, carve, graph, page_tree, ctx)
 }
 

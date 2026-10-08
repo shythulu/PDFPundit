@@ -1172,6 +1172,91 @@ fn a_font_set_in_one_content_stream_governs_the_next() {
     assert_eq!(text_of(&ran.output), golden_text());
 }
 
+/// The map a `/ToUnicode` CMap `build_tounicode` wrote gives.
+fn tounicode_map(cmap: &[u8]) -> BTreeMap<u16, char> {
+    let text = String::from_utf8_lossy(cmap);
+    let hex = |s: &str| -> Vec<u16> {
+        let s = s.trim_matches(['<', '>']);
+        (0..s.len() / 4)
+            .map(|i| u16::from_str_radix(&s[i * 4..i * 4 + 4], 16).unwrap())
+            .collect()
+    };
+    let one = |s: &str| -> char {
+        let units = hex(s);
+        char::decode_utf16(units).next().unwrap().unwrap()
+    };
+    let mut out = BTreeMap::new();
+    let mut lines = text.lines();
+    while let Some(line) = lines.next() {
+        let Some((n, kind)) = line.split_once(' ') else {
+            continue;
+        };
+        if kind != "beginbfchar" && kind != "beginbfrange" {
+            continue;
+        }
+        for _ in 0..n.parse::<usize>().unwrap() {
+            let parts: Vec<&str> = lines.next().unwrap().split(' ').collect();
+            if kind == "beginbfchar" {
+                out.insert(hex(parts[0])[0], one(parts[1]));
+            } else {
+                let (lo, hi, first) = (hex(parts[0])[0], hex(parts[1])[0], one(parts[2]));
+                for c in lo..=hi {
+                    let ch = char::from_u32(u32::from(first) + u32::from(c - lo)).unwrap();
+                    out.insert(c, ch);
+                }
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn the_pass_and_emit_template_assemble_write_the_same_file() {
+    // C7 alone: no stream's salvage changed, so the two paths agree.
+    let input = c7();
+    let db = test_db();
+    let ran = run_pass(
+        &input,
+        C7FontStreamDeleted,
+        &db,
+        &RepairOptions::default(),
+        &mut UseBest,
+        &[],
+    );
+    assert_eq!(ran.report.outcome, PassOutcome::Fixed);
+    let doc = load_strict(&ran.output);
+    let subs: Vec<Substitution> = (0..2)
+        .map(|page| Substitution {
+            page,
+            slot: "F1".to_owned(),
+            font_id: RIGHT.to_owned(),
+            used_codes: tounicode_map(&tounicode_of(&doc, page)),
+        })
+        .collect();
+    assert!(!subs[0].used_codes.is_empty());
+    let remap = plan_ids(&input.carve, &input.graph);
+    let tree = rebuild_page_tree(&input.carve, &input.graph, &remap, PageSize::A4);
+    let mut sink = NullProgress;
+    let mut ctx = EmitCtx {
+        bytes: &input.bytes,
+        input_sha256: Sha256::digest(&input.bytes).into(),
+        salvage: &input.salvage,
+        sink: &mut sink,
+        notes: Default::default(),
+    };
+    let out = emit_template_assemble(
+        &input.carve,
+        &input.graph,
+        &remap,
+        &tree,
+        &subs,
+        &db,
+        &mut ctx,
+    )
+    .unwrap();
+    assert!(out == ran.output, "the two paths differ");
+}
+
 #[test]
 fn assembled_output_is_deterministic_and_carries_no_ui_string() {
     let input = c8();
