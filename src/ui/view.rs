@@ -10,6 +10,7 @@
 use super::color::Rgb;
 use super::director::Mood;
 use super::state::AppState;
+use super::strings;
 use super::theme::Roles;
 use crate::engine::{
     Finding, FindingKind, FontResolutionKind, InteractionRequest, Location, OutcomeStatus,
@@ -304,11 +305,11 @@ pub fn view(app: &AppState) -> ViewModel {
         }
     };
     let state = if counts.needs_input > 0 {
-        "needs you"
+        strings::STATE_NEEDS_YOU
     } else if counts.working + counts.queued > 0 {
-        "busy"
+        strings::STATE_BUSY
     } else {
-        "idle"
+        strings::STATE_IDLE
     };
     ViewModel {
         counts,

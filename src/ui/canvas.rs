@@ -164,6 +164,21 @@ impl Canvas {
         cx
     }
 
+    /// Writes `text` from `(x, y)` as it is, in `fg` on `bg` (`None` keeps
+    /// each cell's background): no markup, so a `{` in untrusted text such as
+    /// a file's name is drawn, not read as a colour. A control character is
+    /// drawn as `�`, so none reaches a cell. Returns the column after the
+    /// last character.
+    pub fn text(&mut self, x: i32, y: i32, text: &str, fg: Rgb, bg: Option<Rgb>) -> i32 {
+        let mut cx = x;
+        for ch in text.chars() {
+            let ch = if ch.is_control() { '\u{fffd}' } else { ch };
+            self.put(cx, y, ch, Some(fg), bg);
+            cx += 1;
+        }
+        cx
+    }
+
     /// Writes `text` from `(x, y)` with each character coloured along
     /// `stops`, left to right, or out from both ends to the middle when `sym`.
     /// Spaces are skipped, so whatever is under them shows.
@@ -255,6 +270,17 @@ impl Canvas {
             fg: top.unwrap_or(under_top),
             bg: bottom.unwrap_or(under_bottom),
         };
+    }
+
+    /// Mixes both colours of every cell in a `w × h` block toward the
+    /// background by `f` (generate.py's `dim_rect`): the side panels stepping
+    /// back while the cat reacts.
+    pub fn dim_rect(&mut self, x: i32, y: i32, w: i32, h: i32, f: f64) {
+        for j in y..y + h {
+            for i in x..x + w {
+                self.darken(i, j, f);
+            }
+        }
     }
 
     /// Mixes the colours of `(x, y)` toward the background by `f`.

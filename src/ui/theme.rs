@@ -85,6 +85,9 @@ pub struct Theme {
     pub gradients: Gradients,
     /// The logo gradient, top to bottom.
     pub logo_ramp: Vec<Rgb>,
+    /// The logo's drop shadow (generate.py's `shadow`): DarkBerry's `crust`,
+    /// else the background mixed 60% towards the lightbar.
+    pub logo_shadow: Rgb,
 }
 
 /// generate.py's `KEYS`: the slot letters in [`Theme::slots`] order.
@@ -191,6 +194,7 @@ impl Theme {
                 tag: v(&g.tag),
             },
             logo_ramp: v(&self.logo_ramp),
+            logo_shadow: s(self.logo_shadow),
         }
     }
 }
@@ -205,6 +209,7 @@ fn mk_theme(
     logo_ramp: Vec<Rgb>,
     border: Option<(Vec<Rgb>, Gradients)>,
     ansi: Option<[Rgb; 16]>,
+    logo_shadow: Option<Rgb>,
 ) -> Theme {
     let a = slots;
     let (border, gradients) = match border {
@@ -253,6 +258,7 @@ fn mk_theme(
         },
         gradients,
         logo_ramp,
+        logo_shadow: logo_shadow.unwrap_or_else(|| mix(a[K], a[B_LO], 0.6)),
     }
 }
 
@@ -376,6 +382,7 @@ fn darkberry(name: &'static str, fl: &Flavour) -> Result<Theme, String> {
         logo,
         Some((border, gradients)),
         Some(ansi),
+        Some(c("crust")?),
     ))
 }
 
@@ -399,6 +406,7 @@ fn build_all() -> Vec<Theme> {
         hexes([0xffffff, 0x55ffff, 0x00aaaa, 0x5555ff, 0x0000aa, 0xaa00aa]).to_vec(),
         None,
         None,
+        None,
     ));
     themes.push(mk_theme(
         "Pastel Parlour",
@@ -410,6 +418,7 @@ fn build_all() -> Vec<Theme> {
         hexes([0xf9f6ed, 0xfcbbdb, 0xe1c0e9, 0xc0c4e6, 0xdcf1f0]).to_vec(),
         None,
         None,
+        None,
     ));
     themes.push(mk_theme(
         "Mono Ink",
@@ -419,6 +428,7 @@ fn build_all() -> Vec<Theme> {
             0x555555, 0xcfcfcf, 0xe0e0e0, 0xf0f0f0, 0xffffff, 0xd8d8d8, 0xeeeeee, 0xffffff,
         ]),
         hexes([0xffffff, 0xd0d0d0, 0xa0a0a0, 0x707070, 0x404040]).to_vec(),
+        None,
         None,
         None,
     ));
@@ -925,9 +935,18 @@ mod tests {
             let want: Vec<Rgb> = idx.iter().map(|&i| t.ansi[i]).collect();
             assert_eq!(colours(&d), want, "{name}");
         }
-        // ACiD Classic is built from its own sixteen colours, so nothing moves.
+        // ACiD Classic is built from its own sixteen colours, so nothing moves
+        // but the logo's shadow, a mix of two of them.
         let acid = by_name("ACiD Classic");
-        assert_eq!(&acid.downgrade(ColorCaps::Ansi16), acid);
+        let d = acid.downgrade(ColorCaps::Ansi16);
+        assert_eq!(d.logo_shadow, acid.ansi[4]);
+        assert_eq!(
+            &Theme {
+                logo_shadow: acid.logo_shadow,
+                ..d
+            },
+            acid
+        );
     }
 
     #[test]
