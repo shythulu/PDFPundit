@@ -19,22 +19,31 @@
 //! **C7** (the program is lost, `/ToUnicode` survives): each code is decoded
 //! through the `/ToUnicode` alone (T-27c's first rung) to its true text; that
 //! text is the per-document dictionary T-28's [`infer`] scores with, and the
-//! codes' characters are the `/ToUnicode` the output gets (a code whose text
-//! is several characters keeps its first). **C8** (the `/ToUnicode` is lost
-//! too): the database is tried by name first ([`by_name`]); a `CIDFont+Fn`
-//! name never matches, and the slot goes to [`infer`] over every database
-//! font with the general word lists. The characters are then the chosen
-//! font's reading of the codes.
+//! codes' characters are the `/ToUnicode` the output gets. A code whose
+//! text is several characters (a ligature, a combining sequence) keeps its
+//! first, and the pass is `Partial` saying how many. **C8** (the
+//! `/ToUnicode` is lost too): the database is tried by name first
+//! ([`by_name`]), and a name match is used only when the `CIDFont`'s
+//! surviving `/W` confirms that the codes are that font's glyph ids
+//! ([`name_hit_holds`]); a rejected match is a `name: … rejected:`
+//! provenance line. A `CIDFont+Fn` name never matches. Otherwise the slot
+//! goes to [`infer`] over every database font with the general word lists.
+//! The characters are then the chosen font's reading of the codes.
 //!
 //! **Decisions** ([`resolve`], D-009's interim clamp):
 //! - `AutoAccept(c)`: substitute `c.font_id`, `Fixed`;
 //! - `Ask`: `FontPick` is asked. `Pick(id)` substitutes `id`; `UseBest` the
-//!   top candidate; `Skip` the top candidate, `Partial("font substituted
-//!   without confirmation")` (TD §5.3); `Substitute(choice)` substitutes the
-//!   choice; `TextOnly` as below;
+//!   top candidate, `Partial` (the candidate fell short of auto-accepting,
+//!   and nobody looked at it); `Skip` the top candidate, `Partial("font
+//!   substituted without confirmation")` (TD §5.3); `Substitute(choice)`
+//!   substitutes the choice; `TextOnly` as below;
 //! - `Unreproducible`: `FontUnreproducible` is asked once per font family per
-//!   pass, listing every slot of the family, and the answer holds for every
-//!   font of that family (an answer given in the C7 pass holds in C8 too).
+//!   file, and the answer holds for every font of that family (an answer
+//!   given in the C7 pass holds in C8 too). The family is T-28's: the
+//!   `/BaseFont` without its subset tag, so each face (`NotoSans-Regular`,
+//!   `NotoSans-Bold`) is asked about once. The question lists the family's
+//!   slots in the pass that asks it: a C8 font of a family the C7 pass asked
+//!   about takes the answer without being listed.
 //!   Under `UnreproduciblePolicy::SubstituteGeneric` nothing is asked: the
 //!   first option (the best coverage) is the answer, recorded with source
 //!   `Policy`. `Substitute(choice)` or `Pick(id)` substitutes that font and is
@@ -42,8 +51,11 @@
 //!   default, the first option (text only when there is none). `Skip` leaves
 //!   the font as found;
 //! - `TextOnly` (asked, or `UnreproduciblePolicy::TextOnly`, recorded with
-//!   source `Policy`): the font is left as found, its `/ToUnicode` text stays
-//!   extractable, `Partial("text only: no reproducible font")`.
+//!   source `Policy`): the font is left as found, `Partial("text only: no
+//!   reproducible font")`. In C7 its `/ToUnicode` keeps the text
+//!   extractable; in C8 the text stays unmapped. Each slot's
+//!   [`FontResolution`] is `TextOnly`: the per-page record a Markdown note
+//!   can be made from (T-32 has no such note yet).
 //!
 //! Every question and answer is recorded in [`PassNotes::interactions`]:
 //! source `UseBest` for a `UseBest` reply, else `User`. Request ids are 0:
@@ -57,7 +69,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use lopdf::{Dictionary, Object, Stream};
 
-use super::{RepairCtx, RepairPass, font_dict};
+use super::{RepairCtx, RepairPass, font_dict, resolved};
 use crate::bench::metrics::Lang;
 use crate::engine::{
     FontResolution, FontResolutionKind, FontSlot, InteractionRecord, InteractionReply,
@@ -211,6 +223,9 @@ struct Target<'f> {
     descriptor: ObjId,
     /// The font the pages name: the `/Type0` parent, or the font itself.
     top: ObjId,
+    /// The font that names the descriptor: the `CIDFont` under `top`, or
+    /// `top` itself.
+    cidfont: ObjId,
     /// `/BaseFont` (else the descriptor's `/FontName`), without the slash.
     base_font: Option<String>,
     subtype: Option<String>,
@@ -294,6 +309,7 @@ fn targets<'f>(ctx: &RepairCtx<'_>, findings: &'f [Finding], c8: bool) -> Vec<Ta
             finding: f,
             descriptor,
             top,
+            cidfont: user,
             base_font,
             subtype,
             identity_h,
@@ -343,19 +359,29 @@ fn slots_naming(ctx: &RepairCtx<'_>, resources: &Object, font: ObjId) -> Vec<Vec
 }
 
 /// Every `(page index, slot)` of the output's pages whose resources name
-/// `font`, in page order.
+/// `font`, in page order: what the page tree has, with the C6 pass's
+/// re-links (in this candidate) over it.
 fn slots_of(ctx: &RepairCtx<'_>, font: ObjId) -> Vec<(u32, Vec<u8>)> {
+    let target = ctx.remap.target(font);
     let mut out = Vec::new();
     for (index, page) in ctx.page_tree.pages.iter().enumerate() {
-        let Some(resources) = &page.resources else {
-            continue;
-        };
         let index = u32::try_from(index).unwrap_or(u32::MAX);
-        out.extend(
-            slots_naming(ctx, resources, font)
-                .into_iter()
-                .map(|s| (index, s)),
-        );
+        let relinked = ctx.doc.relinked(page.id);
+        let elsewhere = |s: &Vec<u8>| relinked.is_some_and(|m| m.contains_key(s));
+        let mut slots: BTreeSet<Vec<u8>> = (page.resources.as_ref())
+            .map(|r| slots_naming(ctx, r, font))
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|s| !elsewhere(s))
+            .collect();
+        if let Some(m) = relinked {
+            slots.extend(
+                m.iter()
+                    .filter(|&(_, &id)| ctx.remap.target(id) == target)
+                    .map(|(s, _)| s.clone()),
+            );
+        }
+        out.extend(slots.into_iter().map(|s| (index, s)));
     }
     out
 }
@@ -391,8 +417,15 @@ fn runs_of(
             let Some(bytes) = decode(piece.stream) else {
                 continue;
             };
-            let resources = Object::Dictionary(piece.resources.dict.clone());
-            let ours = slots_naming(ctx, &resources, font);
+            // The page's own content selects through the page's slots (its
+            // re-links included); a form through its own resources.
+            let ours: Vec<Vec<u8>> = if piece.via.is_empty() {
+                let own = slots.iter().filter(|(p, _)| *p == index);
+                own.map(|(_, s)| s.clone()).collect()
+            } else {
+                let resources = Object::Dictionary(piece.resources.dict.clone());
+                slots_naming(ctx, &resources, font)
+            };
             let mut on = false;
             for op in content_ops(&bytes) {
                 let mut run = CodeRun {
@@ -475,17 +508,24 @@ fn decide(ctx: &RepairCtx<'_>, t: &Target<'_>, c8: bool) -> Decided {
             "not substituted: no page shows text through this font".to_owned(),
         );
     }
+    let codes = t.codes();
+    let mut rejected = Vec::new();
     if c8 && let Some((entry, how)) = t.base_font.as_deref().and_then(|n| by_name(ctx.fonts, n)) {
-        let provenance = vec![format!(
+        let named = format!(
             "name: /BaseFont {} matches {} by its {how}",
             t.base_font.as_deref().unwrap_or_default(),
             entry.id
-        )];
-        return Decided::Named(entry.id.clone(), provenance);
+        );
+        match name_hit_holds(ctx, t, &entry.id, &codes) {
+            Ok(checked) => {
+                let provenance = vec![format!("{named}; {checked}")];
+                return Decided::Named(entry.id.clone(), provenance);
+            }
+            Err(why) => rejected.push(format!("{named}, rejected: {why}")),
+        }
     }
 
     let (first_page, first_slot) = t.slot_names().swap_remove(0);
-    let codes = t.codes();
     let slot = FontSlot {
         page: first_page,
         slot: first_slot,
@@ -506,7 +546,7 @@ fn decide(ctx: &RepairCtx<'_>, t: &Target<'_>, c8: bool) -> Decided {
     let text = (!c8).then(|| true_text(t));
     let per_doc = text
         .as_ref()
-        .map(|(_, words)| FrequencyList::from_text(Lang::Unknown, words));
+        .map(|t| FrequencyList::from_text(Lang::Unknown, &t.words));
     let (cands, trace) = infer(
         &t.runs,
         &entries,
@@ -516,7 +556,7 @@ fn decide(ctx: &RepairCtx<'_>, t: &Target<'_>, c8: bool) -> Decided {
     );
     // C7: what the slot's text needs; C8: what the top candidate reads.
     let needed: Vec<u32> = match &text {
-        Some((used, _)) => used.values().map(|&c| u32::from(c)).collect(),
+        Some(t) => t.used.values().map(|&c| u32::from(c)).collect(),
         None => cands
             .first()
             .and_then(|c| lookup(&c.font_id))
@@ -531,14 +571,127 @@ fn decide(ctx: &RepairCtx<'_>, t: &Target<'_>, c8: bool) -> Decided {
     };
     let (decision, provenance) =
         resolve(&cands, &trace, ctx.opts, &slot, &needed, &t.runs, ctx.fonts);
-    Decided::Decision(decision, provenance)
+    rejected.extend(provenance);
+    Decided::Decision(decision, rejected)
+}
+
+/// Whether database font `id`, which the slot's `/BaseFont` names, is the
+/// font the codes were written for (C8). The name alone does not say that a
+/// subset kept the font's glyph ids, or that the font is the same version.
+/// The `CIDFont`'s surviving `/W` is the check, with no inference: every
+/// code must be a glyph of `id`, at least one code must have a `/W` width,
+/// each `/W` width must be the glyph's within [`WIDTH_SLACK`], and the
+/// widths checked must not all be equal (equal widths, as in a monospaced
+/// font, cannot tell one glyph order from another). `Ok`: what was checked;
+/// `Err`: why the name is not trusted.
+fn name_hit_holds(
+    ctx: &RepairCtx<'_>,
+    t: &Target<'_>,
+    id: &str,
+    codes: &BTreeSet<u16>,
+) -> Result<String, String> {
+    let Some(gmap) = ctx.fonts.gmap(id) else {
+        return Err(format!("{id} has no glyph map"));
+    };
+    let missing = codes.iter().filter(|&&c| gmap.unicode(c).is_none()).count();
+    if missing > 0 {
+        return Err(format!(
+            "{missing} of {} codes are not glyphs of {id}",
+            codes.len()
+        ));
+    }
+    let widths = font_dict(ctx, t.cidfont)
+        .map(|d| cid_widths(ctx, d, codes))
+        .unwrap_or_default();
+    if widths.is_empty() {
+        return Err("the font's /W gives no width to check the glyphs against".to_owned());
+    }
+    let off = |(&c, &w): (&u16, &i64)| {
+        gmap.width(c)
+            .is_none_or(|g| (w - i64::from(g)).abs() > WIDTH_SLACK)
+    };
+    let differ = widths.iter().filter(|&e| off(e)).count();
+    if differ > 0 {
+        return Err(format!(
+            "{differ} of {} /W widths differ from {id}'s glyphs'",
+            widths.len()
+        ));
+    }
+    let distinct: BTreeSet<i64> = widths.values().copied().collect();
+    if distinct.len() < 2 {
+        return Err(
+            "the /W widths checked are all equal, so they cannot confirm the glyphs".into(),
+        );
+    }
+    Ok(format!("its glyphs agree with {} /W widths", widths.len()))
+}
+
+/// How far a `/W` width may be from the `.gmap`'s (both 1000 units per em):
+/// a producer may round where the `.gmap` truncates.
+const WIDTH_SLACK: i64 = 1;
+
+/// The `/W` width of each of `codes` that `cidfont`'s `/W` gives, truncated
+/// to an integer. `/DW` is not read: a default says nothing about a glyph.
+fn cid_widths<'c>(
+    ctx: &RepairCtx<'c>,
+    cidfont: &'c Dictionary,
+    codes: &BTreeSet<u16>,
+) -> BTreeMap<u16, i64> {
+    let mut out = BTreeMap::new();
+    let Some(Object::Array(w)) = cidfont.get(b"W").ok().and_then(|v| resolved(ctx, v)) else {
+        return out;
+    };
+    let number = |v: &'c Object| match resolved(ctx, v)? {
+        Object::Integer(n) => Some(*n),
+        // Truncation toward zero: a cast, no float method.
+        Object::Real(r) if r.is_finite() => Some(*r as i64),
+        _ => None,
+    };
+    let code = |n: i64| u16::try_from(n).ok();
+    let mut items = w.iter();
+    while let Some(first) = items.next() {
+        let Some(first) = number(first) else {
+            break;
+        };
+        match items.next().and_then(|v| resolved(ctx, v)) {
+            Some(Object::Array(list)) => {
+                for (i, v) in list.iter().enumerate() {
+                    let at = i64::try_from(i).ok().and_then(|i| first.checked_add(i));
+                    let Some(c) = at.and_then(code) else {
+                        break;
+                    };
+                    if codes.contains(&c)
+                        && let Some(width) = number(v)
+                    {
+                        out.entry(c).or_insert(width);
+                    }
+                }
+            }
+            Some(last) => {
+                let (Some(last), Some(width)) = (number(last), items.next().and_then(number))
+                else {
+                    break;
+                };
+                let (Some(lo), Some(hi)) = (code(first), code(last.min(0xFFFF))) else {
+                    continue;
+                };
+                if lo <= hi {
+                    for &c in codes.range(lo..=hi) {
+                        out.entry(c).or_insert(width);
+                    }
+                }
+            }
+            None => break,
+        }
+    }
+    out
 }
 
 /// C7: each code's character through the `/ToUnicode` alone, and the
 /// slot's text with a space at every token break.
-fn true_text(t: &Target<'_>) -> (BTreeMap<u16, char>, String) {
+fn true_text(t: &Target<'_>) -> TrueText {
     let Some(cmap) = &t.tounicode else {
-        return (BTreeMap::new(), String::new());
+        return TrueText::default();
     };
     // Only the first rung of the ladder: the dictionary holds nothing else.
     let mut font = Dictionary::new();
@@ -548,29 +701,56 @@ fn true_text(t: &Target<'_>) -> (BTreeMap<u16, char>, String) {
         "ToUnicode",
         Object::Stream(Stream::new(Dictionary::new(), cmap.clone())),
     );
-    let mut used = BTreeMap::new();
-    let mut words = String::new();
+    let mut out = TrueText::default();
+    let mut several = BTreeSet::new();
     for run in &t.runs {
         let decoded = decode_codes(&font, &run.codes);
+        // Both ascending: a cursor, not a search per code.
+        let mut breaks = run.breaks.iter().peekable();
         for (i, (code, d)) in run.codes.iter().zip(&decoded).enumerate() {
-            if run.breaks.contains(&i) {
-                words.push(' ');
+            while breaks.next_if(|&&b| b < i).is_some() {}
+            if breaks.next_if(|&&b| b == i).is_some() {
+                out.words.push(' ');
             }
-            if let Some(c) = d.text.chars().next() {
-                used.entry(*code).or_insert(c);
+            let mut chars = d.text.chars();
+            if let Some(c) = chars.next() {
+                out.used.entry(*code).or_insert(c);
+                if chars.next().is_some() {
+                    several.insert(*code);
+                }
             }
-            words.push_str(&d.text);
+            out.words.push_str(&d.text);
         }
-        words.push(' ');
+        out.words.push(' ');
     }
-    (used, words)
+    out.truncated = several.len();
+    out
+}
+
+/// C7's reading of a slot through its surviving `/ToUnicode`.
+#[derive(Default)]
+struct TrueText {
+    /// Each code's character: the first of its text.
+    used: BTreeMap<u16, char>,
+    /// The slot's text, a space at every token break and after every run.
+    words: String,
+    /// How many codes' text is several characters (a ligature, a combining
+    /// sequence): the rebuilt `/ToUnicode` keeps
+    /// only the first (the [`Substitution`](crate::pdf::emit::Substitution)
+    /// interface maps a code to one `char`).
+    truncated: usize,
 }
 
 /// The database font `/BaseFont` `name` names (RR change #3): the subset
 /// tag dropped, an entry whose id or PostScript name equals it, else one
-/// that lists it as an alias, else one whose family equals it or its part
-/// before the first `-` or `,`, all ignoring case and spaces. A
-/// `CIDFont+Fn` name matches nothing. With `how`, what matched.
+/// that lists it as an alias, else one whose family equals it, all ignoring
+/// case and spaces. A `CIDFont+Fn` name matches nothing. With `how`, what
+/// matched. The ticket's rule is the family alone; a Save-As `/BaseFont` is
+/// a PostScript name (`NotoSans-Bold`), which names one face where a family
+/// names several, so the id, PostScript name and alias are tried first. No
+/// part of a name stands for the whole: `Arial-BoldMT` never matches the
+/// family `Arial`. A match is a candidate only: [`name_hit_holds`] checks
+/// it against the slot's widths.
 fn by_name<'f>(fonts: &'f FontDb, name: &str) -> Option<(&'f IndexEntry, &'static str)> {
     let name = strip_subset(name.strip_prefix('/').unwrap_or(name));
     if name.starts_with("CIDFont+") {
@@ -583,7 +763,6 @@ fn by_name<'f>(fonts: &'f FontDb, name: &str) -> Option<(&'f IndexEntry, &'stati
             .collect()
     };
     let want = key(name);
-    let family = key(name.split(['-', ',']).next().unwrap_or(name));
     let entries = fonts.entries();
     let find = |test: &dyn Fn(&IndexEntry) -> bool| entries.iter().copied().find(|e| test(e));
     find(&|e| key(&e.id) == want || key(&e.postscript_name) == want)
@@ -591,9 +770,7 @@ fn by_name<'f>(fonts: &'f FontDb, name: &str) -> Option<(&'f IndexEntry, &'stati
         .or_else(|| {
             find(&|e| e.base_font_aliases.iter().any(|a| key(a) == want)).map(|e| (e, "alias"))
         })
-        .or_else(|| {
-            find(&|e| key(&e.family) == want || key(&e.family) == family).map(|e| (e, "family"))
-        })
+        .or_else(|| find(&|e| key(&e.family) == want).map(|e| (e, "family")))
 }
 
 /// `ABCDEF+Name` → `Name`.
@@ -672,7 +849,17 @@ fn answer(
                     "the picked font {id} is not in the font database; the best candidate \
                      was substituted"
                 ))),
-                InteractionReply::UseBest => best(None),
+                // `Ask` means the top candidate fell short of auto-accepting:
+                // taking it unseen is a guess, never `Fixed` (a C8 guess
+                // reads the codes through a font nothing confirmed).
+                InteractionReply::UseBest => {
+                    let c = top.as_ref().map_or(ZERO, |(_, c)| *c);
+                    best(Some(format!(
+                        "best candidate substituted unconfirmed: it fell short of \
+                         auto-accepting (confidence {}/{})",
+                        c.num, c.den
+                    )))
+                }
                 InteractionReply::Skip => {
                     best(Some("font substituted without confirmation".to_owned()))
                 }
@@ -861,10 +1048,11 @@ fn apply(
     };
     match choice {
         Choice::Font { id, why, kind } => {
-            let used = if c8 {
-                read_through(ctx.fonts, &id, &t.codes())
+            let (used, truncated) = if c8 {
+                (read_through(ctx.fonts, &id, &t.codes()), 0)
             } else {
-                true_text(t).0
+                let text = true_text(t);
+                (text.used, text.truncated)
             };
             match harvest_from(ctx.fonts, &id, &used) {
                 Ok(font) => {
@@ -872,6 +1060,23 @@ fn apply(
                     let mut what = format!("font program substituted: {id}");
                     if c8 {
                         what.push_str(&format!("; /ToUnicode rebuilt over {} codes", used.len()));
+                    }
+                    // A code whose /ToUnicode text is several characters
+                    // keeps its first (`TrueText::truncated`).
+                    let mut why = why;
+                    if truncated > 0 {
+                        let lost = format!(
+                            "the rebuilt /ToUnicode keeps only the first character of \
+                             {truncated} codes whose surviving /ToUnicode text is several \
+                             characters"
+                        );
+                        let msg = format!("{} {} obj: {lost}", t.descriptor.0, t.descriptor.1);
+                        ctx.sink.log(LogLevel::Warn, msg);
+                        what.push_str(&format!("; {lost}"));
+                        why = Some(match why {
+                            Some(w) => format!("{w}; {lost}"),
+                            None => lost,
+                        });
                     }
                     let kind = kind.unwrap_or_else(|| picked(&id, ONE));
                     (what, why, kind)
@@ -883,10 +1088,19 @@ fn apply(
             }
         }
         Choice::TextOnly => (
-            format!(
-                "text only: no reproducible font; {} keep their /ToUnicode text",
-                pages()
-            ),
+            if c8 {
+                format!(
+                    "text only: no reproducible font; the font is kept as found for {}, and \
+                     with no /ToUnicode its text stays unmapped",
+                    pages()
+                )
+            } else {
+                format!(
+                    "text only: no reproducible font; the font is kept as found for {}, and \
+                     its /ToUnicode keeps the text extractable",
+                    pages()
+                )
+            },
             Some("text only: no reproducible font".to_owned()),
             FontResolutionKind::TextOnly,
         ),

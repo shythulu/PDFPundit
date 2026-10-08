@@ -55,7 +55,10 @@
 //! descendant, descriptor, program, `/ToUnicode`, `/CIDToGIDMap` and
 //! `/Encoding`) when nothing else names them: a page slot that was not
 //! re-pointed, or any object but a page, a `/Pages` node, a page's shared
-//! resources dictionary or another left-out object, keeps it. References
+//! resources dictionary or another left-out object, keeps it. A shared
+//! resources dictionary counts as the pages' only when nothing but pages and
+//! `/Pages` nodes names it: a form or appearance stream that shares it keeps
+//! the old font. A C6 re-link counts as the page's slot. References
 //! to what is left out become `null`. Everything else is written as Resave
 //! writes it.
 //!
@@ -181,6 +184,12 @@ impl RebuildDoc {
     /// what its Flate stage holds (module docs, "Streams").
     pub(crate) fn swap_salvaged(&mut self, id: ObjId) {
         self.swapped.insert(id);
+    }
+
+    /// The slots re-linked so far on the page written as `page`, and the
+    /// input id of each one's font.
+    pub(crate) fn relinked(&self, page: u32) -> Option<&BTreeMap<Vec<u8>, ObjId>> {
+        self.relinks.get(&page)
     }
 
     /// Maps `slot` to the input object `font` in the `/Resources` of the
@@ -324,17 +333,36 @@ impl RebuildDoc {
                 Held::Orphan(_) => None,
             }
         };
+        let held = |id: ObjId| match self.remap.target(id) {
+            Some(Held::Object(at)) => carve.objects.get(at),
+            _ => None,
+        };
         let mut replaced = BTreeSet::new();
         let mut kept = BTreeSet::new();
-        // The pages, and the shared resources dictionaries they name.
-        let mut holders = BTreeSet::new();
-        for (index, page) in tree.pages.iter().enumerate() {
-            let index = u32::try_from(index).unwrap_or(u32::MAX);
-            holders.extend(input_of(page.id));
-            if let Some(Object::Reference(r)) = &page.resources {
+        let pages: BTreeSet<ObjId> = tree.pages.iter().filter_map(|p| input_of(p.id)).collect();
+        // The pages, and the shared resources dictionaries only pages and
+        // `/Pages` nodes name: a form or an appearance stream that shares
+        // one still selects the old font through it.
+        let mut holders = pages.clone();
+        for page in &tree.pages {
+            if let Some(Object::Reference(r)) = &page.resources
+                && graph.referrers(*r).iter().all(|e| {
+                    pages.contains(&e.from)
+                        || held(e.from).is_some_and(|o| o.kind == ObjectKind::Pages)
+                })
+            {
                 holders.insert(*r);
             }
-            for (slot, font) in self.font_map(carve, page.resources.as_ref()) {
+        }
+        for (index, page) in tree.pages.iter().enumerate() {
+            let index = u32::try_from(index).unwrap_or(u32::MAX);
+            let mut map = self.font_map(carve, page.resources.as_ref());
+            // The C6 re-links stand over what the resources map.
+            if let Some(relinked) = self.relinks.get(&page.id) {
+                map.retain(|(slot, _)| !relinked.contains_key(slot));
+                map.extend(relinked.iter().map(|(s, &f)| (s.clone(), f)));
+            }
+            for (slot, font) in map {
                 if repointed.contains(&(index, slot.as_slice())) {
                     replaced.insert(font);
                 } else {
@@ -342,10 +370,6 @@ impl RebuildDoc {
                 }
             }
         }
-        let held = |id: ObjId| match self.remap.target(id) {
-            Some(Held::Object(at)) => carve.objects.get(at),
-            _ => None,
-        };
         // Each replaced font and what hangs under it.
         let mut set: BTreeSet<ObjId> = BTreeSet::new();
         let mut queue: Vec<ObjId> = replaced.difference(&kept).copied().collect();

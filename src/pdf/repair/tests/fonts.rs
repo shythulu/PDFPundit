@@ -138,15 +138,26 @@ fn renamed(pdf: &[u8]) -> Vec<u8> {
     out
 }
 
-/// The golden with a second copy of its font (objects 15 to 19) on page 2:
-/// two fonts of one family.
-fn two_fonts() -> Vec<u8> {
+/// The golden's objects, edited by `edit`, written again.
+fn rewrite_golden(edit: impl FnOnce(&mut BTreeMap<u32, Object>)) -> Vec<u8> {
     let doc = Document::load_mem(&golden_pdf()).unwrap();
     let mut objects: BTreeMap<u32, Object> = doc
         .objects
         .iter()
         .map(|(&(n, _), o)| (n, o.clone()))
         .collect();
+    edit(&mut objects);
+    let mut w = Writer::with_version("1.7");
+    for (n, o) in objects {
+        w.add(n, o);
+    }
+    w.trailer((1, 0), [7; 32], None);
+    w.finish().unwrap()
+}
+
+/// The golden with a second copy of its font (objects 15 to 19) on page 2:
+/// two fonts of one family.
+fn two_fonts() -> Vec<u8> {
     fn shift(v: &mut Object) {
         match v {
             Object::Reference((n, _)) if (5..=9).contains(n) => *n += 10,
@@ -156,21 +167,71 @@ fn two_fonts() -> Vec<u8> {
             _ => {}
         }
     }
-    for n in 5..=9 {
-        let mut copy = objects[&n].clone();
-        shift(&mut copy);
-        objects.insert(n + 10, copy);
-    }
-    let page2 = objects.get_mut(&4).unwrap().as_dict_mut().unwrap();
-    let resources = page2.get_mut(b"Resources").unwrap().as_dict_mut().unwrap();
-    let fonts = resources.get_mut(b"Font").unwrap().as_dict_mut().unwrap();
-    fonts.set("F1", Object::Reference((15, 0)));
-    let mut w = Writer::with_version("1.7");
-    for (n, o) in objects {
-        w.add(n, o);
-    }
-    w.trailer((1, 0), [7; 32], None);
-    w.finish().unwrap()
+    rewrite_golden(|objects| {
+        for n in 5..=9 {
+            let mut copy = objects[&n].clone();
+            shift(&mut copy);
+            objects.insert(n + 10, copy);
+        }
+        let page2 = objects.get_mut(&4).unwrap().as_dict_mut().unwrap();
+        let resources = page2.get_mut(b"Resources").unwrap().as_dict_mut().unwrap();
+        let fonts = resources.get_mut(b"Font").unwrap().as_dict_mut().unwrap();
+        fonts.set("F1", Object::Reference((15, 0)));
+    })
+}
+
+/// The golden with page 1's resources in their own object (20), which a
+/// form XObject (21) shares: page 1 draws the form (its content is a copy of
+/// page 1's), so the form shows text through the same `/F1`.
+fn shared_resources() -> Vec<u8> {
+    rewrite_golden(|objects| {
+        let page1 = objects.get_mut(&3).unwrap().as_dict_mut().unwrap();
+        let mut resources = page1.get(b"Resources").unwrap().as_dict().unwrap().clone();
+        let xobjects = resources
+            .get_mut(b"XObject")
+            .unwrap()
+            .as_dict_mut()
+            .unwrap();
+        xobjects.set("Fm1", Object::Reference((21, 0)));
+        page1.set("Resources", Object::Reference((20, 0)));
+        page1.set(
+            "Contents",
+            Object::Array(vec![Object::Reference((11, 0)), Object::Reference((22, 0))]),
+        );
+        objects.insert(20, Object::Dictionary(resources));
+        let content = objects[&11]
+            .as_stream()
+            .unwrap()
+            .decompressed_content()
+            .unwrap();
+        let mut form = Dictionary::new();
+        form.set("Type", Object::Name(b"XObject".to_vec()));
+        form.set("Subtype", Object::Name(b"Form".to_vec()));
+        let bbox = [0, 0, 612, 792].map(Object::Integer).to_vec();
+        form.set("BBox", Object::Array(bbox));
+        form.set("Resources", Object::Reference((20, 0)));
+        objects.insert(21, Object::Stream(Stream::new(form, content)));
+        let draw = b"q 1 0 0 1 0 -300 cm /Fm1 Do Q\n".to_vec();
+        objects.insert(22, Object::Stream(Stream::new(Dictionary::new(), draw)));
+    })
+}
+
+/// The golden with the text of its first `/ToUnicode` entry followed by a
+/// combining acute: one code whose text is two characters.
+fn combining_tounicode() -> Vec<u8> {
+    rewrite_golden(|objects| {
+        let Object::Stream(s) = objects.get_mut(&9).unwrap() else {
+            panic!("the golden's /ToUnicode")
+        };
+        let cmap = String::from_utf8(s.decompressed_content().unwrap()).unwrap();
+        let at = cmap.find("beginbfchar\n").unwrap() + "beginbfchar\n".len();
+        let end = at + cmap[at..].find('\n').unwrap();
+        let line = &cmap[at..end];
+        let edited = format!("{}0301>", &line[..line.len() - 1]);
+        let cmap = format!("{}{edited}{}", &cmap[..at], &cmap[end..]);
+        s.dict.remove(b"Filter");
+        s.set_content(cmap.into_bytes());
+    })
 }
 
 fn c7() -> Input {
@@ -337,6 +398,13 @@ fn c7_under_use_best_is_substituted_and_reads_as_the_golden() {
     assert_eq!(g.chosen, Some(Toolpath::TemplateAssemble));
     let tooled: Vec<Toolpath> = g.candidates.iter().map(|c| c.toolpath).collect();
     assert_eq!(tooled, [Toolpath::TemplateAssemble, Toolpath::Resave]);
+    // Not by V2: the surviving /ToUnicode gives Resave's output the same
+    // text, so V0 to V3 tie and the font track's prior decides (plan.rs).
+    let [assembled, resaved] = &g.candidates[..] else {
+        panic!("{:?}", g.candidates)
+    };
+    assert_eq!(assembled.verification.v2, resaved.verification.v2);
+    assert_eq!(assembled.verification.v1, resaved.verification.v1);
     let v = &chosen(&g).verification;
     assert!(v.v0.all_pass(), "{v:?}");
     assert_eq!(v.v2.unmapped_glyph.num, 0, "{v:?}");
@@ -437,7 +505,13 @@ fn c8_with_its_real_base_font_takes_the_name_path() {
         "font program substituted: {RIGHT}; /ToUnicode rebuilt"
     )));
     let lines = provenance(&ran.notes);
-    assert!(lines.iter().any(|l| l.starts_with("name:")), "{lines:?}");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("name:") && l.contains("glyphs agree with")),
+        "{lines:?}"
+    );
+    assert!(!lines.iter().any(|l| l.contains("rejected")), "{lines:?}");
     assert!(
         !lines.iter().any(|l| l.starts_with("inference:")),
         "{lines:?}"
@@ -491,48 +565,113 @@ fn record(notes: &PassNotes) -> &InteractionRecord {
     &notes.interactions[0]
 }
 
+/// What one `FontPick` reply must come to.
+struct PickCase {
+    reply: InteractionReply,
+    /// The action's text starts with this.
+    action: String,
+    outcome: fn(&PassOutcome) -> bool,
+    source: InteractionSource,
+    kind: fn(&FontResolutionKind) -> bool,
+    /// The damaged font is still in the output.
+    kept: bool,
+}
+
 #[test]
 fn font_pick_replies_give_the_documented_outcomes() {
     let db = test_db();
     let opts = always_ask();
+    let substituted = |id: &str| format!("font program substituted: {id}");
+    let shuffled = SubstituteChoice {
+        font_id: SHUFFLED.to_owned(),
+        label: "Shuffled".to_owned(),
+    };
     let cases = [
-        (
-            InteractionReply::Pick(SHUFFLED.to_owned()),
-            SHUFFLED,
-            PassOutcome::Fixed,
-            InteractionSource::User,
-        ),
-        (
-            InteractionReply::UseBest,
-            RIGHT,
-            PassOutcome::Fixed,
-            InteractionSource::UseBest,
-        ),
-        (
-            InteractionReply::Skip,
-            RIGHT,
-            PassOutcome::Partial("font substituted without confirmation".to_owned()),
-            InteractionSource::User,
-        ),
+        PickCase {
+            reply: InteractionReply::Pick(SHUFFLED.to_owned()),
+            action: substituted(SHUFFLED),
+            outcome: |o| *o == PassOutcome::Fixed,
+            source: InteractionSource::User,
+            kind: |k| matches!(k, FontResolutionKind::Picked { font_id, .. } if font_id == SHUFFLED),
+            kept: false,
+        },
+        PickCase {
+            reply: InteractionReply::UseBest,
+            action: substituted(RIGHT),
+            outcome: |o| {
+                matches!(o, PassOutcome::Partial(why)
+                    if why.starts_with("best candidate substituted unconfirmed"))
+            },
+            source: InteractionSource::UseBest,
+            kind: |k| matches!(k, FontResolutionKind::Picked { font_id, .. } if font_id == RIGHT),
+            kept: false,
+        },
+        PickCase {
+            reply: InteractionReply::Skip,
+            action: substituted(RIGHT),
+            outcome: |o| {
+                *o == PassOutcome::Partial("font substituted without confirmation".to_owned())
+            },
+            source: InteractionSource::User,
+            kind: |k| matches!(k, FontResolutionKind::Picked { font_id, .. } if font_id == RIGHT),
+            kept: false,
+        },
+        PickCase {
+            reply: InteractionReply::Substitute(shuffled.clone()),
+            action: substituted(SHUFFLED),
+            outcome: |o| *o == PassOutcome::Fixed,
+            source: InteractionSource::User,
+            kind: |k| matches!(k, FontResolutionKind::Substituted(c) if c.font_id == SHUFFLED),
+            kept: false,
+        },
+        PickCase {
+            reply: InteractionReply::TextOnly,
+            action: "text only: no reproducible font".to_owned(),
+            outcome: |o| *o == PassOutcome::Partial("text only: no reproducible font".to_owned()),
+            source: InteractionSource::User,
+            kind: |k| *k == FontResolutionKind::TextOnly,
+            kept: true,
+        },
     ];
-    for (reply, font, outcome, source) in cases {
+    for case in cases {
+        let reply = case.reply.clone();
         let (ran, ask) = c7_with(&db, &opts, vec![reply.clone()]);
         let [InteractionRequest::FontPick(req)] = &ask.asked[..] else {
             panic!("{:?}", ask.asked)
         };
         assert_eq!((req.page, req.slot.as_str()), (0, "F1"));
         assert_eq!(req.candidates[0].font_id, RIGHT, "the best first");
-        assert_eq!(ran.report.outcome, outcome, "{reply:?}");
-        assert_eq!(
-            actions(&ran.report),
-            [format!("font program substituted: {font}").as_str()]
+        assert!(
+            (case.outcome)(&ran.report.outcome),
+            "{reply:?}: {:?}",
+            ran.report
         );
+        let what = actions(&ran.report);
+        assert_eq!(what.len(), 1, "{reply:?}");
+        assert!(what[0].starts_with(&case.action), "{reply:?}: {what:?}");
         let rec = record(&ran.notes);
         assert_eq!(rec.request.kind, InteractionKind::FontPick);
         assert_eq!(rec.request.candidates, [RIGHT, SHUFFLED]);
-        assert_eq!((rec.reply.clone(), rec.source), (reply, source));
+        assert_eq!(
+            (rec.reply.clone(), rec.source),
+            (reply.clone(), case.source)
+        );
+        assert_eq!(ran.notes.resolutions.len(), 2, "{reply:?}");
+        assert!(
+            ran.notes
+                .resolutions
+                .iter()
+                .all(|(_, _, r)| (case.kind)(&r.kind)),
+            "{reply:?}: {:?}",
+            ran.notes.resolutions
+        );
+        assert_eq!(
+            classes_in(&ran.output).contains(&C7FontStreamDeleted),
+            case.kept,
+            "{reply:?}"
+        );
         // The /ToUnicode text survives whichever font draws it.
-        assert_eq!(text_of(&ran.output), golden_text());
+        assert_eq!(text_of(&ran.output), golden_text(), "{reply:?}");
     }
 }
 
@@ -827,9 +966,32 @@ fn assembled_tounicode_covers_exactly_the_used_codes_in_small_blocks() {
         .collect();
     assert_eq!(fonts.len(), 1);
     assert!(!classes_in(&out).contains(&C7FontStreamDeleted));
-    // It renders in hayro.
+    // It renders in hayro, with no fallback font: page 2 has no image, so
+    // its ink is the substituted font's glyphs.
     let pdf = hayro::hayro_syntax::Pdf::new(out.clone()).expect("hayro loads it");
     assert_eq!(pdf.pages().len(), 2);
+    let settings = hayro::hayro_interpret::InterpreterSettings {
+        font_resolver: std::sync::Arc::new(|_| None),
+        ..Default::default()
+    };
+    let scale = hayro::PixmapSettings {
+        x_scale: 0.5,
+        y_scale: 0.5,
+        ..Default::default()
+    };
+    let pixmap = hayro::render(
+        &pdf.pages()[1],
+        &hayro::RenderCache::new(),
+        &settings,
+        &hayro::RenderSettings::default(),
+        &scale,
+    );
+    let rgba = pixmap.data_as_u8_slice();
+    assert!(
+        rgba.chunks(4)
+            .any(|p| p[3] != 0 && p[..3] != [255, 255, 255]),
+        "page 2 has ink"
+    );
     assert!(extract_text(&out, &ExtractOptions::default()).is_ok());
 }
 
@@ -924,4 +1086,145 @@ fn a_font_this_version_cannot_substitute_is_kept_and_partial() {
     assert!(why.contains("/Type0 Identity-H fonts only"), "{why}");
     assert!(ran.notes.interactions.is_empty());
     assert!(classes_in(&ran.output).contains(&C7FontStreamDeleted));
+}
+
+#[test]
+fn a_name_match_whose_glyphs_differ_is_rejected_and_never_reported_fixed() {
+    // The bundled Noto Sans numbers its glyphs unlike the test subset: the
+    // /BaseFont names it, but its glyphs read the codes as other letters.
+    let input = c8();
+    let db = FontDb::bundled();
+    let (g, _) = run_db(&input, &db, &RepairOptions::default());
+    let c8 = pass(&g, C8FontResourcesDeleted);
+    let text = text_of(g.output.as_ref().unwrap());
+    assert!(
+        c8.outcome != PassOutcome::Fixed || text == golden_text(),
+        "{c8:?} with {text:?}"
+    );
+    assert!(!g.resolutions.is_empty());
+    for (_, _, r) in &g.resolutions {
+        let lines = &r.provenance;
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("name:") && l.contains("rejected: ")),
+            "{lines:?}"
+        );
+        assert!(
+            lines.iter().any(|l| l.starts_with("inference:")),
+            "{lines:?}"
+        );
+    }
+
+    // With a word list as well: whatever the pass decides, Fixed means the
+    // golden's text.
+    let english = english();
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &db,
+        &RepairOptions::default(),
+        &mut UseBest,
+        &[&english],
+    );
+    let text = text_of(&ran.output);
+    assert!(
+        ran.report.outcome != PassOutcome::Fixed || text == golden_text(),
+        "{:?} with {text:?}",
+        ran.report
+    );
+}
+
+#[test]
+fn a_code_with_several_characters_makes_c7_partial() {
+    let input = analysed(corrupt(C7FontStreamDeleted, &combining_tounicode(), 0));
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
+    let ran = run_pass(
+        &input,
+        C7FontStreamDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut UseBest,
+        &[],
+    );
+    let PassOutcome::Partial(why) = &ran.report.outcome else {
+        panic!("{:?}", ran.report)
+    };
+    let lost = "keeps only the first character of 1 codes";
+    assert!(why.contains(lost), "{why}");
+    let what = actions(&ran.report);
+    assert!(what[0].starts_with(&format!("font program substituted: {RIGHT}")));
+    assert!(what[0].contains(lost), "{what:?}");
+}
+
+#[test]
+fn a_form_sharing_the_pages_resources_keeps_the_old_font() {
+    let input = analysed(corrupt(C7FontStreamDeleted, &shared_resources(), 0));
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
+    let ran = run_pass(
+        &input,
+        C7FontStreamDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut UseBest,
+        &[],
+    );
+    assert!(
+        actions(&ran.report)[0].starts_with("font program substituted"),
+        "{:?}",
+        ran.report
+    );
+    let doc = load_strict(&ran.output);
+    let type0 = |id: (u32, u16)| {
+        doc.get_dictionary(id)
+            .ok()
+            .and_then(|d| d.get(b"Subtype").ok()?.as_name().ok())
+            == Some(&b"Type0"[..])
+    };
+    let f1 = |resources: &Dictionary| {
+        let fonts = match resources.get(b"Font").unwrap() {
+            Object::Reference(id) => doc.get_dictionary(*id).unwrap(),
+            other => other.as_dict().unwrap(),
+        };
+        fonts
+            .get(b"F1")
+            .unwrap()
+            .as_reference()
+            .expect("a font, not null")
+    };
+    // Page 1 draws through the new font; the form, through the shared
+    // resources, still through the old one, which is kept.
+    let page_id = doc.get_pages()[&1];
+    let page = doc.get_dictionary(page_id).unwrap();
+    let resources = page.get(b"Resources").unwrap().as_dict().unwrap();
+    let new_font = f1(resources);
+    let xobjects = resources.get(b"XObject").unwrap().as_dict().unwrap();
+    let form_id = xobjects.get(b"Fm1").unwrap().as_reference().unwrap();
+    let form = doc.get_object(form_id).unwrap().as_stream().unwrap();
+    let shared_id = form.dict.get(b"Resources").unwrap().as_reference().unwrap();
+    let old_font = f1(doc.get_dictionary(shared_id).unwrap());
+    assert_ne!(new_font, old_font);
+    assert!(type0(new_font) && type0(old_font));
+}
+
+#[test]
+fn a_font_reached_only_through_a_re_link_is_substituted() {
+    // Both pages lose their /Font entry: the damaged font is reachable
+    // through the C6 re-links alone.
+    let c6 = |pdf: &[u8], seed| corrupt(CorruptionClass::C6FontMapLost, pdf, seed);
+    let pdf = c6(&c6(&corrupt(C7FontStreamDeleted, &golden_pdf(), 0), 0), 2);
+    let input = analysed(pdf);
+    assert_eq!(
+        input.classes(),
+        [CorruptionClass::C6FontMapLost, C7FontStreamDeleted]
+    );
+    let (g, _) = run_db(&input, &test_db(), &RepairOptions::default());
+    assert_eq!(g.chosen, Some(Toolpath::TemplateAssemble));
+    let c7 = pass(&g, C7FontStreamDeleted);
+    assert_eq!(c7.outcome, PassOutcome::Fixed, "{c7:?}");
+    let slots: Vec<(u32, &str)> = (g.resolutions.iter())
+        .map(|(p, s, _)| (*p, s.as_str()))
+        .collect();
+    assert_eq!(slots, [(0, "F1"), (1, "F1")], "the re-linked page too");
+    assert_eq!(text_of(g.output.as_ref().unwrap()), golden_text());
 }
