@@ -125,12 +125,12 @@ fn row_structural_builds_both_toolpaths() {
 }
 
 #[test]
-fn row_font_track_builds_both_toolpaths() {
+fn row_font_track_assembles_first_then_resaves() {
     for classes in [
-        &[C6FontMapLost][..],
-        &[C7FontStreamDeleted],
+        &[C7FontStreamDeleted][..],
         &[C8FontResourcesDeleted],
         &[C4PageTreeBroken, C7FontStreamDeleted],
+        &[C6FontMapLost, C8FontResourcesDeleted],
     ] {
         assert_eq!(
             PlanRow::of(&corruption(classes), None),
@@ -139,14 +139,26 @@ fn row_font_track_builds_both_toolpaths() {
         );
         assert_eq!(
             candidates(classes),
-            [Resave, TemplateAssemble],
+            [TemplateAssemble, Resave],
             "{classes:?}"
         );
     }
 }
 
 #[test]
-fn the_prior_is_always_resave() {
+fn row_relink_resaves_c6() {
+    for classes in [&[C6FontMapLost][..], &[C6FontMapLost, C4PageTreeBroken]] {
+        assert_eq!(
+            PlanRow::of(&corruption(classes), None),
+            PlanRow::Relink,
+            "{classes:?}"
+        );
+        assert_eq!(candidates(classes), [Resave], "{classes:?}");
+    }
+}
+
+#[test]
+fn the_prior_is_resave_outside_the_font_track() {
     for classes in [
         &[][..],
         &[C2XrefMissing],
@@ -154,6 +166,12 @@ fn the_prior_is_always_resave() {
         &[C6FontMapLost],
     ] {
         assert_eq!(plan_with(&corruption(classes), None).prior, Resave);
+    }
+    for classes in [&[C7FontStreamDeleted][..], &[C8FontResourcesDeleted]] {
+        assert_eq!(
+            plan_with(&corruption(classes), None).prior,
+            TemplateAssemble
+        );
     }
 }
 

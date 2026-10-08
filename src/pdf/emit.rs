@@ -43,6 +43,25 @@
 //! in force with `/Font` holding the slot; every other page keeps its
 //! resources as the page tree plan has them.
 //!
+//! Template assembly (T-30, TD §17.4, D-027): a slot a font pass substituted
+//! ([`RebuildDoc::substitute`], or each [`Substitution`] given to
+//! [`emit_template_assemble`]) gets a database font's subtree harvested from
+//! its runtime template ([`template::harvest`]): the `/Type0` `Identity-H`
+//! font, its `CIDFontType2`, the descriptor, the `/FontFile2` program and a
+//! `/ToUnicode` over only the codes used. The subtrees are numbered after the
+//! page tree, one per font and code map, and the page's own `/Resources`
+//! (an inline copy, as for a re-link) maps the slot to it. The font a
+//! substitution replaces is left out with the objects under it (its
+//! descendant, descriptor, program, `/ToUnicode`, `/CIDToGIDMap` and
+//! `/Encoding`) when nothing else names them: a page slot that was not
+//! re-pointed, or any object but a page, a `/Pages` node, a page's shared
+//! resources dictionary or another left-out object, keeps it. A shared
+//! resources dictionary counts as the pages' only when nothing but pages and
+//! `/Pages` nodes names it: a form or appearance stream that shares it keeps
+//! the old font. A C6 re-link counts as the page's slot. References
+//! to what is left out become `null`. Everything else is written as Resave
+//! writes it.
+//!
 //! Reals (rule 6, D-075): lopdf holds a real as `f32`, so a carved real that
 //! does not survive `f32` is changed in the output. Each such token in an
 //! object written is counted ([`EmitNotes::reals_narrowed`]) and the report
@@ -57,13 +76,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use lopdf::{Dictionary, Object};
 
+use crate::engine::FontDb;
 use crate::engine::{LogLevel, Progress, RepairReport};
 use crate::pdf::carver::{Body, CarveNote, CarveReport, Orphan};
+use crate::pdf::fontdb::template::{self, Harvest};
 use crate::pdf::graph::ObjectGraph;
 use crate::pdf::lexer::{self, LexNote};
 use crate::pdf::meta::info_object;
-use crate::pdf::model::{ByteSpan, ObjId};
-use crate::pdf::rebuild::{CatalogPlan, Held, IdRemap, PagePlan, PageTreePlan};
+use crate::pdf::model::{ByteSpan, ObjId, ObjectKind};
+use crate::pdf::rebuild::{CatalogPlan, Held, IdRemap, MAX_OBJECT_NUMBER, PagePlan, PageTreePlan};
 use crate::pdf::streams::salvage::{Salvage, SalvageIndex, flate_input};
 use crate::pdf::streams::{Filter, UNRESOLVED_PARMS, filters_of};
 use crate::pdf::write::{EmitError, Writer};
@@ -104,6 +125,23 @@ impl EmitNotes {
     }
 }
 
+/// A page's index in document order and one of its font resource names.
+pub(crate) type PageSlot = (u32, Vec<u8>);
+
+/// One font slot template assembly rebuilds from a database font (T-30).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Substitution {
+    /// The page's index in document order.
+    pub(crate) page: u32,
+    /// The resource name, e.g. `"F1"`.
+    pub(crate) slot: String,
+    /// The database font's id.
+    pub(crate) font_id: String,
+    /// Every code the slot shows, and its character: what the `/ToUnicode`
+    /// maps (TD §18.3: only the codes actually used).
+    pub(crate) used_codes: BTreeMap<u16, char>,
+}
+
 /// The output being built: the writer and the numbering it follows. Repair
 /// passes (T-13a) edit it between [`RebuildDoc::new`] and [`emit_doc`].
 pub(crate) struct RebuildDoc {
@@ -114,6 +152,9 @@ pub(crate) struct RebuildDoc {
     /// Per page output number, each re-linked slot and the input id of its
     /// font (module docs, "Pages").
     relinks: BTreeMap<u32, BTreeMap<Vec<u8>, ObjId>>,
+    /// Each harvested font subtree and the `(page index, slot)`s it serves
+    /// (module docs, "Template assembly").
+    assembled: Vec<(Vec<PageSlot>, Harvest)>,
 }
 
 impl RebuildDoc {
@@ -124,6 +165,7 @@ impl RebuildDoc {
             remap,
             swapped: BTreeSet::new(),
             relinks: BTreeMap::new(),
+            assembled: Vec::new(),
         }
     }
 
@@ -144,11 +186,71 @@ impl RebuildDoc {
         self.swapped.insert(id);
     }
 
+    /// The slots re-linked so far on the page written as `page`, and the
+    /// input id of each one's font.
+    pub(crate) fn relinked(&self, page: u32) -> Option<&BTreeMap<Vec<u8>, ObjId>> {
+        self.relinks.get(&page)
+    }
+
     /// Maps `slot` to the input object `font` in the `/Resources` of the
     /// page written as `page` (module docs, "Pages").
     pub(crate) fn relink_font(&mut self, page: u32, slot: Vec<u8>, font: ObjId) {
         self.relinks.entry(page).or_default().insert(slot, font);
     }
+
+    /// Writes `font` and maps each `(page index, slot)` of `slots` to it,
+    /// in place of the font the slot names (module docs, "Template
+    /// assembly"). A `font` equal to one already written serves its slots
+    /// too: one subtree per font and code map, in first-use order.
+    pub(crate) fn substitute(&mut self, slots: Vec<PageSlot>, font: Harvest) {
+        match self.assembled.iter_mut().find(|(_, f)| *f == font) {
+            Some((served, _)) => served.extend(slots),
+            None => self.assembled.push((slots, font)),
+        }
+    }
+
+    /// Harvests each of `substitutions` from `fonts` and
+    /// [substitutes](Self::substitute) it; a font `fonts` cannot harvest is
+    /// [`EmitError::Write`].
+    pub(crate) fn assemble(
+        &mut self,
+        substitutions: &[Substitution],
+        fonts: &FontDb,
+    ) -> Result<(), EmitError> {
+        for s in substitutions {
+            let font = template::harvest_from(fonts, &s.font_id, &s.used_codes)
+                .map_err(|e| EmitError::Write(format!("font {}: {e}", s.font_id)))?;
+            self.substitute(vec![(s.page, s.slot.as_bytes().to_vec())], font);
+        }
+        Ok(())
+    }
+}
+
+/// The template assembly output (module docs, "Template assembly"): Resave,
+/// with each of `substitutions` harvested from `fonts` and re-pointed.
+/// `carve`, `graph`, `remap` and `page_tree` must come from `ctx.bytes`, and
+/// `page_tree` from `remap`. A font `fonts` cannot harvest is
+/// [`EmitError::Write`].
+///
+/// This is the stand-alone form, as [`emit_resave`] is Resave's: it takes
+/// every stream's C9 salvage. The repair's `TemplateAssemble` candidate is
+/// [`emit_doc`] of the passes' [`RebuildDoc`], substituted through the same
+/// [`RebuildDoc::substitute`], which takes only the streams the C9 pass
+/// swapped. The two give the same bytes for the same substitutions whenever
+/// the C9 pass swapped every salvaged stream, or none changed.
+pub(crate) fn emit_template_assemble(
+    carve: &CarveReport,
+    graph: &ObjectGraph,
+    remap: &IdRemap,
+    page_tree: &PageTreePlan,
+    substitutions: &[Substitution],
+    fonts: &FontDb,
+    ctx: &mut EmitCtx<'_>,
+) -> Result<Vec<u8>, EmitError> {
+    let mut doc = RebuildDoc::new(remap.clone());
+    doc.swapped.extend(ctx.salvage.by_obj.keys().copied());
+    doc.assemble(substitutions, fonts)?;
+    emit_doc(doc, carve, graph, page_tree, ctx)
 }
 
 /// The Resave output (module docs). `carve`, `graph`, `remap` and
@@ -175,7 +277,9 @@ pub(crate) fn emit_doc(
     ctx: &mut EmitCtx<'_>,
 ) -> Result<Vec<u8>, EmitError> {
     ctx.notes = EmitNotes::default();
-    doc.copy_carved(carve, page_tree, ctx);
+    doc.drop_replaced(carve, graph, page_tree);
+    let assembled = doc.write_assembled(page_tree)?;
+    doc.copy_carved(carve, page_tree, &assembled, ctx);
     doc.write_page_tree(page_tree);
     let info = info_object(ctx.bytes, carve, graph)
         .and_then(|at| doc.remap.number_of(Held::Object(at)))
@@ -193,10 +297,194 @@ pub(crate) fn emit_doc(
     doc.w.finish()
 }
 
+/// Per page index, each substituted slot and the output number of its font.
+type Assembled = BTreeMap<u32, BTreeMap<Vec<u8>, u32>>;
+
 impl RebuildDoc {
+    /// The harvested subtrees, numbered after the page tree; where each
+    /// slot points.
+    fn write_assembled(&mut self, tree: &PageTreePlan) -> Result<Assembled, EmitError> {
+        let mut out = Assembled::new();
+        let mut next = tree.pages_id.max(tree.root).saturating_add(1);
+        for (slots, font) in std::mem::take(&mut self.assembled) {
+            let count = u32::try_from(font.len()).unwrap_or(u32::MAX);
+            if next.saturating_add(count) > MAX_OBJECT_NUMBER.saturating_add(1) {
+                return Err(EmitError::Write(format!(
+                    "a substituted font would pass object number {MAX_OBJECT_NUMBER}"
+                )));
+            }
+            for (n, object) in font.numbered(next) {
+                self.w.add(n, object);
+            }
+            for (page, slot) in slots {
+                out.entry(page).or_default().insert(slot, next);
+            }
+            next += count;
+        }
+        Ok(out)
+    }
+
+    /// Leaves out the fonts the substitutions replace, with what is under
+    /// them, when nothing else names them (module docs, "Template
+    /// assembly").
+    fn drop_replaced(&mut self, carve: &CarveReport, graph: &ObjectGraph, tree: &PageTreePlan) {
+        if self.assembled.is_empty() {
+            return;
+        }
+        let repointed: BTreeSet<(u32, &[u8])> = self
+            .assembled
+            .iter()
+            .flat_map(|(slots, _)| slots.iter().map(|(p, s)| (*p, s.as_slice())))
+            .collect();
+        let numbered = self.remap.objects();
+        let input_of = |n: u32| -> Option<ObjId> {
+            let i = numbered.binary_search_by_key(&n, |&(m, _)| m).ok()?;
+            match numbered[i].1 {
+                Held::Object(at) => Some(carve.objects.get(at)?.declared_id),
+                Held::Orphan(_) => None,
+            }
+        };
+        let held = |id: ObjId| match self.remap.target(id) {
+            Some(Held::Object(at)) => carve.objects.get(at),
+            _ => None,
+        };
+        let mut replaced = BTreeSet::new();
+        let mut kept = BTreeSet::new();
+        let pages: BTreeSet<ObjId> = tree.pages.iter().filter_map(|p| input_of(p.id)).collect();
+        // The pages, and the shared resources dictionaries only pages and
+        // `/Pages` nodes name: a form or an appearance stream that shares
+        // one still selects the old font through it.
+        let mut holders = pages.clone();
+        for page in &tree.pages {
+            if let Some(Object::Reference(r)) = &page.resources
+                && graph.referrers(*r).iter().all(|e| {
+                    pages.contains(&e.from)
+                        || held(e.from).is_some_and(|o| o.kind == ObjectKind::Pages)
+                })
+            {
+                holders.insert(*r);
+            }
+        }
+        for (index, page) in tree.pages.iter().enumerate() {
+            let index = u32::try_from(index).unwrap_or(u32::MAX);
+            let mut map = self.font_map(carve, page.resources.as_ref());
+            // The C6 re-links stand over what the resources map.
+            if let Some(relinked) = self.relinks.get(&page.id) {
+                map.retain(|(slot, _)| !relinked.contains_key(slot));
+                map.extend(relinked.iter().map(|(s, &f)| (s.clone(), f)));
+            }
+            for (slot, font) in map {
+                if repointed.contains(&(index, slot.as_slice())) {
+                    replaced.insert(font);
+                } else {
+                    kept.insert(font);
+                }
+            }
+        }
+        // Each replaced font and what hangs under it.
+        let mut set: BTreeSet<ObjId> = BTreeSet::new();
+        let mut queue: Vec<ObjId> = replaced.difference(&kept).copied().collect();
+        while let Some(id) = queue.pop() {
+            if !set.insert(id) {
+                continue;
+            }
+            let Some(Body::Dict(d) | Body::Stream { dict: d, .. }) = held(id).map(|o| &o.body)
+            else {
+                continue;
+            };
+            for key in FONT_PARTS {
+                let mut refs = Vec::new();
+                if let Ok(v) = d.get(key) {
+                    references(v, &mut refs);
+                }
+                queue.extend(refs);
+            }
+        }
+        // Keep whatever something outside the set (and outside the pages'
+        // own font maps) still names.
+        let named_outside = |id: ObjId, set: &BTreeSet<ObjId>| {
+            graph.referrers(id).iter().any(|e| {
+                let from_pages = holders.contains(&e.from)
+                    || held(e.from).is_some_and(|o| o.kind == ObjectKind::Pages);
+                !set.contains(&e.from) && !from_pages
+            })
+        };
+        loop {
+            let out: Vec<ObjId> = set
+                .iter()
+                .copied()
+                .filter(|&id| named_outside(id, &set))
+                .collect();
+            if out.is_empty() {
+                break;
+            }
+            out.iter().for_each(|id| {
+                set.remove(id);
+            });
+        }
+        // A font kept by the loop keeps everything under it.
+        let roots: Vec<ObjId> = replaced
+            .difference(&kept)
+            .filter(|id| set.contains(id))
+            .copied()
+            .collect();
+        let mut reach = BTreeSet::new();
+        let mut queue = roots;
+        while let Some(id) = queue.pop() {
+            if !set.contains(&id) || !reach.insert(id) {
+                continue;
+            }
+            if let Some(Body::Dict(d) | Body::Stream { dict: d, .. }) = held(id).map(|o| &o.body) {
+                for key in FONT_PARTS {
+                    if let Ok(v) = d.get(key) {
+                        references(v, &mut queue);
+                    }
+                }
+            }
+        }
+        for id in reach {
+            if let Some(h) = self.remap.target(id) {
+                self.remap.forget(h);
+            }
+        }
+    }
+
+    /// Each slot of the `/Font` dictionary in force through `resources` (a
+    /// carved value, inline or a reference) that names a font by reference.
+    fn font_map(&self, carve: &CarveReport, resources: Option<&Object>) -> Vec<(Vec<u8>, ObjId)> {
+        let resolve = |v: &Object| -> Option<Dictionary> {
+            match v {
+                Object::Dictionary(d) => Some(d.clone()),
+                Object::Reference(id) => carved_dict(carve, self.remap.target(*id)?).cloned(),
+                _ => None,
+            }
+        };
+        let Some(fonts) = resources
+            .and_then(resolve)
+            .and_then(|r| r.get(b"Font").ok().and_then(resolve))
+        else {
+            return Vec::new();
+        };
+        fonts
+            .iter()
+            .filter_map(|(k, v)| match v {
+                Object::Reference(id) => Some((k.clone(), *id)),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Every numbered carved object, pages pinned and the catalog rewired.
-    fn copy_carved(&mut self, carve: &CarveReport, tree: &PageTreePlan, ctx: &mut EmitCtx<'_>) {
-        let pages: BTreeMap<u32, &PagePlan> = tree.pages.iter().map(|p| (p.id, p)).collect();
+    fn copy_carved(
+        &mut self,
+        carve: &CarveReport,
+        tree: &PageTreePlan,
+        assembled: &Assembled,
+        ctx: &mut EmitCtx<'_>,
+    ) {
+        let pages: BTreeMap<u32, (u32, &PagePlan)> = (tree.pages.iter().enumerate())
+            .map(|(i, p)| (p.id, (u32::try_from(i).unwrap_or(u32::MAX), p)))
+            .collect();
         let last_streams = last_stream_copies(carve);
         for (n, held) in self.remap.objects() {
             let mut object = match held {
@@ -239,8 +527,8 @@ impl RebuildDoc {
             };
             self.remap.rewrite(&mut object);
             if let Object::Dictionary(d) = &mut object {
-                if let Some(page) = pages.get(&n) {
-                    self.pin_page(d, page, tree.pages_id, carve);
+                if let Some(&(index, page)) = pages.get(&n) {
+                    self.pin_page(d, page, tree.pages_id, carve, assembled.get(&index));
                 } else if n == tree.root && matches!(tree.catalog, CatalogPlan::Reuse(_)) {
                     d.set("Pages", Object::Reference((tree.pages_id, 0)));
                 }
@@ -251,7 +539,14 @@ impl RebuildDoc {
 
     /// The page's inheritable attributes, resolved by T-10, written on it,
     /// with the fonts re-linked to it.
-    fn pin_page(&self, d: &mut Dictionary, page: &PagePlan, pages_id: u32, carve: &CarveReport) {
+    fn pin_page(
+        &self,
+        d: &mut Dictionary,
+        page: &PagePlan,
+        pages_id: u32,
+        carve: &CarveReport,
+        assembled: Option<&BTreeMap<Vec<u8>, u32>>,
+    ) {
         d.set("Type", Object::Name(b"Page".to_vec()));
         d.set("Parent", Object::Reference((pages_id, 0)));
         d.set("MediaBox", Object::Array(page.mediabox.to_vec()));
@@ -264,13 +559,14 @@ impl RebuildDoc {
                 d.remove(key.as_bytes());
             }
         };
-        let resources = match self.relinks.get(&page.id) {
-            Some(slots) => Some(Object::Dictionary(self.with_fonts(
+        let relinks = self.relinks.get(&page.id);
+        let resources = match (relinks, assembled) {
+            (None, None) => page.resources.clone(),
+            _ => Some(Object::Dictionary(self.with_fonts(
                 carve,
                 page.resources.as_ref(),
-                slots,
+                relinks.unwrap_or(&BTreeMap::new()),
             ))),
-            None => page.resources.clone(),
         };
         set("Resources", resources);
         set(
@@ -278,6 +574,16 @@ impl RebuildDoc {
             page.cropbox.clone().map(|b| Object::Array(b.to_vec())),
         );
         set("Rotate", page.rotate.map(Object::Integer));
+        // The harvested fonts carry output numbers already: set after the
+        // rewrite.
+        if let Some(slots) = assembled
+            && let Ok(Object::Dictionary(r)) = d.get_mut(b"Resources")
+            && let Ok(Object::Dictionary(fonts)) = r.get_mut(b"Font")
+        {
+            for (slot, &n) in slots {
+                fonts.set(slot.clone(), Object::Reference((n, 0)));
+            }
+        }
     }
 
     /// A copy of `resources` (carved, inline or a reference) whose `/Font`
@@ -365,6 +671,28 @@ impl RebuildDoc {
             }
             None => self.w.add_stream_raw(n, dict, raw.to_vec()),
         }
+    }
+}
+
+/// The keys a font dictionary names the objects under it with.
+const FONT_PARTS: [&[u8]; 8] = [
+    b"DescendantFonts",
+    b"FontDescriptor",
+    b"FontFile",
+    b"FontFile2",
+    b"FontFile3",
+    b"ToUnicode",
+    b"CIDToGIDMap",
+    b"Encoding",
+];
+
+/// Every reference in `v`, appended to `out`.
+fn references(v: &Object, out: &mut Vec<ObjId>) {
+    match v {
+        Object::Reference(id) => out.push(*id),
+        Object::Array(a) => a.iter().for_each(|o| references(o, out)),
+        Object::Dictionary(d) => d.iter().for_each(|(_, o)| references(o, out)),
+        _ => {}
     }
 }
 

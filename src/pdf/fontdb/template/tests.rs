@@ -322,3 +322,120 @@ fn bundled_db_hash_is_stable() {
     assert_eq!(hex(&want), BUNDLED_SHA256);
     assert_ne!(FontDb::bundled().sha256(), FontDb::empty().sha256());
 }
+
+// ── the harvest (T-30) ───────────────────────────────────────────────────
+
+/// The test font's template and `.gmap`, and its glyph for `c`.
+fn test_template() -> (Vec<u8>, Vec<u8>) {
+    let (_, gmap_bytes) = build_from_ttf(TEST_FONT).unwrap();
+    let gmap = GmapTable::new(&gmap_bytes).unwrap();
+    (build(TEST_FONT, &gmap).unwrap(), gmap_bytes.clone())
+}
+
+fn glyph(gmap: &GmapTable, c: char) -> u16 {
+    cmap_gids(gmap)[&c]
+}
+
+#[test]
+fn a_harvest_is_numbered_where_it_lands() {
+    let (template, gmap_bytes) = test_template();
+    let gmap = GmapTable::new(&gmap_bytes).unwrap();
+    let a = glyph(&gmap, 'A');
+    let used = BTreeMap::from([(a, 'A')]);
+    let harvest = harvest(&template, &gmap, &used).unwrap();
+    // The codes are the font's own glyphs: no map, five objects.
+    assert_eq!(harvest.len(), 5);
+    let objects = harvest.numbered(100);
+    let numbers: Vec<u32> = objects.iter().map(|(n, _)| *n).collect();
+    assert_eq!(numbers, [100, 101, 102, 103, 104]);
+    let type0 = objects[0].1.as_dict().unwrap();
+    assert_eq!(type0.get(b"Subtype").unwrap().as_name().unwrap(), b"Type0");
+    assert_eq!(
+        type0.get(b"DescendantFonts").unwrap(),
+        &Object::Array(vec![Object::Reference((101, 0))])
+    );
+    assert_eq!(
+        type0.get(b"ToUnicode").unwrap(),
+        &Object::Reference((104, 0))
+    );
+    let cid = objects[1].1.as_dict().unwrap();
+    assert_eq!(
+        cid.get(b"FontDescriptor").unwrap(),
+        &Object::Reference((102, 0))
+    );
+    assert_eq!(
+        cid.get(b"CIDToGIDMap").unwrap().as_name().unwrap(),
+        b"Identity"
+    );
+    let descriptor = objects[2].1.as_dict().unwrap();
+    assert_eq!(
+        descriptor.get(b"FontFile2").unwrap(),
+        &Object::Reference((103, 0))
+    );
+    // The program is the template's, byte for byte.
+    let doc = Document::load_mem(&template).unwrap();
+    let program = doc.get_object((FONTFILE2, 0)).unwrap().as_stream().unwrap();
+    assert_eq!(objects[3].1.as_stream().unwrap().content, program.content);
+    // The /ToUnicode maps only the code used.
+    let cmap = objects[4]
+        .1
+        .as_stream()
+        .unwrap()
+        .decompressed_content()
+        .unwrap();
+    assert_eq!(cmap, build_tounicode(&used));
+}
+
+#[test]
+fn foreign_codes_get_a_cid_to_gid_map() {
+    let (template, gmap_bytes) = test_template();
+    let gmap = GmapTable::new(&gmap_bytes).unwrap();
+    let (a, b) = (glyph(&gmap, 'A'), glyph(&gmap, 'b'));
+    // Codes 3 and 7 are not this font's glyphs for A and b.
+    let used = BTreeMap::from([(3, 'A'), (7, 'b'), (9, '\u{4e2d}')]);
+    let harvest = harvest(&template, &gmap, &used).unwrap();
+    assert_eq!(harvest.len(), 6);
+    let objects = harvest.numbered(40);
+    let cid = objects[1].1.as_dict().unwrap();
+    assert_eq!(
+        cid.get(b"CIDToGIDMap").unwrap(),
+        &Object::Reference((45, 0))
+    );
+    let map = objects[5]
+        .1
+        .as_stream()
+        .unwrap()
+        .decompressed_content()
+        .unwrap();
+    let gid_at = |code: usize| u16::from_be_bytes([map[2 * code], map[2 * code + 1]]);
+    assert_eq!(map.len(), 20);
+    // A glyph the font lacks draws .notdef.
+    assert_eq!((gid_at(3), gid_at(7), gid_at(9), gid_at(0)), (a, b, 0, 0));
+    // /W gives each code its glyph's width.
+    let Object::Array(w) = cid.get(b"W").unwrap() else {
+        panic!("/W")
+    };
+    let parsed = parsed_widths(w);
+    assert_eq!(parsed[&3], gmap.width(a).unwrap());
+    assert_eq!(parsed[&7], gmap.width(b).unwrap());
+    assert_eq!(parsed[&9], 0);
+}
+
+#[test]
+fn harvest_from_the_database_matches_its_template() {
+    let db = FontDb::bundled();
+    let used = BTreeMap::from([(36, 'A')]);
+    let font = harvest_from(&db, "NotoSans-Regular", &used).unwrap();
+    let gmap = db.gmap("NotoSans-Regular").unwrap();
+    let direct = harvest(
+        db.template("NotoSans-Regular").unwrap().unwrap(),
+        &gmap,
+        &used,
+    )
+    .unwrap();
+    assert_eq!(font, direct);
+    assert!(matches!(
+        harvest_from(&db, "NoSuchFont", &used),
+        Err(HarvestError::Unknown(_))
+    ));
+}

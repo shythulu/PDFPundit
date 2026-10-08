@@ -38,15 +38,15 @@ use sha2::{Digest, Sha256};
 use super::slots::font_slots;
 use super::{
     AnalysisResult, AnalysisState, AnalysisStateUse, AnalyzeOptions, AnalyzeStats, Cancelled,
-    CarveSummary, FontDb, Interact, InteractionRecord, InteractionReply, InteractionRequest,
-    InteractionRequestId, InteractionSource, InteractionSummary, LogLevel, OutcomeStatus, Progress,
-    RepairOptions, RepairOutcome, RepairPlan, RepairReport, SIGNED_NOTE, StateHandle, XrefKind,
+    CarveSummary, FontDb, Interact, InteractionReply, InteractionRequest, InteractionRequestId,
+    LogLevel, OutcomeStatus, Progress, RepairOptions, RepairOutcome, RepairPlan, RepairReport,
+    SIGNED_NOTE, StateHandle, XrefKind,
 };
 use crate::pdf::carver::{Body, CarveNote, CarveReport, Orphan, carve};
 use crate::pdf::diagnose::diagnose;
 use crate::pdf::graph::{ObjectGraph, winning_copies};
 use crate::pdf::meta::file_meta;
-use crate::pdf::model::{ByteSpan, CorruptionClass, Finding, FindingKind, InteractionKind, ObjId};
+use crate::pdf::model::{ByteSpan, CorruptionClass, Finding, FindingKind, ObjId};
 use crate::pdf::plan;
 use crate::pdf::repair::{Analysed, generate_and_validate};
 use crate::pdf::streams::salvage::{CarveSource, Salvage, SalvageIndex, salvage_all};
@@ -260,9 +260,9 @@ pub(super) fn repair(
         .expect("analysis always keeps its state");
 
     let mut report = RepairReport::default_for(analysis, opts, fonts);
-    let mut recorder = Recorder {
+    let mut numberer = Numberer {
         inner: ask,
-        records: Vec::new(),
+        asked: 0,
     };
     let input = Analysed {
         bytes,
@@ -272,9 +272,10 @@ pub(super) fn repair(
         findings: &analysis.findings,
         input_sha256,
     };
-    let generated = generate_and_validate(&input, plan, opts, fonts, &mut recorder, sink)?;
+    let generated = generate_and_validate(&input, plan, opts, fonts, &mut numberer, sink)?;
+    // The passes keep the one ordered list of questions and answers, policy
+    // answers included (T-30); `numberer` only numbers what is asked.
     generated.record(&mut report);
-    report.interactions = recorder.records;
     report.shadows = shadows(&state.carve);
     if (analysis.findings.iter()).any(|f| matches!(f.class, FindingKind::Signed { .. })) {
         report.signed_note = Some(SIGNED_NOTE.to_owned());
@@ -358,54 +359,24 @@ impl Progress for Quiet<'_> {
     }
 }
 
-/// Numbers every question from 1, in the order asked, passes it on, and
-/// records it with its reply. A reply of `UseBest` is recorded as the
-/// `UseBest` handler's, any other as the user's.
-pub(super) struct Recorder<'a> {
-    // Read when a pass asks (T-30).
-    #[cfg_attr(not(test), allow(dead_code))]
+/// Numbers every question from 1, in the order asked, and passes it on.
+/// The asking pass records the question and its answer (T-30), beside the
+/// answers a policy gives without asking, so the report keeps one ordered
+/// list.
+pub(super) struct Numberer<'a> {
     pub(super) inner: &'a mut dyn Interact,
-    pub(super) records: Vec<InteractionRecord>,
+    pub(super) asked: u64,
 }
 
-impl Interact for Recorder<'_> {
+impl Interact for Numberer<'_> {
     fn ask(&mut self, mut req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
-        let id = InteractionRequestId(self.records.len() as u64 + 1);
-        let request = match &mut req {
-            InteractionRequest::FontPick(r) => {
-                r.id = id;
-                InteractionSummary {
-                    kind: InteractionKind::FontPick,
-                    page: Some(r.page),
-                    slot: Some(r.slot.clone()),
-                    candidates: r.candidates.iter().map(|c| c.font_id.clone()).collect(),
-                }
-            }
-            InteractionRequest::FontUnreproducible(r) => {
-                r.id = id;
-                InteractionSummary {
-                    kind: InteractionKind::FontUnreproducible,
-                    page: r.slots.first().map(|(p, _)| *p),
-                    slot: r.slots.first().map(|(_, s)| s.clone()),
-                    candidates: r.options.iter().map(|o| o.font_id.clone()).collect(),
-                }
-            }
-        };
-        let reply = self.inner.ask(req)?;
-        // Inferred from the reply: a user who picks "use best" is recorded
-        // as `UseBest`, like the `UseBest` handler. `Interact` cannot say who
-        // answered; T-30 or T-15 should revisit this once the runner's
-        // adapter can.
-        let source = match reply {
-            InteractionReply::UseBest => InteractionSource::UseBest,
-            _ => InteractionSource::User,
-        };
-        self.records.push(InteractionRecord {
-            request,
-            reply: reply.clone(),
-            source,
-        });
-        Ok(reply)
+        self.asked += 1;
+        let id = InteractionRequestId(self.asked);
+        match &mut req {
+            InteractionRequest::FontPick(r) => r.id = id,
+            InteractionRequest::FontUnreproducible(r) => r.id = id,
+        }
+        self.inner.ask(req)
     }
 }
 
@@ -415,8 +386,8 @@ mod tests {
 
     use super::*;
     use crate::engine::{
-        FontCandidate, FontPickRequest, InteractionRecord, InteractionRequestId,
-        InteractionSummary, Ratio, SubstituteChoice, UnreproducibleRequest,
+        FontCandidate, FontPickRequest, InteractionRequestId, Ratio, SubstituteChoice,
+        UnreproducibleRequest,
     };
 
     /// Answers from a script, in order, and keeps what it was asked.
@@ -445,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn every_question_is_numbered_passed_on_and_recorded() {
+    fn every_question_is_numbered_and_passed_on() {
         let pick = FontPickRequest {
             id: InteractionRequestId(0),
             page: 2,
@@ -475,40 +446,15 @@ mod tests {
             InteractionReply::Pick("noto-sans".into()),
             InteractionReply::UseBest,
         ]);
-        let mut recorder = Recorder {
+        let mut numberer = Numberer {
             inner: &mut script,
-            records: Vec::new(),
+            asked: 0,
         };
-        let a = recorder.ask(InteractionRequest::FontPick(pick)).unwrap();
-        let b = (recorder.ask(InteractionRequest::FontUnreproducible(unrepro))).unwrap();
+        let a = numberer.ask(InteractionRequest::FontPick(pick)).unwrap();
+        let b = (numberer.ask(InteractionRequest::FontUnreproducible(unrepro))).unwrap();
         assert_eq!(a, InteractionReply::Pick("noto-sans".into()));
         assert_eq!(b, InteractionReply::UseBest);
-        let records = recorder.records;
-        assert_eq!(
-            records,
-            vec![
-                InteractionRecord {
-                    request: InteractionSummary {
-                        kind: InteractionKind::FontPick,
-                        page: Some(2),
-                        slot: Some("F3".into()),
-                        candidates: vec!["noto-sans".into()],
-                    },
-                    reply: InteractionReply::Pick("noto-sans".into()),
-                    source: InteractionSource::User,
-                },
-                InteractionRecord {
-                    request: InteractionSummary {
-                        kind: InteractionKind::FontUnreproducible,
-                        page: Some(4),
-                        slot: Some("F7".into()),
-                        candidates: vec!["noto-serif".into()],
-                    },
-                    reply: InteractionReply::UseBest,
-                    source: InteractionSource::UseBest,
-                },
-            ]
-        );
+        assert_eq!(numberer.asked, 2);
         let ids: Vec<InteractionRequestId> = (script.asked.iter())
             .map(|r| match r {
                 InteractionRequest::FontPick(p) => p.id,

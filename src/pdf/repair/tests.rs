@@ -1,14 +1,47 @@
 //! T-13a acceptance for generate-and-validate and the structural passes:
 //! the C1–C5 and C10 fixtures re-diagnose clean for their class and pass
-//! V0/V1, the passes override, TemplateAssemble is skipped with a log, the
+//! V0/V1, the passes override, a TemplateAssemble with no font to
+//! substitute is skipped with a log, the
 //! C10 pass drops an unreachable cut object but keeps a cut catalog or
 //! `/Info` written last, a file with no page gets no
 //! output, the runs are deterministic, and the selection tuple is a pure
 //! function with a table test.
 //!
-//! The C9 swap and the C6 re-link (T-13b) are tested in `content`.
+//! The C9 swap and the C6 re-link (T-13b) are tested in `content`, the C7
+//! and C8 passes and template assembly (T-30) in `fonts`.
 
 mod content;
+mod fonts;
+
+/// Test seams of generate-and-validate.
+pub(super) mod seam {
+    use std::cell::Cell;
+
+    use crate::engine::Toolpath;
+
+    thread_local! {
+        static BREAK_ASSEMBLY: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// While `f` runs, every `TemplateAssemble` output is cut in half, so it
+    /// fails V0.
+    pub(crate) fn with_broken_assembly<T>(f: impl FnOnce() -> T) -> T {
+        BREAK_ASSEMBLY.with(|b| b.set(true));
+        let out = f();
+        BREAK_ASSEMBLY.with(|b| b.set(false));
+        out
+    }
+
+    /// `output`, cut in half when it is a `TemplateAssemble` output and the
+    /// seam is set.
+    pub(crate) fn broken(toolpath: Toolpath, output: Vec<u8>) -> Vec<u8> {
+        if toolpath == Toolpath::TemplateAssemble && BREAK_ASSEMBLY.with(Cell::get) {
+            output[..output.len() / 2].to_vec()
+        } else {
+            output
+        }
+    }
+}
 
 use std::cmp::Ordering;
 use std::num::NonZeroUsize;
@@ -32,7 +65,7 @@ use crate::pdf::write::Writer;
 
 use CorruptionClass::{
     C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped,
-    C6FontMapLost, C7FontStreamDeleted, C9ZlibTampered, C10Truncated,
+    C6FontMapLost, C9ZlibTampered, C10Truncated,
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────
@@ -349,23 +382,6 @@ fn passes_override_the_planner() {
     // Only Resave was planned, and it still passes its gates.
     assert_eq!(only_c1.candidates.len(), 1);
     assert!(chosen(&only_c1).verification.v0.all_pass());
-}
-
-#[test]
-fn classes_without_a_pass_are_skipped_with_a_log() {
-    // C7 has no pass in this version (T-30).
-    let input = analysed(corrupt(C7FontStreamDeleted, &golden_pdf(), 0));
-    assert_eq!(input.classes(), [C7FontStreamDeleted]);
-    let (g, sink) = run(&input);
-    assert!(matches!(
-        pass(&g, C7FontStreamDeleted).outcome,
-        PassOutcome::Skipped(_)
-    ));
-    assert!(
-        sink.logs.iter().any(|(_, m)| m.contains("C7")),
-        "{:?}",
-        sink.logs
-    );
 }
 
 #[test]
@@ -812,16 +828,13 @@ fn preservation_counts_what_the_catalog_and_pages_keep() {
 
 #[test]
 fn the_candidate_set_follows_the_plan_and_never_the_c6_pass() {
-    // A C6 file plans both toolpaths; until T-30 only Resave is built, and
-    // the C6 pass runs inside it.
+    // A C6 file plans Resave only (T-30's row), and the C6 pass runs inside
+    // it.
     let input = analysed(corrupt(C6FontMapLost, &golden_pdf(), 0));
     assert!(input.classes().contains(&C6FontMapLost));
     let opts = RepairOptions::default();
     let planned = plan(&input.findings, &input.carve, &input.graph, &opts);
-    assert_eq!(
-        planned.candidates,
-        [Toolpath::Resave, Toolpath::TemplateAssemble]
-    );
+    assert_eq!(planned.candidates, [Toolpath::Resave]);
     let (g, _) = run(&input);
     assert!(!matches!(
         pass(&g, C6FontMapLost).outcome,
