@@ -25,6 +25,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::ops::Range;
@@ -50,6 +51,9 @@ use crate::pdf::model::{ObjId, SalvageGrade};
 
 #[cfg(test)]
 mod tests;
+mod ttf;
+
+pub(crate) use ttf::TtfLocalizer;
 
 /// A checkpoint is taken every this many input bytes (FR-08).
 const CHECKPOINT_EVERY: usize = 256;
@@ -66,8 +70,6 @@ const ERROR_SLACK: usize = 8;
 const ADLER_FROM: usize = 2;
 /// Candidates between two cancellation polls.
 const POLL_EVERY: u64 = 4_096;
-/// Output granted between two `early_reject` calls.
-const EARLY_STEP: usize = 4_096;
 /// Output room past the expected length in the search's buffers.
 const OUT_SLACK: usize = 64 << 10;
 /// Adler-32's modulus.
@@ -136,6 +138,10 @@ pub(crate) enum Salvage {
     /// repair rewrites a byte of the Adler-32 trailer (the body already
     /// decoded to the original); it is T-08's addition to the interface, so
     /// the report can name trailer evidence without re-deriving it.
+    /// `adler_rerun` says the localizer's early check refused every candidate
+    /// of its window and the repair was found when the window was searched
+    /// again under the Adler-32 alone (for a font: the original's own table
+    /// checksum was wrong); T-08b's addition, so the report can say so.
     Repaired {
         data: Vec<u8>,
         edits: Vec<Edit>,
@@ -143,6 +149,7 @@ pub(crate) enum Salvage {
         survivors: Vec<Vec<Edit>>,
         work: u64,
         trailer_edit: bool,
+        adler_rerun: bool,
     },
     /// Invalid or truncated data and no repair: the bytes decoded before
     /// input byte `in_used` of `in_total`.
@@ -367,62 +374,102 @@ pub(crate) trait Localizer: Sync {
     /// The input positions to search, or `None` when this localizer does not
     /// apply. `baseline_out` is the damaged stream's own output.
     fn window(&self, baseline_out: &[u8], trace: &InputTrace) -> Option<Window>;
-    /// Asked with a candidate's output so far as it grows (every 4 KiB and at
-    /// the end): `Some(true)` rejects the candidate, `Some(false)` stops
-    /// asking, `None` asks again later.
+    /// Asked once per candidate when the window carries a [`Check`], with
+    /// the candidate's first `at_out` output bytes: `Some(true)` rejects the
+    /// candidate; anything else lets it decode on to its end.
     fn early_reject(&self, candidate_out_prefix: &[u8]) -> Option<bool>;
 }
 
-/// The localizers the ladder consults. None in T-08; T-08b adds its own.
-const LOCALIZERS: &[&dyn Localizer] = &[];
+/// The localizers the ladder consults, in order.
+const LOCALIZERS: &[&dyn Localizer] = &[&TtfLocalizer];
 
 /// Input positions to search: each range from its top down, in the order
 /// given. Ranges are clamped to the input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Window {
     pub ranges: Vec<Range<usize>>,
+    /// The early verdict on candidates, if the localizer has one.
+    pub check: Option<Check>,
 }
 
-/// The damaged stream's decode, input byte by input byte: `out_after[i]` is
-/// the output length once input byte `i` has been consumed. It maps output
-/// offsets to the input positions that produced them.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct InputTrace {
-    pub out_after: Vec<usize>,
+/// An early verdict on candidates (T-08b's verifier B). A candidate at an
+/// input position at or past `from` is decoded to `at_out` output bytes,
+/// [`Localizer::early_reject`] is asked once with them, and only a candidate
+/// it does not reject decodes on to its end; a position before `from` is
+/// judged by its end alone. The damaged stream's own first `at_out` bytes
+/// must fail the check: a candidate resumed from a checkpoint at or past
+/// `at_out` reproduces them, so it is rejected without an inflate. Each
+/// decode stage is charged as a candidate inflate.
+///
+/// The check assumes the original passed it. When the window is exhausted
+/// with no accept, it is searched again with no check, so an original that
+/// failed its own check costs more but is never refused; a repair found then
+/// carries `adler_rerun`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Check {
+    pub at_out: usize,
+    pub from: usize,
 }
 
-impl InputTrace {
-    fn of(input: &[u8], mode: Mode) -> InputTrace {
-        let mut st = Box::<DecompressorOxide>::default();
-        let mut out = Vec::new();
-        let mut out_after = Vec::with_capacity(input.len());
-        let mut out_pos = 0;
-        for i in 0..input.len() {
-            let more = if i + 1 < input.len() {
-                TINFL_FLAG_HAS_MORE_INPUT
-            } else {
-                0
-            };
-            let r = drive(
-                &mut st,
-                &input[i..=i],
-                &mut out,
-                out_pos,
-                mode.flags() | more,
-                DEFAULT_CAP,
-                None,
-            );
-            out_pos = r.out_end;
-            if r.used == 0 {
-                break;
-            }
-            out_after.push(out_pos);
-            if r.end != End::Starved {
-                break;
-            }
+/// The damaged stream's decode, input byte by input byte: `out_after()[i]`
+/// is the output length once input byte `i` has been consumed. It maps
+/// output offsets to the input positions that produced them, and is built on
+/// first use (a localizer that does not apply never pays for it).
+/// `decoded_to_end` says the decode ran to the stream's end and only the
+/// Adler-32 shows the damage.
+#[derive(Debug)]
+pub(crate) struct InputTrace<'a> {
+    input: &'a [u8],
+    mode: Mode,
+    pub decoded_to_end: bool,
+    out_after: OnceCell<Vec<usize>>,
+}
+
+impl<'a> InputTrace<'a> {
+    fn of(input: &'a [u8], mode: Mode, decoded_to_end: bool) -> InputTrace<'a> {
+        InputTrace {
+            input,
+            mode,
+            decoded_to_end,
+            out_after: OnceCell::new(),
         }
-        InputTrace { out_after }
     }
+
+    pub(crate) fn out_after(&self) -> &[usize] {
+        self.out_after.get_or_init(|| trace(self.input, self.mode))
+    }
+}
+
+fn trace(input: &[u8], mode: Mode) -> Vec<usize> {
+    let mut st = Box::<DecompressorOxide>::default();
+    let mut out = Vec::new();
+    let mut out_after = Vec::with_capacity(input.len());
+    let mut out_pos = 0;
+    for i in 0..input.len() {
+        let more = if i + 1 < input.len() {
+            TINFL_FLAG_HAS_MORE_INPUT
+        } else {
+            0
+        };
+        let r = drive(
+            &mut st,
+            &input[i..=i],
+            &mut out,
+            out_pos,
+            mode.flags() | more,
+            DEFAULT_CAP,
+            None,
+        );
+        out_pos = r.out_end;
+        if r.used == 0 {
+            break;
+        }
+        out_after.push(out_pos);
+        if r.end != End::Starved {
+            break;
+        }
+    }
+    out_after
 }
 
 /// Salvages one Flate stage's input on its own: the ladder with `work`, then
@@ -725,6 +772,7 @@ fn entry_of(outcome: Outcome, stage: FilterStage) -> SalvageEntry {
             survivors,
             work,
             trailer_edit,
+            adler_rerun,
         } => match unpredict(data) {
             Some((d, None)) => Salvage::Repaired {
                 data: kept(d),
@@ -733,6 +781,7 @@ fn entry_of(outcome: Outcome, stage: FilterStage) -> SalvageEntry {
                 survivors,
                 work,
                 trailer_edit,
+                adler_rerun,
             },
             Some((d, Some(_))) if !d.is_empty() => Salvage::ChecksumMismatch { data: kept(d) },
             _ => Salvage::Unrecoverable,
@@ -788,6 +837,11 @@ struct Pending {
     windows: [Vec<Range<usize>>; 2],
     /// The localizer that set the window, if any.
     localizer: Option<usize>,
+    /// The localizer's early check, until the window is searched again
+    /// without it.
+    check: Option<Check>,
+    /// The window is being (or was) searched again without the check.
+    rerun: bool,
     /// The zlib header was rejected: when the zlib window is exhausted with
     /// no survivor, the search moves on to raw deflate.
     raw_next: bool,
@@ -801,6 +855,12 @@ struct Hunt {
     spent: u64,
     /// Candidates tried so far.
     tried: u64,
+    /// Candidates accepted (one output may be accepted more than once).
+    accepted: u64,
+    /// Candidates the check rejected after decoding to its `at_out`.
+    checked_out: u64,
+    /// Candidates the check rejected with no inflate.
+    no_inflate: u64,
     /// Every distinct output's hash and its best key and edit.
     found: BTreeMap<[u8; 32], (Key, Edit)>,
     /// The output of the survivor first in the pinned order.
@@ -922,7 +982,7 @@ fn begin(
             },
         });
     }
-    let (windows, localizer) = windows_for(input, mode, damage, &fallback, localizers);
+    let (windows, localizer, check) = windows_for(input, mode, damage, &fallback, localizers);
     let mut p = Pending {
         mode,
         damage,
@@ -930,6 +990,8 @@ fn begin(
         in_total: input.len(),
         windows,
         localizer,
+        check,
+        rerun: false,
         raw_next,
         hunt: Hunt::default(),
     };
@@ -995,18 +1057,25 @@ impl Pending {
             survivors,
             work,
             trailer_edit: best_key.0,
+            adler_rerun: self.rerun,
         };
         Outcome { salvage, work }
     }
 
-    /// The window is exhausted. With no survivor, an Adler-only zlib stream
+    /// The window is exhausted. With no survivor, a window searched under a
+    /// [`Check`] is searched again without it; then an Adler-only zlib stream
     /// gets the trailer-recompute path, and a stream whose zlib header was
     /// rejected moves on to raw deflate when [`raw_fallback`] allows it:
-    /// `true` means the search goes on in that mode, from the top of its
-    /// own windows (the W spent so far stays spent).
+    /// `true` means the search goes on, from the top of its own windows (the
+    /// W spent so far stays spent).
     fn exhausted(&mut self, input: &[u8], localizers: &[&dyn Localizer]) -> bool {
         if !self.hunt.found.is_empty() {
             return false;
+        }
+        if self.check.take().is_some() {
+            self.rerun = true;
+            self.hunt.cursor = Cursor::default();
+            return true;
         }
         match (self.mode, self.damage) {
             (Mode::Zlib, Damage::Adler { trailer }) => {
@@ -1019,13 +1088,14 @@ impl Pending {
                     return false;
                 };
                 let fallback = fallback_of(out);
-                let (windows, localizer) =
+                let (windows, localizer, check) =
                     windows_for(input, Mode::Raw, damage, &fallback, localizers);
                 self.mode = Mode::Raw;
                 self.damage = damage;
                 self.fallback = fallback;
                 self.windows = windows;
                 self.localizer = localizer;
+                self.check = check;
                 self.hunt.cursor = Cursor::default();
                 true
             }
@@ -1035,6 +1105,7 @@ impl Pending {
 
     /// Records a survivor whose output is `out`.
     fn accept(&mut self, key: Key, edit: Edit, out: &[u8]) {
+        self.hunt.accepted += 1;
         let hash: [u8; 32] = Sha256::digest(out).into();
         let rep = self.hunt.found.entry(hash).or_insert((key, edit));
         if key < rep.0 {
@@ -1058,16 +1129,18 @@ fn prefix(mut data: Vec<u8>, in_used: usize, in_total: usize) -> Salvage {
     }
 }
 
-/// The phase-1 and deep windows, and the localizer that set them.
+/// The phase-1 and deep windows, and the localizer that set them with its
+/// check.
 fn windows_for(
     input: &[u8],
     mode: Mode,
     damage: Damage,
     baseline_out: &[u8],
     localizers: &[&dyn Localizer],
-) -> ([Vec<Range<usize>>; 2], Option<usize>) {
+) -> ([Vec<Range<usize>>; 2], Option<usize>, Option<Check>) {
     if !localizers.is_empty() {
-        let trace = InputTrace::of(input, mode);
+        let to_end = matches!(damage, Damage::Adler { .. });
+        let trace = InputTrace::of(input, mode, to_end);
         for (i, l) in localizers.iter().enumerate() {
             if let Some(w) = l.window(baseline_out, &trace) {
                 let ranges: Vec<Range<usize>> = w
@@ -1075,14 +1148,14 @@ fn windows_for(
                     .into_iter()
                     .map(|r| r.start.min(input.len())..r.end.min(input.len()))
                     .collect();
-                return ([ranges.clone(), ranges], Some(i));
+                return ([ranges.clone(), ranges], Some(i), w.check);
             }
         }
     }
     match damage {
         Damage::Adler { trailer } => {
             let w = std::iter::once(ADLER_FROM.min(trailer)..trailer).collect::<Vec<_>>();
-            ([w.clone(), w], None)
+            ([w.clone(), w], None, None)
         }
         Damage::Error { k } => {
             let hi = (k + ERROR_SLACK).min(input.len());
@@ -1090,6 +1163,7 @@ fn windows_for(
             let deep_lo = k.saturating_sub(DEEP_ERROR_WINDOW).min(lo);
             (
                 [std::iter::once(lo..hi).collect(), vec![lo..hi, deep_lo..lo]],
+                None,
                 None,
             )
         }
@@ -1171,7 +1245,8 @@ fn search(
 /// run from the top of each range down, values from 0 up, skipping the byte
 /// already there. A raw-deflate candidate is accepted only when it ends
 /// within [`RAW_END_SLACK`] bytes of the input's end: with no Adler-32, a
-/// stream cut short is otherwise an accept too.
+/// stream cut short is otherwise an accept too. A [`Check`] judges the
+/// candidates at or past its `from` first.
 fn search_window(
     input: &[u8],
     p: &mut Pending,
@@ -1210,6 +1285,14 @@ fn search_window(
             ctx.poll()?;
         }
         let cp = &base.checkpoints[base.checkpoints.partition_point(|c| c.in_pos <= pos) - 1];
+        let checked = p.check.filter(|c| pos >= c.from);
+        if checked.is_some_and(|c| cp.out_pos >= c.at_out) {
+            // The candidate's first `at_out` bytes are the damaged stream's.
+            p.hunt.tried += 1;
+            p.hunt.no_inflate += 1;
+            p.hunt.cursor = cursor;
+            continue;
+        }
         if valid < cp.out_pos {
             scratch[valid..cp.out_pos].copy_from_slice(&base.out[valid..cp.out_pos]);
         }
@@ -1218,6 +1301,9 @@ fn search_window(
         let old = buf[pos];
         buf[pos] = value;
         let mut ask = early.map(|l| move |out: &[u8]| l.early_reject(out));
+        let pause = checked
+            .zip(ask.as_mut())
+            .map(|(c, f)| (c.at_out, f as Ask<'_>));
         let r = drive(
             &mut st,
             &buf[cp.in_pos..],
@@ -1225,12 +1311,15 @@ fn search_window(
             cp.out_pos,
             p.mode.flags(),
             DEFAULT_CAP,
-            ask.as_mut().map(|f| f as Ask<'_>),
+            pause,
         );
         buf[pos] = old;
-        p.hunt.spent += r.used as u64 + CALL_W;
+        p.hunt.spent += r.used as u64 + CALL_W * r.stages;
         p.hunt.tried += 1;
         p.hunt.cursor = cursor;
+        if r.end == End::Rejected {
+            p.hunt.checked_out += 1;
+        }
         let to_the_end = cp.in_pos + r.used + RAW_END_SLACK >= input.len();
         if r.end == End::Done && (p.mode == Mode::Zlib || to_the_end) {
             p.accept(
@@ -1303,13 +1392,18 @@ struct Driven {
     /// Input consumed, summed over every `decompress` call.
     used: usize,
     out_end: usize,
+    /// Decode stages: 2 when a pause's check let the decode go on.
+    stages: u64,
 }
 
 /// A localizer's `early_reject` for one candidate.
 type Ask<'a> = &'a mut dyn FnMut(&[u8]) -> Option<bool>;
 
 /// Runs `st` over `input`, writing from `out[out_pos]` and growing `out` (up
-/// to `cap`) as needed.
+/// to `cap`) as needed. With a `pause` `(at, ask)`, the decode stops once
+/// `at` output bytes exist, `ask` judges them, and only a decode it does not
+/// reject goes on (a second stage). A decode that ends before `at` is not
+/// asked.
 fn drive(
     st: &mut DecompressorOxide,
     input: &[u8],
@@ -1317,28 +1411,32 @@ fn drive(
     mut out_pos: usize,
     flags: u32,
     cap: usize,
-    mut early: Option<Ask<'_>>,
+    mut pause: Option<(usize, Ask<'_>)>,
 ) -> Driven {
     let mut used = 0usize;
-    let step = if early.is_some() {
-        EARLY_STEP
-    } else {
-        usize::MAX
-    };
+    let mut stages = 1;
+    let mut called = false;
     let end = loop {
-        let (status, i, o) = decompress_with_limit(st, &input[used..], out, out_pos, step, flags);
-        used += i;
-        out_pos += o;
-        if let Some(ask) = early.as_mut() {
-            match ask(&out[..out_pos]) {
-                Some(true) => break End::Rejected,
-                Some(false) => early = None,
-                None => {}
+        if let Some((at, ask)) = pause.as_mut()
+            && out_pos >= *at
+        {
+            if ask(&out[..*at]) == Some(true) {
+                break End::Rejected;
+            }
+            pause = None;
+            if called {
+                stages += 1;
             }
         }
+        let limit = pause.as_ref().map_or(usize::MAX, |(at, _)| at - out_pos);
+        let (status, i, o) = decompress_with_limit(st, &input[used..], out, out_pos, limit, flags);
+        called = true;
+        used += i;
+        out_pos += o;
         break match status {
             TINFLStatus::HasMoreOutput => {
-                if out_pos < out.len() {
+                let paused = pause.as_ref().is_some_and(|(at, _)| out_pos >= *at);
+                if out_pos < out.len() || paused {
                     continue;
                 }
                 if out.len() >= cap {
@@ -1360,6 +1458,7 @@ fn drive(
         end,
         used,
         out_end: out_pos,
+        stages,
     }
 }
 
