@@ -130,16 +130,18 @@ fn user_dir(home: &Path, text: &[u8], name: &str) -> Option<PathBuf> {
             (k.trim_ascii() == key.as_bytes()).then(|| v.trim_ascii())
         })
         .next_back()?;
-    let value = unescape(value.strip_prefix(b"\"")?.strip_suffix(b"\"")?);
-    if let Some(rest) = value.strip_prefix(b"$HOME") {
+    let quoted = value.strip_prefix(b"\"")?.strip_suffix(b"\"")?;
+    // The prefix is checked on the raw bytes: an escaped `\$HOME` is a
+    // literal (relative) `$HOME`, not the home directory.
+    if let Some(rest) = quoted.strip_prefix(b"$HOME") {
         // `$HOME` or `$HOME/` alone means the directory is disabled.
-        let rest = rest.strip_prefix(b"/")?;
+        let rest = unescape(rest.strip_prefix(b"/")?);
         if rest.is_empty() {
             return None;
         }
-        Some(home.join(path_from_bytes(rest.to_vec())?))
-    } else if value.starts_with(b"/") {
-        path_from_bytes(value)
+        Some(home.join(path_from_bytes(rest)?))
+    } else if quoted.starts_with(b"/") {
+        path_from_bytes(unescape(quoted))
     } else {
         None
     }
@@ -321,6 +323,8 @@ mod tests {
         assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"$HOME/\""), None);
         assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"$HOME\""), None);
         assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"rel/d\""), None);
+        // A shell reads `\$HOME/x` as the relative path `$HOME/x`.
+        assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"\\$HOME/x\""), None);
         assert_eq!(one(b"XDG_DOCUMENTS_DIR=$HOME/unquoted"), None);
         assert_eq!(one(b"#XDG_DOCUMENTS_DIR=\"$HOME/c\""), None);
         // The file is sourced by a shell, so the last assignment wins.

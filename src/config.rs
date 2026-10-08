@@ -242,6 +242,8 @@ impl Config {
     pub fn to_toml(&self) -> String {
         use toml::{Table, Value};
         let s = |v: &str| Value::String(v.to_string());
+        // TOML integers are i64, so [`parse`] never yields a larger value; one
+        // set in code above `i64::MAX` is written as `i64::MAX`.
         let int = |n: u64| Value::Integer(i64::try_from(n).unwrap_or(i64::MAX));
         let path = |p: &Path| s(&p.to_string_lossy());
 
@@ -259,10 +261,7 @@ impl Config {
         let r = &self.repair;
         let mut repair = Table::new();
         let c = r.auto_accept_confidence;
-        repair.insert(
-            "auto_accept_confidence".into(),
-            Value::Float(c.num as f64 / c.den as f64),
-        );
+        repair.insert("auto_accept_confidence".into(), Value::Float(ratio_f64(c)));
         repair.insert(
             "max_font_candidates".into(),
             int(u64::from(r.max_font_candidates)),
@@ -566,6 +565,29 @@ fn page_size_name(size: PageSize) -> String {
     }
 }
 
+/// The ratio as the `f64` nearest to it. A decimal ratio (`den` a power of
+/// ten, which is all [`confidence`] makes) is written out as its exact decimal
+/// and parsed, so it round-trips through [`confidence`] whenever it has at most
+/// 15 significant digits. Any other ratio (`1/3`) is only approximated and does
+/// not round-trip.
+fn ratio_f64(r: Ratio) -> f64 {
+    let digits = (0..=18u32).find(|&k| 10u64.checked_pow(k) == Some(r.den));
+    match digits {
+        Some(k) => {
+            let den = 10u64.pow(k);
+            let text = format!(
+                "{}.{:0width$}",
+                r.num / den,
+                r.num % den,
+                width = k.max(1) as usize
+            );
+            text.parse().unwrap_or(0.0)
+        }
+        None if r.den == 0 => 0.0,
+        None => r.num as f64 / r.den as f64,
+    }
+}
+
 /// A number in `[0, 1]` as the exact decimal it was written as: TOML gives an
 /// `f64`, whose shortest round-trip form (`0.35`) is read digit by digit into
 /// `35/100`, so no float reaches the settings snapshot.
@@ -579,6 +601,10 @@ fn confidence(v: &toml::Value) -> Option<Ratio> {
     let f = v.as_float()?;
     if !(0.0..=1.0).contains(&f) {
         return None;
+    }
+    // `-0.0` formats as "-0", which the digit reader below refuses.
+    if f == 0.0 {
+        return Some(Ratio { num: 0, den: 1 });
     }
     let text = format!("{f}");
     let (int, frac) = text.split_once('.').unwrap_or((&text, ""));
@@ -845,6 +871,21 @@ request_resize = true
             Some(Ratio { num: 0, den: 1 })
         );
         assert_eq!(confidence(&value("-0.1")), None);
+        assert_eq!(confidence(&value("-0.0")), Some(Ratio { num: 0, den: 1 }));
+        assert_eq!(confidence(&value("0.0")), Some(Ratio { num: 0, den: 1 }));
+        for r in [
+            Ratio { num: 35, den: 100 },
+            Ratio { num: 0, den: 1 },
+            Ratio { num: 1, den: 1 },
+            Ratio { num: 7, den: 1000 },
+            Ratio {
+                num: 123_456_789_012_345,
+                den: 1_000_000_000_000_000,
+            },
+        ] {
+            // `Ratio` compares by value.
+            assert_eq!(confidence(&toml::Value::Float(ratio_f64(r))), Some(r));
+        }
         assert_eq!(confidence(&toml::Value::Integer(2)), None);
     }
 
