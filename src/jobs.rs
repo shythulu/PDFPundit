@@ -85,11 +85,19 @@ pub enum JobEvent {
     /// Streamed as discovered.
     Finding(Finding),
     Log(LogLevel, String),
-    /// The job is blocked until `reply` receives an answer. The job is
-    /// cancelled when every clone of `reply` is dropped without an answer
-    /// (TD:219-221), so never keep a clone of this event in UI state: a stored
-    /// clone keeps the sender alive and the job can then never be cancelled
-    /// that way. Move `reply` out, answer once, and drop it.
+    /// The job is blocked on a question. Answer it only through
+    /// [`JobRunner::reply`], never by sending on `reply` yourself: the runner
+    /// keeps its own clone of the sender, records each answer for replay after
+    /// an eviction, and counts the job as parked until `JobRunner::reply`
+    /// says otherwise. An answer sent straight on `reply` bypasses all of that.
+    /// The runner would still count the job in `WaitingForYou`, and it could
+    /// later evict a job that is really repairing; that worker would end
+    /// silently and leave its row on "Repairing".
+    ///
+    /// Pass the event to [`JobRunner::on_job_event`], copy the `request` into
+    /// the row, and drop the event. The job is cancelled when every clone of
+    /// `reply` is gone without an answer (TD:219-221), so a clone kept in UI
+    /// state stops the runner from ending the wait (on eviction or quit).
     NeedsInteraction {
         request: InteractionRequest,
         reply: SyncSender<InteractionReply>,
@@ -391,8 +399,17 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 ///
 /// A job that asks a question parks: its worker thread stays blocked on the
 /// question and the next queued file starts at once, so questions never stop
-/// the batch (GG §1). A reply resumes the parked job immediately, beside the
-/// active one. When parked jobs hold more than `parked_cap` bytes the runner
+/// the batch (GG §1). Answer a question only with [`JobRunner::reply`], never
+/// on the [`JobEvent::NeedsInteraction`] event's own sender (see there).
+///
+/// A reply resumes the parked job immediately, beside the active one. Resumed
+/// jobs are not limited in number: each one starts when the user answers it,
+/// and the user answers one question at a time, so they overlap the active job
+/// only as fast as someone types. Queueing them instead would turn "a reply
+/// resumes immediately" into "a reply waits for an earlier reply's job". A
+/// resumed job counts against `parked_cap` again only if it parks again.
+///
+/// When parked jobs hold more than `parked_cap` bytes the runner
 /// reclaims memory, never refusing a job (D-005, the recommended default): it
 /// first evicts parked jobs' analysis states, cheapest to rebuild first
 /// (lowest `salvage_work_total`), cancelling their threads; then, if their
@@ -666,6 +683,15 @@ impl<E: Engine + 'static> JobRunner<E> {
 
     fn send(&self, id: JobId, event: JobEvent) {
         (self.emit)(id, event);
+    }
+
+    /// Waits for every retired worker (cancelled or finished) to end, so a
+    /// test sees the files an evicted worker removes on its way out.
+    #[cfg(test)]
+    pub(crate) fn join_retired(&mut self) {
+        for t in self.retired.drain(..) {
+            let _ = t.join();
+        }
     }
 
     fn start_next(&mut self) {
@@ -942,11 +968,13 @@ impl<E: Engine> Worker<E> {
         // The only write probe, before any engine work; the input is never
         // touched (D-061).
         let unwritable = |e: std::io::Error| {
-            if place::is_unwritable(&e) {
-                Stop::Failed(READ_ONLY_DESTINATION.to_owned())
-            } else {
-                Stop::Failed(format!("can't write to the destination: {e}"))
-            }
+            Stop::Failed(match &self.opts.output_dir {
+                // The fixed message points at output_dir, so it only fits
+                // when the examiner has not set one.
+                None if place::is_unwritable(&e) => READ_ONLY_DESTINATION.to_owned(),
+                None => format!("can't write to the destination: {e}"),
+                Some(dir) => format!("can't write to the output_dir ({}): {e}", dir.display()),
+            })
         };
         let dest = place::destination_for(self.path.as_deref(), self.opts.output_dir.as_deref())
             .map_err(unwritable)?;

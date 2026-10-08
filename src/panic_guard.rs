@@ -174,14 +174,23 @@ mod tests {
 
     const RESTORE: &[u8] = b"\x1b[?1049l\x1b[?2004l";
 
+    /// A stand-in for the previous hook that counts only this test's own
+    /// panics. Other tests run at the same time, and a panic of theirs can
+    /// reach this hook between `uninstall` and the test restoring the original.
+    fn counting_hook(count: &'static AtomicUsize, ours: &'static [&'static str]) -> Hook {
+        Box::new(move |info| {
+            if ours.contains(&payload_text(info.payload())) {
+                count.fetch_add(1, Ordering::SeqCst);
+            }
+        })
+    }
+
     #[test]
     fn a_ui_thread_panic_restores_the_terminal_once_and_chains() {
         let _serial = test_lock();
         let original = panic::take_hook();
         static CHAINED: AtomicUsize = AtomicUsize::new(0);
-        panic::set_hook(Box::new(|_| {
-            CHAINED.fetch_add(1, Ordering::SeqCst);
-        }));
+        panic::set_hook(counting_hook(&CHAINED, &["ui boom"]));
         let writer = SharedWriter::default();
         install(
             thread::current().id(),
@@ -209,9 +218,7 @@ mod tests {
         let _serial = test_lock();
         let original = panic::take_hook();
         static CHAINED: AtomicUsize = AtomicUsize::new(0);
-        panic::set_hook(Box::new(|_| {
-            CHAINED.fetch_add(1, Ordering::SeqCst);
-        }));
+        panic::set_hook(counting_hook(&CHAINED, &["engine boom", "nobody listens"]));
         let writer = SharedWriter::default();
         install(
             thread::current().id(),

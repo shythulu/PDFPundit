@@ -118,14 +118,19 @@ fn canonical(path: &Path) -> PathBuf {
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// A temp file opened with `create_new` in the destination directory. Opening
-/// it is the Repair job's only write probe, made before any engine work
-/// (D-061); dropping it unplaced removes it.
+/// A temp file created with `create_new` in the destination directory.
+/// Creating it is the Repair job's only write probe, made before any engine
+/// work (D-061); dropping it unplaced removes it.
+///
+/// Only the name is kept: the handle is closed as soon as the probe succeeds
+/// and the file is reopened, without `create`, when the output is placed. A
+/// parked job can wait a long time, and one open descriptor per parked job
+/// would run a large batch into the per-process file limit (256 by default for
+/// a macOS terminal), failing later files instead of letting the batch drain.
 #[derive(Debug)]
 pub struct TempFile {
     dir: PathBuf,
     path: PathBuf,
-    file: Option<File>,
     placed: bool,
 }
 
@@ -139,10 +144,10 @@ impl TempFile {
             let path = dir.join(format!(".pdfpundit-{pid}-{n}.tmp"));
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(file) => {
+                    drop(file);
                     return Ok(TempFile {
                         dir: dir.to_path_buf(),
                         path,
-                        file: Some(file),
                         placed: false,
                     });
                 }
@@ -182,7 +187,7 @@ impl TempFile {
         inputs: &BatchInputs,
     ) -> io::Result<(PathBuf, Placed)> {
         check_component(stem)?;
-        let mut file = self.file.take().expect("a temp file is placed once");
+        let mut file = reopen(&self.path)?;
         file.write_all(bytes)?;
         file.sync_all()?;
         // Closed before the move: Windows cannot rename a file that is open
@@ -212,10 +217,30 @@ impl TempFile {
 impl Drop for TempFile {
     fn drop(&mut self) {
         if !self.placed {
-            drop(self.file.take());
             let _ = fs::remove_file(&self.path);
         }
     }
+}
+
+/// Reopens our own temp file for writing. Never creates it: a temp file that
+/// vanished while its job waited is an error, not a new file. On Unix a
+/// symlink put in its place is refused rather than followed.
+fn reopen(path: &Path) -> io::Result<File> {
+    let mut open = OpenOptions::new();
+    open.write(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        open.custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32);
+    }
+    let file = open.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            "the temp file is no longer a regular file",
+        ));
+    }
+    Ok(file)
 }
 
 /// The highest `(N)` tried before giving up.
@@ -361,7 +386,6 @@ fn unsupported(e: &io::Error) -> bool {
         Errno::NOTSUP,
         Errno::OPNOTSUPP,
         Errno::PERM,
-        Errno::MLINK,
     ]
     .iter()
     .any(|errno| errno.raw_os_error() == raw)
@@ -717,6 +741,33 @@ mod tests {
         assert_eq!(dir.names().len(), 1);
         drop(tmp);
         assert!(dir.names().is_empty(), "an unplaced temp file is removed");
+    }
+
+    #[test]
+    fn a_waiting_temp_file_holds_no_descriptor_and_is_never_recreated() {
+        let dir = ScratchDir::new("place-nofd");
+        // More than a macOS terminal's default soft limit of 256 descriptors:
+        // parked jobs each keep a TempFile for as long as they wait.
+        let waiting: Vec<TempFile> = (0..300)
+            .map(|_| TempFile::create(dir.path()).expect("temp"))
+            .collect();
+        assert_eq!(dir.names().len(), 300);
+        let mut waiting = waiting.into_iter();
+        let first = waiting.next().expect("first");
+        let (path, _) = first
+            .place("a.repaired", "pdf", b"out", &BatchInputs::new())
+            .expect("placed");
+        assert_eq!(fs::read(&path).expect("read"), b"out");
+
+        // A temp file that vanished while its job waited is an error.
+        let gone = waiting.next().expect("second");
+        fs::remove_file(gone.path()).expect("remove");
+        let e = gone
+            .place("b.repaired", "pdf", b"x", &BatchInputs::new())
+            .expect_err("vanished");
+        assert_eq!(e.kind(), ErrorKind::NotFound);
+        drop(waiting);
+        assert_eq!(dir.names(), ["a.repaired.pdf"]);
     }
 
     #[test]

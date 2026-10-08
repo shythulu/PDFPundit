@@ -661,6 +661,9 @@ fn a_released_input_that_changed_on_disk_is_refused() {
             panicked: false
         }
     );
+    // The evicted worker removes its temp file on its way out, silently and
+    // possibly after the re-run has failed.
+    h.runner().join_retired();
     assert_eq!(dir.names(), ["a.pdf"], "nothing was written");
 }
 
@@ -985,6 +988,32 @@ fn output_dir_collects_outputs_and_suffixes_shared_stems() {
         b"from y"
     );
     assert_eq!(crate::place::names_in(&root.join("x")), ["a.pdf"]);
+}
+
+#[test]
+fn an_unusable_output_dir_is_named_in_the_failure() {
+    let root = ScratchDir::new("jobs-badout");
+    let input = write(&root, "a.pdf", b"x");
+    // A regular file where output_dir's parent should be: create_dir_all fails.
+    write(&root, "blocker", b"not a directory");
+    let out = root.join("blocker").join("out");
+    let mut h = Harness::new(
+        FakeEngine::new(),
+        RunnerOptions {
+            output_dir: Some(out.clone()),
+            ..opts()
+        },
+    );
+    let id = h.submit(&input);
+    h.pump_until("the end", |h| h.finished(id));
+    let EntryState::Failed { error, panicked } = &h.rows[&id] else {
+        panic!("not failed: {:?}", h.rows[&id]);
+    };
+    assert!(!panicked);
+    let expected = format!("can't write to the output_dir ({}): ", out.display());
+    assert!(error.starts_with(&expected), "{error}");
+    assert_ne!(error, READ_ONLY_DESTINATION);
+    assert_eq!(root.names(), ["a.pdf", "blocker"], "nothing was written");
 }
 
 #[test]
