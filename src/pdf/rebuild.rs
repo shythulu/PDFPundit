@@ -19,7 +19,10 @@
 //!    orphans first, all of them, in byte order, then the winners that need
 //!    one, in byte order, then each shadow step 3 claims, as it is claimed.
 //!    Object and cross-reference streams are not written (their contents are
-//!    already carved) and get no number.
+//!    already carved) and get no number. When the numbers would pass
+//!    [`MAX_OBJECT_NUMBER`], or the highest is far above the count of
+//!    objects written, every written object is instead numbered `1..=n` in
+//!    byte order, and [`IdRemap::renumbered`] says why.
 //! 3. **Dangling references** ([`ObjectGraph::dangling_refs`]), taken one
 //!    missing id at a time in the byte order of their first referrer:
 //!    - (a) another generation of the same number, the nearest earlier
@@ -34,14 +37,17 @@
 //!    - (c) else each reference to it is [`Unmatched`], a Warning finding
 //!      input (the object may be genuinely gone), and [`IdRemap::rewrite`]
 //!      turns it into `null`, since its number may now be a fresh object's.
+//!      A dangling `/Parent`, or a catalog's dangling `/Pages`, is not
+//!      reported: the flat page tree replaces those links.
 //!
 //! [`rebuild_page_tree`] then lays every page under one flat `/Pages` node,
-//! in document order, with the inheritable attributes (`/Resources`,
-//! `/MediaBox`, `/CropBox`, `/Rotate`) resolved and pinned per page so
-//! dropping the intermediate nodes loses nothing (ISO 32000-1 7.7.3.4). The
-//! MediaBox chain is the page's own, the nearest `/Parent` ancestor's, the
-//! modal box of the other pages (its first in document order on a tie),
-//! then the configured default page size.
+//! in document order (the catalog's tree, else each surviving root `/Pages`
+//! node's tree, then the pages only byte order finds), with the inheritable
+//! attributes (`/Resources`, `/MediaBox`, `/CropBox`, `/Rotate`) resolved
+//! and pinned per page so dropping the intermediate nodes loses nothing
+//! (ISO 32000-1 7.7.3.4). The MediaBox chain is the page's own, the nearest
+//! `/Parent` ancestor's, the modal box of the other pages (its first in
+//! document order on a tie), then the configured default page size.
 #![cfg_attr(not(test), allow(dead_code))]
 
 #[cfg(test)]
@@ -52,11 +58,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use lopdf::{Dictionary, Object};
 
 use crate::engine::PageSize;
-use crate::pdf::carver::{Body, CarveReport, CarvedObject, Orphan};
-use crate::pdf::graph::{KeyPath, MAX_TREE_DEPTH, ObjectGraph, PathSeg};
-use crate::pdf::model::{
-    ByteSpan, Evidence, LengthSource, Location, MetricValue, ObjId, ObjectKind, Severity,
-};
+use crate::pdf::carver::{Body, CarveReport, Orphan};
+use crate::pdf::graph::{KeyPath, MAX_TREE_DEPTH, ObjectGraph, PathSeg, winning_copies};
+use crate::pdf::model::{ByteSpan, Evidence, Location, MetricValue, ObjId, ObjectKind, Severity};
 
 /// A carved object the output can hold: an index into
 /// [`CarveReport::objects`] or into [`CarveReport::orphans`].
@@ -121,7 +125,8 @@ impl Reconciled {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Unmatched {
     pub(crate) from: ObjId,
-    pub(crate) from_span: ByteSpan,
+    /// The referrer's span (every referrer is a graph node, so it has one).
+    pub(crate) from_span: Option<ByteSpan>,
     pub(crate) path: KeyPath,
     pub(crate) missing: ObjId,
 }
@@ -145,7 +150,7 @@ impl Unmatched {
             severity: Severity::Warning,
             location: Location::Object {
                 id: self.from,
-                span: Some(self.from_span),
+                span: self.from_span,
             },
             summary: format!(
                 "{path} of {} {} obj names {n} {g} R, which no carved object matches",
@@ -169,6 +174,52 @@ pub(crate) struct IdRemap {
     reconciled: Vec<Reconciled>,
     unmatched: Vec<Unmatched>,
     next_free: u32,
+    /// Set when a fresh number would pass `u32::MAX`.
+    exhausted: bool,
+    renumbered: Option<Renumbering>,
+}
+
+/// Why every written object was numbered afresh, `1..=n` in byte order,
+/// instead of keeping its declared number (module docs, step 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Renumbering {
+    /// The numbers would have passed [`MAX_OBJECT_NUMBER`] (or `u32::MAX`).
+    PastLimit,
+    /// The highest number, `highest`, was far above the `count` objects
+    /// written ([`is_sparse`]), which would make the cross-reference table
+    /// mostly free entries.
+    Sparse { highest: u32, count: u32 },
+}
+
+impl Renumbering {
+    /// The report's note.
+    pub(crate) fn note(&self) -> String {
+        match self {
+            Renumbering::PastLimit => {
+                format!(
+                    "object numbers passed {MAX_OBJECT_NUMBER}, so every object was renumbered \
+                     in file order"
+                )
+            }
+            Renumbering::Sparse { highest, count } => format!(
+                "object numbers reached {highest} for {count} objects, so every object was \
+                 renumbered in file order"
+            ),
+        }
+    }
+}
+
+/// The highest output number: 2^23 - 1, the indirect-object limit of
+/// ISO 32000-1 Annex C.2, so a reader with that limit opens the output. The
+/// two numbers after the last written object (the flat `/Pages` node, a
+/// synthesized catalog) must fit under it too.
+pub(crate) const MAX_OBJECT_NUMBER: u32 = 8_388_607;
+
+/// Whether `highest` is far enough above the `count` objects written that
+/// the cross-reference table would be mostly free entries: more than four
+/// times the count plus 1024.
+fn is_sparse(highest: u32, count: u32) -> bool {
+    u64::from(highest) > 4 * u64::from(count) + 1024
 }
 
 impl IdRemap {
@@ -198,6 +249,12 @@ impl IdRemap {
     /// node, a synthesized catalog) start.
     pub(crate) fn next_free(&self) -> u32 {
         self.next_free
+    }
+
+    /// Set when the declared numbers were not kept (module docs, step 2):
+    /// a note for the report.
+    pub(crate) fn renumbered(&self) -> Option<Renumbering> {
+        self.renumbered
     }
 
     /// The losing copies, in byte order.
@@ -240,41 +297,54 @@ impl IdRemap {
         }
     }
 
-    fn fresh(&mut self, held: Held) -> u32 {
+    /// Gives `held` the next fresh number. Past `u32::MAX` it marks the
+    /// remap exhausted, and [`Self::settle_numbers`] renumbers everything.
+    fn fresh(&mut self, held: Held) {
         let n = self.next_free;
         self.numbers.insert(held, n);
-        self.next_free = n.saturating_add(1);
-        n
-    }
-}
-
-/// D-032's winner for every declared id: the index in
-/// [`CarveReport::objects`] of its last well-formed copy, else of its last
-/// copy (module docs).
-pub(crate) fn winning_copies(carve: &CarveReport) -> BTreeMap<ObjId, usize> {
-    let mut chosen: BTreeMap<ObjId, usize> = BTreeMap::new();
-    for (at, o) in carve.objects.iter().enumerate() {
-        let keep = match chosen.get(&o.declared_id) {
-            Some(&prev) => well_formed(o) || !well_formed(&carve.objects[prev]),
-            None => true,
-        };
-        if keep {
-            chosen.insert(o.declared_id, at);
+        match n.checked_add(1) {
+            Some(m) => self.next_free = m,
+            None => self.exhausted = true,
         }
     }
-    chosen
-}
 
-/// D-032's gate: parsed, and not a stream cut by EOF.
-fn well_formed(o: &CarvedObject) -> bool {
-    !matches!(
-        o.body,
-        Body::Unparsed
-            | Body::Stream {
-                length_source: LengthSource::TruncatedAtEof,
-                ..
-            }
-    )
+    /// Keeps the numbers step 2 and 3 gave, unless they ran out or are
+    /// sparse: then every written object is numbered `1..=n` in byte order
+    /// (its start offset, then its place in the carve).
+    fn settle_numbers(&mut self, carve: &CarveReport) {
+        let count = u32::try_from(self.numbers.len()).unwrap_or(u32::MAX);
+        let highest = self.next_free.saturating_sub(1);
+        // The flat `/Pages` node and a synthesized catalog come after.
+        let room = MAX_OBJECT_NUMBER - 2;
+        self.renumbered = if self.exhausted || highest > room {
+            Some(Renumbering::PastLimit)
+        } else if is_sparse(highest, count) {
+            Some(Renumbering::Sparse { highest, count })
+        } else {
+            None
+        };
+        if self.renumbered.is_none() {
+            return;
+        }
+        let mut order: Vec<(u64, Held)> = self
+            .numbers
+            .keys()
+            .map(|&h| {
+                let start = match h {
+                    Held::Object(i) => carve.objects[i].span.start,
+                    Held::Orphan(i) => carve.orphans[i].span().start,
+                };
+                (start, h)
+            })
+            .collect();
+        order.sort_unstable();
+        let mut next = 1u32;
+        for (_, h) in order {
+            self.numbers.insert(h, next);
+            next = next.saturating_add(1);
+        }
+        self.next_free = next;
+    }
 }
 
 /// The ids, numbers, shadows and reference matches of the output (module
@@ -361,7 +431,7 @@ pub(crate) fn plan_ids(carve: &CarveReport, graph: &ObjectGraph) -> IdRemap {
             .or_else(|| {
                 refs.iter().find_map(|(_, from, path)| {
                     let want = Want::of(path)?;
-                    let at = span_of(carve, &remap, *from)?.start;
+                    let at = referrer_span(carve, &winners, *from)?.start;
                     let (held, delta) = pools.claim_nearest(want, at)?;
                     Some((*from, path.clone(), held, MatchedBy::Position { delta }))
                 })
@@ -382,8 +452,10 @@ pub(crate) fn plan_ids(carve: &CarveReport, graph: &ObjectGraph) -> IdRemap {
             }
             None => {
                 for (i, from, path) in refs {
-                    let from_span =
-                        span_of(carve, &remap, from).unwrap_or(ByteSpan { start: 0, end: 0 });
+                    if page_tree_owns(carve, &winners, from, &path) {
+                        continue;
+                    }
+                    let from_span = referrer_span(carve, &winners, from);
                     let u = Unmatched {
                         from,
                         from_span,
@@ -397,7 +469,26 @@ pub(crate) fn plan_ids(carve: &CarveReport, graph: &ObjectGraph) -> IdRemap {
     }
     unmatched.sort_by_key(|&(i, _)| i);
     remap.unmatched = unmatched.into_iter().map(|(_, u)| u).collect();
+    remap.settle_numbers(carve);
     remap
+}
+
+/// Whether [`rebuild_page_tree`] replaces the link at `path` in `from`:
+/// every `/Parent`, and the catalog's `/Pages`, now name the flat node, so a
+/// dangling one is not reported (diagnosis reports the broken tree as C4).
+fn page_tree_owns(
+    carve: &CarveReport,
+    winners: &BTreeMap<ObjId, usize>,
+    from: ObjId,
+    path: &KeyPath,
+) -> bool {
+    match path.0.as_slice() {
+        [PathSeg::Key(k)] if k == b"Parent" => true,
+        [PathSeg::Key(k)] if k == b"Pages" => winners
+            .get(&from)
+            .is_some_and(|&at| carve.objects[at].kind == ObjectKind::Catalog),
+        _ => false,
+    }
 }
 
 /// Another generation of `missing`'s number among the declared ids: the
@@ -465,12 +556,15 @@ impl Pools {
     }
 }
 
-/// Where the copy a reference to `id` names sits in the file.
-fn span_of(carve: &CarveReport, remap: &IdRemap, id: ObjId) -> Option<ByteSpan> {
-    Some(match remap.target(id)? {
-        Held::Object(i) => carve.objects[i].span,
-        Held::Orphan(i) => carve.orphans[i].span(),
-    })
+/// Where the referring copy `id` sits in the file: the graph's node for it,
+/// which may be an object or cross-reference stream (those are not written,
+/// so the remap does not name them).
+fn referrer_span(
+    carve: &CarveReport,
+    winners: &BTreeMap<ObjId, usize>,
+    id: ObjId,
+) -> Option<ByteSpan> {
+    winners.get(&id).map(|&at| carve.objects[at].span)
 }
 
 /// `to - from` in bytes, saturated to `i64`.
@@ -679,7 +773,9 @@ pub(crate) fn rebuild_page_tree(
                     }),
                 resources: view
                     .inherited(dict, b"Resources", |v| match v {
-                        Object::Dictionary(_) | Object::Reference(_) => Some(v.clone()),
+                        Object::Dictionary(_) => Some(v.clone()),
+                        // A reference to nothing falls through to the ancestors.
+                        Object::Reference(r) => remap.target(*r).map(|_| v.clone()),
                         _ => None,
                     })
                     .map(|(r, _)| r),
@@ -687,7 +783,7 @@ pub(crate) fn rebuild_page_tree(
                     .inherited(dict, b"CropBox", |v| view.rect(v))
                     .map(|(r, _)| r),
                 rotate: view
-                    .inherited(dict, b"Rotate", |v| view.resolve(v).as_i64().ok())
+                    .inherited(dict, b"Rotate", |v| rotation(view.resolve(v)))
                     .map(|(r, _)| r),
             })
         })
@@ -827,9 +923,11 @@ impl<'a> View<'a> {
 
     /// The pages, in document order: the walk of the first catalog
     /// candidate's tree, through matched references too (so a page whose
-    /// header was stripped keeps its place); then the pages only the byte
-    /// order finds, the graph's and the unclaimed `/Type /Page` orphans
-    /// together, typed before untyped and each in byte order.
+    /// header was stripped keeps its place); with no catalog tree, the walk
+    /// of each root `/Pages` node (one whose `/Parent` is absent or names
+    /// nothing), in byte order; then the pages only the byte order finds,
+    /// the graph's and the `/Type /Page` orphans no walk placed together,
+    /// typed before untyped and each in byte order.
     fn pages_in_order(&self, graph: &ObjectGraph) -> Vec<Held> {
         let mut seen = BTreeSet::new();
         let mut pages = Vec::new();
@@ -839,7 +937,48 @@ impl<'a> View<'a> {
             .and_then(|&c| self.dict_of(c))
             .and_then(|c| c.get(b"Pages").ok()?.as_reference().ok())
             .and_then(|p| self.remap.target(p));
-        let mut stack: Vec<(Held, usize)> = root.into_iter().map(|h| (h, 0)).collect();
+        let roots = match root {
+            Some(r) => vec![r],
+            None => self.root_page_nodes(),
+        };
+        for root in roots {
+            self.walk_tree(root, &mut seen, &mut pages);
+        }
+
+        // (untyped, start, held): typed first, then byte order.
+        let mut rest: Vec<(bool, u64, Held)> = Vec::new();
+        for id in graph.pages_in_doc_order() {
+            let Some(held) = self.remap.target(id) else {
+                continue;
+            };
+            if let (Held::Object(i), Some(d)) = (held, self.dict(held))
+                && !seen.contains(&held)
+            {
+                rest.push((!is_type(d, b"Page"), self.carve.objects[i].span.start, held));
+            }
+        }
+        for (i, o) in self.carve.orphans.iter().enumerate() {
+            let held = Held::Orphan(i);
+            if let Orphan::Dict { dict, span, .. } = o
+                && is_type(dict, b"Page")
+                && !seen.contains(&held)
+            {
+                rest.push((false, span.start, held));
+            }
+        }
+        rest.sort_unstable();
+        for (_, _, held) in rest {
+            if seen.insert(held) {
+                pages.push(held);
+            }
+        }
+        pages
+    }
+
+    /// Appends the pages under `root` to `pages` in `/Kids` order, depth
+    /// first, skipping what `seen` holds, to [`MAX_TREE_DEPTH`] levels.
+    fn walk_tree(&self, root: Held, seen: &mut BTreeSet<Held>, pages: &mut Vec<Held>) {
+        let mut stack = vec![(root, 0usize)];
         while let Some((held, depth)) = stack.pop() {
             let Some(d) = self.dict(held) else { continue };
             if !seen.insert(held) {
@@ -857,37 +996,46 @@ impl<'a> View<'a> {
                 stack.extend(kids.into_iter().rev().map(|k| (k, depth + 1)));
             }
         }
+    }
 
-        // (untyped, start, held): typed first, then byte order.
-        let mut rest: Vec<(bool, u64, Held)> = Vec::new();
-        for id in graph.pages_in_doc_order() {
-            let Some(held) = self.remap.target(id) else {
-                continue;
-            };
-            if let (Held::Object(i), Some(d)) = (held, self.dict(held))
-                && !seen.contains(&held)
-            {
-                rest.push((!is_type(d, b"Page"), self.carve.objects[i].span.start, held));
-            }
+    /// Every written `/Type /Pages` node with `/Kids` whose `/Parent` is
+    /// absent or names nothing, in byte order.
+    fn root_page_nodes(&self) -> Vec<Held> {
+        let mut roots: Vec<(u64, Held)> = self
+            .remap
+            .numbers
+            .keys()
+            .filter_map(|&held| {
+                let d = self.dict(held)?;
+                let orphaned = match d.get(b"Parent") {
+                    Ok(Object::Reference(p)) => self.dict_of(*p).is_none(),
+                    _ => true,
+                };
+                (is_type(d, b"Pages") && d.has(b"Kids") && orphaned)
+                    .then(|| (self.start(held), held))
+            })
+            .collect();
+        roots.sort_unstable();
+        roots.into_iter().map(|(_, h)| h).collect()
+    }
+
+    fn start(&self, held: Held) -> u64 {
+        match held {
+            Held::Object(i) => self.carve.objects[i].span.start,
+            Held::Orphan(i) => self.carve.orphans[i].span().start,
         }
-        let claimed: BTreeSet<Held> = self.remap.reconciled.iter().map(|r| r.target).collect();
-        for (i, o) in self.carve.orphans.iter().enumerate() {
-            let held = Held::Orphan(i);
-            if let Orphan::Dict { dict, span, .. } = o
-                && is_type(dict, b"Page")
-                && !seen.contains(&held)
-                && !claimed.contains(&held)
-            {
-                rest.push((false, span.start, held));
-            }
+    }
+}
+
+/// A `/Rotate` value: an integer, or a real that is a whole multiple of 90.
+fn rotation(v: &Object) -> Option<i64> {
+    match *v {
+        Object::Integer(i) => Some(i),
+        Object::Real(r) => {
+            let i = r as i64;
+            (i as f64 == f64::from(r) && i % 90 == 0).then_some(i)
         }
-        rest.sort_unstable();
-        for (_, _, held) in rest {
-            if seen.insert(held) {
-                pages.push(held);
-            }
-        }
-        pages
+        _ => None,
     }
 }
 

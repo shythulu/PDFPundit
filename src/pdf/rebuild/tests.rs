@@ -11,7 +11,7 @@ use crate::engine::Cancelled;
 use crate::pdf::carver::carve;
 use crate::pdf::fixtures;
 use crate::pdf::graph::PathSeg;
-use crate::pdf::model::{CorruptionClass, Location, MetricValue, Severity};
+use crate::pdf::model::{CorruptionClass, LengthSource, Location, MetricValue, Severity};
 
 fn carved(buf: &[u8]) -> CarveReport {
     match carve(buf, &|| false) {
@@ -476,7 +476,15 @@ fn c5_references_to_the_stripped_object_find_its_orphan() {
     for seed in 0..32 {
         let damaged = fixtures::corrupt(CorruptionClass::C5ObjectTagStripped, &golden, seed);
         let (carve, graph, remap) = planned(&damaged);
-        let missing: BTreeSet<ObjId> = graph.dangling_refs().iter().map(|d| d.2).collect();
+        // A missing id only the page tree links to is neither matched nor
+        // reported; every other one is one or the other.
+        let winners = winning_copies(&carve);
+        let missing: BTreeSet<ObjId> = graph
+            .dangling_refs()
+            .iter()
+            .filter(|(from, path, _)| !page_tree_owns(&carve, &winners, *from, path))
+            .map(|d| d.2)
+            .collect();
         for r in remap.reconciled() {
             let Held::Orphan(i) = r.target else {
                 panic!("seed {seed}: matched a shadow")
@@ -492,14 +500,13 @@ fn c5_references_to_the_stripped_object_find_its_orphan() {
         }
         let unmatched: BTreeSet<ObjId> = remap.unmatched().iter().map(|u| u.missing).collect();
         let reconciled: BTreeSet<ObjId> = remap.reconciled().iter().map(|r| r.missing).collect();
-        assert_eq!(
-            reconciled
-                .union(&unmatched)
-                .copied()
-                .collect::<BTreeSet<_>>(),
-            missing,
-            "seed {seed}: every dangling id is matched or reported"
+        let handled: BTreeSet<ObjId> = reconciled.union(&unmatched).copied().collect();
+        assert!(
+            missing.is_subset(&handled),
+            "seed {seed}: every dangling id is matched or reported: {missing:?} {handled:?}"
         );
+        let all: BTreeSet<ObjId> = graph.dangling_refs().iter().map(|d| d.2).collect();
+        assert!(handled.is_subset(&all), "seed {seed}");
     }
     assert!(
         matched > 0,
@@ -593,7 +600,11 @@ fn c4_rebuilds_a_flat_pages_node_with_the_right_count() {
     assert_flat(&plan, &[3, 4], "no /Pages node");
     assert_eq!(plan.catalog, CatalogPlan::Reuse(id(1)));
     assert_eq!(plan.pages_id, 7);
-    assert_eq!(remap.unmatched().len(), 3, "/Pages and both /Parent");
+    assert!(
+        remap.unmatched().is_empty(),
+        "/Pages and both /Parent are the page tree's: {:?}",
+        remap.unmatched()
+    );
 }
 
 #[test]
@@ -768,4 +779,183 @@ fn an_unclaimed_orphan_page_joins_the_tree_after_the_others() {
         [3, remap.number_of(Held::Orphan(0)).expect("numbered")]
     );
     assert_eq!(plan.pages[1].mediabox, rect(0, 0, 7, 7));
+}
+
+#[test]
+fn with_no_catalog_a_stripped_page_keeps_its_place_under_the_root_pages_node() {
+    let buf = pdf(&[
+        obj(2, "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+        Part::Raw("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 7 7] >>\nendobj\n".into()),
+        obj(4, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 9 9] >>"),
+    ]);
+    let (carve, remap, plan) = tree(&buf, PageSize::A4);
+    assert_eq!(carve.orphans.len(), 1);
+    assert_eq!(remap.target(id(3)), Some(Held::Orphan(0)));
+    let orphan = remap.number(id(3)).expect("numbered");
+    assert_flat(&plan, &[orphan, 4], "the root's /Kids order");
+    assert_eq!(plan.pages[0].mediabox, rect(0, 0, 7, 7));
+    assert_eq!(plan.catalog, CatalogPlan::Synthesize);
+}
+
+#[test]
+fn with_the_root_pages_node_gone_a_surviving_subtree_keeps_its_order() {
+    let buf = pdf(&[
+        obj(1, "<< /Type /Catalog /Pages 2 0 R >>"),
+        obj(
+            10,
+            "<< /Type /Pages /Parent 2 0 R /Kids [3 0 R 5 0 R] /Count 2 /MediaBox [0 0 8 8] >>",
+        ),
+        obj(5, "<< /Type /Page /Parent 10 0 R >>"),
+        Part::Raw("<< /Type /Page /Parent 10 0 R >>\nendobj\n".into()),
+        obj(6, "<< /Type /Page /MediaBox [0 0 6 6] >>"),
+    ]);
+    let (carve, remap, plan) = tree(&buf, PageSize::A4);
+    assert_eq!(carve.orphans.len(), 1);
+    let orphan = remap.number(id(3)).expect("matched through /Kids [0]");
+    assert_flat(
+        &plan,
+        &[orphan, 5, 6],
+        "the subtree in /Kids order, then byte order",
+    );
+    assert_eq!(plan.pages[0].mediabox, rect(0, 0, 8, 8));
+    assert_eq!(plan.pages[0].source, BoxSource::Inherited);
+    assert_eq!(plan.catalog, CatalogPlan::Reuse(id(1)));
+    assert!(remap.unmatched().is_empty(), "{:?}", remap.unmatched());
+}
+
+#[test]
+fn a_reconciled_page_the_walk_misses_still_joins_the_tree() {
+    // The catalog's tree does not reach the /Pages node that lists page 3.
+    let buf = pdf(&[
+        obj(1, "<< /Type /Catalog /Pages 2 0 R >>"),
+        obj(2, "<< /Type /Pages /Kids [4 0 R] /Count 1 >>"),
+        obj(4, "<< /Type /Page /Parent 2 0 R >>"),
+        obj(10, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        Part::Raw("<< /Type /Page /Parent 10 0 R >>\nendobj\n".into()),
+    ]);
+    let (_, remap, plan) = tree(&buf, PageSize::A4);
+    assert_eq!(remap.target(id(3)), Some(Held::Orphan(0)));
+    let orphan = remap.number(id(3)).expect("numbered");
+    assert_flat(&plan, &[4, orphan], "the walk, then byte order");
+}
+
+fn assert_unique_numbers(remap: &IdRemap, plan: &PageTreePlan) {
+    let mut all: Vec<u32> = remap.objects().iter().map(|&(n, _)| n).collect();
+    all.push(plan.pages_id);
+    if plan.catalog == CatalogPlan::Synthesize {
+        all.push(plan.root);
+    }
+    let unique: BTreeSet<u32> = all.iter().copied().collect();
+    assert_eq!(unique.len(), all.len(), "{all:?}");
+    assert!(all.iter().all(|&n| (1..=MAX_OBJECT_NUMBER).contains(&n)));
+}
+
+#[test]
+fn when_the_numbers_run_out_every_object_is_renumbered_in_byte_order() {
+    let buf = pdf(&[
+        obj(u32::MAX, "<< /Type /Page /MediaBox [0 0 1 1] >>"),
+        headerless("first orphan, long enough"),
+        headerless("second orphan, long enough"),
+    ]);
+    let (carve, remap, plan) = tree(&buf, PageSize::A4);
+    assert_eq!(carve.orphans.len(), 2);
+    assert_eq!(remap.renumbered(), Some(Renumbering::PastLimit));
+    assert_eq!(
+        remap.objects(),
+        [
+            (1, Held::Object(0)),
+            (2, Held::Orphan(0)),
+            (3, Held::Orphan(1))
+        ]
+    );
+    assert_eq!(remap.number((u32::MAX, 0)), Some(1));
+    assert_eq!(remap.next_free(), 4);
+    assert_unique_numbers(&remap, &plan);
+    assert!(
+        remap
+            .renumbered()
+            .is_some_and(|r| r.note().contains("renumbered"))
+    );
+}
+
+#[test]
+fn a_sparse_numbering_is_made_dense() {
+    // Past the format's limit counts as running out.
+    let buf = pdf(&[obj(999_999_999, "<< /A 1 >>")]);
+    let (_, remap, _) = tree(&buf, PageSize::A4);
+    assert_eq!(remap.renumbered(), Some(Renumbering::PastLimit));
+    assert_eq!(remap.number(id(999_999_999)), Some(1));
+
+    let buf = pdf(&[
+        obj(50_000, "<< /Type /Page /Contents 5 0 R >>"),
+        obj(5, &stream(CONTENT)),
+        headerless("an orphan, long enough"),
+    ]);
+    let (_, remap, plan) = tree(&buf, PageSize::A4);
+    assert_eq!(
+        remap.renumbered(),
+        Some(Renumbering::Sparse {
+            highest: 50_001,
+            count: 3,
+        })
+    );
+    assert_eq!(remap.number(id(50_000)), Some(1));
+    assert_eq!(remap.number(id(5)), Some(2));
+    assert_eq!(remap.number_of(Held::Orphan(0)), Some(3));
+    let mut v = Object::Reference(id(5));
+    remap.rewrite(&mut v);
+    assert_eq!(v, Object::Reference((2, 0)));
+    assert_unique_numbers(&remap, &plan);
+
+    // A modest gap is kept.
+    let buf = pdf(&[obj(1, "<< /A 1 >>"), obj(900, "<< /B 2 >>")]);
+    let (_, remap, _) = tree(&buf, PageSize::A4);
+    assert_eq!(remap.renumbered(), None);
+    assert_eq!(remap.number(id(900)), Some(900));
+}
+
+#[test]
+fn an_unmatched_reference_from_an_xref_stream_keeps_the_streams_span() {
+    let data = "\u{1}\u{9}\u{0}";
+    let xref = format!(
+        "<< /Type /XRef /Size 10 /Index [0 1] /W [1 1 1] /Root 8 0 R /Length {} >>\nstream\n{data}\nendstream",
+        data.len()
+    );
+    let buf = pdf(&[obj(9, &xref)]);
+    let (carve, _, remap) = planned(&buf);
+    assert_eq!(carve.objects[0].kind, ObjectKind::XRefStream);
+    let un = remap.unmatched();
+    assert_eq!(un.len(), 1, "{un:?}");
+    assert_eq!(un[0].from, id(9));
+    assert_eq!(un[0].from_span, Some(carve.objects[0].span));
+}
+
+#[test]
+fn a_resources_reference_to_nothing_falls_through_to_the_ancestor() {
+    let buf = pdf(&[
+        obj(1, "<< /Type /Catalog /Pages 2 0 R >>"),
+        obj(
+            2,
+            "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 /Rotate 180 \
+             /Resources << /Font << /F1 9 0 R >> >> >>",
+        ),
+        obj(
+            3,
+            "<< /Type /Page /Parent 2 0 R /Resources 20 0 R /Rotate 90.0 >>",
+        ),
+        obj(4, "<< /Type /Page /Parent 2 0 R /Rotate 45.0 >>"),
+        obj(5, "<< /Type /Page /Parent 2 0 R /Rotate -270.0 >>"),
+        obj(9, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    ]);
+    let (_, _, plan) = tree(&buf, PageSize::A4);
+    let Some(Object::Dictionary(res)) = &plan.pages[0].resources else {
+        panic!("the ancestor's resources: {:?}", plan.pages[0].resources)
+    };
+    assert!(res.has(b"Font"));
+    let rotates: Vec<Option<i64>> = plan.pages.iter().map(|p| p.rotate).collect();
+    assert_eq!(
+        rotates,
+        [Some(90), Some(180), Some(-270)],
+        "a whole real multiple of 90 is the page's own; 45.0 falls through"
+    );
 }
