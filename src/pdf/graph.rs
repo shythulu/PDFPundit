@@ -170,19 +170,10 @@ pub(crate) struct ObjectGraph {
 }
 
 impl ObjectGraph {
-    /// One node per object id (the copy D-032 keeps) and one edge per
-    /// reference in its value. Linear in the carve's references, plus a sort.
+    /// One node per object id (the copy D-032 keeps, [`winning_copies`])
+    /// and one edge per reference in its value. Linear in the carve's references, plus a sort.
     pub(crate) fn from_carve(carve: &CarveReport) -> Self {
-        let mut chosen: BTreeMap<ObjId, usize> = BTreeMap::new();
-        for (at, o) in carve.objects.iter().enumerate() {
-            let keep = match chosen.get(&o.declared_id) {
-                Some(&prev) => well_formed(o) || !well_formed(&carve.objects[prev]),
-                None => true,
-            };
-            if keep {
-                chosen.insert(o.declared_id, at);
-            }
-        }
+        let chosen = winning_copies(carve);
 
         let mut interner: BTreeMap<KeyPath, Arc<KeyPath>> = BTreeMap::new();
         let mut raw: Vec<(u32, RefEdge)> = Vec::new();
@@ -597,6 +588,24 @@ impl ObjectGraph {
         let subtype = dict.get(b"Subtype").ok().and_then(|o| o.as_name().ok());
         (subtype == Some(b"Form") || n.kind == ObjectKind::Form).then_some(id)
     }
+}
+
+/// D-032's winner for every declared id: the index in
+/// [`CarveReport::objects`] of its last well-formed copy, else of its last
+/// copy (module docs). The graph's nodes are these copies, and T-10's
+/// rebuild writes them.
+pub(crate) fn winning_copies(carve: &CarveReport) -> BTreeMap<ObjId, usize> {
+    let mut chosen: BTreeMap<ObjId, usize> = BTreeMap::new();
+    for (at, o) in carve.objects.iter().enumerate() {
+        let keep = match chosen.get(&o.declared_id) {
+            Some(&prev) => well_formed(o) || !well_formed(&carve.objects[prev]),
+            None => true,
+        };
+        if keep {
+            chosen.insert(o.declared_id, at);
+        }
+    }
+    chosen
 }
 
 /// D-032's well-formed gate: parsed, and not a stream cut by EOF.
