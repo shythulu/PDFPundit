@@ -17,6 +17,10 @@ use lopdf::content::Content;
 use skrifa::MetadataProvider;
 use skrifa::raw::tables::glyf::Glyph;
 
+mod builders;
+mod c9;
+mod objstm;
+
 const SEEDS: std::ops::Range<u64> = 0..16;
 
 fn hex(bytes: &[u8]) -> String {
@@ -167,34 +171,44 @@ fn goldens_load_in_strict_lopdf() {
     }
 }
 
+/// Renders every page with no fallback font, so text can only ink through an
+/// embedded program: whether each page paints anything, and hayro's warning
+/// count.
+fn render_pages(bytes: Vec<u8>) -> (Vec<bool>, usize) {
+    let warnings = Arc::new(AtomicUsize::new(0));
+    let sink = Arc::clone(&warnings);
+    let settings = InterpreterSettings {
+        font_resolver: Arc::new(|_| None),
+        warning_sink: Arc::new(move |_| {
+            sink.fetch_add(1, Ordering::Relaxed);
+        }),
+        ..InterpreterSettings::default()
+    };
+    let pdf = Pdf::new(bytes).expect("hayro loads");
+    let cache = RenderCache::new();
+    let scale = PixmapSettings {
+        x_scale: 0.5,
+        y_scale: 0.5,
+        ..PixmapSettings::default()
+    };
+    let inked = pdf
+        .pages()
+        .iter()
+        .map(|page| {
+            let pixmap = render(page, &cache, &settings, &RenderSettings::default(), &scale);
+            pixmap.data_as_u8_slice().chunks(4).any(|px| px[3] > 0)
+        })
+        .collect();
+    (inked, warnings.load(Ordering::Relaxed))
+}
+
 #[test]
 fn goldens_render_in_hayro_with_the_embedded_font() {
     for (label, bytes) in goldens() {
-        let warnings = Arc::new(AtomicUsize::new(0));
-        let sink = Arc::clone(&warnings);
-        let settings = InterpreterSettings {
-            // No fallback font: page 2 (text only) can only ink through the
-            // embedded program.
-            font_resolver: Arc::new(|_| None),
-            warning_sink: Arc::new(move |_| {
-                sink.fetch_add(1, Ordering::Relaxed);
-            }),
-            ..InterpreterSettings::default()
-        };
-        let pdf = Pdf::new(bytes).expect("hayro loads");
-        assert_eq!(pdf.pages().len(), 2, "{label}");
-        let cache = RenderCache::new();
-        let scale = PixmapSettings {
-            x_scale: 0.5,
-            y_scale: 0.5,
-            ..PixmapSettings::default()
-        };
-        for (i, page) in pdf.pages().iter().enumerate() {
-            let pixmap = render(page, &cache, &settings, &RenderSettings::default(), &scale);
-            let inked = pixmap.data_as_u8_slice().chunks(4).any(|px| px[3] > 0);
-            assert!(inked, "{label}: page {} paints nothing", i + 1);
-        }
-        assert_eq!(warnings.load(Ordering::Relaxed), 0, "{label}: hayro warned");
+        // Page 2 is text only: it can only ink through the embedded program.
+        let (inked, warnings) = render_pages(bytes);
+        assert_eq!(inked, [true, true], "{label}: a page paints nothing");
+        assert_eq!(warnings, 0, "{label}: hayro warned");
     }
 }
 
@@ -356,7 +370,7 @@ fn goldens_are_byte_identical_across_builds() {
 fn c1_overwrites_the_first_12_bytes() {
     for (label, g) in goldens() {
         for seed in SEEDS {
-            let out = corrupt(CorruptionClass::C1Header, &g, seed).unwrap();
+            let out = corrupt(CorruptionClass::C1Header, &g, seed);
             assert_eq!(out.len(), g.len(), "{label}");
             assert_eq!(out[12..], g[12..], "{label} seed {seed}");
             assert_ne!(out[..12], g[..12], "{label} seed {seed}");
@@ -369,7 +383,7 @@ fn c2_deletes_the_xref_table() {
     for (label, g) in goldens() {
         let start = find(&g, b"\nxref\n").unwrap() + 1;
         let end = find(&g, b"\ntrailer\n").unwrap() + 1;
-        let out = corrupt(CorruptionClass::C2XrefMissing, &g, 0).unwrap();
+        let out = corrupt(CorruptionClass::C2XrefMissing, &g, 0);
         assert_eq!(out, without(&g, start..end), "{label}");
     }
 }
@@ -379,7 +393,7 @@ fn c3_deletes_trailer_through_eof() {
     for (label, g) in goldens() {
         let start = find(&g, b"\ntrailer\n").unwrap() + 1;
         let end = rfind(&g, b"%%EOF").unwrap() + 5;
-        let out = corrupt(CorruptionClass::C3TrailerDamaged, &g, 0).unwrap();
+        let out = corrupt(CorruptionClass::C3TrailerDamaged, &g, 0);
         assert_eq!(out, without(&g, start..end), "{label}");
         assert_eq!(find(&out, b"%%EOF"), None, "{label}");
     }
@@ -392,7 +406,7 @@ fn c4_deletes_45_to_128_bytes_over_pages_through_count() {
         let count_end = find(&g, b"/Count 2").unwrap() + 8;
         let mut lens = std::collections::BTreeSet::new();
         for seed in SEEDS {
-            let out = corrupt(CorruptionClass::C4PageTreeBroken, &g, seed).unwrap();
+            let out = corrupt(CorruptionClass::C4PageTreeBroken, &g, seed);
             let len = g.len() - out.len();
             assert!((45..=128).contains(&len), "{label} seed {seed}: {len} B");
             let covering = (15..=pages_at)
@@ -410,7 +424,7 @@ fn c5_deletes_exactly_one_8_byte_object_header() {
     for (label, g) in goldens() {
         let mut hit = std::collections::BTreeSet::new();
         for seed in SEEDS {
-            let out = corrupt(CorruptionClass::C5ObjectTagStripped, &g, seed).unwrap();
+            let out = corrupt(CorruptionClass::C5ObjectTagStripped, &g, seed);
             assert_eq!(g.len() - out.len(), 8, "{label} seed {seed}");
             let at: Vec<usize> = (1..g.len() - 8)
                 .filter(|&s| g[s - 1] == b'\n' && g[s].is_ascii_digit() && g[s] != b'0')
@@ -434,7 +448,7 @@ fn c6_deletes_one_pages_font_entry() {
         assert_eq!(entries.len(), 2, "{label}: one per page");
         let mut hit = std::collections::BTreeSet::new();
         for seed in SEEDS {
-            let out = corrupt(CorruptionClass::C6FontMapLost, &g, seed).unwrap();
+            let out = corrupt(CorruptionClass::C6FontMapLost, &g, seed);
             let at: Vec<usize> = entries
                 .iter()
                 .copied()
@@ -467,7 +481,7 @@ fn c7_blanks_the_font_program_in_place() {
             .as_dict()
             .unwrap();
         let font = data_range(&g, &doc, stream_id(descriptor, b"FontFile2"));
-        let out = corrupt(CorruptionClass::C7FontStreamDeleted, &g, 0).unwrap();
+        let out = corrupt(CorruptionClass::C7FontStreamDeleted, &g, 0);
         assert_blanked(label, &g, &out, &[font]);
     }
 }
@@ -481,21 +495,15 @@ fn c8_blanks_the_font_program_and_tounicode_in_place() {
             .unwrap();
         let font = data_range(&g, &doc, stream_id(descriptor, b"FontFile2"));
         let cmap = data_range(&g, &doc, stream_id(type0(&doc), b"ToUnicode"));
-        let out = corrupt(CorruptionClass::C8FontResourcesDeleted, &g, 0).unwrap();
+        let out = corrupt(CorruptionClass::C8FontResourcesDeleted, &g, 0);
         assert_blanked(label, &g, &out, &[font, cmap]);
     }
 }
 
 #[test]
-fn c9_is_not_built_yet() {
-    let g = golden_pdf();
-    assert_eq!(corrupt(CorruptionClass::C9ZlibTampered, &g, 0), Err(NotYet));
-}
-
-#[test]
 fn c10_keeps_exactly_70_percent() {
     for (label, g) in goldens() {
-        let out = corrupt(CorruptionClass::C10Truncated, &g, 0).unwrap();
+        let out = corrupt(CorruptionClass::C10Truncated, &g, 0);
         assert_eq!(out.len(), g.len() * 7 / 10, "{label}");
         assert_eq!(out, g[..out.len()], "{label}");
     }
