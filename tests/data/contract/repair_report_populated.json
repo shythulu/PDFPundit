@@ -1,0 +1,1223 @@
+{
+  "schema_version": 1,
+  "engine_version": "0.0.0-fixture",
+  "font_db_sha256": [
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17
+  ],
+  "input_sha256": [
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171
+  ],
+  "settings": {
+    "salvage_work": 700000000,
+    "salvage_deep_work": 10000000000,
+    "salvage_deep_pool": 80000000000,
+    "max_search_stream": 4194304,
+    "passes": null,
+    "font_policy": "Bundled",
+    "unreproducible": "Ask",
+    "default_page_size": "A4",
+    "extract_unplaceable_images": true,
+    "auto_accept_confidence": {
+      "num": 35,
+      "den": 100
+    },
+    "max_font_candidates": 5
+  },
+  "interactions": [
+    {
+      "request": {
+        "kind": "FontPick",
+        "page": 2,
+        "slot": "F1",
+        "candidates": [
+          "noto-sans-regular",
+          "noto-serif-regular"
+        ]
+      },
+      "reply": {
+        "Pick": "noto-sans-regular"
+      },
+      "source": "User"
+    },
+    {
+      "request": {
+        "kind": "FontPick",
+        "page": 3,
+        "slot": "F1",
+        "candidates": [
+          "noto-sans-regular"
+        ]
+      },
+      "reply": "UseBest",
+      "source": "UseBest"
+    },
+    {
+      "request": {
+        "kind": "FontUnreproducible",
+        "page": 0,
+        "slot": "F2",
+        "candidates": [
+          "noto-sans-regular"
+        ]
+      },
+      "reply": {
+        "Substitute": {
+          "font_id": "noto-sans-regular",
+          "label": "Noto Sans Regular"
+        }
+      },
+      "source": "Policy"
+    },
+    {
+      "request": {
+        "kind": "FontUnreproducible",
+        "page": null,
+        "slot": null,
+        "candidates": []
+      },
+      "reply": "TextOnly",
+      "source": "User"
+    },
+    {
+      "request": {
+        "kind": "FontPick",
+        "page": 4,
+        "slot": "F3",
+        "candidates": []
+      },
+      "reply": "Skip",
+      "source": "User"
+    }
+  ],
+  "findings_before": [
+    {
+      "id": "C1-001",
+      "class": {
+        "Corruption": "C1Header"
+      },
+      "severity": "Error",
+      "location": "File",
+      "summary": "header damaged",
+      "evidence": [
+        {
+          "Text": "C1 at byte 0"
+        },
+        {
+          "HexWindow": {
+            "at": 0,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            1,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": -12
+          }
+        }
+      ],
+      "repair": "Auto"
+    },
+    {
+      "id": "C2-001",
+      "class": {
+        "Corruption": "C2XrefMissing"
+      },
+      "severity": "Warning",
+      "location": {
+        "Span": {
+          "start": 100,
+          "end": 180
+        }
+      },
+      "summary": "xref table missing",
+      "evidence": [
+        {
+          "Text": "C2 at byte 100"
+        },
+        {
+          "HexWindow": {
+            "at": 100,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            2,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": {
+              "num": 7,
+              "den": 10
+            }
+          }
+        }
+      ],
+      "repair": {
+        "Interactive": "FontPick"
+      }
+    },
+    {
+      "id": "C3-001",
+      "class": {
+        "Corruption": "C3TrailerDamaged"
+      },
+      "severity": "Error",
+      "location": {
+        "Object": {
+          "id": [
+            14,
+            0
+          ],
+          "span": {
+            "start": 100,
+            "end": 180
+          }
+        }
+      },
+      "summary": "trailer missing",
+      "evidence": [
+        {
+          "Text": "C3 at byte 200"
+        },
+        {
+          "HexWindow": {
+            "at": 200,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            3,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": "Repaired"
+          }
+        }
+      ],
+      "repair": {
+        "Partial": "the truncated tail is lost"
+      }
+    },
+    {
+      "id": "C4-001",
+      "class": {
+        "Corruption": "C4PageTreeBroken"
+      },
+      "severity": "Warning",
+      "location": {
+        "Page": {
+          "index": 2,
+          "obj": [
+            3,
+            0
+          ]
+        }
+      },
+      "summary": "page tree broken",
+      "evidence": [
+        {
+          "Text": "C4 at byte 300"
+        },
+        {
+          "HexWindow": {
+            "at": 300,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            4,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": -12
+          }
+        }
+      ],
+      "repair": {
+        "Unrepairable": "no object survived"
+      }
+    },
+    {
+      "id": "C5-001",
+      "class": {
+        "Corruption": "C5ObjectTagStripped"
+      },
+      "severity": "Error",
+      "location": {
+        "Object": {
+          "id": [
+            15,
+            0
+          ],
+          "span": null
+        }
+      },
+      "summary": "object tags stripped",
+      "evidence": [
+        {
+          "Text": "C5 at byte 400"
+        },
+        {
+          "HexWindow": {
+            "at": 400,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            5,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": {
+              "num": 7,
+              "den": 10
+            }
+          }
+        }
+      ],
+      "repair": {
+        "Interactive": "FontUnreproducible"
+      }
+    },
+    {
+      "id": "C6-001",
+      "class": {
+        "Corruption": "C6FontMapLost"
+      },
+      "severity": "Warning",
+      "location": {
+        "Page": {
+          "index": 0,
+          "obj": null
+        }
+      },
+      "summary": "font mapping lost",
+      "evidence": [
+        {
+          "Text": "C6 at byte 500"
+        },
+        {
+          "HexWindow": {
+            "at": 500,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            6,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": "Repaired"
+          }
+        }
+      ],
+      "repair": "Auto"
+    },
+    {
+      "id": "C7-001",
+      "class": {
+        "Corruption": "C7FontStreamDeleted"
+      },
+      "severity": "Error",
+      "location": "File",
+      "summary": "font stream deleted",
+      "evidence": [
+        {
+          "Text": "C7 at byte 600"
+        },
+        {
+          "HexWindow": {
+            "at": 600,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            7,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": -12
+          }
+        }
+      ],
+      "repair": {
+        "Interactive": "FontPick"
+      }
+    },
+    {
+      "id": "C8-001",
+      "class": {
+        "Corruption": "C8FontResourcesDeleted"
+      },
+      "severity": "Warning",
+      "location": {
+        "Span": {
+          "start": 100,
+          "end": 180
+        }
+      },
+      "summary": "font resources deleted",
+      "evidence": [
+        {
+          "Text": "C8 at byte 700"
+        },
+        {
+          "HexWindow": {
+            "at": 700,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            8,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": {
+              "num": 7,
+              "den": 10
+            }
+          }
+        }
+      ],
+      "repair": {
+        "Partial": "the truncated tail is lost"
+      }
+    },
+    {
+      "id": "C9-001",
+      "class": {
+        "Corruption": "C9ZlibTampered"
+      },
+      "severity": "Error",
+      "location": {
+        "Object": {
+          "id": [
+            14,
+            0
+          ],
+          "span": {
+            "start": 100,
+            "end": 180
+          }
+        }
+      },
+      "summary": "zlib stream damaged",
+      "evidence": [
+        {
+          "Text": "C9 at byte 800"
+        },
+        {
+          "HexWindow": {
+            "at": 800,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            9,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": "Repaired"
+          }
+        }
+      ],
+      "repair": {
+        "Unrepairable": "no object survived"
+      }
+    },
+    {
+      "id": "C10-001",
+      "class": {
+        "Corruption": "C10Truncated"
+      },
+      "severity": "Warning",
+      "location": {
+        "Page": {
+          "index": 2,
+          "obj": [
+            3,
+            0
+          ]
+        }
+      },
+      "summary": "file truncated",
+      "evidence": [
+        {
+          "Text": "C10 at byte 900"
+        },
+        {
+          "HexWindow": {
+            "at": 900,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            10,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": -12
+          }
+        }
+      ],
+      "repair": {
+        "Interactive": "FontUnreproducible"
+      }
+    },
+    {
+      "id": "ENC-001",
+      "class": "Encrypted",
+      "severity": "Error",
+      "location": "File",
+      "summary": "the file is encrypted",
+      "evidence": [
+        {
+          "Text": "the file is encrypted"
+        }
+      ],
+      "repair": {
+        "Unrepairable": "decrypt it first"
+      }
+    },
+    {
+      "id": "SIG-001",
+      "class": {
+        "Signed": {
+          "fields": 2
+        }
+      },
+      "severity": "Info",
+      "location": "File",
+      "summary": "the file is signed",
+      "evidence": [
+        {
+          "Text": "the file is signed"
+        }
+      ],
+      "repair": "NotApplicable"
+    },
+    {
+      "id": "OUT-001",
+      "class": {
+        "OutlinedText": {
+          "glyph_runs": 12,
+          "contours": 340
+        }
+      },
+      "severity": "Info",
+      "location": "File",
+      "summary": "text drawn as paths",
+      "evidence": [
+        {
+          "Text": "text drawn as paths"
+        }
+      ],
+      "repair": "NotApplicable"
+    },
+    {
+      "id": "T3-001",
+      "class": {
+        "Type3Text": {
+          "font": [
+            21,
+            0
+          ]
+        }
+      },
+      "severity": "Info",
+      "location": "File",
+      "summary": "text drawn by a Type 3 font",
+      "evidence": [
+        {
+          "Text": "text drawn by a Type 3 font"
+        }
+      ],
+      "repair": "NotApplicable"
+    }
+  ],
+  "findings_after": [
+    {
+      "id": "C9-001",
+      "class": {
+        "Corruption": "C9ZlibTampered"
+      },
+      "severity": "Error",
+      "location": {
+        "Object": {
+          "id": [
+            14,
+            0
+          ],
+          "span": {
+            "start": 100,
+            "end": 180
+          }
+        }
+      },
+      "summary": "zlib stream damaged",
+      "evidence": [
+        {
+          "Text": "C9 at byte 800"
+        },
+        {
+          "HexWindow": {
+            "at": 800,
+            "bytes": [
+              101,
+              110,
+              100,
+              111,
+              98,
+              106,
+              10,
+              120,
+              114,
+              101,
+              102
+            ]
+          }
+        },
+        {
+          "ObjectRef": [
+            9,
+            0
+          ]
+        },
+        {
+          "Metric": {
+            "name": "offset delta",
+            "value": "Repaired"
+          }
+        }
+      ],
+      "repair": {
+        "Unrepairable": "no object survived"
+      }
+    },
+    {
+      "id": "SIG-001",
+      "class": {
+        "Signed": {
+          "fields": 2
+        }
+      },
+      "severity": "Info",
+      "location": "File",
+      "summary": "the file is signed",
+      "evidence": [
+        {
+          "Text": "the file is signed"
+        }
+      ],
+      "repair": "NotApplicable"
+    }
+  ],
+  "passes": [
+    {
+      "class": "C9ZlibTampered",
+      "outcome": "Fixed",
+      "actions": [
+        {
+          "object": [
+            14,
+            0
+          ],
+          "what": "replaced 1 byte",
+          "grade": "Exact"
+        },
+        {
+          "object": [
+            15,
+            0
+          ],
+          "what": "replaced 1 byte",
+          "grade": "Accepted"
+        },
+        {
+          "object": [
+            16,
+            0
+          ],
+          "what": "replaced 1 byte",
+          "grade": "Ambiguous"
+        },
+        {
+          "object": [
+            17,
+            0
+          ],
+          "what": "written as found",
+          "grade": "Unsearched"
+        }
+      ]
+    },
+    {
+      "class": "C10Truncated",
+      "outcome": {
+        "Partial": "kept 70%"
+      },
+      "actions": [
+        {
+          "object": [
+            30,
+            0
+          ],
+          "what": "dropped the truncated tail",
+          "grade": null
+        }
+      ]
+    },
+    {
+      "class": "C6FontMapLost",
+      "outcome": {
+        "Skipped": "no orphaned font"
+      },
+      "actions": [
+        {
+          "object": [
+            9,
+            0
+          ],
+          "what": "nothing to re-link",
+          "grade": null
+        }
+      ]
+    }
+  ],
+  "c9_summary": {
+    "streams_damaged": 4,
+    "repaired": 3,
+    "exact": 1,
+    "accepted": 1,
+    "ambiguous": 1,
+    "unrecoverable": 0,
+    "unsearched": 1
+  },
+  "candidates": [
+    {
+      "toolpath": "Resave",
+      "verification": {
+        "baseline": "Extracted",
+        "v0": {
+          "lopdf_reload": true,
+          "hayro_render_all_pages": true,
+          "rediagnose_clean": true,
+          "page_count_ok": true,
+          "root_and_pages_present": true
+        },
+        "v1": {
+          "text_ops": {
+            "num": 98,
+            "den": 100
+          },
+          "path_fills": {
+            "num": 1,
+            "den": 1
+          },
+          "images": {
+            "num": 1,
+            "den": 1
+          },
+          "content_bytes": {
+            "num": 4012,
+            "den": 4100
+          },
+          "blank_pages": 0,
+          "glyph_count": {
+            "num": 339,
+            "den": 340
+          }
+        },
+        "v2": {
+          "unmapped_glyph": {
+            "num": 0,
+            "den": 340
+          },
+          "fffd": {
+            "num": 0,
+            "den": 340
+          },
+          "script_consistency": {
+            "num": 1,
+            "den": 1
+          },
+          "dictionary_hit": {
+            "num": 9,
+            "den": 10
+          }
+        }
+      },
+      "chosen": true
+    },
+    {
+      "toolpath": "TemplateAssemble",
+      "verification": {
+        "baseline": "CarveProxy",
+        "v0": {
+          "lopdf_reload": true,
+          "hayro_render_all_pages": true,
+          "rediagnose_clean": false,
+          "page_count_ok": true,
+          "root_and_pages_present": true
+        },
+        "v1": {
+          "text_ops": {
+            "num": 98,
+            "den": 100
+          },
+          "path_fills": {
+            "num": 1,
+            "den": 1
+          },
+          "images": {
+            "num": 1,
+            "den": 1
+          },
+          "content_bytes": {
+            "num": 4012,
+            "den": 4100
+          },
+          "blank_pages": 0,
+          "glyph_count": {
+            "num": 339,
+            "den": 340
+          }
+        },
+        "v2": {
+          "unmapped_glyph": {
+            "num": 0,
+            "den": 340
+          },
+          "fffd": {
+            "num": 0,
+            "den": 340
+          },
+          "script_consistency": {
+            "num": 1,
+            "den": 1
+          },
+          "dictionary_hit": null
+        }
+      },
+      "chosen": false
+    },
+    {
+      "toolpath": "TemplateAssemble",
+      "verification": {
+        "baseline": "None",
+        "v0": {
+          "lopdf_reload": true,
+          "hayro_render_all_pages": true,
+          "rediagnose_clean": false,
+          "page_count_ok": true,
+          "root_and_pages_present": true
+        },
+        "v1": {
+          "text_ops": {
+            "num": 98,
+            "den": 100
+          },
+          "path_fills": {
+            "num": 1,
+            "den": 1
+          },
+          "images": {
+            "num": 1,
+            "den": 1
+          },
+          "content_bytes": {
+            "num": 4012,
+            "den": 4100
+          },
+          "blank_pages": 0,
+          "glyph_count": {
+            "num": 339,
+            "den": 340
+          }
+        },
+        "v2": {
+          "unmapped_glyph": {
+            "num": 0,
+            "den": 340
+          },
+          "fffd": {
+            "num": 0,
+            "den": 340
+          },
+          "script_consistency": {
+            "num": 1,
+            "den": 1
+          },
+          "dictionary_hit": null
+        }
+      },
+      "chosen": false
+    }
+  ],
+  "chosen": "Resave",
+  "c9_survivors": [
+    [
+      [
+        14,
+        0
+      ],
+      [
+        [
+          [
+            2113,
+            65,
+            66
+          ]
+        ]
+      ]
+    ],
+    [
+      [
+        16,
+        0
+      ],
+      [
+        [
+          [
+            10,
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            11,
+            3,
+            4
+          ],
+          [
+            12,
+            5,
+            6
+          ]
+        ]
+      ]
+    ]
+  ],
+  "filter_rewrites": [
+    [
+      [
+        20,
+        0
+      ],
+      "[/ASCII85Decode /FlateDecode]",
+      "/FlateDecode"
+    ]
+  ],
+  "reals_narrowed": 2,
+  "shadows": [
+    [
+      [
+        5,
+        0
+      ],
+      {
+        "start": 900,
+        "end": 960
+      }
+    ]
+  ],
+  "signed_note": "the original is digitally signed; the repaired file is not",
+  "extracted_images": [
+    {
+      "name": "p3-img1.jpg",
+      "sha256": [
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34,
+        34
+      ],
+      "len": 512
+    }
+  ],
+  "partial_reasons": [
+    "ambiguous: 2 candidate repairs"
+  ],
+  "stats": {
+    "bytes": 1153024,
+    "pages_discovered": 6,
+    "salvage_work_total": 10700000000,
+    "streams_by_salvage": {
+      "Clean": 38,
+      "Repaired": 2
+    },
+    "baseline_kind": "Extracted",
+    "paint_counts": [
+      {
+        "path_fills": 1,
+        "path_strokes": 2,
+        "images": 1,
+        "glyph_runs_visible": 12,
+        "glyph_runs_invisible": 0,
+        "glyphs_inked": 340,
+        "clips": 1
+      },
+      {
+        "path_fills": 0,
+        "path_strokes": 0,
+        "images": 0,
+        "glyph_runs_visible": 0,
+        "glyph_runs_invisible": 0,
+        "glyphs_inked": 0,
+        "clips": 0
+      }
+    ]
+  }
+}

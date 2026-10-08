@@ -86,3 +86,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   (`hayro-interpret-0.8.0/assets/CGATS_LICENSE.txt`,
   https://creativecommons.org/publicdomain/zero/1.0/).
 - `LAB.icc` was generated with LCMS2; hayro ships no licence text for it.
+
+## DarkBerry palette (`assets/theme/darkberry-palette.json`)
+
+The four DarkBerry themes (Blackwater, Mire, Fen, Wisp) read their colours from
+the DarkBerry palette, v0.3.0, published at https://darkberry.slacklab.ca/. The
+file is a byte-identical copy of the one vendored with the mockup
+(`nimbalyst-local/mockups/pdfpundit-ansi-bbs/darkberry-palette.json`); a test
+pins it to the hash the UI goldens were dumped with. The palette ships with no
+licence text; its terms are to be confirmed with its author before the first
+public binary (D-046).
