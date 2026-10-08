@@ -89,8 +89,6 @@
 //!
 //! The best candidate is the output only when it passes V0; otherwise there
 //! is no output and a `NoCandidatePassed` escalation says so.
-// T-14 is the first caller outside the tests.
-#![cfg_attr(not(test), allow(dead_code))]
 
 #[cfg(test)]
 mod tests;

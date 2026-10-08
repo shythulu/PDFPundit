@@ -88,12 +88,8 @@ mod tests {
 
     use super::*;
     use crate::engine::{AnalyzeOptions, Engine, NullProgress, Pdfpundit};
-    use crate::pdf::carver::carve;
-    use crate::pdf::diagnose::diagnose;
     use crate::pdf::fixtures;
-    use crate::pdf::graph::ObjectGraph;
     use crate::pdf::model::{CorruptionClass, FindingKind};
-    use crate::pdf::streams::salvage::SalvageIndex;
     use crate::place::ScratchDir;
 
     fn warn_above() -> u64 {
@@ -130,17 +126,13 @@ mod tests {
             .analyze(&bytes, &AnalyzeOptions::default(), &mut NullProgress)
             .expect("not cancelled");
         assert_eq!(analysis.stats.bytes, a.bytes);
-        // `Pdfpundit::analyze` reports no findings until T-14 wires the
-        // pipeline in, so the C1 finding is checked on the same steps it
-        // will run: carve, graph, diagnose.
-        let carved = carve(&bytes, &|| false).expect("not cancelled");
-        let graph = ObjectGraph::from_carve(&carved);
-        let found = diagnose(&bytes, &carved, &graph, &SalvageIndex::default());
         assert!(
-            found
+            analysis
+                .findings
                 .iter()
                 .any(|f| f.class == FindingKind::Corruption(CorruptionClass::C1Header)),
-            "{found:#?}"
+            "{:#?}",
+            analysis.findings
         );
     }
 

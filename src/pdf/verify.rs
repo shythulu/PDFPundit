@@ -279,7 +279,7 @@ fn carve_all(bytes: &[u8]) -> CarveReport {
 
 /// The salvage index under a zero budget: every Flate stream is inflated
 /// once and classified, and no candidate is ever tried (D-074).
-fn classify_only(carve: &CarveReport, bytes: &[u8]) -> SalvageIndex {
+pub(crate) fn classify_only(carve: &CarveReport, bytes: &[u8]) -> SalvageIndex {
     let budget = SalvageBudget {
         work: 0,
         deep_work: 0,

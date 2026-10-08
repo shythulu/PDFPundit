@@ -13,7 +13,6 @@
 //!   carries a `/Title`.
 //!   Text strings decode as UTF-16BE or UTF-8 by their byte-order mark, else
 //!   as PDFDocEncoding (lopdf's `decode_text_string`).
-#![cfg_attr(not(test), allow(dead_code))]
 
 use lopdf::Object;
 
