@@ -385,6 +385,33 @@ pub const N_MORE: &str = "… {n} more";
 pub const LOC_OBJ: &str = "obj {n} {n}";
 pub const LOC_PAGE: &str = "p.{n}";
 
+/// The guard's one line (D-043), on stderr when stdin or stdout is not a
+/// terminal.
+pub const NOT_A_TERMINAL: &str = "PDFPundit runs in a terminal; drop PDFs on the cat.";
+
+/// The one line on stderr when the terminal cannot be set up or used; `{e}`
+/// is the system's reason.
+pub const TERMINAL_FAILED: &str = "PDFPundit could not use the terminal: {e}";
+
+// The drop gate (T-23b, D-049, D-064): the hint row's word on a paste or drop
+// that was refused or needs a warning.
+
+/// A dropped item that does not end in `.pdf`.
+pub const DROP_NOT_A_PDF: &str = "not a pdf: I only eat .pdf files";
+/// A dropped path whose bytes did not survive the trip (U+FFFD, NUL, a
+/// malformed `file:` URI).
+pub const DROP_GARBLED: &str = "that path came through garbled: try browse";
+/// A `file://` URI that names another machine.
+pub const DROP_NOT_LOCAL: &str = "that file is on another machine: drop a local file";
+/// A `.pdf` that is not a readable file.
+pub const DROP_UNREADABLE: &str = "can't read that file";
+/// The only size refusal (D-049): the writer's 4 GiB ceiling.
+pub const DROP_TOO_BIG: &str = "too big to repair: outputs above 4 GiB cannot be written";
+/// Accepted, but held in memory while it is worked on.
+pub const DROP_BIG: &str = "big one: a pdf above 512 MiB is held in memory while I work on it";
+/// The one-line fallback takes no drops (D-064).
+pub const TOO_SMALL_TO_EAT: &str = "too small to eat: make me at least 32×16";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -590,6 +617,17 @@ pub const ALL: &[&str] = &[
     "Copy report",
     "Remove from queue",
     N_MORE,
+    // the shell (T-23a): the failure line without the system's reason
+    NOT_A_TERMINAL,
+    "PDFPundit could not use the terminal:",
+    // the drop gate (T-23b)
+    DROP_NOT_A_PDF,
+    DROP_GARBLED,
+    DROP_NOT_LOCAL,
+    DROP_UNREADABLE,
+    DROP_TOO_BIG,
+    DROP_BIG,
+    TOO_SMALL_TO_EAT,
 ];
 
 #[cfg(test)]

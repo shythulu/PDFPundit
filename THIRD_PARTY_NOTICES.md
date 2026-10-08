@@ -3,7 +3,6 @@
 PDFPundit's binary carries data from third parties beyond the licences its crates
 declare in their manifests. `cargo deny check licenses` (see `deny.toml`) covers the
 crates; this file covers the data compiled into them, which no manifest declares.
-The entry for the Noto fonts is added with the code that bundles them.
 
 ## Foxit standard-14 substitute fonts (via hayro-interpret 0.8.0)
 
@@ -143,3 +142,14 @@ file is a byte-identical copy of the one vendored with the mockup
 pins it to the hash the UI goldens were dumped with. The palette ships with no
 licence text; its terms are to be confirmed with its author before the first
 public binary (D-046).
+
+## Noto Sans and Noto Serif Regular (`assets/fonts/`)
+
+The font database compiles in Noto Sans Regular and Noto Serif Regular, version
+2.015, unhinted, unmodified, from `notofonts/notofonts.github.io` at commit
+`28b15b4b43b7bed62b5cf6e6b0b5ff5846270535`. Repaired files that need a substitute
+font embed one of them in full. Copyright 2022 The Noto Project Authors
+(https://github.com/notofonts/latin-greek-cyrillic). Licensed under the SIL Open
+Font License, Version 1.1; the full text is in `assets/licenses/OFL-Noto.txt`. Noto
+declares no Reserved Font Name. The glyph maps in `assets/gmaps/` and the index
+`assets/fontindex.json` are generated from these files by `tools/build-templates`.

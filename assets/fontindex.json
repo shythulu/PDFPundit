@@ -1,0 +1,66 @@
+[
+  {
+    "id": "NotoSans-Regular",
+    "family": "Noto Sans",
+    "postscript_name": "NotoSans-Regular",
+    "base_font_aliases": [
+      "Arial",
+      "ArialMT",
+      "Helvetica",
+      "LiberationSans"
+    ],
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "f3961a9cde016d41a4879aecda1474d3a36d6bf54fa0e4643de029cc2248b0e8",
+    "gmap_sha256": "c0c111813a67caa98a8f63f576f3eb1878137937fbba321c1773ef392d09f38c",
+    "flags": 32,
+    "bbox": [
+      -621,
+      -389,
+      2800,
+      1067
+    ],
+    "italic_angle": 0,
+    "ascent": 1069,
+    "descent": -293,
+    "cap_height": 714
+  },
+  {
+    "id": "NotoSerif-Regular",
+    "family": "Noto Serif",
+    "postscript_name": "NotoSerif-Regular",
+    "base_font_aliases": [
+      "LiberationSerif",
+      "Times-Roman",
+      "TimesNewRoman",
+      "TimesNewRomanPSMT"
+    ],
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "a15cfbbc1539d707115111d672d590a3d70d4f74b4c0a315956da20ae19a14e1",
+    "gmap_sha256": "cc2b4641a6ab34aca101f18a6807363702803fdaee3c4cc065bfa9aa13b79720",
+    "flags": 32,
+    "bbox": [
+      -693,
+      -389,
+      2797,
+      1048
+    ],
+    "italic_angle": 0,
+    "ascent": 1069,
+    "descent": -293,
+    "cap_height": 714
+  }
+]
