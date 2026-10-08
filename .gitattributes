@@ -6,3 +6,7 @@ assets/fonts/*.ttf -text
 assets/licenses/OFL-Noto.txt -text
 # The Markdown export golden is compared byte for byte (T-32b).
 tests/data/export/*.md -text
+# The corpus manifest is pinned by its sha256 and the smoke list is compared
+# line for line (T-26): no end-of-line conversion.
+bench/*.txt -text
+bench/*.csv -text
