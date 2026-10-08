@@ -474,6 +474,44 @@ fn fixtures_carry_every_variant() {
             .is_none_or(|r| !r.provenance.is_empty())
     }));
 
+    let all_findings = || a.findings.iter().chain(&r.findings_after);
+    assert!(covers(
+        all_findings().filter_map(|f| match f.class {
+            FindingKind::Corruption(c) => Some(class_index(c)),
+            _ => None,
+        }),
+        CorruptionClass::ALL.len()
+    ));
+    assert!(covers(all_findings().map(|f| kind_index(&f.class)), 5));
+    assert!(covers(
+        all_findings().map(|f| severity_index(f.severity)),
+        3
+    ));
+    assert!(covers(
+        all_findings().map(|f| location_index(&f.location)),
+        4
+    ));
+    assert!(covers(
+        all_findings().flat_map(|f| &f.evidence).map(evidence_index),
+        4
+    ));
+    assert!(covers(
+        all_findings()
+            .flat_map(|f| &f.evidence)
+            .filter_map(|e| match e {
+                Evidence::Metric { value, .. } => Some(metric_index(value)),
+                _ => None,
+            }),
+        3
+    ));
+    assert!(covers(all_findings().map(|f| repair_index(&f.repair)), 5));
+    assert!(
+        r.findings_after
+            .iter()
+            .any(|f| matches!(f.class, FindingKind::Signed { .. })),
+        "the after list carries an info finding"
+    );
+
     assert!(covers(
         a.font_slots.iter().map(|s| tounicode_index(s.tounicode)),
         3
@@ -574,6 +612,75 @@ fn covers(indexes: impl IntoIterator<Item = usize>, n: usize) -> bool {
         seen[i] = true;
     }
     seen.into_iter().all(|s| s)
+}
+
+fn class_index(c: CorruptionClass) -> usize {
+    match c {
+        CorruptionClass::C1Header => 0,
+        CorruptionClass::C2XrefMissing => 1,
+        CorruptionClass::C3TrailerDamaged => 2,
+        CorruptionClass::C4PageTreeBroken => 3,
+        CorruptionClass::C5ObjectTagStripped => 4,
+        CorruptionClass::C6FontMapLost => 5,
+        CorruptionClass::C7FontStreamDeleted => 6,
+        CorruptionClass::C8FontResourcesDeleted => 7,
+        CorruptionClass::C9ZlibTampered => 8,
+        CorruptionClass::C10Truncated => 9,
+    }
+}
+
+fn kind_index(k: &FindingKind) -> usize {
+    match k {
+        FindingKind::Corruption(_) => 0,
+        FindingKind::Encrypted => 1,
+        FindingKind::Signed { .. } => 2,
+        FindingKind::OutlinedText { .. } => 3,
+        FindingKind::Type3Text { .. } => 4,
+    }
+}
+
+fn severity_index(s: Severity) -> usize {
+    match s {
+        Severity::Info => 0,
+        Severity::Warning => 1,
+        Severity::Error => 2,
+    }
+}
+
+fn location_index(l: &Location) -> usize {
+    match l {
+        Location::File => 0,
+        Location::Span(_) => 1,
+        Location::Object { .. } => 2,
+        Location::Page { .. } => 3,
+    }
+}
+
+fn evidence_index(e: &Evidence) -> usize {
+    match e {
+        Evidence::Text(_) => 0,
+        Evidence::HexWindow(_) => 1,
+        Evidence::ObjectRef(_) => 2,
+        Evidence::Metric { .. } => 3,
+    }
+}
+
+fn metric_index(m: &MetricValue) -> usize {
+    match m {
+        MetricValue::Int(_) => 0,
+        MetricValue::Ratio(_) => 1,
+        MetricValue::Text(_) => 2,
+    }
+}
+
+fn repair_index(r: &Repairability) -> usize {
+    match r {
+        Repairability::Auto => 0,
+        Repairability::Interactive(_) => 1,
+        Repairability::Partial(_) => 2,
+        Repairability::Unrepairable(_) => 3,
+        Repairability::NotApplicable => 4,
+    }
 }
 
 fn tounicode_index(t: ToUnicodeState) -> usize {
@@ -771,6 +878,116 @@ fn finding(id: &str, class: CorruptionClass, obj: ObjId) -> Finding {
     }
 }
 
+/// One finding per corruption class plus the four non-corruption kinds,
+/// cycling through every `Severity`, `Location`, `Evidence`, `MetricValue` and
+/// `Repairability` variant.
+fn model_findings() -> Vec<Finding> {
+    let span = ByteSpan {
+        start: 100,
+        end: 180,
+    };
+    let locations = [
+        Location::File,
+        Location::Span(span),
+        Location::Object {
+            id: (14, 0),
+            span: Some(span),
+        },
+        Location::Page {
+            index: 2,
+            obj: Some((3, 0)),
+        },
+        Location::Object {
+            id: (15, 0),
+            span: None,
+        },
+        Location::Page {
+            index: 0,
+            obj: None,
+        },
+    ];
+    let metrics = [
+        MetricValue::Int(-12),
+        MetricValue::Ratio(r(7, 10)),
+        MetricValue::Text("Repaired".into()),
+    ];
+    let repairs = [
+        Repairability::Auto,
+        Repairability::Interactive(InteractionKind::FontPick),
+        Repairability::Partial("the truncated tail is lost".into()),
+        Repairability::Unrepairable("no object survived".into()),
+        Repairability::Interactive(InteractionKind::FontUnreproducible),
+    ];
+    let mut findings: Vec<Finding> = CorruptionClass::ALL
+        .iter()
+        .enumerate()
+        .map(|(i, &class)| Finding {
+            id: format!("{}-001", class.code()),
+            class: FindingKind::Corruption(class),
+            severity: if i % 2 == 0 {
+                Severity::Error
+            } else {
+                Severity::Warning
+            },
+            location: locations[i % locations.len()],
+            summary: class.label().into(),
+            evidence: vec![
+                Evidence::Text(format!("{} at byte {}", class.code(), 100 * i)),
+                Evidence::HexWindow(HexWindow::new(100 * i as u64, b"endobj\nxref")),
+                Evidence::ObjectRef((i as u32 + 1, 0)),
+                Evidence::Metric {
+                    name: "offset delta".into(),
+                    value: metrics[i % metrics.len()].clone(),
+                },
+            ],
+            repair: repairs[i % repairs.len()].clone(),
+        })
+        .collect();
+    let info = |id: &str, class, severity, repair, summary: &str| Finding {
+        id: id.into(),
+        class,
+        severity,
+        location: Location::File,
+        summary: summary.into(),
+        evidence: vec![Evidence::Text(summary.into())],
+        repair,
+    };
+    findings.extend([
+        info(
+            "ENC-001",
+            FindingKind::Encrypted,
+            Severity::Error,
+            Repairability::Unrepairable("decrypt it first".into()),
+            "the file is encrypted",
+        ),
+        info(
+            "SIG-001",
+            FindingKind::Signed { fields: 2 },
+            Severity::Info,
+            Repairability::NotApplicable,
+            "the file is signed",
+        ),
+        info(
+            "OUT-001",
+            FindingKind::OutlinedText {
+                glyph_runs: 12,
+                contours: 340,
+            },
+            Severity::Info,
+            Repairability::NotApplicable,
+            "text drawn as paths",
+        ),
+        info(
+            "T3-001",
+            FindingKind::Type3Text { font: (21, 0) },
+            Severity::Info,
+            Repairability::NotApplicable,
+            "text drawn by a Type 3 font",
+        ),
+    ]);
+    findings
+}
+
 fn substitute() -> SubstituteChoice {
     SubstituteChoice {
         font_id: "noto-sans-regular".into(),
@@ -930,10 +1147,7 @@ fn analysis_fixture() -> AnalysisResult {
             title: Some("Quarterly figures".into()),
             page_sizes: vec![(612, 792), (595, 842)],
         },
-        findings: vec![
-            finding("C3-001", CorruptionClass::C3TrailerDamaged, (1, 0)),
-            finding("C9-001", CorruptionClass::C9ZlibTampered, (14, 0)),
-        ],
+        findings: model_findings(),
         carve: carves().remove(0),
         font_slots: font_slots(),
         stats: stats(BaselineKind::Extracted),
@@ -1027,7 +1241,16 @@ fn report_fixture() -> RepairReport {
             source: InteractionSource::User,
         },
     ];
-    report.findings_after = vec![finding("C9-001", CorruptionClass::C9ZlibTampered, (14, 0))];
+    report.findings_after = model_findings()
+        .into_iter()
+        .filter(|f| {
+            matches!(
+                f.class,
+                FindingKind::Corruption(CorruptionClass::C9ZlibTampered)
+                    | FindingKind::Signed { .. }
+            )
+        })
+        .collect();
     let action = |object, what: &str, grade| RepairAction {
         object,
         what: what.into(),

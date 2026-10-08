@@ -5,6 +5,7 @@
 //! Seeded by T-02b with the mockup's fixed set. The UI tickets that draw
 //! strings append to [`ALL`]; nothing is ever removed from it.
 // The layouts (T-21 on) and the artefact test (T-14) read these.
+// TODO(T-14, T-21): remove this allow once both read the table.
 #![allow(dead_code)]
 
 /// The seven themes, default first (UI D3).
@@ -21,10 +22,21 @@ pub const THEME_NAMES: [&str; 7] = [
 /// The cat's poses, as the mockup names them (`POSES`).
 pub const POSE_NAMES: [&str; 3] = ["closed", "open", "happy"];
 
+/// The widget's poses, as the mockup names them (`WPOSES`).
+pub const WIDGET_POSE_NAMES: [&str; 4] = ["idle", "working", "needs", "done"];
+
+/// The chomp's named steps beyond "chomp" itself (the mockup's `CHOMP`
+/// captions).
+pub const CHOMP_STEP_NAMES: [&str; 4] = ["plop", "nom", "gulp", "burp"];
+
 /// The two drop reactions: the chomp everywhere, plus the drag tracking in
 /// kitty.
 pub const REACTION_NAMES: [&str; 2] = ["chomp", "drag"];
 
+/// The artefact deny-list. Several entries are ordinary words ("open",
+/// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
+/// T-14's scan must match whole words (else "nom" flags "nominal"), and the
+/// engine's fixed report and export text must avoid these words.
 pub const ALL: &[&str] = &[
     // the one-line fallback's face and the needs-you mark
     "=^..^=",
@@ -38,6 +50,16 @@ pub const ALL: &[&str] = &[
     "closed",
     "open",
     "happy",
+    // widget poses
+    "idle",
+    "working",
+    "needs",
+    "done",
+    // chomp steps
+    "plop",
+    "nom",
+    "gulp",
+    "burp",
     // themes
     "DarkBerry Blackwater",
     "DarkBerry Mire",
@@ -58,7 +80,13 @@ mod tests {
         for s in ["=^..^=", "‼", "feed me", "chomp"] {
             assert!(ALL.contains(&s), "{s:?} missing from ALL");
         }
-        for s in THEME_NAMES.iter().chain(&POSE_NAMES).chain(&REACTION_NAMES) {
+        for s in THEME_NAMES
+            .iter()
+            .chain(&POSE_NAMES)
+            .chain(&WIDGET_POSE_NAMES)
+            .chain(&CHOMP_STEP_NAMES)
+            .chain(&REACTION_NAMES)
+        {
             assert!(ALL.contains(s), "{s:?} missing from ALL");
         }
         assert_eq!(

@@ -5,6 +5,7 @@
 //! threads return data only by sending `AppEvent::Job(id, event)` (TD §3).
 #![allow(clippy::disallowed_types)]
 // The runner (T-15) and the shell (T-23a) consume these types.
+// TODO(T-15): remove this allow once the runner uses them.
 #![allow(dead_code)]
 
 use std::path::PathBuf;
@@ -15,8 +16,8 @@ use std::sync::mpsc::SyncSender;
 use serde::{Deserialize, Serialize};
 
 use crate::engine::{
-    AnalysisResult, AnalysisStateUse, Cancelled, CorruptionClass, Finding, InteractionReply,
-    InteractionRequest, LogLevel, OutcomeStatus, RepairReport, StateHandle,
+    AnalysisResult, AnalysisStateUse, Cancelled, CorruptionClass, FileMeta, Finding, FontSlot,
+    InteractionReply, InteractionRequest, LogLevel, OutcomeStatus, RepairReport, StateHandle,
 };
 
 /// A job's id, unique for the life of the runner.
@@ -50,7 +51,11 @@ pub enum AppEvent<I> {
 pub enum JobEvent {
     Started {
         kind: JobKind,
-        file: PathBuf,
+        /// The file name, as shown.
+        name: String,
+        /// `None` for an input with no durable path (D-039), as in
+        /// [`QueueEntry::path`].
+        file: Option<PathBuf>,
     },
     /// "carving", "diagnosing C4", …
     Phase {
@@ -65,8 +70,11 @@ pub enum JobEvent {
     /// Streamed as discovered.
     Finding(Finding),
     Log(LogLevel, String),
-    /// The job is blocked until `reply` receives an answer; dropping every
-    /// receiver's sender side cancels it (TD:219-221).
+    /// The job is blocked until `reply` receives an answer. The job is
+    /// cancelled when every clone of `reply` is dropped without an answer
+    /// (TD:219-221), so never keep a clone of this event in UI state: a stored
+    /// clone keeps the sender alive and the job can then never be cancelled
+    /// that way. Move `reply` out, answer once, and drop it.
     NeedsInteraction {
         request: InteractionRequest,
         reply: SyncSender<InteractionReply>,
@@ -106,7 +114,13 @@ pub struct RepairRun {
     pub analysis_state: AnalysisStateUse,
 }
 
-/// One dropped file and where it is in the batch.
+/// One dropped file and where it is in the batch: the TD §7 view data
+/// (`path, status, meta, findings, font_resolutions, job`).
+///
+/// The entry never holds the analysis state: the runner keeps the
+/// [`StateHandle`] beside the job, so evicting a parked job's state (D-005)
+/// never touches what the UI shows. `meta`, `findings` and `font_resolutions`
+/// are copied out of the [`AnalysisResult`] and survive eviction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct QueueEntry {
     /// The entry's current or last job.
@@ -117,22 +131,68 @@ pub struct QueueEntry {
     /// memory, D-039).
     pub path: Option<PathBuf>,
     pub bytes: u64,
+    /// The TD's `status` (NotStarted | InProgress | Done | Error), split finer.
     pub state: EntryState,
+    /// `AnalysisResult.meta`; `None` until the analysis finishes.
+    pub meta: Option<FileMeta>,
+    /// Streamed by [`JobEvent::Finding`] during analysis, then replaced by
+    /// `AnalysisResult.findings` on [`JobEvent::AnalyzeDone`]. A repair's
+    /// before and after lists are in `run`'s report.
+    pub findings: Vec<Finding>,
+    /// `AnalysisResult.font_slots`: each damaged slot with its resolution, if
+    /// one is known.
+    pub font_resolutions: Vec<FontSlot>,
+    /// The finished repair, from [`JobEvent::RepairDone`]: the outcome, the
+    /// report (whose `c9_summary` gives the C9 count line) and the run facts.
+    pub run: Option<RepairRun>,
 }
 
+impl QueueEntry {
+    /// A dropped file before any job has run on it.
+    pub fn queued(job: JobId, name: String, path: Option<PathBuf>, bytes: u64) -> Self {
+        QueueEntry {
+            job,
+            name,
+            path,
+            bytes,
+            state: EntryState::Queued,
+            meta: None,
+            findings: Vec::new(),
+            font_resolutions: Vec::new(),
+            run: None,
+        }
+    }
+
+    /// The repair's outcome, once there is one.
+    pub fn outcome(&self) -> Option<&OutcomeStatus> {
+        self.run.as_ref().map(|run| &run.status)
+    }
+}
+
+/// Where an entry is. The in-progress states carry the job's latest
+/// [`JobEvent::Progress`] (`done` of `total`, in the job's own units).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntryState {
     Queued,
     Analyzing {
         phase: Option<&'static str>,
+        done: u64,
+        total: Option<u64>,
     },
     Repairing {
         phase: Option<&'static str>,
+        done: u64,
+        total: Option<u64>,
     },
-    Exporting,
-    /// Parked on a question; the batch carries on (GG §1).
+    Exporting {
+        done: u64,
+        total: Option<u64>,
+    },
+    /// Parked on a question; the batch carries on (GG §1). The question stays
+    /// here when the job's state is evicted.
     WaitingOnUser(InteractionRequest),
-    Done(OutcomeStatus),
+    /// The job finished; the repair's outcome is `QueueEntry::run`.
+    Done,
     Failed {
         error: String,
         panicked: bool,
@@ -140,10 +200,64 @@ pub enum EntryState {
     Cancelled,
 }
 
-/// The batch, in drop order.
+impl EntryState {
+    /// `(done, total)` while a job is working on the entry.
+    pub fn progress(&self) -> Option<(u64, Option<u64>)> {
+        match self {
+            EntryState::Analyzing { done, total, .. }
+            | EntryState::Repairing { done, total, .. }
+            | EntryState::Exporting { done, total } => Some((*done, *total)),
+            EntryState::Queued
+            | EntryState::WaitingOnUser(_)
+            | EntryState::Done
+            | EntryState::Failed { .. }
+            | EntryState::Cancelled => None,
+        }
+    }
+
+    /// Done, failed or cancelled: nothing more will happen to the entry
+    /// unless the user starts it again.
+    pub fn is_finished(&self) -> bool {
+        matches!(
+            self,
+            EntryState::Done | EntryState::Failed { .. } | EntryState::Cancelled
+        )
+    }
+}
+
+/// The batch, in drop order: the TD's `BatchState { current,
+/// current_progress, completed, total }`. `current` is stored, because only the
+/// runner knows which job is active when a resumed parked job runs beside it;
+/// the other three are derived from `entries` (see the methods), so they can
+/// never disagree with the rows.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct BatchState {
     pub entries: Vec<QueueEntry>,
+    /// Index into `entries` of the runner's active job; `None` when idle.
+    pub current: Option<usize>,
+}
+
+impl BatchState {
+    pub fn current_entry(&self) -> Option<&QueueEntry> {
+        self.current.and_then(|i| self.entries.get(i))
+    }
+
+    /// The current entry's `(done, total)`.
+    pub fn current_progress(&self) -> Option<(u64, Option<u64>)> {
+        self.current_entry().and_then(|e| e.state.progress())
+    }
+
+    /// Entries that are done, failed or cancelled.
+    pub fn completed(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|e| e.state.is_finished())
+            .count()
+    }
+
+    pub fn total(&self) -> usize {
+        self.entries.len()
+    }
 }
 
 /// Shared cancellation flag, polled by every job loop.
@@ -671,6 +785,167 @@ mod tests {
             run(b"one", &from_history),
             AnalysisStateUse::Rebuilt { .. }
         ));
+    }
+
+    /// The batch T-20's view model reads: one file parked on a font question,
+    /// one done with a C9 report, one being analysed.
+    #[test]
+    fn a_view_model_batch_is_built_from_these_types() {
+        let engine = FakeEngine::new();
+        let mut analysis = analyzed(&engine, b"%PDF-1.4 scan");
+        analysis.meta.pages = 6;
+        analysis.findings = vec![finding("C9-001")];
+        analysis.font_slots = vec![FontSlot {
+            page: 0,
+            slot: "F1".into(),
+            base_font: Some("/Garamond".into()),
+            subtype: Some("/Type1".into()),
+            embedded: false,
+            tounicode: ToUnicodeState::Missing,
+            glyph_count: 80,
+            resolution: Some(FontResolution {
+                kind: FontResolutionKind::TextOnly,
+                provenance: vec!["no font reproduces the glyphs".into()],
+            }),
+        }];
+
+        let mut parked = QueueEntry::queued(JobId(1), "memo.pdf".into(), None, 2_048);
+        parked.state = EntryState::WaitingOnUser(FakeEngine::standard_question());
+        parked.meta = Some(analysis.meta.clone());
+        parked.findings = analysis.findings.clone();
+        parked.font_resolutions = analysis.font_slots.clone();
+
+        let mut report =
+            RepairReport::default_for(&analysis, &RepairOptions::default(), &FontDb::empty());
+        report.c9_summary = C9Summary {
+            streams_damaged: 4,
+            repaired: 3,
+            exact: 2,
+            accepted: 1,
+            ambiguous: 0,
+            unrecoverable: 1,
+            unsearched: 0,
+        };
+        let mut done = QueueEntry::queued(
+            JobId(2),
+            "scan.pdf".into(),
+            Some(PathBuf::from("scan.pdf")),
+            1_153_024,
+        );
+        done.state = EntryState::Done;
+        done.meta = Some(analysis.meta.clone());
+        done.findings = analysis.findings.clone();
+        done.font_resolutions = analysis.font_slots.clone();
+        done.run = Some(RepairRun {
+            report,
+            status: OutcomeStatus::Partial(vec!["1 stream written as found".into()]),
+            output_path: Some(PathBuf::from("scan.repaired.pdf")),
+            placed: Some(Placed::Atomic),
+            analysis_state: AnalysisStateUse::Reused,
+        });
+
+        let mut working = QueueEntry::queued(
+            JobId(3),
+            "ledger.pdf".into(),
+            Some(PathBuf::from("ledger.pdf")),
+            40_000,
+        );
+        working.state = EntryState::Analyzing {
+            phase: Some("carving"),
+            done: 10_000,
+            total: Some(40_000),
+        };
+
+        let batch = BatchState {
+            entries: vec![parked, done, working],
+            current: Some(2),
+        };
+
+        assert_eq!(batch.total(), 3);
+        assert_eq!(batch.completed(), 1);
+        assert_eq!(batch.current_entry().map(|e| e.job), Some(JobId(3)));
+        assert_eq!(batch.current_progress(), Some((10_000, Some(40_000))));
+
+        let needs_you: Vec<&str> = batch
+            .entries
+            .iter()
+            .filter(|e| matches!(e.state, EntryState::WaitingOnUser(_)))
+            .map(|e| e.name.as_str())
+            .collect();
+        assert_eq!(needs_you, ["memo.pdf"]);
+        let parked = &batch.entries[0];
+        assert_eq!(parked.findings[0].id, "C9-001");
+        assert_eq!(parked.meta.as_ref().map(|m| m.pages), Some(6));
+        assert!(matches!(
+            parked.font_resolutions[0]
+                .resolution
+                .as_ref()
+                .map(|r| &r.kind),
+            Some(FontResolutionKind::TextOnly)
+        ));
+        assert_eq!(parked.outcome(), None);
+
+        let done = &batch.entries[1];
+        assert!(matches!(done.outcome(), Some(OutcomeStatus::Partial(_))));
+        let run = done.run.as_ref().expect("run");
+        assert_eq!(run.report.c9_summary.repaired, 3);
+        let c9_line = run
+            .report
+            .lines()
+            .into_iter()
+            .find(|l| l.contains("streams repaired"));
+        assert_eq!(
+            c9_line.as_deref(),
+            Some(
+                "3 streams repaired; 2 of them unique within the searched window; \
+                 1 accepted without a uniqueness check; 0 ambiguous; \
+                 1 unrecoverable, written as found"
+            )
+        );
+
+        let idle = BatchState::default();
+        assert_eq!((idle.total(), idle.completed()), (0, 0));
+        assert_eq!(idle.current_progress(), None);
+    }
+
+    #[test]
+    fn entry_progress_is_reported_only_while_working() {
+        let working = [
+            EntryState::Analyzing {
+                phase: None,
+                done: 1,
+                total: None,
+            },
+            EntryState::Repairing {
+                phase: Some("diagnosing C4"),
+                done: 2,
+                total: Some(5),
+            },
+            EntryState::Exporting {
+                done: 3,
+                total: Some(3),
+            },
+        ];
+        for state in &working {
+            assert!(state.progress().is_some() && !state.is_finished());
+        }
+        let finished = [
+            EntryState::Done,
+            EntryState::Failed {
+                error: "x".into(),
+                panicked: true,
+            },
+            EntryState::Cancelled,
+        ];
+        for state in &finished {
+            assert!(state.progress().is_none() && state.is_finished());
+        }
+        for state in [
+            EntryState::Queued,
+            EntryState::WaitingOnUser(FakeEngine::standard_question()),
+        ] {
+            assert!(state.progress().is_none() && !state.is_finished());
+        }
     }
 
     #[test]

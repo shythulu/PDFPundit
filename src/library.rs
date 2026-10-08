@@ -1,5 +1,6 @@
 //! `HistoryStore` and its JSON backend (T-16).
 // The store (T-16) builds `HistorySummary` and the view model (T-20) reads it.
+// TODO(T-16, T-20): remove this allow once both use it.
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};

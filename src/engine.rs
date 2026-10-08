@@ -13,6 +13,8 @@
 #![deny(clippy::iter_over_hash_type)]
 // The runner (T-15), the shell (T-23a) and the real bodies (T-14) are the
 // consumers; until they land most of this is unused outside the tests.
+// TODO(T-14, T-15): remove this allow once the real bodies and the runner use
+// the facade, so it stops hiding dead code.
 #![allow(dead_code)]
 
 mod report;
@@ -27,8 +29,9 @@ use sha2::{Digest, Sha256};
 // The facade's vocabulary, re-exported for its callers; unused until they land.
 #[allow(unused_imports)]
 pub use crate::pdf::model::{
-    ByteSpan, CorruptionClass, Evidence, FileMeta, Finding, FindingKind, InteractionKind, Location,
-    ObjId, PaintCounts, Ratio, Repairability, SalvageGrade, Severity,
+    ByteSpan, CorruptionClass, Evidence, FileMeta, Finding, FindingKind, HexWindow,
+    InteractionKind, Location, MetricValue, ObjId, PaintCounts, Ratio, Repairability, SalvageGrade,
+    Severity,
 };
 #[allow(unused_imports)]
 pub use crate::pdf::verify::{BaselineKind, Gates, Plausibility, Retention, Verification};
@@ -95,9 +98,14 @@ impl Default for AnalyzeOptions {
     }
 }
 
-/// Options for [`Engine::plan`] and [`Engine::repair`]. `analyze` is what
-/// `repair` re-analyses with when the analysis carries no usable state, and what
-/// the report's settings snapshot records.
+/// Options for [`Engine::plan`] and [`Engine::repair`].
+///
+/// Three fields go beyond plan §4's five (a recorded T-02b deviation):
+/// `analyze` is what `repair` re-analyses with when the analysis carries no
+/// usable state (`repair` takes no [`AnalyzeOptions`] of its own), and its
+/// salvage budget is what the report's [`SettingsSnapshot`] records;
+/// `auto_accept_confidence` and `max_font_candidates` are the two `[repair]`
+/// knobs the snapshot must also record (D-017).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RepairOptions {
     /// `None`: the planner decides (GG §1).
