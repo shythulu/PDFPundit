@@ -8,6 +8,10 @@ pub(crate) mod bench;
 pub(crate) mod config;
 pub(crate) mod engine;
 pub(crate) mod jobs;
+// The view model (T-20) and the shell (T-23b) are the store's callers; until
+// they land only the tests use it. The allow sits here so library.rs carries
+// none (D-076). TODO(T-20, T-23b): remove it once both use the store.
+#[allow(dead_code)]
 pub(crate) mod library;
 pub(crate) mod panic_guard;
 pub mod pdf;
