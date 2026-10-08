@@ -15,7 +15,7 @@
 //!   as PDFDocEncoding (lopdf's `decode_text_string`).
 #![cfg_attr(not(test), allow(dead_code))]
 
-use lopdf::{Dictionary, Object};
+use lopdf::Object;
 
 use crate::engine::PageSize;
 use crate::pdf::carver::{Body, CarveReport};
@@ -63,11 +63,15 @@ fn size(mediabox: &[Object; 4]) -> (u32, u32) {
     (whole(n[2], n[0]), whole(n[3], n[1]))
 }
 
-fn title(bytes: &[u8], carve: &CarveReport, graph: &ObjectGraph) -> Option<String> {
+/// The document information dictionary (module docs, **Title**): its index
+/// in `carve.objects`. Emit (T-12a) names the same object in the output's
+/// trailer, so the title the result view shows and the output's `/Info`
+/// agree.
+pub(crate) fn info_object(bytes: &[u8], carve: &CarveReport, graph: &ObjectGraph) -> Option<usize> {
     let winners = winning_copies(carve);
-    let dict_of = |id: ObjId| match &carve.objects.get(*winners.get(&id)?)?.body {
-        Body::Dict(d) => Some(d),
-        _ => None,
+    let dict_at = |id: ObjId| {
+        let at = *winners.get(&id)?;
+        matches!(carve.objects.get(at)?.body, Body::Dict(_)).then_some(at)
     };
     // Every trailer's `/Info`, classic and xref stream, in byte order.
     let mut infos: Vec<(u64, ObjId)> = carve
@@ -89,22 +93,25 @@ fn title(bytes: &[u8], carve: &CarveReport, graph: &ObjectGraph) -> Option<Strin
             .filter_map(|x| Some((x.span.start, x.trailer.info.as_ref()?.as_reference().ok()?))),
     );
     infos.sort_by_key(|&(at, _)| at);
-    let declared = infos.iter().rev().find_map(|&(_, id)| dict_of(id));
-    let info: &Dictionary = match declared {
-        Some(d) => d,
-        None => {
-            winners
-                .iter()
-                .filter_map(|(&id, &at)| {
-                    let Body::Dict(d) = &carve.objects[at].body else {
-                        return None;
-                    };
-                    let info = !d.has(b"Type") && d.has(b"Title") && graph.referrers(id).is_empty();
-                    info.then_some((at, d))
-                })
-                .max_by_key(|&(at, _)| at)?
-                .1
-        }
+    if let Some(at) = infos.iter().rev().find_map(|&(_, id)| dict_at(id)) {
+        return Some(at);
+    }
+    winners
+        .iter()
+        .filter_map(|(&id, &at)| {
+            let Body::Dict(d) = &carve.objects[at].body else {
+                return None;
+            };
+            let info = !d.has(b"Type") && d.has(b"Title") && graph.referrers(id).is_empty();
+            info.then_some(at)
+        })
+        .max()
+}
+
+fn title(bytes: &[u8], carve: &CarveReport, graph: &ObjectGraph) -> Option<String> {
+    let winners = winning_copies(carve);
+    let Body::Dict(info) = &carve.objects[info_object(bytes, carve, graph)?].body else {
+        return None;
     };
     let value = match info.get(b"Title").ok()? {
         Object::Reference(id) => match &carve.objects.get(*winners.get(id)?)?.body {

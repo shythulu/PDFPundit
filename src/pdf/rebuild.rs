@@ -163,7 +163,7 @@ impl Unmatched {
 
 /// Which carved object each output number holds, and what each reference
 /// becomes (module docs).
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct IdRemap {
     /// What a reference to each id names: the winners, and every missing id
     /// step 3 matched.
