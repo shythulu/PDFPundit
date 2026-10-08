@@ -97,10 +97,32 @@ impl EmitNotes {
     }
 }
 
-/// The output being built: the writer and the numbering it follows.
+/// The output being built: the writer and the numbering it follows. Repair
+/// passes (T-13a) edit it between [`RebuildDoc::new`] and [`emit_doc`].
 pub(crate) struct RebuildDoc {
     w: Writer,
     remap: IdRemap,
+}
+
+impl RebuildDoc {
+    /// An empty output that will hold what `remap` numbers.
+    pub(crate) fn new(remap: IdRemap) -> Self {
+        RebuildDoc {
+            w: Writer::with_version(VERSION),
+            remap,
+        }
+    }
+
+    /// The numbering the output follows, with every [`Self::forget`] applied.
+    pub(crate) fn remap(&self) -> &IdRemap {
+        &self.remap
+    }
+
+    /// Leaves `held` out of the output; references to it become `null`
+    /// ([`IdRemap::forget`]).
+    pub(crate) fn forget(&mut self, held: Held) {
+        self.remap.forget(held);
+    }
 }
 
 /// The Resave output (module docs). `carve`, `graph`, `remap` and
@@ -112,11 +134,19 @@ pub(crate) fn emit_resave(
     page_tree: &PageTreePlan,
     ctx: &mut EmitCtx<'_>,
 ) -> Result<Vec<u8>, EmitError> {
+    emit_doc(RebuildDoc::new(remap.clone()), carve, graph, page_tree, ctx)
+}
+
+/// [`emit_resave`] of `doc`, as the repair passes left it. `page_tree` must
+/// come from the remap `doc` was made with; the passes never forget a page.
+pub(crate) fn emit_doc(
+    mut doc: RebuildDoc,
+    carve: &CarveReport,
+    graph: &ObjectGraph,
+    page_tree: &PageTreePlan,
+    ctx: &mut EmitCtx<'_>,
+) -> Result<Vec<u8>, EmitError> {
     ctx.notes = EmitNotes::default();
-    let mut doc = RebuildDoc {
-        w: Writer::with_version(VERSION),
-        remap: remap.clone(),
-    };
     doc.copy_carved(carve, page_tree, ctx);
     doc.write_page_tree(page_tree);
     let info = info_object(ctx.bytes, carve, graph)

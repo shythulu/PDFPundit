@@ -290,6 +290,13 @@ impl IdRemap {
         }
     }
 
+    /// Leaves `held` out of the output: it is not written and has no number,
+    /// so every reference that named it becomes `null` ([`Self::rewrite`]).
+    /// The other numbers do not move.
+    pub(crate) fn forget(&mut self, held: Held) {
+        self.numbers.remove(&held);
+    }
+
     /// [`Self::rewrite`] over a dictionary's values.
     pub(crate) fn rewrite_dict(&self, d: &mut Dictionary) {
         for (_, v) in d.iter_mut() {
