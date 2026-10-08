@@ -571,3 +571,31 @@ fn builders_are_byte_identical_across_builds() {
         assert_eq!(f(), f());
     }
 }
+
+#[test]
+fn hand_built_fixtures_match_their_committed_hashes() {
+    // Same-process builds cannot see drift across platforms or toolchains
+    // (skrifa outlines, miniz_oxide output); a committed hash checked on every
+    // CI OS can.
+    type Builder = fn() -> Vec<u8>;
+    let all: [(&str, Builder, &str); 3] = [
+        (
+            "golden_pdf_objstm",
+            golden_pdf_objstm,
+            "7096ef6ba208e1f0fc64a00b731af024fb3721be0773a08961f83dc0e592b4d3",
+        ),
+        (
+            "outline_only_page",
+            outline_only_page,
+            "18655937988ab97ce731bdf55fafcd4d3f18bcb36073aa0caa7ae4e45f9f538e",
+        ),
+        (
+            "type3_only_page",
+            type3_only_page,
+            "a9b44e9820002b67a12569015094b3b04c7771ae97dc81e1dda673f505f556c7",
+        ),
+    ];
+    for (label, f, want) in all {
+        assert_eq!(hex(&Sha256::digest(f())), want, "{label}");
+    }
+}

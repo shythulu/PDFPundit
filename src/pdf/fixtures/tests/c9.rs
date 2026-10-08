@@ -24,9 +24,9 @@ fn inputs() -> Vec<(&'static str, Vec<u8>)> {
 }
 
 struct Body {
+    id: u32,
     data: Range<usize>,
     flate: bool,
-    container: bool,
 }
 
 fn first_filter_is_flate(dict: &Dictionary) -> bool {
@@ -44,22 +44,24 @@ fn bodies(pdf: &[u8], doc: &Document) -> Vec<Body> {
         .filter_map(|(&(id, _), object)| {
             let s = object.as_stream().ok()?;
             Some(Body {
+                id,
                 data: data_range(pdf, doc, id),
                 flate: first_filter_is_flate(&s.dict),
-                container: s.dict.has_type(b"XRef") || s.dict.has_type(b"ObjStm"),
             })
         })
         .collect()
 }
 
-/// The top-level object whose header is the last one at or before `at`.
-fn enclosing_object(doc: &Document, at: usize) -> (u32, usize) {
+/// The top-level object whose header is the last one at or before `at`
+/// (xref offsets count from `%PDF-`).
+fn enclosing_object(pdf: &[u8], doc: &Document, at: usize) -> (u32, usize) {
+    let header = find(pdf, b"%PDF-").unwrap();
     doc.reference_table
         .entries
         .iter()
         .filter_map(|(&id, e)| match e {
-            XrefEntry::Normal { offset, .. } if (*offset as usize) <= at => {
-                Some((id, *offset as usize))
+            XrefEntry::Normal { offset, .. } if header + (*offset as usize) <= at => {
+                Some((id, header + *offset as usize))
             }
             _ => None,
         })
@@ -173,26 +175,37 @@ fn where_is(pdf: &[u8], start: usize, at: usize) -> (Vec<Level>, bool) {
     }
 }
 
+/// Whether a top-level (not packed) object is a dictionary with a `/W` that
+/// is not an xref stream's.
+fn has_glyph_widths(doc: &Document) -> bool {
+    doc.objects.iter().any(|(&id, object)| {
+        let top = matches!(
+            doc.reference_table.get(id.0),
+            Some(XrefEntry::Normal { .. })
+        );
+        let dict = match object {
+            Object::Dictionary(d) => Some(d),
+            Object::Stream(s) if !s.dict.has_type(b"XRef") => Some(&s.dict),
+            _ => None,
+        };
+        top && dict.is_some_and(|d| d.has(b"W"))
+    })
+}
+
 fn assert_site(label: &str, g: &[u8], doc: &Document, bodies: &[Body], rep: &Replacement) {
     let at = rep.at;
     let body = bodies.iter().find(|b| b.data.contains(&at));
     match rep.site {
         ReplacementSite::FlateBody | ReplacementSite::OtherBody => {
             let body = body.unwrap_or_else(|| panic!("{label}: {at} is in no stream body"));
-            assert!(!body.container, "{label}: {at} is in an ObjStm or XRef");
             let flate = rep.site == ReplacementSite::FlateBody;
             assert_eq!(body.flate, flate, "{label}: {at} is {:?}", rep.site);
         }
         site => {
             assert!(body.is_none(), "{label}: {at} ({site:?}) is in stream data");
-            let (id, start) = enclosing_object(doc, at);
+            let (id, start) = enclosing_object(g, doc, at);
             let object = doc.get_object((id, 0)).unwrap();
-            if let Ok(s) = object.as_stream() {
-                assert!(
-                    !s.dict.has_type(b"XRef") && !s.dict.has_type(b"ObjStm"),
-                    "{label}: {at} is in container {id}"
-                );
-            }
+            let xref = object.as_stream().is_ok_and(|s| s.dict.has_type(b"XRef"));
             let (levels, is_key) = where_is(g, start, at);
             assert!(!is_key, "{label}: {at} is a dictionary key");
             for l in &levels {
@@ -202,8 +215,12 @@ fn assert_site(label: &str, g: &[u8], doc: &Document, bodies: &[Body], rep: &Rep
                 ReplacementSite::Array => {
                     let inner = levels.last().expect("an open array");
                     assert!(!inner.dict, "{label}: {at} is not in an array");
-                    // Width arrays first: every fixture here has a /W.
-                    assert_eq!(inner.of_key, b"W", "{label}: {at} is not in /W");
+                    // Width arrays first: every fixture here with a font has
+                    // a CIDFont /W; an xref stream's /W is field widths.
+                    if has_glyph_widths(doc) {
+                        assert!(!xref, "{label}: {at} is in the xref stream");
+                        assert_eq!(inner.of_key, b"W", "{label}: {at} is not in /W");
+                    }
                 }
                 ReplacementSite::DictValue => {
                     let inner = levels.last().expect("an open dictionary");
@@ -262,11 +279,10 @@ fn c9_log_is_the_diff_and_every_site_is_right() {
                 && sites.contains(&ReplacementSite::DictValue),
             "{label}: 48 seeds only hit {sites:?}"
         );
-        // The ObjStm golden packs its only arrays (the /W among them).
-        let packs_arrays = label == "golden_pdf_objstm";
-        assert_eq!(
+        // Every input has a top-level array: a CIDFont /W, or (the ObjStm
+        // golden, which packs its fonts) the xref stream's /W and /ID.
+        assert!(
             sites.contains(&ReplacementSite::Array),
-            !packs_arrays,
             "{label}: {sites:?}"
         );
         if label.starts_with("with_wrong_length") {
@@ -353,5 +369,193 @@ fn other_classes_log_nothing() {
         let (out, log) = corrupt_with_log(class, &g, 3);
         assert_eq!(out, corrupt(class, &g, 3), "{}", class.code());
         assert!(log.is_empty(), "{}", class.code());
+    }
+}
+
+/// Every builder lopdf loads, with the junk-prefixed golden at several
+/// lengths (C9 runs on what a reader can parse).
+fn loadable_builders() -> Vec<(String, Vec<u8>)> {
+    let mut v: Vec<(String, Vec<u8>)> = vec![
+        ("golden_pdf".into(), golden_pdf()),
+        ("golden_pdf_signed".into(), golden_pdf_signed()),
+        ("golden_pdf_objstm".into(), golden_pdf_objstm()),
+        (
+            "with_stream_containing_keywords".into(),
+            with_stream_containing_keywords(),
+        ),
+        ("with_duplicate_object".into(), with_duplicate_object()),
+        ("with_no_endobj".into(), with_no_endobj()),
+        ("with_multi_filter".into(), with_multi_filter()),
+        ("with_predictor_image".into(), with_predictor_image()),
+        ("with_flate_then_dct".into(), with_flate_then_dct()),
+        ("outline_only_page".into(), outline_only_page()),
+        ("type3_only_page".into(), type3_only_page()),
+    ];
+    for kind in [
+        LengthKind::Correct,
+        LengthKind::Indirect,
+        LengthKind::Missing,
+    ] {
+        v.push((
+            format!("with_wrong_length({kind:?})"),
+            with_wrong_length(kind),
+        ));
+    }
+    for style in [
+        EolStyle::Lf,
+        EolStyle::CrLf,
+        EolStyle::Cr,
+        EolStyle::SpaceEol,
+    ] {
+        v.push((format!("with_eol_style({style:?})"), with_eol_style(style)));
+    }
+    for order in [CopyOrder::PlainFirst, CopyOrder::ObjStmFirst] {
+        v.push((
+            format!("with_objstm_and_plain_copy({order:?})"),
+            with_objstm_and_plain_copy(order),
+        ));
+    }
+    for n in [1, 9, 17, 24, 32, 64, 100] {
+        v.push((format!("with_junk_prefix({n})"), with_junk_prefix(n)));
+    }
+    v
+}
+
+/// The byte ranges of every line-start `N G obj` header and every `endobj`,
+/// `stream` and `endstream` keyword, found by a plain byte search.
+fn structure_ranges(pdf: &[u8]) -> Vec<Range<usize>> {
+    let mut out = Vec::new();
+    for kw in [&b"endobj"[..], b"stream", b"endstream"] {
+        let mut from = 0;
+        while let Some(k) = find(&pdf[from..], kw) {
+            out.push(from + k..from + k + kw.len());
+            from += k + 1;
+        }
+    }
+    let mut from = 0;
+    while let Some(k) = find(&pdf[from..], b" obj") {
+        let end = from + k + 4;
+        from += k + 1;
+        // Back over `G`, a space and `N` to a line start.
+        let mut i = end - 4;
+        let mut fields = 0;
+        while fields < 2 {
+            let digits = pdf[..i].iter().rev().take_while(|b| b.is_ascii_digit());
+            let n = digits.count();
+            if n == 0 {
+                break;
+            }
+            i -= n;
+            fields += 1;
+            if fields == 1 && i > 0 && pdf[i - 1] == b' ' {
+                i -= 1;
+            }
+        }
+        if fields == 2 && (i == 0 || matches!(pdf[i - 1], b'\n' | b'\r')) {
+            out.push(i..end);
+        }
+    }
+    out
+}
+
+#[test]
+fn c9_never_hits_headers_or_keywords_in_any_builder() {
+    for (label, g) in loadable_builders() {
+        let doc = load(&g);
+        // Stream data, wherever lopdf's stream contents occur in the file: a
+        // keyword inside it (`with_stream_containing_keywords`) is data.
+        let mut data = Vec::new();
+        for object in doc.objects.values() {
+            let Ok(s) = object.as_stream() else { continue };
+            if s.content.len() < 8 {
+                continue;
+            }
+            let mut from = 0;
+            while let Some(k) = find(&g[from..], &s.content) {
+                data.push(from + k..from + k + s.content.len());
+                from += k + 1;
+            }
+        }
+        let in_data = |r: &Range<usize>| data.iter().any(|d| d.start <= r.start && r.end <= d.end);
+        let structure: Vec<Range<usize>> = structure_ranges(&g)
+            .into_iter()
+            .filter(|r| !in_data(r))
+            .collect();
+        assert!(!structure.is_empty(), "{label}");
+        for seed in 0..64 {
+            let (out, log) = corrupt_with_log(C9, &g, seed);
+            let diff = (0..g.len()).filter(|&i| g[i] != out[i]).count();
+            assert_eq!(diff, log.len(), "{label} seed {seed}");
+            for rep in &log {
+                let hit = structure.iter().find(|r| r.contains(&rep.at));
+                assert!(
+                    hit.is_none(),
+                    "{label} seed {seed}: {:?} at {} is in {:?}",
+                    rep.site,
+                    rep.at,
+                    hit.map(|r| String::from_utf8_lossy(&g[r.clone()]).into_owned())
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn c9_on_a_junk_prefix_is_the_golden_shifted() {
+    let g = golden_pdf();
+    for n in [1, 9, 17, 24, 32, 64, 100] {
+        let j = with_junk_prefix(n);
+        for seed in SEEDS {
+            let (out, log) = corrupt_with_log(C9, &j, seed);
+            let (g_out, g_log) = corrupt_with_log(C9, &g, seed);
+            let shifted: Vec<Replacement> = g_log
+                .iter()
+                .map(|r| Replacement { at: r.at + n, ..*r })
+                .collect();
+            assert_eq!(log, shifted, "junk {n} seed {seed}");
+            assert_eq!(&out[n..], &g_out[..], "junk {n} seed {seed}");
+        }
+    }
+}
+
+#[test]
+fn c9_damages_object_and_xref_streams_too() {
+    // eng-r2-fr1: 69 /ObjStm and 27 /XRef among the 1,445 damaged streams.
+    let g = golden_pdf_objstm();
+    let doc = load(&g);
+    let bodies = bodies(&g, &doc);
+    let kind_of = |at: usize| {
+        let body = bodies.iter().find(|b| b.data.contains(&at))?;
+        let s = doc.get_object((body.id, 0)).ok()?.as_stream().ok()?;
+        [&b"ObjStm"[..], b"XRef"]
+            .into_iter()
+            .find(|t| s.dict.has_type(t))
+    };
+    let mut hit = BTreeSet::new();
+    for seed in 0..256 {
+        for rep in corrupt_with_log(C9, &g, seed).1 {
+            if rep.site == ReplacementSite::FlateBody
+                && let Some(kind) = kind_of(rep.at)
+            {
+                hit.insert(kind);
+            }
+        }
+    }
+    assert_eq!(hit.len(), 2, "only {hit:?} hit");
+}
+
+#[test]
+fn c9_scan_refuses_an_offset_that_names_no_header() {
+    // lopdf rebuilds a table whose offsets miss, so C9 never sees one; the
+    // scan still refuses to read from anywhere but the named header.
+    let g = golden_pdf();
+    let at = find(&g, b"\n2 0 obj").expect("object 2") + 1;
+    assert_eq!(scan_object(&g, at, (2, 0), false).data_start, None);
+    for (bad_at, id) in [(at + 1, (2, 0)), (at, (3, 0)), (at - 1, (2, 0))] {
+        let err = std::panic::catch_unwind(|| scan_object(&g, bad_at, id, false))
+            .err()
+            .unwrap_or_else(|| panic!("scan of {id:?} at {bad_at} read on"));
+        let msg = err.downcast_ref::<String>().cloned().unwrap_or_default();
+        assert!(msg.contains("does not name the object"), "{msg}");
     }
 }

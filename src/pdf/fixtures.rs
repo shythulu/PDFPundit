@@ -56,7 +56,8 @@ pub enum ReplacementSite {
     /// The data of any other stream: unfiltered, `/DCTDecode`, or a chain
     /// that does not start with Flate.
     OtherBody,
-    /// An array element outside stream data (width arrays first).
+    /// An array element outside stream data (width arrays first, see
+    /// [`corrupt_with_log`]).
     Array,
     /// A dictionary value outside stream data.
     DictValue,
@@ -191,15 +192,30 @@ pub fn corrupt(class: CorruptionClass, pdf: &[u8], seed: u64) -> Vec<u8> {
 /// - non-Flate stream bodies (unfiltered, DCT, chains not starting with Flate)
 ///   get 304 bytes per 1,445 Flate hits;
 /// - about one replacement per three stream hits lands outside stream data,
-///   spread over array elements (width arrays first), dictionary values and
-///   bare-number objects; never an `N G obj` header, `endobj`,
-///   `stream`/`endstream`, a dictionary key, the `/Root`, `/Pages`, `/Kids`,
-///   `/Count` or `/Type` values, nor the xref table or trailer;
+///   spread over array elements, dictionary values and bare-number objects;
+///   never an `N G obj` header, `endobj`, `stream`/`endstream`, a dictionary
+///   key, the `/Root`, `/Pages`, `/Kids`, `/Count` or `/Type` values, nor a
+///   classic xref table or trailer (they are not objects);
+/// - "width arrays first": an array hit lands in a `/W` or `/Widths` array,
+///   and in any other array (`/MediaBox`, `/BBox`, ...) only when the file has
+///   no width-array byte left to hit;
 /// - each new byte is one of the 255 values other than the old one.
 ///
 /// Fractional counts round up with the leftover probability, so the expected
-/// counts are the measured ratios. Object and xref streams are structure, not
-/// content, and are never touched. Streams are told apart by their `/Filter`.
+/// counts are the measured ratios. Object and xref streams count as Flate
+/// streams like any other, as they do in REPDF (eng-r2-fr1: 69 `/ObjStm` and
+/// 27 `/XRef` among the 1,445 damaged streams), and their dictionaries are
+/// dictionary values like any other; an xref stream's `/W` holds field
+/// widths, not glyph widths, so it is an ordinary array. Streams are told
+/// apart by their `/Filter`. Xref offsets are read from the `%PDF-` header, as
+/// readers do, so a junk prefix moves nothing.
+///
+/// A chain that does not start with Flate (`[/ASCII85Decode /FlateDecode]`)
+/// is an `OtherBody`: C9 replaces one raw (ASCII85) byte, which changes a
+/// whole 4-byte group of the zlib data or leaves it undecodable, and never
+/// gives a single-byte hit in the Flate stage. A test that needs one (T-08's
+/// filter-domain case) builds it itself: decode the earlier filters, replace
+/// one Flate-stage byte, re-encode.
 pub fn corrupt_with_log(
     class: CorruptionClass,
     pdf: &[u8],
@@ -1532,9 +1548,21 @@ fn startxref(pdf: &[u8]) -> usize {
     digits.parse().expect("startxref offset")
 }
 
+/// Where `%PDF-` starts. lopdf (like every reader) counts xref offsets from
+/// here, not from the first byte of the file, so a junk prefix shifts them.
+fn header_at(pdf: &[u8]) -> usize {
+    find(pdf, b"%PDF-").unwrap_or(0)
+}
+
+/// The file position of an xref `offset`.
+fn file_offset(pdf: &[u8], offset: u32) -> usize {
+    header_at(pdf) + offset as usize
+}
+
 /// The first byte after `%PDF-x.y` and the binary-mark comment line.
 fn after_header(pdf: &[u8]) -> usize {
-    let first = find(pdf, b"\n").expect("header line") + 1;
+    let header = header_at(pdf);
+    let first = header + find(&pdf[header..], b"\n").expect("header line") + 1;
     if pdf.get(first) == Some(&b'%') {
         first + find(&pdf[first..], b"\n").expect("binary-mark line") + 1
     } else {
@@ -1550,7 +1578,7 @@ fn load(pdf: &[u8]) -> Document {
 /// `N G obj` through `endobj` of object `id`.
 fn object_span(pdf: &[u8], doc: &Document, id: u32) -> Range<usize> {
     let start = match doc.reference_table.get(id) {
-        Some(XrefEntry::Normal { offset, .. }) => *offset as usize,
+        Some(XrefEntry::Normal { offset, .. }) => file_offset(pdf, *offset),
         other => panic!("object {id} has no offset in the xref table: {other:?}"),
     };
     let end = start + find(&pdf[start..], b"endobj").expect("endobj") + 6;
@@ -1613,7 +1641,7 @@ fn object_header(pdf: &[u8], rng: &mut SplitMix64) -> Range<usize> {
     let doc = load(pdf);
     let candidates: Vec<usize> = (1..=9u32)
         .filter_map(|id| match doc.reference_table.get(id) {
-            Some(XrefEntry::Normal { offset, .. }) => Some((id, *offset as usize)),
+            Some(XrefEntry::Normal { offset, .. }) => Some((id, file_offset(pdf, *offset))),
             _ => None,
         })
         .filter(|&(id, at)| pdf[at..].starts_with(format!("{id} 0 obj\n").as_bytes()))
@@ -1742,12 +1770,9 @@ fn c9_replacements(pdf: &[u8], rng: &mut SplitMix64) -> Vec<Replacement> {
         let Ok(object) = doc.get_object((id, generation)) else {
             continue;
         };
-        if let Object::Stream(s) = object
-            && (s.dict.has_type(b"XRef") || s.dict.has_type(b"ObjStm"))
-        {
-            continue;
-        }
-        let scan = scan_object(pdf, offset as usize);
+        let xref = matches!(object, Object::Stream(s) if s.dict.has_type(b"XRef"));
+        let at = file_offset(pdf, offset);
+        let scan = scan_object(pdf, at, (id, generation), xref);
         for (span, kind) in scan.leaves {
             let pool = match kind {
                 Leaf::Width => &mut pools.width,
@@ -1801,27 +1826,26 @@ fn c9_replacements(pdf: &[u8], rng: &mut SplitMix64) -> Vec<Replacement> {
         }
     }
 
-    // Outside stream data: the three kinds in turn from a seeded start, width
-    // arrays before other arrays, empty kinds skipped.
-    let arrays = if pools.width.is_empty() {
-        &pools.array
-    } else {
-        &pools.width
-    };
-    let kinds = [
-        (arrays, ReplacementSite::Array),
-        (&pools.dict_value, ReplacementSite::DictValue),
-        (&pools.number, ReplacementSite::Number),
+    // Outside stream data: the three kinds in turn from a seeded start, empty
+    // kinds skipped. An array hit draws from the width arrays, and from the
+    // other arrays only once no width-array byte is left.
+    let kinds: [(&[&Vec<usize>], ReplacementSite); 3] = [
+        (&[&pools.width, &pools.array], ReplacementSite::Array),
+        (&[&pools.dict_value], ReplacementSite::DictValue),
+        (&[&pools.number], ReplacementSite::Number),
     ];
     let start = rng.below(kinds.len());
     let outside = rng.scaled(hits + other_hits, C9_OUTSIDE_PER_STREAM_HIT);
     for i in 0..outside {
-        for k in 0..kinds.len() {
-            let (pool, site) = kinds[(start + i + k) % kinds.len()];
-            if let Some(at) = pick_unused(pool, &used, rng) {
-                replace(at, site, rng, &mut used);
-                break;
-            }
+        let pick = (0..kinds.len()).find_map(|k| {
+            let (pools, site) = kinds[(start + i + k) % kinds.len()];
+            pools
+                .iter()
+                .find_map(|pool| pick_unused(pool, &used, rng))
+                .map(|at| (at, site))
+        });
+        if let Some((at, site)) = pick {
+            replace(at, site, rng, &mut used);
         }
     }
 
@@ -1985,33 +2009,58 @@ struct Frame {
     width: bool,
 }
 
-/// Reads the object at `offset` (`N G obj` …) up to `stream` or `endobj` and
-/// sorts its leaf tokens into C9's outside-stream kinds. Keys, the values of
-/// [`C9_KEPT`] keys, and top-level values other than a bare number are not
-/// leaves.
-fn scan_object(pdf: &[u8], offset: usize) -> ObjectScan {
-    let mut i = offset;
+/// Whether the tokens from `tok` on are an `N G obj` header.
+fn is_object_header(pdf: &[u8], tok: &Token) -> bool {
+    let word = |t: &Token| (t.kind == TokKind::Word).then(|| &pdf[t.span.clone()]);
+    let Some(g) = next_token(pdf, tok.end) else {
+        return false;
+    };
+    let Some(o) = next_token(pdf, g.end) else {
+        return false;
+    };
+    word(tok).is_some_and(is_number) && word(&g).is_some_and(is_number) && word(&o) == Some(b"obj")
+}
+
+/// Reads object `id` from its `N G obj` header at file position `at` up to
+/// `stream`, `endstream`, `endobj` or the next `N G obj` header (whichever
+/// comes first, at any depth: a file may lack `endobj`), and sorts its leaf
+/// tokens into C9's outside-stream kinds. Keys, the values of [`C9_KEPT`]
+/// keys, and top-level values other than a bare number are not leaves. `/W` is
+/// a width array except in an xref stream (`xref`), where it holds the field
+/// widths. Panics when `at` is not `id`'s header.
+fn scan_object(pdf: &[u8], at: usize, id: (u32, u16), xref: bool) -> ObjectScan {
+    let header = format!("{} {} obj", id.0, id.1);
+    let mut i = at;
+    let mut read = Vec::new();
     for _ in 0..3 {
-        i = next_token(pdf, i).expect("object header").end;
+        let tok = next_token(pdf, i).expect("object header");
+        read.push(String::from_utf8_lossy(&pdf[tok.span.clone()]).into_owned());
+        i = tok.end;
     }
+    assert!(
+        read.join(" ") == header && next_token(pdf, at).is_some_and(|t| t.span.start == at),
+        "no `{header}` at {at}: the xref offset does not name the object"
+    );
     let mut stack: Vec<Frame> = Vec::new();
     let mut leaves = Vec::new();
     let mut data_start = None;
     while let Some(tok) = next_token(pdf, i) {
         i = tok.end;
         let word = &pdf[tok.span.clone()];
-        if stack.is_empty() && tok.kind == TokKind::Word {
+        if tok.kind == TokKind::Word {
             if word == b"stream" {
-                data_start = Some(match &pdf[i..] {
-                    [b'\r', b'\n', ..] => i + 2,
-                    [b' ', b'\r', b'\n', ..] => i + 3,
-                    [b' ', b'\n' | b'\r', ..] => i + 2,
-                    [b'\n' | b'\r', ..] => i + 1,
-                    _ => i,
-                });
+                if stack.is_empty() {
+                    data_start = Some(match &pdf[i..] {
+                        [b'\r', b'\n', ..] => i + 2,
+                        [b' ', b'\r', b'\n', ..] => i + 3,
+                        [b' ', b'\n' | b'\r', ..] => i + 2,
+                        [b'\n' | b'\r', ..] => i + 1,
+                        _ => i,
+                    });
+                }
                 break;
             }
-            if word == b"endobj" {
+            if word == b"endobj" || word == b"endstream" || is_object_header(pdf, &tok) {
                 break;
             }
         }
@@ -2038,7 +2087,7 @@ fn scan_object(pdf: &[u8], offset: usize) -> ObjectScan {
             None => (false, false, None),
             Some(f) if f.dict => {
                 let key = &pdf[f.key.clone()];
-                let width = key == b"W" || key == b"Widths";
+                let width = key == b"Widths" || (key == b"W" && !xref);
                 (
                     f.kept || C9_KEPT.contains(&key),
                     width,
