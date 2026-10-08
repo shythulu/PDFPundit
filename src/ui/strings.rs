@@ -54,6 +54,87 @@ pub const N_PDFS: &str = "{n} pdfs";
 pub const N_QUEUED: &str = "{n} queued";
 pub const N_DONE: &str = "{n} done";
 
+// The full layout (T-22a).
+
+/// The version the status bar shows: `v` and the crate's major.minor.
+pub const VERSION: &str = concat!(
+    "v",
+    env!("CARGO_PKG_VERSION_MAJOR"),
+    ".",
+    env!("CARGO_PKG_VERSION_MINOR")
+);
+
+/// The line under the logo.
+pub const TAGLINE: &str = "·∙· f u r e n s i c   p d f   r e p a i r ·∙·";
+
+/// The panel titles.
+pub const LAST_CALLERS: &str = "LAST CALLERS";
+pub const MENU: &str = "MENU";
+pub const HOW_IT_WORKS: &str = "HOW iT WORKS";
+pub const SYSTEM: &str = "SYSTEM";
+
+/// LAST CALLERS' footer; the first `{n}` is the files, the second the runs.
+pub const N_FILES_N_RUNS: &str = "{n} files · {n} runs";
+
+/// MENU's items: the key, then the label.
+pub const MENU_ITEMS: [(char, &str); 6] = [
+    ('B', "browse for pdfs"),
+    ('H', "history"),
+    ('S', "setup"),
+    ('T', "theme"),
+    ('?', "help"),
+    ('Q', "quit"),
+];
+
+/// The hotkeys row under the hint: the key, then the label.
+pub const HOTKEYS: [(char, &str); 6] = [
+    ('B', "browse"),
+    ('H', "history"),
+    ('S', "setup"),
+    ('T', "theme"),
+    ('?', "help"),
+    ('Q', "quit"),
+];
+
+/// MENU's prompt, before its blinking cursor.
+pub const MAIN_PROMPT: &str = "main »";
+
+/// HOW iT WORKS, one line each: the step number (`None` for a step's second
+/// line) and the text. Its last line names the output files.
+pub const HOW_LINES: [(Option<char>, &str); 8] = [
+    (Some('1'), "drop pdfs on the cat"),
+    (Some('2'), "it repairs them"),
+    (None, "all by itself"),
+    (Some('3'), "it only asks when"),
+    (None, "it gets stuck"),
+    (Some('4'), "fixed copies land"),
+    (None, "beside the original"),
+    (None, "*.repaired.pdf"),
+];
+
+/// SYSTEM's labels, padded to the value column, and its fixed values.
+pub const SYS_ENGINE: (&str, &str) = ("engine   ", "pure rust");
+pub const SYS_NETWORK: (&str, &str) = ("network  ", "off");
+pub const SYS_FONTS: (&str, &str) = ("fonts    ", "bundled");
+pub const SYS_THEME: &str = "theme    ";
+pub const SYS_HISTORY: &str = "history  ";
+pub const SYS_ORIGINALS: (&str, &str) = ("originals", " untouched");
+
+/// SYSTEM's history count.
+pub const N_FILES: &str = "{n} files";
+
+/// The status bar's node, and its state while the cat eats a drop.
+pub const NODE_N: &str = "node {n}";
+pub const EATING_N_PDFS: &str = "eating {n} pdfs";
+
+/// The view model's batch states, as the status bar shows them (T-20).
+pub const STATE_BUSY: &str = "busy";
+pub const STATE_NEEDS_YOU: &str = "needs you";
+
+/// The hint for a MENU key whose screen does not exist yet (D-048): history,
+/// setup and help.
+pub const NOT_YET: &str = "·∙· not yet ·∙·";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -130,6 +211,41 @@ pub const ALL: &[&str] = &[
     N_PDFS,
     N_QUEUED,
     N_DONE,
+    // the full layout (T-22a): every word it draws; a MENU or hotkey label
+    // with its key, so a lone "help" or "history" in an artefact is not a hit
+    VERSION,
+    TAGLINE,
+    LAST_CALLERS,
+    MENU,
+    HOW_IT_WORKS,
+    SYSTEM,
+    N_FILES_N_RUNS,
+    "[B] browse for pdfs",
+    "[H] history",
+    "[S] setup",
+    "[T] theme",
+    "[?] help",
+    "[Q] quit",
+    "[B] browse",
+    MAIN_PROMPT,
+    "1 drop pdfs on the cat",
+    "2 it repairs them",
+    "all by itself",
+    "3 it only asks when",
+    "it gets stuck",
+    "4 fixed copies land",
+    "beside the original",
+    "*.repaired.pdf",
+    "engine   pure rust",
+    "network  off",
+    "fonts    bundled",
+    "history  {n} files",
+    "originals untouched",
+    NODE_N,
+    EATING_N_PDFS,
+    STATE_BUSY,
+    STATE_NEEDS_YOU,
+    NOT_YET,
 ];
 
 #[cfg(test)]

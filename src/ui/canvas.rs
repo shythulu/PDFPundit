@@ -257,6 +257,17 @@ impl Canvas {
         };
     }
 
+    /// Mixes both colours of every cell in a `w × h` block toward the
+    /// background by `f` (generate.py's `dim_rect`): the side panels stepping
+    /// back while the cat reacts.
+    pub fn dim_rect(&mut self, x: i32, y: i32, w: i32, h: i32, f: f64) {
+        for j in y..y + h {
+            for i in x..x + w {
+                self.darken(i, j, f);
+            }
+        }
+    }
+
     /// Mixes the colours of `(x, y)` toward the background by `f`.
     fn darken(&mut self, x: i32, y: i32, f: f64) {
         let bg = self.bg;
