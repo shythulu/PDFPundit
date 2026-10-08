@@ -521,6 +521,45 @@ fn c8_with_its_real_base_font_takes_the_name_path() {
 }
 
 #[test]
+fn hostile_w_widths_reject_the_name_match_without_overflow() {
+    // The first two widths of each /W run: i64::MIN, and a Real that a cast
+    // saturates to i64::MIN. A subtraction would overflow on either.
+    let pdf = rewrite_golden(|objects| {
+        for o in objects.values_mut() {
+            let Object::Dictionary(d) = o else { continue };
+            let Ok(Object::Array(w)) = d.get_mut(b"W") else {
+                continue;
+            };
+            for item in w.iter_mut() {
+                if let Object::Array(run) = item {
+                    let hostile = [Object::Integer(i64::MIN), Object::Real(-1e30)];
+                    for (slot, v) in run.iter_mut().zip(hostile) {
+                        *slot = v;
+                    }
+                }
+            }
+        }
+    });
+    let input = analysed(corrupt(C8FontResourcesDeleted, &pdf, 0));
+    assert_eq!(input.classes(), [C8FontResourcesDeleted]);
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut UseBest,
+        &[],
+    );
+    let lines = provenance(&ran.notes);
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("name:") && l.contains("/W widths differ")),
+        "{lines:?}"
+    );
+}
+
+#[test]
 fn c8_with_a_cidfont_name_goes_to_inference() {
     let input = analysed(renamed(&corrupt(C8FontResourcesDeleted, &golden_pdf(), 0)));
     assert_eq!(input.classes(), [C8FontResourcesDeleted]);

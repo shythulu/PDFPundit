@@ -608,7 +608,7 @@ fn name_hit_holds(
     }
     let off = |(&c, &w): (&u16, &i64)| {
         gmap.width(c)
-            .is_none_or(|g| (w - i64::from(g)).abs() > WIDTH_SLACK)
+            .is_none_or(|g| w.abs_diff(i64::from(g)) > WIDTH_SLACK)
     };
     let differ = widths.iter().filter(|&e| off(e)).count();
     if differ > 0 {
@@ -628,7 +628,7 @@ fn name_hit_holds(
 
 /// How far a `/W` width may be from the `.gmap`'s (both 1000 units per em):
 /// a producer may round where the `.gmap` truncates.
-const WIDTH_SLACK: i64 = 1;
+const WIDTH_SLACK: u64 = 1;
 
 /// The `/W` width of each of `codes` that `cidfont`'s `/W` gives, truncated
 /// to an integer. `/DW` is not read: a default says nothing about a glyph.
