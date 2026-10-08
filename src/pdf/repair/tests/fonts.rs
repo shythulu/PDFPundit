@@ -1166,7 +1166,7 @@ fn split_contents() -> Vec<u8> {
             .unwrap();
         let text = String::from_utf8(content).unwrap();
         let at = text.find(" Tf\n").unwrap() + " Tf\n".len();
-        let first = text[..at].as_bytes().to_vec();
+        let first = text.as_bytes()[..at].to_vec();
         let second = format!("q\n/F9 16 Tf\nQ\n{}", &text[at..]).into_bytes();
         objects.insert(11, Object::Stream(Stream::new(Dictionary::new(), first)));
         objects.insert(23, Object::Stream(Stream::new(Dictionary::new(), second)));
