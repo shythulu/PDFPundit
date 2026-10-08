@@ -818,13 +818,16 @@ fn script_with_runner(
             AppEvent::Job(
                 _,
                 JobEvent::Started {
-                    kind: JobKind::Analyze,
+                    kind: JobKind::Analyze | JobKind::ExportMarkdown,
                     ..
                 },
             ) => started += 1,
             AppEvent::Job(
                 _,
-                JobEvent::RepairDone(_) | JobEvent::Failed { .. } | JobEvent::Cancelled,
+                JobEvent::RepairDone(_)
+                | JobEvent::ExportDone { .. }
+                | JobEvent::Failed { .. }
+                | JobEvent::Cancelled,
             ) => finished += 1,
             _ => {}
         }
@@ -1221,4 +1224,130 @@ fn a_drop_holds_at_most_512_mib() {
     assert_eq!(app.admitted.len(), 1);
     assert_eq!(app.admitted[0].0.path, small);
     assert_eq!(app.state.hint, Some(strings::DROP_HOLD_LIMIT));
+}
+
+// ── the export action (T-32b, D-048) ────────────────────────────────────
+
+/// A queue of `n` finished files on the full layout.
+fn finished_queue(app: &mut App, n: u64) {
+    queue(app, n);
+    for e in &mut app.state.batch.entries {
+        e.state = EntryState::Done;
+    }
+    app.refresh(Duration::ZERO);
+}
+
+/// The exports the loop would ask the runner for now; each is accepted.
+fn asked_exports(app: &mut App) -> Vec<JobId> {
+    let mut asked = Vec::new();
+    app.request_exports(&mut |id| {
+        asked.push(id);
+        true
+    });
+    asked
+}
+
+#[test]
+fn enter_opens_the_file_menu_and_its_export_item_asks_for_the_export() {
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    send(&mut app, code(KeyCode::Enter));
+    assert_eq!(app.state.file_menu, None, "no menu without a file");
+
+    finished_queue(&mut app, 3);
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Enter));
+    assert_eq!(app.state.file_menu, Some(0));
+    assert_eq!(
+        app.state.selected,
+        Some(2),
+        "the menu acts on the cursor's file"
+    );
+    send(&mut app, code(KeyCode::Up));
+    assert_eq!(app.state.file_menu, Some(0), "the top item stays put");
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
+    assert_eq!(
+        strings::FILE_MENU_ITEMS[app.state.file_menu.expect("open")],
+        Some((strings::EXPORT_MARKDOWN, 'e'))
+    );
+    assert!(
+        asked_exports(&mut app).is_empty(),
+        "moving asks for nothing"
+    );
+    send(&mut app, code(KeyCode::Enter));
+    assert_eq!(app.state.file_menu, None, "choosing closes the menu");
+    assert_eq!(asked_exports(&mut app), [JobId(3)]);
+    assert!(asked_exports(&mut app).is_empty(), "asked once");
+}
+
+#[test]
+fn the_menu_skips_its_separator_and_answers_other_items_not_yet() {
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    finished_queue(&mut app, 1);
+    send(&mut app, code(KeyCode::Enter));
+    for _ in 0..4 {
+        send(&mut app, code(KeyCode::Down));
+    }
+    let at = app.state.file_menu.expect("open");
+    assert!(
+        strings::FILE_MENU_ITEMS[at].is_some(),
+        "never on the separator"
+    );
+    assert_eq!(at, 5);
+    send(&mut app, key('o'));
+    assert_eq!(app.state.file_menu, None);
+    assert_eq!(app.state.hint, Some(strings::NOT_YET));
+    assert!(asked_exports(&mut app).is_empty());
+
+    send(&mut app, code(KeyCode::Enter));
+    send(&mut app, code(KeyCode::Esc));
+    assert_eq!(app.state.file_menu, None);
+    send(&mut app, code(KeyCode::Enter));
+    send(&mut app, key('e'));
+    assert_eq!(asked_exports(&mut app), [JobId(1)], "an item's own key");
+
+    send(&mut app, code(KeyCode::Enter));
+    app.resize(80, 24);
+    assert_eq!(app.state.file_menu, None, "the widget has no file menu");
+}
+
+#[test]
+fn e_exports_the_selected_file_and_a_refusal_is_on_the_hint_row() {
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    send(&mut app, key('e'));
+    assert!(asked_exports(&mut app).is_empty(), "nothing to export");
+    finished_queue(&mut app, 2);
+    send(&mut app, key('e'));
+    assert_eq!(
+        asked_exports(&mut app),
+        [JobId(1)],
+        "the first file by default"
+    );
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, key('e'));
+    app.request_exports(&mut |_| false);
+    assert_eq!(app.state.hint, Some(strings::EXPORT_UNAVAILABLE));
+}
+
+#[test]
+fn e_on_a_pasted_pdf_writes_its_markdown_beside_it() {
+    let dir = ScratchDir::new("app-export");
+    let input = dir.join("memo.pdf");
+    std::fs::write(&input, crate::pdf::fixtures::golden_pdf()).unwrap();
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let (tx, rx) = mpsc::channel();
+    let mut runner = JobRunner::new(Arc::new(FakeEngine::new()), tx, RunnerOptions::default());
+
+    let events = vec![paste_of(&[&input]), key('e')];
+    script_with_runner(&mut app, &mut screen, &mut runner, &rx, events);
+
+    let row = &app.state.batch.entries[0];
+    assert_eq!(row.state, EntryState::Done);
+    assert!(row.run.is_some(), "repaired first");
+    let md = std::fs::read_to_string(dir.join("memo.md")).expect("exported");
+    assert!(md.contains(crate::pdf::fixtures::GOLDEN_TEXT[0][0]), "{md}");
+    assert_eq!(dir.names(), ["memo.md", "memo.pdf", "memo.repaired.pdf"]);
+    assert!(runner.shutdown(Duration::from_secs(5)));
 }

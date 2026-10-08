@@ -4,9 +4,9 @@
 //!
 //! Seeded by T-02b with the mockup's fixed set. The UI tickets that draw
 //! strings append to [`ALL`]; nothing is ever removed from it.
-// The layouts (T-21 on) and the artefact test (T-14) read these.
-// TODO(T-14): remove this allow once the artefact test reads the table.
-#![allow(dead_code)]
+// The layouts read most of these; the names only the deny-list holds, and
+// `ALL` itself, are read by the artefact test (T-14) alone.
+#![cfg_attr(not(test), allow(dead_code))]
 
 /// The seven themes, default first (UI D3).
 pub const THEME_NAMES: [&str; 7] = [
@@ -373,6 +373,9 @@ pub const FILE_MENU_ITEMS: [Option<(&str, char)>; 8] = [
     Some(("Remove from queue", 'x')),
 ];
 pub const EXPORT_MARKDOWN: &str = "Export → Markdown";
+/// The hint row's word when an export cannot run: the file left the queue
+/// before it started (T-32b).
+pub const EXPORT_UNAVAILABLE: &str = "can't export that file: drop it again";
 
 /// The last row of a findings or fonts list that has more entries than rows:
 /// how many are not shown (`{n}`).
@@ -654,6 +657,7 @@ pub const ALL: &[&str] = &[
     "Open repaired PDF",
     "Reveal in folder",
     EXPORT_MARKDOWN,
+    EXPORT_UNAVAILABLE,
     "Re-diagnose",
     "Repair options…",
     "Copy report",

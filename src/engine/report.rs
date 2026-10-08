@@ -207,6 +207,8 @@ impl RepairReport {
     /// The fixed report lines: the signature note (D-052), the C9 count line
     /// when a damaged stream was found (D-041) and the narrowed-reals line
     /// (D-075).
+    // The result view draws its own (T-22b); the artefact test reads these.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn lines(&self) -> Vec<String> {
         let mut lines = Vec::new();
         if let Some(note) = &self.signed_note {

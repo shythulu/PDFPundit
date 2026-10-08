@@ -6,11 +6,11 @@
 //! `AppEvent::Job(id, event)` (TD §3), and the UI hands every job event back to
 //! [`JobRunner::on_job_event`] so the runner can move jobs along.
 #![allow(clippy::disallowed_types)]
-// The loop (T-23a) drives the runner, and the drop gate (T-23b) and kitty
-// drops (T-31, `JobInput::Dropped`) submit jobs, but replies and cancellation
-// (no key sends them yet), export (T-32b) and path-less `JobInput::Memory`
-// inputs are still built only by tests.
-// TODO(T-32b): remove this allow once they are wired.
+// The loop (T-23a) drives the runner, the drop gate (T-23b) and kitty drops
+// (T-31, `JobInput::Dropped`) submit jobs and the file menu asks for exports
+// (T-32b), but replies and cancellation (no key sends them yet) and path-less
+// `JobInput::Memory` inputs are still built only by tests.
+// TODO(T-24): remove this allow once the font pick sends replies.
 #![allow(dead_code)]
 
 use std::cell::RefCell;
@@ -21,7 +21,7 @@ use std::num::NonZeroUsize;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender, SyncSender};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -33,9 +33,11 @@ use sha2::{Digest, Sha256};
 use crate::engine::{
     AnalysisResult, AnalysisStateUse, AnalyzeOptions, Cancelled, CorruptionClass, Engine, FileMeta,
     Finding, FontDb, FontSlot, Interact, InteractionReply, InteractionRequest, LogLevel,
-    OutcomeStatus, Progress, RepairOptions, RepairReport, StateHandle,
+    OutcomeStatus, Progress, RepairOptions, RepairOutcome, RepairReport, StateHandle,
 };
 use crate::panic_guard;
+#[cfg(feature = "export")]
+use crate::pdf::export::{self, markdown};
 use crate::place::{self, BatchInputs, READ_ONLY_DESTINATION, TempFile};
 
 /// A job's id, unique for the life of the runner.
@@ -429,10 +431,19 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// re-read, largest first. An evicted job re-runs on reply with every earlier
 /// reply replayed.
 ///
-/// One [`JobId`] covers a file's whole pipeline, re-runs included.
-/// `AnalyzeDone` and `Started { kind: Repair { state } }` carry the analysis
-/// state's handle: a UI that keeps those events keeps the state alive after
-/// the runner evicts it, so copy what the row needs and drop them.
+/// One [`JobId`] covers a file's whole pipeline, re-runs and exports
+/// included. `AnalyzeDone` and `Started { kind: Repair { state } }` carry the
+/// analysis state's handle: a UI that keeps those events keeps the state
+/// alive after the runner evicts it, so copy what the row needs and drop
+/// them.
+///
+/// Markdown export runs only on request ([`JobRunner::export`], D-048). Asked
+/// before a file's repair has finished, it is the "repair → export" one-shot:
+/// the same worker exports the repair it just made. Asked later, the file
+/// goes through the queue again as an export-only job, which re-analyses and
+/// re-repairs in memory with the user's earlier replies replayed (the `.md`
+/// then depends only on the input, the engine and the settings, D-073) and
+/// writes only the `.md` and its images directory.
 pub struct JobRunner<E: Engine> {
     engine: Arc<E>,
     emit: Emit,
@@ -447,7 +458,27 @@ pub struct JobRunner<E: Engine> {
     next_id: u64,
     /// The parked count last sent as `WaitingForYou`.
     waiting_reported: usize,
+    /// Every job that has ended, for a later export of its file.
+    finished: BTreeMap<JobId, Finished>,
 }
+
+/// What an ended job leaves for a later export: enough to read its input
+/// again and replay its answers. Its bytes are not kept.
+struct Finished {
+    name: String,
+    path: Option<PathBuf>,
+    pinned: bool,
+    input_sha256: Option<[u8; 32]>,
+    replies: Vec<InteractionReply>,
+}
+
+/// [`Job::export`]'s bits. The runner sets [`EXPORT_REQUESTED`] (only while
+/// [`EXPORT_DECIDED`] is clear); the worker sets [`EXPORT_DECIDED`] once its
+/// repair is placed, and exports iff the request came first. So a request
+/// either reaches the worker or is seen by the runner as too late, never
+/// lost.
+const EXPORT_REQUESTED: u8 = 1;
+const EXPORT_DECIDED: u8 = 2;
 
 struct Job {
     name: String,
@@ -467,6 +498,12 @@ struct Job {
     /// The live worker; `None` before it starts and after eviction.
     run: Option<Run>,
     stage: Stage,
+    /// Shared with the worker: see [`EXPORT_REQUESTED`].
+    export: Arc<AtomicU8>,
+    /// Asked for after the worker decided: export again once this job ends.
+    export_later: bool,
+    /// Re-analyse and re-repair in memory, then write only the export.
+    export_only: bool,
 }
 
 enum Stage {
@@ -525,6 +562,7 @@ impl<E: Engine + 'static> JobRunner<E> {
             retired: Vec::new(),
             next_id: 1,
             waiting_reported: 0,
+            finished: BTreeMap::new(),
         }
     }
 
@@ -564,11 +602,64 @@ impl<E: Engine + 'static> JobRunner<E> {
                 rebuilt: false,
                 run: None,
                 stage: Stage::Pending,
+                export: Arc::new(AtomicU8::new(0)),
+                export_later: false,
+                export_only: false,
             },
         );
         self.pending.push_back(id);
         self.start_next();
         id
+    }
+
+    /// Asks for the Markdown export of job `id`'s file (D-048: only ever on
+    /// request). A job still queued, working or parked exports right after
+    /// its repair, in the same worker (the one-shot flow); a job that has
+    /// ended goes through the queue again as an export-only job under the
+    /// same id. False when the runner never had the job, or it was cancelled
+    /// before it started.
+    pub fn export(&mut self, id: JobId) -> bool {
+        if let Some(job) = self.jobs.get_mut(&id) {
+            let asked = job.export.compare_exchange(
+                0,
+                EXPORT_REQUESTED,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+            match asked {
+                Ok(_) | Err(EXPORT_REQUESTED) => {}
+                // The worker has decided already (or is an export-only job):
+                // one more export once this one ends.
+                Err(_) => job.export_later = true,
+            }
+            return true;
+        }
+        let Some(done) = self.finished.get(&id) else {
+            return false;
+        };
+        let job = Job {
+            name: done.name.clone(),
+            path: done.path.clone(),
+            pinned: done.pinned,
+            input: Arc::new(Mutex::new(None)),
+            input_sha256: done.input_sha256,
+            state: StateHandle::default(),
+            salvage_work_total: 0,
+            replies: done.replies.clone(),
+            rebuilt: false,
+            run: None,
+            stage: Stage::Pending,
+            export: Arc::new(AtomicU8::new(EXPORT_REQUESTED | EXPORT_DECIDED)),
+            export_later: false,
+            export_only: true,
+        };
+        if let Some(path) = &job.path {
+            lock(&self.inputs).insert(path);
+        }
+        self.jobs.insert(id, job);
+        self.pending.push_back(id);
+        self.start_next();
+        true
     }
 
     /// Cancels a job: a queued one leaves the queue at once; a running or
@@ -635,10 +726,12 @@ impl<E: Engine + 'static> JobRunner<E> {
             JobEvent::NeedsInteraction { request, reply } => {
                 self.park(id, request.clone(), reply.clone());
             }
-            JobEvent::RepairDone(_)
-            | JobEvent::ExportDone { .. }
-            | JobEvent::Failed { .. }
-            | JobEvent::Cancelled => self.finish(id),
+            // A worker that took an export request carries on to it.
+            JobEvent::RepairDone(_) if self.exporting(id) => {}
+            JobEvent::RepairDone(_) | JobEvent::ExportDone { .. } | JobEvent::Failed { .. } => {
+                self.finish(id, true);
+            }
+            JobEvent::Cancelled => self.finish(id, false),
             JobEvent::Started { .. }
             | JobEvent::Phase { .. }
             | JobEvent::Progress { .. }
@@ -705,6 +798,13 @@ impl<E: Engine + 'static> JobRunner<E> {
         (self.emit)(id, event);
     }
 
+    /// Whether job `id`'s worker took an export request after its repair.
+    fn exporting(&self, id: JobId) -> bool {
+        self.jobs.get(&id).is_some_and(|job| {
+            job.export.load(Ordering::Acquire) == EXPORT_REQUESTED | EXPORT_DECIDED
+        })
+    }
+
     /// Waits for every retired worker (cancelled or finished) to end, so a
     /// test sees the files an evicted worker removes on its way out.
     #[cfg(test)]
@@ -748,6 +848,8 @@ impl<E: Engine + 'static> JobRunner<E> {
             rebuilt: job.rebuilt,
             cancel: cancel.clone(),
             quiet: Arc::clone(&quiet),
+            export: Arc::clone(&job.export),
+            export_only: job.export_only,
         };
         job.stage = Stage::Running;
         match thread::Builder::new()
@@ -796,11 +898,26 @@ impl<E: Engine + 'static> JobRunner<E> {
         self.start_next();
     }
 
-    fn finish(&mut self, id: JobId) {
-        if let Some(job) = self.jobs.remove(&id)
-            && let Some(run) = job.run
-        {
-            self.retired.push(run.thread);
+    /// Job `id` has ended. Unless it was cancelled, an export asked for too
+    /// late for its worker queues it again as an export-only job.
+    fn finish(&mut self, id: JobId, ran: bool) {
+        if let Some(job) = self.jobs.remove(&id) {
+            if let Some(run) = job.run {
+                self.retired.push(run.thread);
+            }
+            self.finished.insert(
+                id,
+                Finished {
+                    name: job.name,
+                    path: job.path,
+                    pinned: job.pinned,
+                    input_sha256: job.input_sha256,
+                    replies: job.replies,
+                },
+            );
+            if ran && job.export_later {
+                self.export(id);
+            }
         }
         if self.active == Some(id) {
             self.active = None;
@@ -914,6 +1031,10 @@ struct Worker<E> {
     rebuilt: bool,
     cancel: CancelToken,
     quiet: Arc<AtomicBool>,
+    /// The job's export request: see [`EXPORT_REQUESTED`].
+    export: Arc<AtomicU8>,
+    /// Re-analyse and re-repair in memory, then write only the export.
+    export_only: bool,
 }
 
 impl<E: Engine> Worker<E> {
@@ -953,9 +1074,16 @@ impl<E: Engine> Worker<E> {
         (self.emit)(self.id, event);
     }
 
+    /// Analyze then Repair, then the export when one was asked for in time.
+    /// An export-only job reports itself as `ExportMarkdown` from the start,
+    /// places no repaired file and sends no `RepairDone`.
     fn pipeline(&self) -> Result<(), Stop> {
         self.send(JobEvent::Started {
-            kind: JobKind::Analyze,
+            kind: if self.export_only {
+                JobKind::ExportMarkdown
+            } else {
+                JobKind::Analyze
+            },
             name: self.name.clone(),
             file: self.path.clone(),
         });
@@ -982,28 +1110,21 @@ impl<E: Engine> Worker<E> {
 
         // Repair receives the Analyze stage's state, so the engine never
         // re-salvages on the normal path (eng-r2-q2).
-        self.send(JobEvent::Started {
-            kind: JobKind::Repair {
-                passes: self.opts.repair.passes.clone(),
-                state: analysis.state.clone(),
-            },
-            name: self.name.clone(),
-            file: self.path.clone(),
-        });
+        if !self.export_only {
+            self.send(JobEvent::Started {
+                kind: JobKind::Repair {
+                    passes: self.opts.repair.passes.clone(),
+                    state: analysis.state.clone(),
+                },
+                name: self.name.clone(),
+                file: self.path.clone(),
+            });
+        }
         // The only write probe, before any engine work; the input is never
-        // touched (D-061).
-        let unwritable = |e: std::io::Error| {
-            Stop::Failed(match &self.opts.output_dir {
-                // The fixed message points at output_dir, so it only fits
-                // when the examiner has not set one.
-                None if place::is_unwritable(&e) => READ_ONLY_DESTINATION.to_owned(),
-                None => format!("can't write to the destination: {e}"),
-                Some(dir) => format!("can't write to the output_dir ({}): {e}", dir.display()),
-            })
-        };
+        // touched (D-061). An export-only job's temp file is its `.md`'s.
         let dest = place::destination_for(self.beside(), self.opts.output_dir.as_deref())
-            .map_err(unwritable)?;
-        let temp = TempFile::create(&dest).map_err(unwritable)?;
+            .map_err(|e| self.unwritable(e))?;
+        let temp = TempFile::create(&dest).map_err(|e| self.unwritable(e))?;
 
         let plan = self.engine.plan(&analysis, &self.opts.repair);
         let mut ask = JobInteract {
@@ -1021,7 +1142,17 @@ impl<E: Engine> Worker<E> {
             &mut ask,
             &mut progress,
         )?;
-        let (output_path, placed) = match &outcome.output {
+        let RepairOutcome {
+            output,
+            report,
+            status,
+            images,
+            analysis_state,
+        } = outcome;
+        if self.export_only {
+            return self.export(&dest, temp, &bytes, output.as_deref(), &analysis, &images);
+        }
+        let (output_path, placed) = match &output {
             Some(output) => {
                 let stem = format!("{}.repaired", file_stem(&self.name));
                 let inputs = lock(&self.inputs).clone();
@@ -1038,16 +1169,119 @@ impl<E: Engine> Worker<E> {
                 reason: EVICTED_WHILE_PARKED.to_owned(),
             }
         } else {
-            outcome.analysis_state
+            analysis_state
         };
+        // Decided before RepairDone goes out, so the runner, which reads the
+        // flag when RepairDone arrives, knows whether this job goes on.
+        let exporting =
+            self.export.fetch_or(EXPORT_DECIDED, Ordering::AcqRel) & EXPORT_REQUESTED != 0;
         self.send(JobEvent::RepairDone(Box::new(RepairRun {
-            report: outcome.report,
-            status: outcome.status,
+            report,
+            status,
             output_path,
             placed,
             analysis_state,
         })));
+        if !exporting {
+            return Ok(());
+        }
+        // The one-shot flow: the same entry, straight on to its export.
+        self.send(JobEvent::Started {
+            kind: JobKind::ExportMarkdown,
+            name: self.name.clone(),
+            file: self.path.clone(),
+        });
+        let temp = TempFile::create(&dest).map_err(|e| self.unwritable(e))?;
+        self.export(&dest, temp, &bytes, output.as_deref(), &analysis, &images)
+    }
+
+    /// Why a destination cannot be written, as the job's failure (D-061).
+    fn unwritable(&self, e: std::io::Error) -> Stop {
+        Stop::Failed(match &self.opts.output_dir {
+            // The fixed message points at output_dir, so it only fits when
+            // the examiner has not set one.
+            None if place::is_unwritable(&e) => READ_ONLY_DESTINATION.to_owned(),
+            None => format!("can't write to the destination: {e}"),
+            Some(dir) => format!("can't write to the output_dir ({}): {e}", dir.display()),
+        })
+    }
+
+    /// Writes the Markdown export of a repair into `dest` (D-044, D-060):
+    /// the images first, into `<stem>.<hash8>.images` (reused when it already
+    /// holds exactly these files), then `<stem>.md` through `temp`, never
+    /// replacing anything. It reads the repaired file when the repair made
+    /// one, else the input as it is, and the analysis's findings for the
+    /// pages' notes. The `.md`'s bytes depend on nothing on disk, except in
+    /// the one case D-060 allows: a different directory already holds the
+    /// images directory's name, the images go to `(N)`, the links follow,
+    /// and a warning says so.
+    #[cfg(feature = "export")]
+    fn export(
+        &self,
+        dest: &Path,
+        temp: TempFile,
+        input: &[u8],
+        output: Option<&[u8]>,
+        analysis: &AnalysisResult,
+        images: &[(String, Vec<u8>)],
+    ) -> Result<(), Stop> {
+        self.cancel.check()?;
+        let pdf = output.unwrap_or(input);
+        let pages = export::layouts(pdf, &analysis.findings, images)
+            .map_err(|e| Stop::Failed(format!("can't read the pages to export: {e}")))?;
+        self.cancel.check()?;
+        let stem = file_stem(&self.name);
+        let sha256: [u8; 32] = Sha256::digest(input).into();
+        let image_dir_name = if images.is_empty() {
+            None
+        } else {
+            let dir = place::write_images(dest, &stem, &sha256, images)
+                .map_err(|e| Stop::Failed(format!("can't write the exported images: {e}")))?;
+            let name = dir
+                .path
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+            let wanted = place::images_dir_name(&stem, &sha256);
+            if name != wanted {
+                self.send(JobEvent::Log(
+                    LogLevel::Warn,
+                    format!(
+                        "{wanted} already holds other files, so the images went to {name} \
+                         and the Markdown links there"
+                    ),
+                ));
+            }
+            Some(name)
+        };
+        let md = markdown::to_markdown(
+            &pages,
+            &markdown::MarkdownOptions {
+                page_separators: true,
+                image_dir_name,
+            },
+        );
+        let inputs = lock(&self.inputs).clone();
+        let (path, _placed) = temp
+            .place(&stem, "md", md.as_bytes(), &inputs)
+            .map_err(|e| Stop::Failed(format!("can't write the Markdown: {e}")))?;
+        self.send(JobEvent::ExportDone { path });
         Ok(())
+    }
+
+    /// Without the `export` feature there is no Markdown to write.
+    #[cfg(not(feature = "export"))]
+    fn export(
+        &self,
+        _dest: &Path,
+        _temp: TempFile,
+        _input: &[u8],
+        _output: Option<&[u8]>,
+        _analysis: &AnalysisResult,
+        _images: &[(String, Vec<u8>)],
+    ) -> Result<(), Stop> {
+        Err(Stop::Failed(
+            "this build has no Markdown export (feature `export`)".to_owned(),
+        ))
     }
 
     /// The path the output may go beside (D-061). A pinned input's path is a
@@ -1193,6 +1427,7 @@ mod fake {
         panics_when: Arc<PanicFn>,
         replies: Mutex<Vec<InteractionReply>>,
         repaired_states: Mutex<Vec<StateHandle>>,
+        images: Vec<(String, Vec<u8>)>,
     }
 
     impl Default for FakeEngine {
@@ -1205,6 +1440,7 @@ mod fake {
                 panics_when: Arc::new(|_| false),
                 replies: Mutex::new(Vec::new()),
                 repaired_states: Mutex::new(Vec::new()),
+                images: Vec::new(),
             }
         }
     }
@@ -1221,6 +1457,12 @@ mod fake {
 
         pub(crate) fn on_repair(mut self, steps: Vec<FakeStep>) -> Self {
             self.repair_steps = steps;
+            self
+        }
+
+        /// Every repair extracts these images (`RepairOutcome.images`).
+        pub(crate) fn with_images(mut self, images: Vec<(String, Vec<u8>)>) -> Self {
+            self.images = images;
             self
         }
 
@@ -1391,7 +1633,7 @@ mod fake {
                 output: Some(bytes.to_vec()),
                 report: RepairReport::default_for(analysis, opts, fonts),
                 status: OutcomeStatus::Ok,
-                images: Vec::new(),
+                images: self.images.clone(),
                 analysis_state,
             })
         }
