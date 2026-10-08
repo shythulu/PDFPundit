@@ -204,6 +204,40 @@ pub(crate) mod fixtures {
             }
         }
 
+        /// The widget's working state (frame 07): frame 03's batch with
+        /// `thesis_ar.pdf` back in the queue and `invoice_scan.pdf` 30%
+        /// through its salvage, so three of seven files are done and the
+        /// byte-weighted progress (1837/4400) fills ten of the bar's 24 cells,
+        /// as the mockup's 43% does.
+        pub(crate) fn mockup_widget_working() -> AppState {
+            let mut app = AppState::mockup_batch();
+            app.batch.entries[2].state = EntryState::Queued;
+            app.batch.entries[4].state = EntryState::Repairing {
+                phase: Some("C9 salvage"),
+                done: 30,
+                total: Some(100),
+            };
+            app.term_size = (32, 16);
+            app
+        }
+
+        /// The widget's needs-you state (frame 07): frame 03's batch with
+        /// `invoice_scan.pdf` repaired, so four of seven are done and
+        /// `thesis_ar.pdf` waits on its font question.
+        pub(crate) fn mockup_widget_needs() -> AppState {
+            let mut app = AppState::mockup_batch();
+            let invoice = &mut app.batch.entries[4];
+            invoice.state = EntryState::Done;
+            invoice.run = Some(run(
+                invoice,
+                fixed(&[CorruptionClass::C9ZlibTampered]),
+                OutcomeStatus::Ok,
+            ));
+            app.batch.current = None;
+            app.term_size = (32, 16);
+            app
+        }
+
         /// The finished batch the widget's done state shows: six repaired,
         /// one partial, one failed ("6√ 1~ 1×", "7 done").
         pub(crate) fn mockup_done() -> AppState {

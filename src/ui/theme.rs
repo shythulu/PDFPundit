@@ -612,7 +612,11 @@ mod tests {
             let v = |names: &[&str]| names.iter().map(|&n| c(n)).collect::<Vec<_>>();
             let g = &t.gradients;
             assert_eq!(g.modal, v(&["text", "berry", "jam", "surface2"]), "{key}");
-            assert_eq!(g.menu, v(&["text", "honey", "apricot", "overlay0"]), "{key}");
+            assert_eq!(
+                g.menu,
+                v(&["text", "honey", "apricot", "overlay0"]),
+                "{key}"
+            );
             assert_eq!(
                 g.bar,
                 v(&["surface2", "bilberry", "blueberry", "plum"]),
@@ -934,7 +938,9 @@ mod tests {
             assert_eq!(d, t.downgrade(ColorCaps::Ansi256), "{}: same twice", t.name);
             assert_eq!(d.ansi, t.ansi);
             let g = &d.gradients;
-            let stops = [&g.modal, &g.menu, &g.bar, &g.bar2, &g.ok, &g.vu, &g.sep, &g.tag];
+            let stops = [
+                &g.modal, &g.menu, &g.bar, &g.bar2, &g.ok, &g.vu, &g.sep, &g.tag,
+            ];
             let all = colours(&d)
                 .into_iter()
                 .chain(d.slots)
