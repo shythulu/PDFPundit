@@ -277,7 +277,10 @@ pub fn view(app: &AppState) -> ViewModel {
         .zip(&classes)
         .find(|(_, c)| **c == Class::NeedsInput)
         .map(|(e, _)| (counts.needs_input, e.name.clone()));
-    let all_finished = !entries.is_empty() && counts.working + counts.queued == 0;
+    // A parked file is not finished (`EntryState::is_finished`), so the
+    // batch is done only once nothing is working, queued or parked.
+    let all_finished =
+        !entries.is_empty() && counts.working + counts.queued + counts.needs_input == 0;
     let tally = Tally {
         ok: to_u32(counts.ok),
         partial: to_u32(counts.partial),
@@ -543,12 +546,12 @@ fn current(app: &AppState) -> Option<Current> {
 }
 
 fn queue_row(e: &QueueEntry, selected: bool) -> QueueRow {
-    let (kind, label, detail) = row_status(e);
-    let short_detail = if label == "clean" {
-        None
-    } else {
-        detail.clone()
-    };
+    let RowStatus {
+        kind,
+        label,
+        detail,
+        short_detail,
+    } = row_status(e);
     QueueRow {
         name: e.name.clone(),
         kind,
@@ -559,30 +562,63 @@ fn queue_row(e: &QueueEntry, selected: bool) -> QueueRow {
     }
 }
 
+/// A queue row's status: the long form (FiLE QUEUE) and the short form (the
+/// result view's rows), which drops a detail that says nothing.
+struct RowStatus {
+    kind: RowKind,
+    label: &'static str,
+    detail: Option<String>,
+    short_detail: Option<String>,
+}
+
+impl RowStatus {
+    /// A status whose detail reads the same in both forms.
+    fn new(kind: RowKind, label: &'static str, detail: Option<String>) -> Self {
+        RowStatus {
+            kind,
+            label,
+            short_detail: detail.clone(),
+            detail,
+        }
+    }
+
+    /// A clean file: "nothing to fix" in the queue, no detail in the short form.
+    fn clean() -> Self {
+        RowStatus {
+            kind: RowKind::Ok,
+            label: "clean",
+            detail: Some("nothing to fix".into()),
+            short_detail: None,
+        }
+    }
+}
+
 /// `n font` or `n fonts`.
 fn fonts(n: usize) -> String {
     let unit = if n == 1 { "font" } else { "fonts" };
     format!("{n} {unit}")
 }
 
-fn row_status(e: &QueueEntry) -> (RowKind, &'static str, Option<String>) {
+fn row_status(e: &QueueEntry) -> RowStatus {
     let finished = e.state.is_finished();
     if finished && encrypted(e) {
-        return (RowKind::Failed, "encrypted", Some("decrypt first".into()));
+        return encrypted_row();
     }
     match &e.state {
-        EntryState::Queued => (RowKind::Queued, "queued", None),
-        EntryState::Analyzing { phase, .. } => (
+        EntryState::Queued => RowStatus::new(RowKind::Queued, "queued", None),
+        EntryState::Analyzing { phase, .. } => RowStatus::new(
             RowKind::Working,
             Activity::Analysing.label(),
             phase.map(Into::into),
         ),
-        EntryState::Repairing { phase, .. } => (
+        EntryState::Repairing { phase, .. } => RowStatus::new(
             RowKind::Working,
             Activity::Repairing.label(),
             phase.map(Into::into),
         ),
-        EntryState::Exporting { .. } => (RowKind::Working, Activity::Exporting.label(), None),
+        EntryState::Exporting { .. } => {
+            RowStatus::new(RowKind::Working, Activity::Exporting.label(), None)
+        }
         EntryState::WaitingOnUser(req) => {
             let n = match req {
                 InteractionRequest::FontUnreproducible(r) => r.slots.len(),
@@ -593,14 +629,18 @@ fn row_status(e: &QueueEntry) -> (RowKind, &'static str, Option<String>) {
                     .count(),
             }
             .max(1);
-            (RowKind::NeedsInput, "needs input", Some(fonts(n)))
+            RowStatus::new(RowKind::NeedsInput, "needs input", Some(fonts(n)))
         }
-        EntryState::Failed { error, .. } => (RowKind::Failed, "failed", Some(error.clone())),
-        EntryState::Cancelled => (RowKind::Failed, "cancelled", None),
+        EntryState::Failed { error, .. } => {
+            RowStatus::new(RowKind::Failed, "failed", Some(error.clone()))
+        }
+        EntryState::Cancelled => RowStatus::new(RowKind::Failed, "cancelled", None),
         EntryState::Done => match &e.run {
-            None => (RowKind::Queued, "analysed", None),
+            None => RowStatus::new(RowKind::Queued, "analysed", None),
             Some(run) => match &run.status {
-                OutcomeStatus::Failed(why) => (RowKind::Failed, "failed", Some(why.clone())),
+                OutcomeStatus::Failed(why) => {
+                    RowStatus::new(RowKind::Failed, "failed", Some(why.clone()))
+                }
                 status => {
                     let fixed = run
                         .report
@@ -616,21 +656,30 @@ fn row_status(e: &QueueEntry) -> (RowKind, &'static str, Option<String>) {
                         .filter(|s| s.resolution.is_some())
                         .count();
                     match recent_status(&run.report, status) {
-                        RecentStatus::Repaired if fixed == 0 => {
-                            (RowKind::Ok, "clean", Some("nothing to fix".into()))
-                        }
+                        RecentStatus::Repaired if fixed == 0 => RowStatus::clean(),
                         RecentStatus::Repaired if resolved > 0 => {
-                            (RowKind::Ok, "repaired", Some(fonts(resolved)))
+                            RowStatus::new(RowKind::Ok, "repaired", Some(fonts(resolved)))
                         }
                         RecentStatus::Repaired => {
-                            (RowKind::Ok, "repaired", Some(format!("{fixed} fixed")))
+                            RowStatus::new(RowKind::Ok, "repaired", Some(format!("{fixed} fixed")))
                         }
-                        _ => (RowKind::Partial, "partial", partial_reason(run)),
+                        RecentStatus::Partial => {
+                            RowStatus::new(RowKind::Partial, "partial", partial_reason(run))
+                        }
+                        // With a run that did not fail, `recent_status` says
+                        // `Failed` only for a report that found encryption,
+                        // and never says `Pending`; both get the failed row so
+                        // the row and `class_of`'s count cannot disagree.
+                        RecentStatus::Failed | RecentStatus::Pending => encrypted_row(),
                     }
                 }
             },
         },
     }
+}
+
+fn encrypted_row() -> RowStatus {
+    RowStatus::new(RowKind::Failed, "encrypted", Some("decrypt first".into()))
 }
 
 /// The first reason the repair gives for being partial.
@@ -1185,6 +1234,54 @@ mod tests {
             let bar = view(&state_of(entries)).status_bar;
             assert_eq!((bar.state, bar.queued, bar.offline), (state, queued, true));
         }
+    }
+
+    #[test]
+    fn a_parked_file_keeps_the_batch_from_being_done() {
+        let vm = view(&state_of(vec![finished(1, OutcomeStatus::Ok), parked(2)]));
+        assert_eq!(vm.done_summary, None);
+        assert_eq!(vm.mood, Mood::NeedsYou);
+    }
+
+    #[test]
+    fn the_done_tally_covers_every_file() {
+        let vm = view(&state_of(vec![
+            finished(1, OutcomeStatus::Ok),
+            finished(2, OutcomeStatus::Partial(vec!["half".into()])),
+            finished(3, OutcomeStatus::Failed("no".into())),
+            with_state(4, EntryState::Cancelled),
+        ]));
+        let tally = vm.done_summary.expect("a finished batch has a tally");
+        let sum = tally.ok + tally.partial + tally.failed;
+        assert_eq!(usize::try_from(sum).ok(), Some(vm.counts.total));
+    }
+
+    #[test]
+    fn an_encrypted_report_gives_the_failed_row_and_count() {
+        // The report found encryption the entry's own findings miss: the row
+        // and the count must still agree.
+        let mut e = finished(1, OutcomeStatus::Ok);
+        e.findings.retain(|f| f.class != FindingKind::Encrypted);
+        if let Some(run) = &mut e.run {
+            run.report = report_with(&[PassOutcome::Fixed], true);
+        }
+        let vm = view(&state_of(vec![e]));
+        assert_eq!(vm.queue_rows[0].kind, RowKind::Failed);
+        assert_eq!(vm.queue_rows[0].label, "encrypted");
+        assert_eq!(vm.counts.failed, 1);
+    }
+
+    #[test]
+    fn a_clean_row_drops_its_detail_only_in_the_short_form() {
+        let mut e = finished(1, OutcomeStatus::Ok);
+        if let Some(run) = &mut e.run {
+            run.report = report_with(&[], false);
+        }
+        let vm = view(&state_of(vec![e]));
+        let row = &vm.queue_rows[0];
+        assert_eq!(row.label, "clean");
+        assert_eq!(row.detail.as_deref(), Some("nothing to fix"));
+        assert_eq!(row.short_detail, None);
     }
 
     // ── RecentStatus ─────────────────────────────────────────────────────
