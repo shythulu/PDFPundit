@@ -6,6 +6,10 @@ resolver = "3"
 # Never published (D-047): a crates.io release would be a cat-free way in.
 publish = false
 
+# tools/build-templates writes the committed font assets (T-29, D-021).
+[workspace]
+members = [".", "tools/build-templates"]
+
 [features]
 default = ["export"]
 # Markdown export (M8), on by default.

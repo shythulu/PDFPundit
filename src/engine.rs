@@ -651,9 +651,9 @@ pub struct SubstituteChoice {
 
 // ── fonts ────────────────────────────────────────────────────────────────
 
-/// The font database repair draws replacement fonts from. Stub until the font
-/// track (T-27…T-30) gives it an index and glyph maps: it holds only the hash
-/// that the report records.
+/// The font database repair draws replacement fonts from. It holds only the
+/// hash that the report records until T-28 gives it the index and glyph maps;
+/// the bundled one's hash is already the hash of the bundled assets (T-29).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FontDb {
     sha256: [u8; 32],
@@ -679,9 +679,13 @@ impl FontDb {
         Err(FontDbError::BadIndex("no font index format yet".into()))
     }
 
-    /// The bundled database (empty until the bundled assets exist).
+    /// The bundled database: its hash covers `assets/fontindex.json` and
+    /// every `.gmap` in index order (T-29); its templates are built on first
+    /// use by `pdf::fontdb::template::bundled`.
     pub fn bundled() -> Arc<FontDb> {
-        Arc::new(FontDb::empty())
+        Arc::new(FontDb {
+            sha256: crate::pdf::fontdb::template::bundled_sha256(),
+        })
     }
 
     /// No fonts; its hash is the SHA-256 of no bytes.
