@@ -1,24 +1,39 @@
 //! Job runner over the `Engine` trait (T-02b types, T-15 runner). Wall-clock
 //! drives progress display and cancellation here only, never an artefact.
 //!
-//! The UI thread owns the app state and the single `Receiver<AppEvent>`; job
-//! threads return data only by sending `AppEvent::Job(id, event)` (TD §3).
+//! The UI thread owns the app state, the single `Receiver<AppEvent>` and the
+//! [`JobRunner`]; job threads return data only by sending
+//! `AppEvent::Job(id, event)` (TD §3), and the UI hands every job event back to
+//! [`JobRunner::on_job_event`] so the runner can move jobs along.
 #![allow(clippy::disallowed_types)]
-// The runner (T-15) and the shell (T-23a) consume these types.
-// TODO(T-15): remove this allow once the runner uses them.
+// The shell (T-23a) is the runner's only caller, and it has not landed.
+// TODO(T-23a): remove this allow once the shell drives the runner.
 #![allow(dead_code)]
 
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::cell::RefCell;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, VecDeque};
+use std::fs;
+use std::num::NonZeroUsize;
+use std::panic::{self, AssertUnwindSafe};
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::{self, RecvTimeoutError, Sender, SyncSender};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::engine::{
-    AnalysisResult, AnalysisStateUse, Cancelled, CorruptionClass, FileMeta, Finding, FontSlot,
-    InteractionReply, InteractionRequest, LogLevel, OutcomeStatus, RepairReport, StateHandle,
+    AnalysisResult, AnalysisStateUse, AnalyzeOptions, Cancelled, CorruptionClass, Engine, FileMeta,
+    Finding, FontDb, FontSlot, Interact, InteractionReply, InteractionRequest, LogLevel,
+    OutcomeStatus, Progress, RepairOptions, RepairReport, StateHandle,
 };
+use crate::panic_guard;
+use crate::place::{self, BatchInputs, READ_ONLY_DESTINATION, TempFile};
 
 /// A job's id, unique for the life of the runner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -70,11 +85,19 @@ pub enum JobEvent {
     /// Streamed as discovered.
     Finding(Finding),
     Log(LogLevel, String),
-    /// The job is blocked until `reply` receives an answer. The job is
-    /// cancelled when every clone of `reply` is dropped without an answer
-    /// (TD:219-221), so never keep a clone of this event in UI state: a stored
-    /// clone keeps the sender alive and the job can then never be cancelled
-    /// that way. Move `reply` out, answer once, and drop it.
+    /// The job is blocked on a question. Answer it only through
+    /// [`JobRunner::reply`], never by sending on `reply` yourself: the runner
+    /// keeps its own clone of the sender, records each answer for replay after
+    /// an eviction, and counts the job as parked until `JobRunner::reply`
+    /// says otherwise. An answer sent straight on `reply` bypasses all of that.
+    /// The runner would still count the job in `WaitingForYou`, and it could
+    /// later evict a job that is really repairing; that worker would end
+    /// silently and leave its row on "Repairing".
+    ///
+    /// Pass the event to [`JobRunner::on_job_event`], copy the `request` into
+    /// the row, and drop the event. The job is cancelled when every clone of
+    /// `reply` is gone without an answer (TD:219-221), so a clone kept in UI
+    /// state stops the runner from ending the wait (on eviction or quit).
     NeedsInteraction {
         request: InteractionRequest,
         reply: SyncSender<InteractionReply>,
@@ -299,6 +322,793 @@ pub enum Placed {
     ClaimedThenRenamed,
 }
 
+// ── the runner (T-15) ────────────────────────────────────────────────────
+
+/// What a dropped file gives the runner: a path, or bytes with no durable path
+/// (a macOS file promise read into memory, D-039).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JobInput {
+    File(PathBuf),
+    Memory { name: String, bytes: Vec<u8> },
+}
+
+/// How the runner runs its jobs.
+#[derive(Debug, Clone)]
+pub struct RunnerOptions {
+    pub analyze: AnalyzeOptions,
+    pub repair: RepairOptions,
+    pub fonts: Arc<FontDb>,
+    /// `[general] output_dir`; `None` writes beside the input (D-061).
+    pub output_dir: Option<PathBuf>,
+    /// Bytes parked jobs may hold (their inputs plus their analysis states)
+    /// before the runner reclaims memory from them (D-005). Reaching it never
+    /// refuses or delays a job.
+    pub parked_cap: u64,
+}
+
+/// The default [`RunnerOptions::parked_cap`]: 1 GiB.
+pub const PARKED_CAP: u64 = 1 << 30;
+
+impl Default for RunnerOptions {
+    fn default() -> Self {
+        // `threads` and `scratch_cap` change wall-clock and peak memory only;
+        // they reach progress events, never an artefact (D-066, D-072).
+        let analyze = AnalyzeOptions {
+            threads: salvage_threads(),
+            scratch_cap: 1 << 30,
+            ..AnalyzeOptions::default()
+        };
+        RunnerOptions {
+            repair: RepairOptions {
+                analyze: analyze.clone(),
+                ..RepairOptions::default()
+            },
+            analyze,
+            fonts: FontDb::bundled(),
+            output_dir: None,
+            parked_cap: PARKED_CAP,
+        }
+    }
+}
+
+/// The thread count for `salvage_all`: `available_parallelism()` clamped to
+/// 1..=16 (D-066).
+pub fn salvage_threads() -> NonZeroUsize {
+    let n = thread::available_parallelism()
+        .map_or(1, NonZeroUsize::get)
+        .clamp(1, 16);
+    NonZeroUsize::new(n).unwrap_or(NonZeroUsize::MIN)
+}
+
+/// Why a parked job that was evicted re-analyses on reply; the run record
+/// carries it (D-073).
+pub const EVICTED_WHILE_PARKED: &str = "evicted while parked";
+/// How a parked job ends when its released input no longer hashes the same.
+pub const INPUT_CHANGED: &str = "input changed while waiting";
+
+type Emit = Arc<dyn Fn(JobId, JobEvent) + Send + Sync>;
+/// A job's input bytes, shared by the runner (which may release them, D-005)
+/// and the job's worker (which fills the slot once it has read the file).
+type InputSlot = Arc<Mutex<Option<Arc<Vec<u8>>>>>;
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Runs each dropped file through Analyze then Repair, one file at a time.
+///
+/// A job that asks a question parks: its worker thread stays blocked on the
+/// question and the next queued file starts at once, so questions never stop
+/// the batch (GG §1). Answer a question only with [`JobRunner::reply`], never
+/// on the [`JobEvent::NeedsInteraction`] event's own sender (see there).
+///
+/// A reply resumes the parked job immediately, beside the active one. Resumed
+/// jobs are not limited in number: each one starts when the user answers it,
+/// and the user answers one question at a time, so they overlap the active job
+/// only as fast as someone types. Queueing them instead would turn "a reply
+/// resumes immediately" into "a reply waits for an earlier reply's job". A
+/// resumed job counts against `parked_cap` again only if it parks again.
+///
+/// When parked jobs hold more than `parked_cap` bytes the runner
+/// reclaims memory, never refusing a job (D-005, the recommended default): it
+/// first evicts parked jobs' analysis states, cheapest to rebuild first
+/// (lowest `salvage_work_total`), cancelling their threads; then, if their
+/// inputs alone are still over the cap, it releases the bytes of inputs it can
+/// re-read, largest first. An evicted job re-runs on reply with every earlier
+/// reply replayed.
+///
+/// One [`JobId`] covers a file's whole pipeline, re-runs included.
+/// `AnalyzeDone` and `Started { kind: Repair { state } }` carry the analysis
+/// state's handle: a UI that keeps those events keeps the state alive after
+/// the runner evicts it, so copy what the row needs and drop them.
+pub struct JobRunner<E: Engine> {
+    engine: Arc<E>,
+    emit: Emit,
+    opts: Arc<RunnerOptions>,
+    inputs: Arc<Mutex<BatchInputs>>,
+    jobs: BTreeMap<JobId, Job>,
+    pending: VecDeque<JobId>,
+    /// The one job the sequential batch is running; resumed jobs run beside it.
+    active: Option<JobId>,
+    /// Threads that were cancelled or finished, kept for `shutdown` to join.
+    retired: Vec<JoinHandle<()>>,
+    next_id: u64,
+    /// The parked count last sent as `WaitingForYou`.
+    waiting_reported: usize,
+}
+
+struct Job {
+    name: String,
+    path: Option<PathBuf>,
+    input: InputSlot,
+    input_sha256: Option<[u8; 32]>,
+    /// The runner's own handle on the analysis state, dropped on eviction.
+    state: StateHandle,
+    salvage_work_total: u64,
+    /// Every reply the user gave this entry, in order (replayed on a re-run).
+    replies: Vec<InteractionReply>,
+    /// True once the state was evicted: the run record says so.
+    rebuilt: bool,
+    /// The live worker; `None` before it starts and after eviction.
+    run: Option<Run>,
+    stage: Stage,
+}
+
+enum Stage {
+    Pending,
+    Running,
+    Parked {
+        request: InteractionRequest,
+        reply: Option<SyncSender<InteractionReply>>,
+    },
+    /// Cancelled; waiting for the worker to report `Cancelled`.
+    Stopping,
+}
+
+struct Run {
+    cancel: CancelToken,
+    /// Set on eviction: the worker ends without a word, so the row keeps its
+    /// question.
+    quiet: Arc<AtomicBool>,
+    thread: JoinHandle<()>,
+}
+
+impl Job {
+    fn is_parked(&self) -> bool {
+        matches!(self.stage, Stage::Parked { .. })
+    }
+
+    fn held_input(&self) -> u64 {
+        lock(&self.input).as_ref().map_or(0, |b| b.len() as u64)
+    }
+
+    fn state_bytes(&self) -> u64 {
+        self.state.0.as_ref().map_or(0, |s| s.heap_bytes())
+    }
+}
+
+impl<E: Engine + 'static> JobRunner<E> {
+    /// A runner that reports on `tx`, the UI's merged channel.
+    pub fn new<I: Send + 'static>(
+        engine: Arc<E>,
+        tx: Sender<AppEvent<I>>,
+        opts: RunnerOptions,
+    ) -> Self {
+        let emit: Emit = Arc::new(move |id, event| {
+            // A closed channel means the UI has gone; the job's own
+            // cancellation (the reply channel, the token) ends it.
+            let _ = tx.send(AppEvent::Job(id, event));
+        });
+        JobRunner {
+            engine,
+            emit,
+            opts: Arc::new(opts),
+            inputs: Arc::new(Mutex::new(BatchInputs::new())),
+            jobs: BTreeMap::new(),
+            pending: VecDeque::new(),
+            active: None,
+            retired: Vec::new(),
+            next_id: 1,
+            waiting_reported: 0,
+        }
+    }
+
+    /// Queues a file for Analyze then Repair (the autonomous flow, GG §1) and
+    /// starts it when nothing else is running.
+    pub fn submit(&mut self, input: JobInput) -> JobId {
+        let id = JobId(self.next_id);
+        self.next_id += 1;
+        let (name, path, bytes) = match input {
+            JobInput::File(path) => {
+                let name = path.file_name().map_or_else(
+                    || path.display().to_string(),
+                    |n| n.to_string_lossy().into_owned(),
+                );
+                (name, Some(path), None)
+            }
+            JobInput::Memory { name, bytes } => (name, None, Some(Arc::new(bytes))),
+        };
+        if let Some(path) = &path {
+            lock(&self.inputs).insert(path);
+        }
+        self.jobs.insert(
+            id,
+            Job {
+                name,
+                path,
+                input: Arc::new(Mutex::new(bytes)),
+                input_sha256: None,
+                state: StateHandle::default(),
+                salvage_work_total: 0,
+                replies: Vec::new(),
+                rebuilt: false,
+                run: None,
+                stage: Stage::Pending,
+            },
+        );
+        self.pending.push_back(id);
+        self.start_next();
+        id
+    }
+
+    /// Cancels a job: a queued one leaves the queue at once; a running or
+    /// parked one stops at its next check and reports `Cancelled`.
+    pub fn cancel(&mut self, id: JobId) {
+        let Some(job) = self.jobs.get_mut(&id) else {
+            return;
+        };
+        match job.run.as_ref() {
+            Some(run) => {
+                run.cancel.cancel();
+                // Dropping a parked job's reply sender ends its wait now.
+                job.stage = Stage::Stopping;
+            }
+            None => {
+                self.jobs.remove(&id);
+                self.pending.retain(|p| *p != id);
+                self.send(id, JobEvent::Cancelled);
+            }
+        }
+        self.report_waiting(id);
+    }
+
+    /// Answers a parked job's question. A job whose thread is still waiting
+    /// gets the reply at once; an evicted one re-runs Analyze and Repair with
+    /// every reply so far replayed. False when the job is not parked.
+    pub fn reply(&mut self, id: JobId, reply: InteractionReply) -> bool {
+        let Some(job) = self.jobs.get_mut(&id) else {
+            return false;
+        };
+        let Stage::Parked { reply: sender, .. } = &mut job.stage else {
+            return false;
+        };
+        let sender = sender.take();
+        job.replies.push(reply.clone());
+        job.stage = Stage::Running;
+        let delivered = job.run.is_some() && sender.is_some_and(|tx| tx.try_send(reply).is_ok());
+        if !delivered {
+            if let Some(run) = job.run.take() {
+                run.quiet.store(true, Ordering::Release);
+                run.cancel.cancel();
+                self.retired.push(run.thread);
+            }
+            job.rebuilt = true;
+            job.state = StateHandle::default();
+            self.spawn(id);
+        }
+        self.send(id, JobEvent::Resumed);
+        self.report_waiting(id);
+        true
+    }
+
+    /// The runner's half of the event loop: the UI passes it every job event
+    /// it receives, in order.
+    pub fn on_job_event(&mut self, id: JobId, event: &JobEvent) {
+        match event {
+            JobEvent::AnalyzeDone(result) => {
+                if let Some(job) = self.jobs.get_mut(&id) {
+                    job.state = result.state.clone();
+                    job.salvage_work_total = result.stats.salvage_work_total;
+                    job.input_sha256 = Some(result.input_sha256);
+                }
+            }
+            JobEvent::NeedsInteraction { request, reply } => {
+                self.park(id, request.clone(), reply.clone());
+            }
+            JobEvent::RepairDone(_)
+            | JobEvent::ExportDone { .. }
+            | JobEvent::Failed { .. }
+            | JobEvent::Cancelled => self.finish(id),
+            JobEvent::Started { .. }
+            | JobEvent::Phase { .. }
+            | JobEvent::Progress { .. }
+            | JobEvent::Finding(_)
+            | JobEvent::Log(..)
+            | JobEvent::Parked
+            | JobEvent::Resumed
+            | JobEvent::Evicted { .. }
+            | JobEvent::WaitingForYou { .. } => {}
+        }
+    }
+
+    /// Parked jobs and their questions, in id order.
+    pub fn parked(&self) -> impl Iterator<Item = (JobId, &InteractionRequest)> {
+        self.jobs.iter().filter_map(|(id, job)| match &job.stage {
+            Stage::Parked { request, .. } => Some((*id, request)),
+            _ => None,
+        })
+    }
+
+    /// Bytes the parked jobs hold now, as the cap counts them: each one's
+    /// input, if held, plus its analysis state's heap while it has one.
+    pub fn retained_bytes(&self) -> u64 {
+        self.jobs
+            .values()
+            .filter(|job| job.is_parked())
+            .map(|job| {
+                let state = if job.run.is_some() {
+                    job.state_bytes()
+                } else {
+                    0
+                };
+                job.held_input() + state
+            })
+            .sum()
+    }
+
+    /// Cancels everything and waits up to `grace` for the workers to stop.
+    /// True when every worker stopped in time.
+    pub fn shutdown(mut self, grace: Duration) -> bool {
+        let deadline = Instant::now() + grace;
+        self.pending.clear();
+        let mut threads = std::mem::take(&mut self.retired);
+        for job in self.jobs.values_mut() {
+            if let Some(run) = job.run.take() {
+                run.cancel.cancel();
+                threads.push(run.thread);
+            }
+            job.stage = Stage::Stopping;
+        }
+        while threads.iter().any(|t| !t.is_finished()) {
+            if Instant::now() >= deadline {
+                return false;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        for t in threads {
+            let _ = t.join();
+        }
+        true
+    }
+
+    fn send(&self, id: JobId, event: JobEvent) {
+        (self.emit)(id, event);
+    }
+
+    /// Waits for every retired worker (cancelled or finished) to end, so a
+    /// test sees the files an evicted worker removes on its way out.
+    #[cfg(test)]
+    pub(crate) fn join_retired(&mut self) {
+        for t in self.retired.drain(..) {
+            let _ = t.join();
+        }
+    }
+
+    fn start_next(&mut self) {
+        if self.active.is_some() {
+            return;
+        }
+        while let Some(id) = self.pending.pop_front() {
+            if self.jobs.contains_key(&id) {
+                self.active = Some(id);
+                self.spawn(id);
+                return;
+            }
+        }
+    }
+
+    fn spawn(&mut self, id: JobId) {
+        let Some(job) = self.jobs.get_mut(&id) else {
+            return;
+        };
+        let cancel = CancelToken::new();
+        let quiet = Arc::new(AtomicBool::new(false));
+        let worker = Worker {
+            id,
+            engine: Arc::clone(&self.engine),
+            emit: Arc::clone(&self.emit),
+            opts: Arc::clone(&self.opts),
+            inputs: Arc::clone(&self.inputs),
+            name: job.name.clone(),
+            path: job.path.clone(),
+            input: Arc::clone(&job.input),
+            expect_sha256: job.input_sha256,
+            replay: job.replies.iter().cloned().collect(),
+            rebuilt: job.rebuilt,
+            cancel: cancel.clone(),
+            quiet: Arc::clone(&quiet),
+        };
+        job.stage = Stage::Running;
+        match thread::Builder::new()
+            .name(format!("job-{}", id.0))
+            .spawn(move || worker.run())
+        {
+            Ok(thread) => {
+                job.run = Some(Run {
+                    cancel,
+                    quiet,
+                    thread,
+                });
+            }
+            Err(e) => self.send(
+                id,
+                JobEvent::Failed {
+                    error: format!("can't start a worker thread: {e}"),
+                    panicked: false,
+                },
+            ),
+        }
+    }
+
+    fn park(
+        &mut self,
+        id: JobId,
+        request: InteractionRequest,
+        reply: SyncSender<InteractionReply>,
+    ) {
+        let Some(job) = self.jobs.get_mut(&id) else {
+            return;
+        };
+        if !matches!(job.stage, Stage::Running) {
+            return;
+        }
+        job.stage = Stage::Parked {
+            request,
+            reply: Some(reply),
+        };
+        if self.active == Some(id) {
+            self.active = None;
+        }
+        self.send(id, JobEvent::Parked);
+        self.report_waiting(id);
+        self.reclaim();
+        self.start_next();
+    }
+
+    fn finish(&mut self, id: JobId) {
+        if let Some(job) = self.jobs.remove(&id)
+            && let Some(run) = job.run
+        {
+            self.retired.push(run.thread);
+        }
+        if self.active == Some(id) {
+            self.active = None;
+        }
+        self.retired.retain(|t| !t.is_finished());
+        self.report_waiting(id);
+        self.start_next();
+    }
+
+    /// Brings the parked jobs back under `parked_cap` (D-005, lead-r4-fr1).
+    /// This is the one branch D-005 decides: the alternative is to stop
+    /// starting jobs here instead.
+    fn reclaim(&mut self) {
+        while self.retained_bytes() > self.opts.parked_cap {
+            // (1) Evict a state, cheapest to rebuild first. A pinned input's
+            // state goes too: it is the only reclaim such a job allows.
+            let cheapest = self
+                .jobs
+                .iter()
+                .filter(|(_, job)| job.is_parked() && job.run.is_some())
+                .min_by_key(|(id, job)| (job.salvage_work_total, **id))
+                .map(|(id, _)| *id);
+            if let Some(id) = cheapest {
+                self.evict(id);
+                continue;
+            }
+            // (2) Release a re-readable input, largest first. The thread that
+            // borrowed it was cancelled at step (1).
+            let largest = self
+                .jobs
+                .iter()
+                .filter(|(_, job)| job.is_parked() && job.path.is_some() && job.held_input() > 0)
+                .max_by_key(|(id, job)| (job.held_input(), Reverse(**id)))
+                .map(|(id, _)| *id);
+            match largest {
+                Some(id) => *lock(&self.jobs[&id].input) = None,
+                // Only pinned inputs are left: they stay, and the batch goes on.
+                None => return,
+            }
+        }
+    }
+
+    fn evict(&mut self, id: JobId) {
+        let Some(job) = self.jobs.get_mut(&id) else {
+            return;
+        };
+        if let Some(run) = job.run.take() {
+            run.quiet.store(true, Ordering::Release);
+            run.cancel.cancel();
+            self.retired.push(run.thread);
+        }
+        if let Stage::Parked { reply, .. } = &mut job.stage {
+            // The worker sees the channel close and ends at once.
+            *reply = None;
+        }
+        job.state = StateHandle::default();
+        self.send(id, JobEvent::Evicted { id });
+    }
+
+    fn report_waiting(&mut self, id: JobId) {
+        let parked = self.jobs.values().filter(|job| job.is_parked()).count();
+        if parked != self.waiting_reported {
+            self.waiting_reported = parked;
+            self.send(id, JobEvent::WaitingForYou { parked });
+        }
+    }
+}
+
+impl<E: Engine> Drop for JobRunner<E> {
+    /// The UI is going: every worker stops at its next check, and a parked one
+    /// at once, because its reply channel closes with the runner.
+    fn drop(&mut self) {
+        for job in self.jobs.values() {
+            if let Some(run) = &job.run {
+                run.cancel.cancel();
+            }
+        }
+    }
+}
+
+/// How a pipeline stopped short.
+enum Stop {
+    Cancelled,
+    Failed(String),
+}
+
+impl From<Cancelled> for Stop {
+    fn from(_: Cancelled) -> Self {
+        Stop::Cancelled
+    }
+}
+
+/// One run of one file's pipeline, on its own thread.
+struct Worker<E> {
+    id: JobId,
+    engine: Arc<E>,
+    emit: Emit,
+    opts: Arc<RunnerOptions>,
+    inputs: Arc<Mutex<BatchInputs>>,
+    name: String,
+    path: Option<PathBuf>,
+    input: InputSlot,
+    /// The hash a re-read input must still have.
+    expect_sha256: Option<[u8; 32]>,
+    /// Replies answered without asking again (a re-run after eviction).
+    replay: VecDeque<InteractionReply>,
+    rebuilt: bool,
+    cancel: CancelToken,
+    quiet: Arc<AtomicBool>,
+}
+
+impl<E: Engine> Worker<E> {
+    fn run(self) {
+        // The panic hook hands this thread's panic message here, with its
+        // location, and writes nothing to the terminal (D-051).
+        let message: Rc<RefCell<Option<String>>> = Rc::default();
+        let slot = Rc::clone(&message);
+        panic_guard::set_job_sink(Box::new(move |msg| *slot.borrow_mut() = Some(msg)));
+
+        let result = panic::catch_unwind(AssertUnwindSafe(|| self.pipeline()));
+        if self.quiet.load(Ordering::Acquire) {
+            return;
+        }
+        let end = match result {
+            Ok(Ok(())) => return,
+            Ok(Err(Stop::Cancelled)) => JobEvent::Cancelled,
+            Ok(Err(Stop::Failed(error))) => JobEvent::Failed {
+                error,
+                panicked: false,
+            },
+            Err(payload) => {
+                let error = message.borrow_mut().take().unwrap_or_else(|| {
+                    format!("panicked: {}", panic_guard::payload_text(&*payload))
+                });
+                self.send(JobEvent::Log(LogLevel::Error, error.clone()));
+                JobEvent::Failed {
+                    error,
+                    panicked: true,
+                }
+            }
+        };
+        self.send(end);
+    }
+
+    fn send(&self, event: JobEvent) {
+        (self.emit)(self.id, event);
+    }
+
+    fn pipeline(&self) -> Result<(), Stop> {
+        self.send(JobEvent::Started {
+            kind: JobKind::Analyze,
+            name: self.name.clone(),
+            file: self.path.clone(),
+        });
+        let bytes = self.load()?;
+        if bytes.len() as u64 > self.opts.analyze.max_file_bytes {
+            self.send(JobEvent::Log(
+                LogLevel::Warn,
+                format!(
+                    "{} is {} MiB and is held in memory while it is worked on",
+                    self.name,
+                    bytes.len() >> 20
+                ),
+            ));
+        }
+        let mut progress = JobProgress {
+            id: self.id,
+            emit: Arc::clone(&self.emit),
+            cancel: self.cancel.clone(),
+        };
+        let analysis = self
+            .engine
+            .analyze(&bytes, &self.opts.analyze, &mut progress)?;
+        self.send(JobEvent::AnalyzeDone(Box::new(analysis.clone())));
+
+        // Repair receives the Analyze stage's state, so the engine never
+        // re-salvages on the normal path (eng-r2-q2).
+        self.send(JobEvent::Started {
+            kind: JobKind::Repair {
+                passes: self.opts.repair.passes.clone(),
+                state: analysis.state.clone(),
+            },
+            name: self.name.clone(),
+            file: self.path.clone(),
+        });
+        // The only write probe, before any engine work; the input is never
+        // touched (D-061).
+        let unwritable = |e: std::io::Error| {
+            Stop::Failed(match &self.opts.output_dir {
+                // The fixed message points at output_dir, so it only fits
+                // when the examiner has not set one.
+                None if place::is_unwritable(&e) => READ_ONLY_DESTINATION.to_owned(),
+                None => format!("can't write to the destination: {e}"),
+                Some(dir) => format!("can't write to the output_dir ({}): {e}", dir.display()),
+            })
+        };
+        let dest = place::destination_for(self.path.as_deref(), self.opts.output_dir.as_deref())
+            .map_err(unwritable)?;
+        let temp = TempFile::create(&dest).map_err(unwritable)?;
+
+        let plan = self.engine.plan(&analysis, &self.opts.repair);
+        let mut ask = JobInteract {
+            id: self.id,
+            emit: Arc::clone(&self.emit),
+            cancel: self.cancel.clone(),
+            replay: self.replay.clone(),
+        };
+        let outcome = self.engine.repair(
+            &bytes,
+            &analysis,
+            &plan,
+            &self.opts.repair,
+            &self.opts.fonts,
+            &mut ask,
+            &mut progress,
+        )?;
+        let (output_path, placed) = match &outcome.output {
+            Some(output) => {
+                let stem = format!("{}.repaired", file_stem(&self.name));
+                let inputs = lock(&self.inputs).clone();
+                let (path, placed) = temp
+                    .place(&stem, "pdf", output, &inputs)
+                    .map_err(|e| Stop::Failed(format!("can't write the repaired file: {e}")))?;
+                (Some(path), Some(placed))
+            }
+            // Nothing to write: dropping the temp file removes it.
+            None => (None, None),
+        };
+        let analysis_state = if self.rebuilt {
+            AnalysisStateUse::Rebuilt {
+                reason: EVICTED_WHILE_PARKED.to_owned(),
+            }
+        } else {
+            outcome.analysis_state
+        };
+        self.send(JobEvent::RepairDone(Box::new(RepairRun {
+            report: outcome.report,
+            status: outcome.status,
+            output_path,
+            placed,
+            analysis_state,
+        })));
+        Ok(())
+    }
+
+    /// The input bytes: held ones, or read from the file. A re-read after the
+    /// runner released the bytes must hash as before (D-005 step 2).
+    fn load(&self) -> Result<Arc<Vec<u8>>, Stop> {
+        if let Some(bytes) = lock(&self.input).clone() {
+            return Ok(bytes);
+        }
+        let Some(path) = &self.path else {
+            return Err(Stop::Failed(format!(
+                "{} is no longer in memory",
+                self.name
+            )));
+        };
+        let bytes =
+            fs::read(path).map_err(|e| Stop::Failed(format!("can't read {}: {e}", self.name)))?;
+        if let Some(expected) = self.expect_sha256
+            && <[u8; 32]>::from(Sha256::digest(&bytes)) != expected
+        {
+            return Err(Stop::Failed(INPUT_CHANGED.to_owned()));
+        }
+        let bytes = Arc::new(bytes);
+        *lock(&self.input) = Some(Arc::clone(&bytes));
+        Ok(bytes)
+    }
+}
+
+/// `memo` for `memo.pdf`; the name itself when it has no stem.
+fn file_stem(name: &str) -> String {
+    Path::new(name)
+        .file_stem()
+        .map_or_else(|| name.to_owned(), |s| s.to_string_lossy().into_owned())
+}
+
+/// Streams engine progress to the UI and reports the job's cancellation.
+struct JobProgress {
+    id: JobId,
+    emit: Emit,
+    cancel: CancelToken,
+}
+
+impl Progress for JobProgress {
+    fn phase(&mut self, name: &'static str, index: u32, total: u32) {
+        (self.emit)(self.id, JobEvent::Phase { name, index, total });
+    }
+    fn progress(&mut self, done: u64, total: Option<u64>) {
+        (self.emit)(self.id, JobEvent::Progress { done, total });
+    }
+    fn finding(&mut self, f: &Finding) {
+        (self.emit)(self.id, JobEvent::Finding(f.clone()));
+    }
+    fn log(&mut self, level: LogLevel, msg: String) {
+        (self.emit)(self.id, JobEvent::Log(level, msg));
+    }
+    fn cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
+    }
+}
+
+/// The engine's questions go to the UI as `NeedsInteraction` and the worker
+/// blocks for the answer, polling its token every 200 ms (TD:202-220). A
+/// closed reply channel (the UI quit, or the job was evicted) is `Cancelled`.
+struct JobInteract {
+    id: JobId,
+    emit: Emit,
+    cancel: CancelToken,
+    replay: VecDeque<InteractionReply>,
+}
+
+impl Interact for JobInteract {
+    fn ask(&mut self, request: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+        if let Some(reply) = self.replay.pop_front() {
+            return Ok(reply);
+        }
+        let (tx, rx) = mpsc::sync_channel(1);
+        (self.emit)(self.id, JobEvent::NeedsInteraction { request, reply: tx });
+        loop {
+            match rx.recv_timeout(Duration::from_millis(200)) {
+                Ok(reply) => return Ok(reply),
+                Err(RecvTimeoutError::Timeout) => self.cancel.check()?,
+                Err(RecvTimeoutError::Disconnected) => return Err(Cancelled),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) use fake::{FakeEngine, FakeProfile, FakeStep};
 
@@ -339,13 +1149,16 @@ mod fake {
     }
 
     type ProfileFn = dyn Fn(&[u8]) -> FakeProfile + Send + Sync;
+    type PanicFn = dyn Fn(&[u8]) -> bool + Send + Sync;
 
     pub(crate) struct FakeEngine {
         analyze_steps: Vec<FakeStep>,
         repair_steps: Vec<FakeStep>,
         always_asks: bool,
         profile: Arc<ProfileFn>,
+        panics_when: Arc<PanicFn>,
         replies: Mutex<Vec<InteractionReply>>,
+        repaired_states: Mutex<Vec<StateHandle>>,
     }
 
     impl Default for FakeEngine {
@@ -355,7 +1168,9 @@ mod fake {
                 repair_steps: Vec::new(),
                 always_asks: false,
                 profile: Arc::new(|_| FakeProfile::default()),
+                panics_when: Arc::new(|_| false),
                 replies: Mutex::new(Vec::new()),
+                repaired_states: Mutex::new(Vec::new()),
             }
         }
     }
@@ -388,6 +1203,20 @@ mod fake {
         ) -> Self {
             self.profile = Arc::new(f);
             self
+        }
+
+        /// Analysis panics, on the calling thread, for inputs `f` picks.
+        pub(crate) fn panics_when(
+            mut self,
+            f: impl Fn(&[u8]) -> bool + Send + Sync + 'static,
+        ) -> Self {
+            self.panics_when = Arc::new(f);
+            self
+        }
+
+        /// The state handle each `repair` call received, in call order.
+        pub(crate) fn repaired_states(&self) -> Vec<StateHandle> {
+            self.repaired_states.lock().expect("states lock").clone()
         }
 
         /// Every reply the fake has received, in order.
@@ -460,6 +1289,9 @@ mod fake {
             _opts: &AnalyzeOptions,
             sink: &mut dyn Progress,
         ) -> Result<AnalysisResult, Cancelled> {
+            if (self.panics_when)(bytes) {
+                panic!("fake engine panic");
+            }
             let findings = self.run(&self.analyze_steps, sink, None)?;
             let profile = (self.profile)(bytes);
             let input_sha256: [u8; 32] = Sha256::digest(bytes).into();
@@ -503,6 +1335,10 @@ mod fake {
             ask: &mut dyn Interact,
             sink: &mut dyn Progress,
         ) -> Result<RepairOutcome, Cancelled> {
+            self.repaired_states
+                .lock()
+                .expect("states lock")
+                .push(analysis.state.clone());
             self.run(&self.repair_steps, sink, Some(&mut *ask))?;
             if self.always_asks {
                 self.ask(ask, Self::standard_question())?;
@@ -975,3 +1811,6 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod runner_tests;
