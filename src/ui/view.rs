@@ -127,6 +127,8 @@ pub struct QueueRow {
     /// that a clean file drops "nothing to fix" and reads just "clean", and an
     /// encrypted one drops "decrypt first" (frame 05's last queue row, whose
     /// column 49 shows past the file menu's edge only on that condition).
+    /// The result view gives a failed file's full `detail` on the progress
+    /// box's bottom edge instead.
     pub short_detail: Option<String>,
     /// The cursor is on this row.
     pub selected: bool,

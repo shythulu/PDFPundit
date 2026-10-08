@@ -419,14 +419,17 @@ const ANALYSIS_FINDINGS: (i32, usize, usize) = (20, 4, 22);
 const RESULT_FINDINGS: (i32, usize, usize) = (9, 4, 24);
 /// The result panel's font rows: first row, count, name column.
 const RESULT_FONTS: (i32, usize, usize) = (21, 3, 17);
+/// The result panel's RECOVERY rows, which hold the C9 count line (D-041).
+const RECOVERY_ROWS: usize = 4;
 
 /// Frame 03: the queue, the analysis of the file under the cursor, the box
 /// asking for a decision when a file is parked, the cat, the progress box.
 ///
 /// Frame 03 also shows the file's version, page count, size and producer, the
-/// repair's pipeline stage and toolpath, each finding's detail column and a
-/// live log. The view model carries none of these (T-22b's open question), so
-/// those rows are left blank rather than invented.
+/// repair's pipeline stage and toolpath, each finding's detail past its
+/// location, and a live log. The view model carries none of these (T-22b's
+/// open question), so those rows are left blank rather than invented. A list
+/// longer than its rows ends in a dim `… N more`.
 fn draw_batch(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
     let (crumb, mode) = strings::CRUMB_BATCH;
     header(c, &format!("{{w}}{crumb} {{D}}· {{c}}{mode} "), theme);
@@ -462,9 +465,17 @@ fn draw_batch(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
         ),
         theme,
     );
-    let (fy, n, summary_w) = ANALYSIS_FINDINGS;
+    let (fy, rows, summary_w) = ANALYSIS_FINDINGS;
+    let (n, more) = findings::shown(vm.selected_findings.len(), rows);
     for (i, f) in vm.selected_findings.iter().take(n).enumerate() {
-        findings::finding(c, &ab, fy + to_i32(i), f, summary_w, theme);
+        let y = fy + to_i32(i);
+        let x = findings::finding(c, &ab, y, f, summary_w, theme);
+        if let Some(at) = findings::location(&f.location) {
+            ab.text(c, x, y, &at, theme.roles.dim);
+        }
+    }
+    if more > 0 {
+        findings::more(c, &ab, fy + to_i32(n), more, theme);
     }
     ab.sep(c, ay + 11, theme);
     ab.line(c, ay + 12, &format!(" {{W}}{}", strings::LOG), theme);
@@ -483,9 +494,11 @@ fn draw_batch(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
 /// cursor, the cat, the per-file menu when it is open, the progress box.
 ///
 /// Frame 05 also shows the output's name and folder, the toolpath and the
-/// repair's time, each finding's detail column, the recovery bars, a picked
+/// repair's time, each finding's after figure, the recovery bars, a picked
 /// font's family and a substitution's caveat. The view model carries none of
-/// these (T-22b's open question), so those cells are left blank.
+/// these (T-22b's open question), so those cells are left blank. The C9 count
+/// line (D-041), which frame 05 has no row for, fills the RECOVERY rows; a
+/// failed file's reason (D-048) takes the progress box's bottom edge.
 fn draw_result(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
     header(c, &format!("{{w}}{} ", strings::CRUMB_RESULTS), theme);
     let (x, y, w, name_w) = RESULT_QUEUE;
@@ -531,19 +544,34 @@ fn draw_result(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
         ),
         theme,
     );
-    let (fy, n, summary_w) = RESULT_FINDINGS;
+    let (fy, rows, summary_w) = RESULT_FINDINGS;
+    let (n, more) = findings::shown(vm.selected_findings.len(), rows);
     for (i, f) in vm.selected_findings.iter().take(n).enumerate() {
         let y = fy + to_i32(i);
         let x = findings::finding(c, &rb, y, f, summary_w, theme);
         findings::before_after(c, &rb, x, y, f, theme);
     }
+    if more > 0 {
+        findings::more(c, &rb, fy + to_i32(n), more, theme);
+    }
     rb.sep(c, ry + 11, theme);
     rb.line(c, ry + 12, &format!(" {{W}}{}", strings::RECOVERY), theme);
+    if let Some(line) = &vm.c9_line {
+        let room = rb.inner_w().saturating_sub(2);
+        for (y, part) in (ry + 13..).zip(wrap(line, room, RECOVERY_ROWS)) {
+            let x = rb.line(c, y, " ", theme);
+            rb.text(c, x, y, &part, theme.roles.body);
+        }
+    }
     rb.sep(c, ry + 17, theme);
     rb.line(c, ry + 18, &format!(" {{W}}{}", strings::FONTS), theme);
-    let (fy, n, name_w) = RESULT_FONTS;
+    let (fy, rows, name_w) = RESULT_FONTS;
+    let (n, more) = findings::shown(vm.font_resolutions.len(), rows);
     for (i, f) in vm.font_resolutions.iter().take(n).enumerate() {
         findings::font(c, &rb, fy + to_i32(i), f, name_w, theme);
+    }
+    if more > 0 {
+        findings::more(c, &rb, fy + to_i32(n), more, theme);
     }
     rb.sep(c, ry + 22, theme);
     let keys: Vec<String> = strings::RESULT_KEYS
@@ -574,14 +602,48 @@ fn draw_result(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
         let (line, burp) = strings::CAT_SATISFIED;
         c.rich(sx, sy, &format!("{{D}}{line} {{m}}{burp}"), None, theme);
     }
-    view_footer(c, vm, theme, vm.c9_line.as_deref());
+    // Why a failed file failed: frame 05 has no row for it, and the queue's
+    // status column cuts it short.
+    let reason = row
+        .filter(|r| r.kind == RowKind::Failed)
+        .and_then(|r| r.detail.as_deref());
+    view_footer(c, vm, theme, reason);
+}
+
+/// `text` broken at spaces into at most `rows` lines of at most `w`
+/// characters; a word longer than a line, or text left over after the last
+/// line, is cut with `…`.
+fn wrap(text: &str, w: usize, rows: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for word in text.split_whitespace() {
+        let n = cur.chars().count();
+        if n > 0 && n + 1 + word.chars().count() > w {
+            lines.push(std::mem::take(&mut cur));
+        }
+        if !cur.is_empty() {
+            cur.push(' ');
+        }
+        cur.push_str(word);
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    let over = lines.len() > rows;
+    let mut lines: Vec<String> = lines.into_iter().take(rows).map(|l| fit(&l, w)).collect();
+    if over && let Some(last) = lines.last_mut() {
+        // Room for the `…` after the line, or in place of its last character.
+        let head: String = last.chars().take(w.saturating_sub(1)).collect();
+        *last = format!("{}…", head.trim_end_matches('…'));
+    }
+    lines
 }
 
 /// What both views draw last: the per-file menu when it is open, the progress
 /// box, the hotkeys, the status bar and the bottom edge's note: the one-off
-/// hint, else `fallback` (the result view's C9 count line, D-041: frame 05
-/// has no row for it, so it takes the hint row, which in these views is the
-/// progress box's bottom edge, until the user places it).
+/// hint, else `fallback` (the result view's reason a failed file failed,
+/// D-048's hint line). These views have no hint row, so the note takes the
+/// progress box's bottom edge, cut only at its corners.
 fn view_footer(c: &mut Canvas, vm: &ViewModel, theme: &Theme, fallback: Option<&str>) {
     if let Some(sel) = vm.file_menu {
         file_menu(c, sel, theme);
@@ -781,7 +843,7 @@ fn file_menu(c: &mut Canvas, sel: usize, theme: &Theme) {
     };
     c.boxed(x, y, w, h, &style, theme);
     let items = &strings::FILE_MENU_ITEMS;
-    let sel = sel.min(items.len() - 1);
+    let sel = menu_item(sel);
     let bar = theme.slot('b').unwrap_or(theme.roles.lightbar);
     let rule: Vec<Rgb> = [Some(theme.roles.bg), theme.slot('y'), theme.slot('Y')]
         .into_iter()
@@ -812,6 +874,17 @@ fn file_menu(c: &mut Canvas, sel: usize, theme: &Theme) {
             }
         }
     }
+}
+
+/// The item the menu's cursor `sel` lands on: itself, or for a separator the
+/// next item (the input side never sets one; an index past the end is the
+/// last item).
+fn menu_item(sel: usize) -> usize {
+    let items = &strings::FILE_MENU_ITEMS;
+    let last = items.len() - 1;
+    (sel.min(last)..=last)
+        .find(|&i| items[i].is_some())
+        .unwrap_or(last)
 }
 
 /// How many characters of a file's name fit in a `w`-wide box's top edge
@@ -847,7 +920,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::engine::{C9Summary, FontResolutionKind};
+    use crate::engine::{C9Summary, FontResolutionKind, Location};
     use crate::jobs::{EntryState, QueueEntry};
     use crate::library::{HistorySummary, RecentRow, RecentStatus};
     use crate::ui::canvas::HALF;
@@ -990,14 +1063,61 @@ mod tests {
         app.clock = Some((23, 59));
         app.hint = Some(strings::NOT_YET);
         out.push(view(&app));
-        out.push(view(&result_with_c9(Some(0))));
+        out.push(view(&result_with_c9(Some(0), (30, 28, 12))));
+        out.push(view(&result_with_c9(None, (1000, 999, 1))));
         out.push(view(&long_batch()));
+        out.push(view(&overflowing_result()));
+        out.push(view(&overflowing_batch()));
+        out.push(view(&failed_with(&"e".repeat(200))));
+        let mut encrypted = AppState::mockup_batch();
+        encrypted.selected = Some(6);
+        out.push(view(&encrypted));
         out
     }
 
+    /// Frame 05's file with six findings and five font slots: more than the
+    /// result panel has rows for.
+    fn overflowing_result() -> AppState {
+        let mut app = AppState::mockup_result();
+        let thesis = &mut app.batch.entries[2];
+        let extra = thesis.findings[..2].to_vec();
+        thesis.findings.extend(extra);
+        let extra = thesis.font_resolutions[..2].to_vec();
+        thesis.font_resolutions.extend(extra);
+        app
+    }
+
+    /// Frame 03's file under analysis with six findings, one on page 3.
+    fn overflowing_batch() -> AppState {
+        let mut app = AppState::mockup_batch();
+        let invoice = &mut app.batch.entries[4];
+        let mut extra = invoice.findings.clone();
+        extra[0].location = Location::Page {
+            index: 2,
+            obj: None,
+        };
+        invoice.findings.extend(extra);
+        app
+    }
+
+    /// Frame 03's batch with the cursor on a file whose job failed with
+    /// `error`.
+    fn failed_with(error: &str) -> AppState {
+        let mut app = AppState::mockup_batch();
+        app.batch.entries[5].state = EntryState::Failed {
+            error: error.into(),
+            panicked: false,
+        };
+        app.selected = Some(5);
+        app
+    }
+
     /// Frame 05's state with a C9 count line: the selected file's repair
-    /// found damaged streams.
-    fn result_with_c9(menu: Option<usize>) -> AppState {
+    /// found damaged streams, `(repaired, exact, accepted)` of them.
+    fn result_with_c9(
+        menu: Option<usize>,
+        (repaired, exact, accepted): (u32, u32, u32),
+    ) -> AppState {
         let mut app = AppState::mockup_result();
         app.file_menu = menu;
         let run = app.batch.entries[2]
@@ -1005,10 +1125,10 @@ mod tests {
             .as_mut()
             .expect("thesis_ar.pdf ran");
         run.report.c9_summary = C9Summary {
-            streams_damaged: 3,
-            repaired: 3,
-            exact: 2,
-            accepted: 1,
+            streams_damaged: repaired,
+            repaired,
+            exact,
+            accepted,
             ..C9Summary::default()
         };
         app
@@ -1193,8 +1313,9 @@ mod tests {
         (14, 2, 64),
         (16, 2, 64),
         (17, 2, 64),
-        // each finding's detail column, and a carve summary row
-        (20, 34, 64),
+        // each finding's detail past its location (row 20 has `obj 14 0`),
+        // and a carve summary row
+        (20, 42, 64),
         (21, 34, 64),
         (22, 34, 64),
         (23, 2, 64),
@@ -1284,30 +1405,85 @@ mod tests {
         draw(FULL_SIZE, &vm, &cat).assert_matches(&unfilled("05-result", RESULT_UNFILLED));
     }
 
-    /// D-041's count line has no row in frame 05, so it takes the result
-    /// view's hint row: the progress box's bottom edge, row 35.
+    /// D-041's count line has no row in frame 05, so it fills the RECOVERY
+    /// rows (the recovery bars are not in the view model): whole, for one-,
+    /// two- and three-digit counts (REPDF's C9 files carry 12 to 30 damaged
+    /// streams), broken at spaces inside the panel.
     #[test]
-    fn a_c9_count_line_takes_the_result_views_hint_row() {
-        let app = result_with_c9(None);
+    fn a_c9_count_line_fills_the_recovery_rows_whole() {
+        for counts in [(3, 2, 1), (30, 28, 12), (100, 100, 100), (1000, 999, 1)] {
+            let vm = view(&result_with_c9(None, counts));
+            let line = vm
+                .c9_line
+                .clone()
+                .expect("the repair found damaged streams");
+            assert!(
+                line.starts_with(&format!("{} streams repaired; ", counts.0)),
+                "{line:?}"
+            );
+            let c = draw(FULL_SIZE, &vm, &resting(&vm));
+            let mut parts = Vec::new();
+            for y in 15..19 {
+                let row: Vec<char> = row_text(&c, y).chars().collect();
+                assert_eq!((row[52], row[110]), ('║', '║'), "row {y}");
+                let inside: String = row[53..110].iter().collect();
+                assert!(inside.starts_with(' '), "row {y}: {inside:?}");
+                parts.push(inside.trim().to_string());
+            }
+            let drawn = parts
+                .iter()
+                .filter(|p| !p.is_empty())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert_eq!(drawn, line, "{counts:?}");
+            // The bottom edge stays a plain border.
+            let row = row_text(&c, 35);
+            assert_eq!(row, format!(" ╚{}╝ ", "═".repeat(108)), "{counts:?}");
+        }
+    }
+
+    /// A failed file's reason (D-048's hint line) takes the result view's
+    /// bottom edge: "decrypt first" for an encrypted file, which the short
+    /// queue status drops, and a job's error, cut only at the box's corners.
+    #[test]
+    fn a_failed_files_reason_takes_the_result_views_bottom_edge() {
+        let mut app = AppState::mockup_batch();
+        app.selected = Some(6);
         let vm = view(&app);
-        let line = vm
-            .c9_line
-            .clone()
-            .expect("the repair found damaged streams");
-        assert!(line.starts_with("3 streams repaired; 2 "), "{line:?}");
-        let c = draw(FULL_SIZE, &vm, &resting(&vm));
-        let row = row_text(&c, 35);
-        assert!(row.contains(&format!("╡ {line} ╞")), "{row:?}");
-        assert_eq!(row.chars().nth(1), Some('╚'));
-        assert_eq!(row.chars().nth(110), Some('╝'));
-        // Without it the edge is a plain border.
-        let vm = view(&AppState::mockup_result());
+        let cat = resting(&vm);
+        assert_eq!(screen(&vm, &cat), FullScreen::Result);
+        let row = row_text(&draw(FULL_SIZE, &vm, &cat), 35);
+        assert!(row.contains("╡ decrypt first ╞"), "{row:?}");
+
+        let error = "the output folder is not set: choose one in setup";
+        let vm = view(&failed_with(error));
+        let row = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 35);
+        assert!(row.contains(&format!("╡ {error} ╞")), "{row:?}");
+
+        let vm = view(&failed_with(&"e".repeat(200)));
+        let row: Vec<char> = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 35)
+            .chars()
+            .collect();
+        let drawn: String = row[4..108].iter().collect();
+        assert_eq!(drawn, format!("{}…", "e".repeat(103)));
+        assert_eq!(
+            [row[1], row[2], row[3], row[108], row[109], row[110]],
+            ['╚', '╡', ' ', ' ', '╞', '╝']
+        );
+
+        // A cancelled file has no reason to give.
+        let mut app = AppState::mockup_batch();
+        app.batch.entries[5].state = EntryState::Cancelled;
+        app.selected = Some(5);
+        let vm = view(&app);
         let row = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 35);
         assert_eq!(row, format!(" ╚{}╝ ", "═".repeat(108)));
     }
 
-    /// The batch view has no hint row either: a one-off hint ("not yet")
-    /// takes the same edge, and wins over the C9 line while it is up.
+    /// The batch and result views have no hint row: a one-off hint ("not
+    /// yet") takes the progress box's bottom edge, and wins over a failed
+    /// file's reason while it is up.
     #[test]
     fn a_one_off_hint_takes_the_views_bottom_edge() {
         let mut app = AppState::mockup_batch();
@@ -1318,12 +1494,93 @@ mod tests {
             row.contains(&format!("╡ {} ╞", strings::NOT_YET)),
             "{row:?}"
         );
-        let mut app = result_with_c9(None);
+        let mut app = AppState::mockup_batch();
+        app.selected = Some(6);
         app.hint = Some(strings::NOT_YET);
         let vm = view(&app);
         let row = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 35);
         assert!(row.contains(strings::NOT_YET), "{row:?}");
-        assert!(!row.contains("streams repaired"), "{row:?}");
+        assert!(!row.contains("decrypt first"), "{row:?}");
+    }
+
+    /// A list longer than its rows ends in a dim `… N more` on its last row:
+    /// the analysis and result panels' findings (four rows) and the result
+    /// panel's fonts (three rows).
+    #[test]
+    fn long_findings_and_font_lists_say_how_many_are_hidden() {
+        let vm = view(&overflowing_result());
+        assert_eq!(
+            (vm.selected_findings.len(), vm.font_resolutions.len()),
+            (6, 5)
+        );
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        let cell_at = |y: u16, x: u16| c.get(x, y).expect("cell");
+        let inside = |y: u16| -> String { row_text(&c, y).chars().skip(53).take(57).collect() };
+        assert_eq!(inside(12).trim_end(), " … 3 more");
+        assert_eq!(cell_at(12, 54).fg, theme().roles.dim);
+        assert!(inside(11).contains("[WRN] C6 "), "{:?}", inside(11));
+        assert_eq!(inside(23).trim_end(), " … 3 more");
+        assert!(inside(22).contains("F3 CIDFont+F1"), "{:?}", inside(22));
+
+        let vm = view(&overflowing_batch());
+        assert_eq!(vm.selected_findings.len(), 6);
+        let c = draw(FULL_SIZE, &vm, &resting_in(Mood::Idle));
+        let inside = |y: u16| -> String { row_text(&c, y).chars().skip(2).take(62).collect() };
+        assert_eq!(inside(23).trim_end(), " … 3 more");
+        // The fourth finding, on page 3, is replaced by the count.
+        assert!(!row_text(&c, 23).contains("p.3"));
+
+        // Exactly as many as there are rows: no count.
+        let vm = view(&AppState::mockup_result());
+        assert_eq!(vm.selected_findings.len(), 4);
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        assert!(!row_text(&c, 12).contains("more"));
+        assert!(row_text(&c, 12).contains("[iNF]    header intact"));
+    }
+
+    /// The analysis panel's detail column starts with the finding's location,
+    /// dim: `obj 14 0` on frame 03's C9 row (the golden checks its cells),
+    /// `p.N` for a page, nothing for the whole file.
+    #[test]
+    fn a_findings_location_leads_its_detail_column() {
+        assert_eq!(
+            findings::location(&Location::Object {
+                id: (14, 0),
+                span: None
+            })
+            .as_deref(),
+            Some("obj 14 0")
+        );
+        assert_eq!(
+            findings::location(&Location::Page {
+                index: 2,
+                obj: Some((5, 0))
+            })
+            .as_deref(),
+            Some("p.3")
+        );
+        assert_eq!(findings::location(&Location::File), None);
+        let mut app = AppState::mockup_batch();
+        app.batch.entries[4].findings[1].location = Location::Page {
+            index: u32::MAX,
+            obj: None,
+        };
+        let vm = view(&app);
+        let c = draw(FULL_SIZE, &vm, &resting_in(Mood::Idle));
+        let row: String = row_text(&c, 21).chars().skip(34).take(30).collect();
+        assert_eq!(row, format!("{:<30}", "p.4294967296"));
+        assert_eq!(c.get(34, 21).expect("cell").fg, theme().roles.dim);
+        let row: String = row_text(&c, 20).chars().skip(34).take(30).collect();
+        assert_eq!(row, format!("{:<30}", "obj 14 0"));
+    }
+
+    #[test]
+    fn wrap_breaks_at_spaces_and_cuts_what_does_not_fit() {
+        assert_eq!(wrap("aa bb cc", 5, 3), ["aa bb", "cc"]);
+        assert_eq!(wrap("aa bb cc dd", 5, 1), ["aa b…"]);
+        assert_eq!(wrap("aa bbbb", 4, 1), ["aa…"]);
+        assert_eq!(wrap("abcdefgh", 5, 2), ["abcd…"]);
+        assert_eq!(wrap("", 5, 2), Vec::<String>::new());
     }
 
     /// Which screen is up: the main one with no files and during every
@@ -1353,7 +1610,8 @@ mod tests {
     }
 
     /// The menu is drawn only while it is open; its hotkeys replace the
-    /// batch keys, and an out-of-range cursor lands on the last item.
+    /// batch keys, an out-of-range cursor lands on the last item and one on
+    /// the separator on the item after it.
     #[test]
     fn the_file_menu_is_drawn_only_while_open() {
         let vm = view(&AppState::mockup_result());
@@ -1368,6 +1626,14 @@ mod tests {
         assert!(row_text(&c, 10).contains(strings::EXPORT_MARKDOWN));
         assert!(row_text(&c, 15).contains("► Remove from queue"));
         assert!(row_text(&c, 36).contains("[esc] close menu"));
+        // A cursor on the separator lands on the next item.
+        app.file_menu = Some(4);
+        let vm = view(&app);
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        assert!(row_text(&c, 13).contains("► Repair options…"));
+        assert_eq!(menu_item(4), 5);
+        assert_eq!(menu_item(0), 0);
+        assert_eq!(menu_item(99), 7);
     }
 
     /// A long name is cut with `…` in the panels' top edges, which stay
@@ -1427,6 +1693,8 @@ mod tests {
         for f in &vm.selected_findings {
             text.push(f.summary.clone());
             text.extend(f.code.map(str::to_string));
+            // `obj 14 0`, `p.3`: not in the deny-list (see `strings::LOC_OBJ`).
+            text.extend(findings::location(&f.location));
         }
         for f in &vm.font_resolutions {
             text.push(f.slot.clone());
@@ -1461,34 +1729,59 @@ mod tests {
         let mut frames = Vec::new();
         for vm in stress_states() {
             let names = data_words(&vm);
-            frames.push((draw(FULL_SIZE, &vm, &resting(&vm)), names));
+            let menu = vm.file_menu.is_some() && screen(&vm, &resting(&vm)) != FullScreen::Main;
+            frames.push((draw(FULL_SIZE, &vm, &resting(&vm)), names, menu));
         }
         let vm = view(&AppState::mockup_idle());
         let names: Vec<String> = vm.recent.iter().map(|r| r.name.clone()).collect();
         for i in 0..CHOMP.len() {
-            frames.push((draw(FULL_SIZE, &vm, &chomp(i)), names.clone()));
+            frames.push((draw(FULL_SIZE, &vm, &chomp(i)), names.clone(), false));
         }
         for i in 0..DRAG.len() {
-            frames.push((draw(FULL_SIZE, &vm, &drag(i)), names.clone()));
+            frames.push((draw(FULL_SIZE, &vm, &drag(i)), names.clone(), false));
         }
+        // The open file menu's box: its columns and rows.
+        let (mx, my, mw, mh) = MENU_BOX;
+        let menu_cols = mx..mx + mw;
+        let menu_rows = my..my + mh;
+        let menu_keys: Vec<String> = strings::FILE_MENU_ITEMS
+            .iter()
+            .flatten()
+            .map(|(_, k)| k.to_string())
+            .collect();
+        let cut = |ch: char| ch.is_whitespace() || "║╔╗╚╝╡╞╟╢═─│█".contains(ch) || ch == HALF;
         let mut words = 0;
-        for (c, names) in &frames {
+        for (c, names, menu) in &frames {
             for y in 0..c.h {
                 let row = row_text(c, y);
-                let cut =
-                    |ch: char| ch.is_whitespace() || "║╔╗╚╝╡╞╟╢═─│█".contains(ch) || ch == HALF;
-                for word in row.split(cut) {
-                    // A name cut by `…`, or a piece of one a box is drawn
-                    // over (the file menu over the queue and the analysis
-                    // panel's title).
-                    let covered = ['╔', '║', '╚'].iter().any(|b| {
-                        row.contains(&format!("{word}{b}")) || row.contains(&format!("{b}{word}"))
-                    });
+                let chars: Vec<char> = row.chars().collect();
+                let in_menu_row = *menu && menu_rows.contains(&i32::from(y));
+                let mut x = 0;
+                while x < chars.len() {
+                    if cut(chars[x]) {
+                        x += 1;
+                        continue;
+                    }
+                    let start = x;
+                    while x < chars.len() && !cut(chars[x]) {
+                        x += 1;
+                    }
+                    let word: String = chars[start..x].iter().collect();
+                    let word = word.as_str();
+                    let (x0, x1) = (to_i32(start), to_i32(x));
+                    // A piece of a name the open file menu is drawn over (the
+                    // queue's names, the analysis panel's title): it ends at
+                    // the menu's left border or starts right after its right
+                    // border.
+                    let covered = in_menu_row && (x1 == mx || x0 == mx + mw);
+                    // A name's start cut at a box's right border (a queue
+                    // row's status).
+                    let clipped = chars.get(x) == Some(&'║');
                     let head = word.strip_suffix('…').unwrap_or(word);
                     let a_name = |n: &String| {
                         if covered {
                             n.contains(head)
-                        } else if word.ends_with('…') {
+                        } else if word.ends_with('…') || clipped {
                             n.starts_with(head)
                         } else {
                             n == word
@@ -1498,9 +1791,12 @@ mod tests {
                         w.chars()
                             .all(|ch| ch.is_ascii_digit() || ":×…".contains(ch))
                     };
-                    // A lone letter is a hotkey (the file menu's key column).
+                    // A lone letter only in the open menu's key column.
+                    let menu_key = in_menu_row
+                        && menu_cols.contains(&x0)
+                        && menu_keys.iter().any(|k| k == word);
                     if !word.chars().any(char::is_alphabetic)
-                        || word.chars().count() == 1
+                        || menu_key
                         || numeric(word)
                         || names.iter().any(a_name)
                     {

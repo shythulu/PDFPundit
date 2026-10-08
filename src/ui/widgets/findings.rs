@@ -5,7 +5,7 @@
 //! The summary and the font's name come from the file and the engine, so they
 //! are drawn as they are, never read as colour markup.
 
-use crate::engine::FontResolutionKind;
+use crate::engine::{FontResolutionKind, Location};
 use crate::ui::canvas::Canvas;
 use crate::ui::strings;
 use crate::ui::theme::Theme;
@@ -46,6 +46,48 @@ pub fn finding(
         w = summary_w
     );
     p.text(c, x, y, &summary, theme.roles.body)
+}
+
+/// A finding's location as the analysis panel's detail column shows it:
+/// `obj 14 0` for an object, `p.3` for a page (counting from 1); nothing for
+/// the whole file or a bare byte span.
+pub fn location(loc: &Location) -> Option<String> {
+    match loc {
+        Location::Object {
+            id: (num, gen_), ..
+        } => Some(
+            strings::LOC_OBJ
+                .replacen("{n}", &num.to_string(), 1)
+                .replacen("{n}", &gen_.to_string(), 1),
+        ),
+        Location::Page { index, .. } => {
+            Some(strings::LOC_PAGE.replace("{n}", &(u64::from(*index) + 1).to_string()))
+        }
+        Location::File | Location::Span(_) => None,
+    }
+}
+
+/// The dim `… N more` row that ends a list cut short: `n` entries not shown.
+pub fn more(c: &mut Canvas, p: &Panel, y: i32, n: usize, theme: &Theme) {
+    let x = p.line(c, y, " ", theme);
+    p.text(
+        c,
+        x,
+        y,
+        &strings::N_MORE.replace("{n}", &n.to_string()),
+        theme.roles.dim,
+    );
+}
+
+/// How many of `len` entries a list of `rows` rows shows, and how many it
+/// leaves for its `… N more` row (none when they all fit).
+pub fn shown(len: usize, rows: usize) -> (usize, usize) {
+    if len <= rows {
+        (len, 0)
+    } else {
+        let n = rows.saturating_sub(1);
+        (n, len - n)
+    }
 }
 
 /// The result view's before and after marks from column `x`: `×` before for

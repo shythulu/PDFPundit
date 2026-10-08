@@ -246,6 +246,17 @@ pub const FILE_MENU_ITEMS: [Option<(&str, char)>; 8] = [
 ];
 pub const EXPORT_MARKDOWN: &str = "Export → Markdown";
 
+/// The last row of a findings or fonts list that has more entries than rows:
+/// how many are not shown (`{n}`).
+pub const N_MORE: &str = "… {n} more";
+
+/// A finding's location in the analysis panel's detail column: an object
+/// (`{n}` its number, then its generation) or a page (`{n}` counting from 1).
+/// Neither is in [`ALL`]: "obj" is in every PDF, so the artefact scan would
+/// flag every repaired file.
+pub const LOC_OBJ: &str = "obj {n} {n}";
+pub const LOC_PAGE: &str = "p.{n}";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -414,6 +425,7 @@ pub const ALL: &[&str] = &[
     "Repair options…",
     "Copy report",
     "Remove from queue",
+    N_MORE,
 ];
 
 #[cfg(test)]
