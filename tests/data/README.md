@@ -54,3 +54,11 @@ picker, full layout and widget), drawn once by this crate and committed in the
 mockup frame. To accept a deliberate change, run the test with
 `PDFPUNDIT_BLESS_UI=1` and review the diff. The file names in them are the
 mockup's sample names, not corpus files.
+
+## `export/golden.md` (T-32b)
+
+The Markdown export of `golden_pdf()` with `TINY_JPEG` as its page-one image
+`p1-1.jpg`, page separators on and the images directory named
+`golden.0123abcd.images`. Written once by this crate's own emitter and checked
+by hand; `src/pdf/export/markdown/tests.rs` compares it byte for byte. A
+change is a change in what export writes: re-baseline only with a reason.
