@@ -9,8 +9,8 @@
 //! flat page tree) emitted by T-12a, with the passes run on the
 //! [`RebuildDoc`] in between. `TemplateAssemble` is skipped with a log until
 //! T-30 builds it. A candidate whose emit fails is logged and not verified.
-//! Until the C9 pass (T-13b) swaps salvaged bytes in, every stream is copied
-//! exactly as carved.
+//! A stream is written from its salvage only when the C9 pass swapped it in;
+//! with no C9 pass every stream is copied exactly as carved.
 //!
 //! **Passes**, one [`RepairPass`] per class, in the order C1, C2, C3, then
 //! [`CorruptionClass::REPAIR_ORDER`]. A pass runs when the file has a
@@ -40,10 +40,39 @@
 //!   rebuild gave it, and named by the references the rebuild matched to it.
 //! - **C4**: the flat page tree is written: the catalog points at one
 //!   `/Pages` node holding every page, in document order, attributes pinned.
+//! - **C9** (T-13b; D-041, D-074): each damaged stream's salvage is swapped
+//!   in, and its action carries the stream's `SalvageGrade` when it has
+//!   one. `Exact` and `Accepted` repairs are `Fixed`; an `Ambiguous` one
+//!   writes the first survivor in the pinned order and is
+//!   `Partial("ambiguous: n candidate repairs, see report")`; a
+//!   `ChecksumMismatch` or `Prefix` stream is written decoded and is
+//!   `Partial`; an `Unrecoverable` or `Unsearched` one is written as carved
+//!   and is `Partial("unrecoverable stream")` or `Partial("stream over
+//!   max_search_stream, not searched")`. The pass fills the report's
+//!   `c9_summary` (`accepted` apart from `exact`) and `c9_survivors` (every
+//!   repaired stream's surviving edit lists). A `C9-outside-stream` keyword is
+//!   resolved by re-emission.
+//! - **C6** (T-13b; RR change #3), per (page, slot): the slot is re-linked
+//!   in the page's `/Resources` to one of the fonts no reference from the
+//!   catalog reaches (diagnose's re-link candidates, [`orphan_fonts`]). A
+//!   candidate whose `/Widths` survive must have a nonzero width for every
+//!   code the page shows through the slot, or it is no match. The rest rank
+//!   by: `/Name` equal to the slot first, then widths that agree over widths
+//!   unknown, then the nearest object to the page in the file, then the
+//!   lowest id; each page takes a font for at most one slot. `/BaseFont` is
+//!   never read: a `CIDFont+Fn` name matches nothing. A slot with no match
+//!   is left as it was, the pass is `Partial` and the slot gets a
+//!   `FontPick` escalation (unless diagnose found no candidate at all: the
+//!   plan escalated that one already).
 //!
 //! A [`RepairAction`] names an object by its declared id in the input; an
 //! orphan, which has none, by the number the rebuild gave it; a finding
 //! about the whole file by `(0, 0)`.
+//!
+//! A `Partial` pass excuses its findings' locations from verification's
+//! "clean for the targeted classes" (D-074): the locations the pass left
+//! partial when it names them ([`PassNotes::partial`]), every finding of
+//! its class otherwise.
 //!
 //! **Selection** (SE Q2; fixed tiers in v1, D-008). Candidates compare
 //! lexicographically by [`compare`]:
@@ -72,26 +101,30 @@ use std::collections::{BTreeMap, BTreeSet};
 use lopdf::{Dictionary, Object};
 
 use crate::engine::{
-    Cancelled, CandidateReport, Escalation, EscalationKind, FontDb, Interact, LogLevel,
-    PassOutcome, PassReport, Progress, RepairAction, RepairOptions, RepairPlan, RepairReport,
-    Toolpath,
+    ByteEdit, C9Summary, Cancelled, CandidateReport, Escalation, EscalationKind, FontDb, Interact,
+    LogLevel, PassOutcome, PassReport, Progress, RepairAction, RepairOptions, RepairPlan,
+    RepairReport, Toolpath,
 };
 use crate::pdf::carver::{Body, CarveReport, Orphan, carve};
+use crate::pdf::diagnose::{OUTSIDE_STREAM, orphan_fonts};
 use crate::pdf::emit::{EmitCtx, EmitNotes, RebuildDoc, emit_doc};
 use crate::pdf::graph::{ObjectGraph, winning_copies};
 use crate::pdf::lexer;
 use crate::pdf::meta::info_object;
 use crate::pdf::model::{
-    ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, Location, MetricValue, ObjId, Ratio,
+    ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, InteractionKind, Location,
+    MetricValue, ObjId, Ratio, Repairability,
 };
 use crate::pdf::rebuild::{
     BoxSource, CatalogPlan, Held, IdRemap, PageTreePlan, plan_ids, rebuild_page_tree,
 };
-use crate::pdf::streams::salvage::SalvageIndex;
+use crate::pdf::streams::salvage::{CarveSource, Grade, Salvage, SalvageIndex};
+use crate::pdf::streams::{DEFAULT_CAP, content_ops};
 use crate::pdf::verify::{Plausibility, Retention, Verification, baseline, verify};
 
 use CorruptionClass::{
-    C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped, C10Truncated,
+    C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped,
+    C6FontMapLost, C9ZlibTampered, C10Truncated,
 };
 
 /// How a [`RepairAction`] names the whole file.
@@ -117,15 +150,29 @@ pub(crate) struct RepairCtx<'a> {
     pub(crate) remap: &'a IdRemap,
     pub(crate) page_tree: &'a PageTreePlan,
     pub(crate) doc: &'a mut RebuildDoc,
-    // Read by the C9 swap (T-13b).
-    #[allow(dead_code)]
     pub(crate) salvage: &'a SalvageIndex,
-    // Read by the C6 re-link (T-13b) and the font passes (T-30).
+    // Read by the font passes (T-30).
     #[allow(dead_code)]
     pub(crate) fonts: &'a FontDb,
     #[allow(dead_code)]
     pub(crate) ask: &'a mut dyn Interact,
     pub(crate) sink: &'a mut dyn Progress,
+    /// What the passes report beside their [`PassReport`]s.
+    pub(crate) notes: PassNotes,
+}
+
+/// What the passes of one candidate report beside their [`PassReport`]s.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct PassNotes {
+    /// Escalations a pass raised (C6: a slot with no match).
+    pub(crate) escalations: Vec<Escalation>,
+    /// The C9 pass's counts (D-041).
+    pub(crate) c9_summary: C9Summary,
+    /// Every repaired stream's surviving edit lists, by input id.
+    pub(crate) c9_survivors: Vec<(ObjId, Vec<Vec<ByteEdit>>)>,
+    /// The input locations a `Partial` pass left partial, by class (module
+    /// docs). A class with none listed excuses all of its findings.
+    pub(crate) partial: Vec<(CorruptionClass, Location)>,
 }
 
 impl RepairCtx<'_> {
@@ -145,13 +192,15 @@ impl RepairCtx<'_> {
 }
 
 /// The passes this version has.
-const PASSES: [&dyn RepairPass; 6] = [
+const PASSES: [&dyn RepairPass; 8] = [
     &ReEmitted(C1Header),
     &ReEmitted(C2XrefMissing),
     &ReEmitted(C3TrailerDamaged),
+    &Salvaged,
     &Truncation,
     &Orphans,
     &PageTree,
+    &Relink,
 ];
 
 /// `class`'s pass, when this version has one.
@@ -510,6 +559,416 @@ impl RepairPass for PageTree {
     }
 }
 
+/// C9: swap each damaged stream's salvage in (module docs).
+struct Salvaged;
+
+impl RepairPass for Salvaged {
+    fn class(&self) -> CorruptionClass {
+        C9ZlibTampered
+    }
+
+    fn repair(&self, ctx: &mut RepairCtx<'_>, findings: &[Finding]) -> PassReport {
+        let mut actions = Vec::new();
+        let mut partial = Vec::new();
+        let mut summary = C9Summary::default();
+        let mut survivors_of = Vec::new();
+        for f in findings {
+            let Location::Object { id, .. } = f.location else {
+                continue;
+            };
+            let entry = ctx.salvage.by_obj.get(&id);
+            let Some(entry) = entry.filter(|_| salvage_name(f) != Some(OUTSIDE_STREAM)) else {
+                actions.push(RepairAction {
+                    object: id,
+                    what: format!("{}: resolved by re-emission", f.id),
+                    grade: None,
+                });
+                continue;
+            };
+            let s = &entry.salvage;
+            let (what, why) = match s {
+                Salvage::Clean { .. } => continue,
+                Salvage::Repaired {
+                    edits,
+                    grade,
+                    survivors,
+                    ..
+                } => {
+                    summary.repaired += 1;
+                    survivors_of.push((id, survivors.clone()));
+                    let edits = edit_list(edits);
+                    match *grade {
+                        Grade::Exact => {
+                            summary.exact += 1;
+                            let what = format!(
+                                "Flate data repaired ({edits}); no other repair fits its window"
+                            );
+                            (what, None)
+                        }
+                        Grade::Accepted { searched, window } => {
+                            summary.accepted += 1;
+                            let what = format!(
+                                "Flate data repaired ({edits}); accepted without a uniqueness \
+                                 check: {searched} of {window} candidates searched"
+                            );
+                            (what, None)
+                        }
+                        Grade::Ambiguous { outputs } => {
+                            summary.ambiguous += 1;
+                            let what = format!(
+                                "Flate data repaired with the first of {outputs} candidate \
+                                 repairs in the pinned order ({edits}); every survivor is in the \
+                                 report"
+                            );
+                            let why = format!("ambiguous: {outputs} candidate repairs, see report");
+                            (what, Some(why))
+                        }
+                    }
+                }
+                Salvage::ChecksumMismatch { .. } => (
+                    "written decoded: its Adler-32 disagrees and no repair was found, so the \
+                     bytes are unverified"
+                        .to_owned(),
+                    Some("checksum mismatch: the decoded bytes are unverified".to_owned()),
+                ),
+                Salvage::Prefix {
+                    in_used, in_total, ..
+                } => (
+                    format!(
+                        "written decoded up to input byte {in_used} of {in_total}; the rest is lost"
+                    ),
+                    Some("only the bytes before the damage decode".to_owned()),
+                ),
+                Salvage::Unrecoverable => {
+                    summary.unrecoverable += 1;
+                    (
+                        "written as carved: nothing decodes and no repair was found".to_owned(),
+                        Some("unrecoverable stream".to_owned()),
+                    )
+                }
+                Salvage::Unsearched { reason } => {
+                    summary.unsearched += 1;
+                    (
+                        format!(
+                            "written as carved: its {} raw bytes are over the {}-byte search limit",
+                            reason.raw_len, reason.limit
+                        ),
+                        Some("stream over max_search_stream, not searched".to_owned()),
+                    )
+                }
+            };
+            summary.streams_damaged += 1;
+            ctx.doc.swap_salvaged(id);
+            if let Some(why) = why {
+                partial.push(format!("{} {} obj: {why}", id.0, id.1));
+                ctx.notes.partial.push((C9ZlibTampered, f.location));
+            }
+            actions.push(RepairAction {
+                object: id,
+                what,
+                grade: s.grade(),
+            });
+        }
+        survivors_of.sort_by_key(|&(id, _)| id);
+        ctx.notes.c9_summary = summary;
+        ctx.notes.c9_survivors = survivors_of;
+        PassReport {
+            class: C9ZlibTampered,
+            outcome: if partial.is_empty() {
+                PassOutcome::Fixed
+            } else {
+                PassOutcome::Partial(partial.join("; "))
+            },
+            actions,
+        }
+    }
+}
+
+/// A C9 finding's `Metric{"salvage"}`.
+fn salvage_name(f: &Finding) -> Option<&str> {
+    f.evidence.iter().find_map(|e| match e {
+        Evidence::Metric {
+            name,
+            value: MetricValue::Text(t),
+        } if name == "salvage" => Some(t.as_str()),
+        _ => None,
+    })
+}
+
+/// `byte 40 0x31 -> 0x30, ...`, offsets in the Flate stage's input.
+fn edit_list(edits: &[ByteEdit]) -> String {
+    let each: Vec<String> = edits
+        .iter()
+        .map(|(at, from, to)| format!("byte {at} 0x{from:02x} -> 0x{to:02x}"))
+        .collect();
+    each.join(", ")
+}
+
+/// C6: re-link each lost slot to an unreachable font (module docs).
+struct Relink;
+
+/// How a candidate's `/Widths` fit the codes a page shows through a slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Widths {
+    /// Some code has no width, or a zero one: not this slot's font.
+    Disagree,
+    /// No `/Widths` to read, or nothing shown.
+    Unknown,
+    /// Every code shown has a nonzero width.
+    Agree,
+}
+
+impl RepairPass for Relink {
+    fn class(&self) -> CorruptionClass {
+        C6FontMapLost
+    }
+
+    fn repair(&self, ctx: &mut RepairCtx<'_>, findings: &[Finding]) -> PassReport {
+        // The findings by page, in order: one per (page, slot).
+        let mut by_page: BTreeMap<(u32, ObjId), Vec<&Finding>> = BTreeMap::new();
+        for f in findings {
+            if let Location::Page {
+                index,
+                obj: Some(page),
+            } = f.location
+            {
+                by_page.entry((index, page)).or_default().push(f);
+            }
+        }
+        let candidates: Vec<ObjId> = orphan_fonts(ctx.graph)
+            .into_iter()
+            .filter(|&id| ctx.doc.remap().number(id).is_some())
+            .collect();
+        let mut actions = Vec::new();
+        let mut unmatched = 0usize;
+        for ((index, page), slots) in by_page {
+            let shown = shown_by_slot(ctx, page);
+            let wanted: Vec<(&Finding, Vec<u8>)> = slots
+                .into_iter()
+                .filter_map(|f| {
+                    let slot = slot_of(f)?;
+                    // The bytes of the slot the finding names (its text is lossy).
+                    let bytes = shown
+                        .keys()
+                        .find(|k| String::from_utf8_lossy(k) == slot)
+                        .cloned()
+                        .unwrap_or_else(|| slot.as_bytes().to_vec());
+                    Some((f, bytes))
+                })
+                .collect();
+            let page_at = span_of(ctx, page).map_or(0, |s| s.start);
+            // Every (slot, candidate) pair that may match, best first.
+            let mut pairs = Vec::new();
+            for (k, (_, slot)) in wanted.iter().enumerate() {
+                let codes = shown.get(slot).map_or(&[][..], Vec::as_slice);
+                for &font in &candidates {
+                    let Some(dict) = font_dict(ctx, font) else {
+                        continue;
+                    };
+                    let widths = widths_fit(ctx, dict, codes);
+                    if widths == Widths::Disagree {
+                        continue;
+                    }
+                    let named = dict.get(b"Name").ok().and_then(|n| n.as_name().ok())
+                        == Some(slot.as_slice());
+                    let distance =
+                        span_of(ctx, font).map_or(u64::MAX, |s| s.start.abs_diff(page_at));
+                    let key = (
+                        std::cmp::Reverse(named),
+                        std::cmp::Reverse(widths),
+                        distance,
+                        font,
+                        k,
+                    );
+                    pairs.push((key, k, font, named, widths));
+                }
+            }
+            pairs.sort_by_key(|p| p.0);
+            let mut chosen: BTreeMap<usize, (ObjId, bool, Widths)> = BTreeMap::new();
+            let mut used = BTreeSet::new();
+            for (_, k, font, named, widths) in pairs {
+                if chosen.contains_key(&k) || used.contains(&font) {
+                    continue;
+                }
+                used.insert(font);
+                chosen.insert(k, (font, named, widths));
+            }
+            let page_number = u64::from(index) + 1;
+            for (k, (f, slot)) in wanted.iter().enumerate() {
+                let name = String::from_utf8_lossy(slot);
+                match chosen.get(&k) {
+                    Some(&(font, named, widths)) => {
+                        if let Some(n) = ctx.remap.number(page) {
+                            ctx.doc.relink_font(n, slot.clone(), font);
+                        }
+                        let by = if named {
+                            "its /Name"
+                        } else {
+                            "its place in the file"
+                        };
+                        let widths = match widths {
+                            Widths::Agree => "; its widths fit the codes shown",
+                            _ => "",
+                        };
+                        actions.push(RepairAction {
+                            object: page,
+                            what: format!(
+                                "page {page_number}: /{name} re-linked to {} {} obj, matched by \
+                                 {by}{widths}",
+                                font.0, font.1
+                            ),
+                            grade: None,
+                        });
+                    }
+                    None => {
+                        unmatched += 1;
+                        ctx.notes.partial.push((C6FontMapLost, f.location));
+                        // With no candidate at all the plan escalated it already.
+                        if f.repair != Repairability::Interactive(InteractionKind::FontPick) {
+                            ctx.notes.escalations.push(Escalation {
+                                kind: EscalationKind::Interaction(InteractionKind::FontPick),
+                                page: Some(index),
+                                slot: Some(name.to_string()),
+                                note: format!(
+                                    "{}: no unreachable font fits /{name} on page {page_number}",
+                                    f.id
+                                ),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        let outcome = if unmatched == 0 {
+            PassOutcome::Fixed
+        } else {
+            PassOutcome::Partial(format!(
+                "{unmatched} font slots not re-linked: no unreachable font fits them, so a font \
+                 pick is needed"
+            ))
+        };
+        PassReport {
+            class: C6FontMapLost,
+            outcome,
+            actions,
+        }
+    }
+}
+
+/// A C6 finding's slot: its `slots:` evidence.
+fn slot_of(f: &Finding) -> Option<&str> {
+    f.evidence.iter().find_map(|e| match e {
+        Evidence::Text(t) => t.strip_prefix("slots: "),
+        _ => None,
+    })
+}
+
+/// The span of the copy a reference to `id` names.
+fn span_of(ctx: &RepairCtx<'_>, id: ObjId) -> Option<ByteSpan> {
+    match ctx.remap.target(id)? {
+        Held::Object(at) => Some(ctx.carve.objects.get(at)?.span),
+        Held::Orphan(at) => Some(ctx.carve.orphans.get(at)?.span()),
+    }
+}
+
+/// The dictionary of the carved object a reference to `id` names.
+fn font_dict<'c>(ctx: &RepairCtx<'c>, id: ObjId) -> Option<&'c Dictionary> {
+    match ctx.remap.target(id)? {
+        Held::Object(at) => match &ctx.carve.objects.get(at)?.body {
+            Body::Dict(d) => Some(d),
+            _ => None,
+        },
+        Held::Orphan(_) => None,
+    }
+}
+
+/// `v`, or what the reference `v` names when that is a value.
+fn resolved<'c>(ctx: &RepairCtx<'c>, v: &'c Object) -> Option<&'c Object> {
+    match v {
+        Object::Reference(id) => match ctx.remap.target(*id)? {
+            Held::Object(at) => match &ctx.carve.objects.get(at)?.body {
+                Body::Primitive(p) => Some(p),
+                _ => None,
+            },
+            Held::Orphan(_) => None,
+        },
+        other => Some(other),
+    }
+}
+
+/// How `font`'s `/Widths` fit `codes`, one byte per code (module docs).
+fn widths_fit<'c>(ctx: &RepairCtx<'c>, font: &'c Dictionary, codes: &[u8]) -> Widths {
+    let Some(Object::Array(widths)) = font.get(b"Widths").ok().and_then(|v| resolved(ctx, v))
+    else {
+        return Widths::Unknown;
+    };
+    let Some(first) = (font.get(b"FirstChar").ok())
+        .and_then(|v| resolved(ctx, v))
+        .and_then(|v| v.as_i64().ok())
+    else {
+        return Widths::Unknown;
+    };
+    if codes.is_empty() {
+        return Widths::Unknown;
+    }
+    let inked = |code: u8| {
+        let at = usize::try_from(i64::from(code) - first).ok();
+        let width = at
+            .and_then(|i| widths.get(i))
+            .and_then(|w| resolved(ctx, w));
+        match width {
+            Some(Object::Integer(w)) => *w != 0,
+            Some(Object::Real(w)) => *w != 0.0,
+            _ => false,
+        }
+    };
+    if codes.iter().all(|&c| inked(c)) {
+        Widths::Agree
+    } else {
+        Widths::Disagree
+    }
+}
+
+/// Every slot `page`'s content selects with `Tf`, with the string bytes its
+/// text operators show through it, read through T-09's `page_content` and
+/// T-06's `content_ops`.
+fn shown_by_slot(ctx: &RepairCtx<'_>, page: ObjId) -> BTreeMap<Vec<u8>, Vec<u8>> {
+    let source = CarveSource::new(ctx.carve, ctx.bytes);
+    let decode = |id: ObjId| ctx.salvage.decoded(&source, id, DEFAULT_CAP).ok();
+    let mut out: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
+    for piece in ctx.graph.page_content(ctx.carve, page, decode) {
+        let Some(bytes) = decode(piece.stream) else {
+            continue;
+        };
+        let mut slot: Option<Vec<u8>> = None;
+        for op in content_ops(&bytes) {
+            let strings: Vec<&[u8]> = match (op.op, op.operands.last()) {
+                (b"Tf", _) => {
+                    if let [.., Object::Name(s), _] = op.operands.as_slice() {
+                        out.entry(s.clone()).or_default();
+                        slot = Some(s.clone());
+                    }
+                    continue;
+                }
+                (b"Tj" | b"'" | b"\"", Some(Object::String(t, _))) => vec![t],
+                (b"TJ", Some(Object::Array(items))) => items
+                    .iter()
+                    .filter_map(|i| match i {
+                        Object::String(t, _) => Some(t.as_slice()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => continue,
+            };
+            if let Some(s) = &slot {
+                let shown = out.entry(s.clone()).or_default();
+                strings.into_iter().for_each(|t| shown.extend_from_slice(t));
+            }
+        }
+    }
+    out
+}
+
 // ── generate and validate ────────────────────────────────────────────────
 
 /// What analysis left for repair: the input, its carve, graph, salvage
@@ -536,11 +995,15 @@ pub(crate) struct Generated {
     pub(crate) passes: Vec<PassReport>,
     /// What the chosen candidate's emit changed.
     pub(crate) notes: EmitNotes,
-    /// Escalations generation raised (`NoCandidatePassed`), beyond the plan's.
+    /// Escalations generation raised beyond the plan's: those of the passes
+    /// of the candidate [`Self::passes`] describes, then `NoCandidatePassed`.
     pub(crate) escalations: Vec<Escalation>,
     /// Each `Partial` pass's reason, for the output; empty when there is
     /// none.
     pub(crate) partial_reasons: Vec<String>,
+    /// The C9 pass's counts and survivors, of the same candidate.
+    pub(crate) c9_summary: C9Summary,
+    pub(crate) c9_survivors: Vec<(ObjId, Vec<Vec<ByteEdit>>)>,
 }
 
 impl Generated {
@@ -551,6 +1014,8 @@ impl Generated {
         report.candidates = self.candidates.clone();
         report.chosen = self.chosen;
         report.partial_reasons = self.partial_reasons.clone();
+        report.c9_summary = self.c9_summary;
+        report.c9_survivors = self.c9_survivors.clone();
         self.notes.record(report);
     }
 }
@@ -562,6 +1027,7 @@ struct Built {
     verification: Verification,
     key: SelectionKey,
     passes: Vec<PassReport>,
+    pass_notes: PassNotes,
     notes: EmitNotes,
 }
 
@@ -588,8 +1054,6 @@ pub(crate) fn generate_and_validate(
     let remap = plan_ids(input.carve, input.graph);
     let tree = rebuild_page_tree(input.carve, input.graph, &remap, opts.default_page_size);
     let base = baseline(input.bytes, input.carve);
-    // No C9 pass yet (T-13b): every stream is copied as carved.
-    let unsalvaged = SalvageIndex::default();
 
     let total = u32::try_from(plan.candidates.len()).unwrap_or(u32::MAX);
     let mut built: Vec<Built> = Vec::new();
@@ -617,13 +1081,15 @@ pub(crate) fn generate_and_validate(
             fonts,
             ask: &mut *ask,
             sink: &mut *sink,
+            notes: PassNotes::default(),
         };
         let passes = run_passes(&schedule, &mut ctx)?;
-        let (targeted, partial) = targets(&passes, &schedule, doc.remap());
+        let pass_notes = std::mem::take(&mut ctx.notes);
+        let (targeted, partial) = targets(&passes, &schedule, &pass_notes, doc.remap());
         let mut emit = EmitCtx {
             bytes: input.bytes,
             input_sha256: input.input_sha256,
-            salvage: &unsalvaged,
+            salvage: input.salvage,
             sink: &mut *sink,
             notes: EmitNotes::default(),
         };
@@ -655,6 +1121,7 @@ pub(crate) fn generate_and_validate(
             verification,
             key,
             passes,
+            pass_notes,
             notes,
         });
     }
@@ -696,16 +1163,15 @@ fn choose(built: Vec<Built>) -> Generated {
     } else {
         Vec::new()
     };
-    let escalations = if passed {
-        Vec::new()
-    } else {
-        vec![Escalation {
+    let mut escalations = b.pass_notes.escalations;
+    if !passed {
+        escalations.push(Escalation {
             kind: EscalationKind::NoCandidatePassed,
             page: None,
             slot: None,
             note: "no candidate passed the hard gates (V0), so nothing was written".to_owned(),
-        }]
-    };
+        });
+    }
     Generated {
         output: passed.then_some(b.output),
         chosen: passed.then_some(b.toolpath),
@@ -718,6 +1184,8 @@ fn choose(built: Vec<Built>) -> Generated {
         },
         escalations,
         partial_reasons,
+        c9_summary: b.pass_notes.c9_summary,
+        c9_survivors: b.pass_notes.c9_survivors,
     }
 }
 
@@ -794,10 +1262,12 @@ fn run_passes(
 }
 
 /// The classes verification targets (every pass that ran and did not skip
-/// itself), and the output locations of the findings of each `Partial` one.
+/// itself), and the output locations each `Partial` one left partial: those
+/// it listed in `notes`, or else all of its findings'.
 fn targets(
     reports: &[PassReport],
     schedule: &[(CorruptionClass, Scheduled)],
+    notes: &PassNotes,
     remap: &IdRemap,
 ) -> (Vec<CorruptionClass>, Vec<Location>) {
     let mut targeted = Vec::new();
@@ -809,11 +1279,16 @@ fn targets(
         match report.outcome {
             PassOutcome::Skipped(_) => continue,
             PassOutcome::Partial(_) => {
-                partial.extend(
-                    findings
-                        .iter()
-                        .filter_map(|f| in_output(&f.location, remap)),
-                );
+                let listed: Vec<&Location> = (notes.partial.iter())
+                    .filter(|(c, _)| *c == report.class)
+                    .map(|(_, l)| l)
+                    .collect();
+                let locations: Vec<&Location> = if listed.is_empty() {
+                    findings.iter().map(|f| &f.location).collect()
+                } else {
+                    listed
+                };
+                partial.extend(locations.into_iter().filter_map(|l| in_output(l, remap)));
             }
             PassOutcome::Fixed => {}
         }

@@ -5,6 +5,10 @@
 //! `/Info` written last, a file with no page gets no
 //! output, the runs are deterministic, and the selection tuple is a pure
 //! function with a table test.
+//!
+//! The C9 swap and the C6 re-link (T-13b) are tested in `content`.
+
+mod content;
 
 use std::cmp::Ordering;
 use std::num::NonZeroUsize;
@@ -28,7 +32,7 @@ use crate::pdf::write::Writer;
 
 use CorruptionClass::{
     C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped,
-    C6FontMapLost, C9ZlibTampered, C10Truncated,
+    C6FontMapLost, C7FontStreamDeleted, C9ZlibTampered, C10Truncated,
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────
@@ -349,19 +353,27 @@ fn passes_override_the_planner() {
 
 #[test]
 fn classes_without_a_pass_are_skipped_with_a_log() {
-    // The golden cut at 70% ends inside the font program: C9 and C10.
-    let input = analysed(corrupt(C10Truncated, &golden_pdf(), 0));
-    assert_eq!(input.classes(), [C9ZlibTampered, C10Truncated]);
+    // C7 has no pass in this version (T-30).
+    let input = analysed(corrupt(C7FontStreamDeleted, &golden_pdf(), 0));
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
     let (g, sink) = run(&input);
     assert!(matches!(
-        pass(&g, C9ZlibTampered).outcome,
+        pass(&g, C7FontStreamDeleted).outcome,
         PassOutcome::Skipped(_)
     ));
     assert!(
-        sink.logs.iter().any(|(_, m)| m.contains("C9")),
+        sink.logs.iter().any(|(_, m)| m.contains("C7")),
         "{:?}",
         sink.logs
     );
+}
+
+#[test]
+fn the_c10_pass_clamps_a_reachable_cut_stream() {
+    // The golden cut at 70% ends inside the font program: C9 and C10.
+    let input = analysed(corrupt(C10Truncated, &golden_pdf(), 0));
+    assert_eq!(input.classes(), [C9ZlibTampered, C10Truncated]);
+    let (g, _) = run(&input);
     // The cut font program is reachable, so it is kept and clamped.
     let c10 = pass(&g, C10Truncated);
     assert!(
@@ -800,14 +812,21 @@ fn preservation_counts_what_the_catalog_and_pages_keep() {
 
 #[test]
 fn the_candidate_set_follows_the_plan_and_never_the_c6_pass() {
-    // A C6 file plans both toolpaths; with no C6 pass yet, Resave is built
-    // and C6 is skipped, not dropped from the report.
+    // A C6 file plans both toolpaths; until T-30 only Resave is built, and
+    // the C6 pass runs inside it.
     let input = analysed(corrupt(C6FontMapLost, &golden_pdf(), 0));
     assert!(input.classes().contains(&C6FontMapLost));
+    let opts = RepairOptions::default();
+    let planned = plan(&input.findings, &input.carve, &input.graph, &opts);
+    assert_eq!(
+        planned.candidates,
+        [Toolpath::Resave, Toolpath::TemplateAssemble]
+    );
     let (g, _) = run(&input);
-    assert!(matches!(
+    assert!(!matches!(
         pass(&g, C6FontMapLost).outcome,
         PassOutcome::Skipped(_)
     ));
     assert_eq!(g.candidates.len(), 1);
+    assert_eq!(g.candidates[0].toolpath, Toolpath::Resave);
 }
