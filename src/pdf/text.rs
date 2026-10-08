@@ -596,9 +596,9 @@ fn strip_subset_tag(name: &str) -> &str {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::*;
-    use crate::pdf::fixtures::{GOLDEN_TEXT, corrupt, golden_pdf};
+    use crate::pdf::fixtures::{BLANK_CASES, GOLDEN_TEXT, blank_cases_pdf, corrupt, golden_pdf};
     use crate::pdf::model::CorruptionClass;
     use crate::pdf::write::Writer;
     use lopdf::{Dictionary, Object};
@@ -761,21 +761,7 @@ pub(crate) mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // The blank-case constructions (goal-r2-fr2 §3).
-
-    pub(crate) const BLANK_CASES: [&str; 11] = [
-        "",
-        "1 1 1 rg 0 0 612 792 re f",
-        "BT /F1 12 Tf 3 Tr 72 700 Td (Hidden) Tj ET",
-        "0 g 100 100 200 200 re f",
-        "0 0 0 0 re W n 0 g 100 100 200 200 re f",
-        "BT /F1 12 Tf 72 700 Td (     ) Tj ET",
-        "q 100 0 0 100 50 50 cm /Im1 Do Q",
-        "BT /F1 12 Tf 72 700 Td (Hello) Tj ET",
-        "0 G 1 w 10 10 m 500 500 l S",
-        "0 g 10 10 m 500 500 l 500 10 l h n",
-        "1 g BT /F1 12 Tf 72 700 Td (Hello) Tj ET",
-    ];
+    // The blank-case constructions (goal-r2-fr2 §3, `fixtures::BLANK_CASES`).
 
     fn obj_dict(entries: Vec<(&str, Object)>) -> Dictionary {
         let mut d = Dictionary::new();
@@ -787,80 +773,6 @@ pub(crate) mod tests {
 
     fn name(s: &str) -> Object {
         Object::Name(s.as_bytes().to_vec())
-    }
-
-    /// Eleven pages, one construction each, a non-embedded Helvetica and a
-    /// 1×1 white image.
-    pub(crate) fn blank_cases_pdf() -> Vec<u8> {
-        const FONT: u32 = 3;
-        const IMAGE: u32 = 4;
-        let mut w = Writer::with_version("1.7");
-        w.add(
-            1,
-            Object::Dictionary(obj_dict(vec![
-                ("Type", name("Catalog")),
-                ("Pages", Object::Reference((2, 0))),
-            ])),
-        );
-        w.add(
-            FONT,
-            Object::Dictionary(obj_dict(vec![
-                ("Type", name("Font")),
-                ("Subtype", name("Type1")),
-                ("BaseFont", name("Helvetica")),
-            ])),
-        );
-        w.add_stream_raw(
-            IMAGE,
-            obj_dict(vec![
-                ("Type", name("XObject")),
-                ("Subtype", name("Image")),
-                ("Width", Object::Integer(1)),
-                ("Height", Object::Integer(1)),
-                ("ColorSpace", name("DeviceRGB")),
-                ("BitsPerComponent", Object::Integer(8)),
-            ]),
-            vec![0xFF; 3],
-        );
-        let mut kids = Vec::new();
-        for (i, content) in BLANK_CASES.iter().enumerate() {
-            let (page, contents) = (10 + 2 * i as u32, 11 + 2 * i as u32);
-            let resources = obj_dict(vec![
-                (
-                    "Font",
-                    Object::Dictionary(obj_dict(vec![("F1", Object::Reference((FONT, 0)))])),
-                ),
-                (
-                    "XObject",
-                    Object::Dictionary(obj_dict(vec![("Im1", Object::Reference((IMAGE, 0)))])),
-                ),
-            ]);
-            w.add(
-                page,
-                Object::Dictionary(obj_dict(vec![
-                    ("Type", name("Page")),
-                    ("Parent", Object::Reference((2, 0))),
-                    (
-                        "MediaBox",
-                        Object::Array(vec![0.into(), 0.into(), 612.into(), 792.into()]),
-                    ),
-                    ("Resources", Object::Dictionary(resources)),
-                    ("Contents", Object::Reference((contents, 0))),
-                ])),
-            );
-            w.add_stream_raw(contents, Dictionary::new(), content.as_bytes().to_vec());
-            kids.push(Object::Reference((page, 0)));
-        }
-        w.add(
-            2,
-            Object::Dictionary(obj_dict(vec![
-                ("Type", name("Pages")),
-                ("Count", Object::Integer(kids.len() as i64)),
-                ("Kids", Object::Array(kids)),
-            ])),
-        );
-        w.trailer((1, 0), [7; 32], None);
-        w.finish().expect("blank cases build")
     }
 
     /// `(path_fills, path_strokes, images, runs_visible, runs_invisible,

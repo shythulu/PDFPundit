@@ -34,7 +34,13 @@
 //! over those carved from the input, and `path_fills` has no input count, so
 //! its denominator is 0. `content_bytes` is always carved data: the raw
 //! (still filtered) bytes of the `/Contents` streams of the output's pages
-//! over those of every page the carver found in the input. `blank_pages` is
+//! over those of every page the carver found in the input. It depends on
+//! encoding, not only on what was kept: a C9 repair writes a `Repaired`
+//! stream with its ASCII stages dropped (smaller) and a `ChecksumMismatch` or
+//! `Prefix` stream uncompressed (often several times larger), so a stream
+//! that lost data can score above 1/1. It must not decide between candidates
+//! that differ in the C9 pass. (Decoded lengths would need the input's bytes,
+//! which the frozen interface does not pass.) `blank_pages` is
 //! the output's blank pages ([`is_blank`]) less the baseline's: a page that
 //! was blank in the input is not a loss. A zero denominator means the
 //! baseline had none of the thing; [`Ratio`] orders `0/0` as zero.
@@ -171,8 +177,13 @@ pub(crate) fn baseline(input: &[u8], carve: &CarveReport) -> Baseline {
 
 /// V0, V1 and V2 of `output` (module docs). `carve` is the input's carve,
 /// `input_text` its [`baseline`], `targeted` the classes the passes set out
-/// to fix, and `partial` the locations, in the output's object numbers, that
-/// a pass reported `Partial` (a finding there may stay, D-074).
+/// to fix, and `partial` the locations that a pass reported `Partial` (a
+/// finding there may stay, D-074).
+///
+/// `partial` is not in the plan's interface: without it `verify` cannot tell
+/// which findings a pass already owned up to. Its locations are in the
+/// output's object numbers and page indexes, and match per page, not per
+/// slot ([`same_site`]).
 pub(crate) fn verify(
     output: &[u8],
     carve: &CarveReport,
@@ -299,10 +310,21 @@ fn strict_reload(output: &[u8]) -> Option<Document> {
     .unwrap_or(None)
 }
 
+/// The longest side, in pixels, of any page the V0 render gate draws.
+const RENDER_MAX_SIDE: f32 = 256.0;
+
 /// The V0 render gate, and the only place this module renders: hayro loads
-/// `output`, finds `pages` pages, and draws each at 1/8 scale without
-/// panicking. The pixmaps are dropped unread: no pixel count, hash or
-/// threshold is taken from them (D-059).
+/// `output`, finds `pages` pages, and draws each without panicking. The
+/// pixmaps are dropped unread: no pixel count, hash or threshold is taken
+/// from them (D-059).
+///
+/// A page is drawn at 1/8 scale, shrunk further so that its longer side is
+/// at most [`RENDER_MAX_SIDE`] pixels. Nothing upstream clamps `/MediaBox`
+/// (emit copies it as carved), and hayro allocates width × height pixels for
+/// whatever scale it is given: a 524280 pt page at 1/8 scale would be a
+/// 17 GiB pixmap, and an allocation failure aborts the process, which
+/// `catch_unwind` cannot catch. The scale is a plain division (no libm) and
+/// never reaches the record.
 fn hayro_renders_every_page(output: &[u8], pages: usize) -> bool {
     use hayro::hayro_interpret::InterpreterSettings;
     use hayro::hayro_syntax::Pdf;
@@ -318,17 +340,31 @@ fn hayro_renders_every_page(output: &[u8], pages: usize) -> bool {
         let cache = RenderCache::new();
         let interpreter = InterpreterSettings::default();
         let settings = RenderSettings::default();
-        let scale = PixmapSettings {
-            x_scale: 0.125,
-            y_scale: 0.125,
-            ..PixmapSettings::default()
-        };
         for page in pdf.pages().iter() {
-            drop(render(page, &cache, &interpreter, &settings, &scale));
+            let (w, h) = page.render_dimensions();
+            let scale = gate_scale(w, h);
+            let pixmap = PixmapSettings {
+                x_scale: scale,
+                y_scale: scale,
+                ..PixmapSettings::default()
+            };
+            drop(render(page, &cache, &interpreter, &settings, &pixmap));
         }
         true
     }))
     .unwrap_or(false)
+}
+
+/// The render gate's scale for a `w` × `h` point page: 1/8, or less so that
+/// the longer side fits [`RENDER_MAX_SIDE`]. An infinite or NaN side (a
+/// `/MediaBox` beyond `f32`) gives 0: a 0 × 0 pixmap, still a full
+/// interpretation of the page.
+fn gate_scale(w: f32, h: f32) -> f32 {
+    let side = w.max(h);
+    if !side.is_finite() || side <= 0.0 {
+        return 0.0;
+    }
+    (RENDER_MAX_SIDE / side).min(0.125)
 }
 
 /// No finding of a `targeted` class outside the `partial` locations
@@ -343,8 +379,17 @@ fn clean_for(findings: &[Finding], targeted: &[CorruptionClass], partial: &[Loca
     })
 }
 
-/// Two locations name the same place: the same object (spans aside), the
-/// same page (index and object), the same span, or both the file.
+/// Two locations name the same place (symmetric):
+/// - the same object, spans aside;
+/// - the same page index, when both name the same object or either names
+///   none (a page-wide `Partial` covers every finding on that page);
+/// - an object and a page location that names that object;
+/// - otherwise, equal locations (the same span, or both the file).
+///
+/// Matching is per page, not per page × slot (D-074): [`Location`] has no
+/// slot, so a `Partial` on one slot of a page excuses every slot there. The
+/// locations must be in the output's object numbers and page indexes (the
+/// remapped numbers emit writes), as the re-diagnosis reports them.
 fn same_site(a: &Location, b: &Location) -> bool {
     match (a, b) {
         (Location::Object { id: x, .. }, Location::Object { id: y, .. }) => x == y,
@@ -355,7 +400,9 @@ fn same_site(a: &Location, b: &Location) -> bool {
             Location::Page {
                 index: j, obj: y, ..
             },
-        ) => i == j && x == y,
+        ) => i == j && (x == y || x.is_none() || y.is_none()),
+        (Location::Object { id, .. }, Location::Page { obj, .. })
+        | (Location::Page { obj, .. }, Location::Object { id, .. }) => obj.as_ref() == Some(id),
         _ => a == b,
     }
 }

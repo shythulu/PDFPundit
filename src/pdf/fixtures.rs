@@ -589,6 +589,90 @@ pub fn type3_only_page() -> Vec<u8> {
     single_page(fonts, content.into_bytes(), extra)
 }
 
+/// The blank-case constructions (goal-r2-fr2 §3): one content stream per
+/// page of [`blank_cases_pdf`], in page order.
+pub const BLANK_CASES: [&str; 11] = [
+    "",
+    "1 1 1 rg 0 0 612 792 re f",
+    "BT /F1 12 Tf 3 Tr 72 700 Td (Hidden) Tj ET",
+    "0 g 100 100 200 200 re f",
+    "0 0 0 0 re W n 0 g 100 100 200 200 re f",
+    "BT /F1 12 Tf 72 700 Td (     ) Tj ET",
+    "q 100 0 0 100 50 50 cm /Im1 Do Q",
+    "BT /F1 12 Tf 72 700 Td (Hello) Tj ET",
+    "0 G 1 w 10 10 m 500 500 l S",
+    "0 g 10 10 m 500 500 l 500 10 l h n",
+    "1 g BT /F1 12 Tf 72 700 Td (Hello) Tj ET",
+];
+
+/// Eleven pages, one [`BLANK_CASES`] construction each, a non-embedded
+/// Helvetica and a 1×1 white image.
+pub fn blank_cases_pdf() -> Vec<u8> {
+    const HELVETICA: u32 = 3;
+    const WHITE_PIXEL: u32 = 4;
+    let mut w = Writer::with_version("1.7");
+    w.add(
+        1,
+        Object::Dictionary(dict(vec![("Type", name(b"Catalog")), ("Pages", r(2))])),
+    );
+    w.add(
+        HELVETICA,
+        Object::Dictionary(dict(vec![
+            ("Type", name(b"Font")),
+            ("Subtype", name(b"Type1")),
+            ("BaseFont", name(b"Helvetica")),
+        ])),
+    );
+    w.add_stream_raw(
+        WHITE_PIXEL,
+        dict(vec![
+            ("Type", name(b"XObject")),
+            ("Subtype", name(b"Image")),
+            ("Width", int(1)),
+            ("Height", int(1)),
+            ("ColorSpace", name(b"DeviceRGB")),
+            ("BitsPerComponent", int(8)),
+        ]),
+        vec![0xFF; 3],
+    );
+    let mut kids = Vec::new();
+    for (i, content) in BLANK_CASES.iter().enumerate() {
+        let (page, contents) = (10 + 2 * i as u32, 11 + 2 * i as u32);
+        let resources = dict(vec![
+            ("Font", Object::Dictionary(dict(vec![("F1", r(HELVETICA))]))),
+            (
+                "XObject",
+                Object::Dictionary(dict(vec![("Im1", r(WHITE_PIXEL))])),
+            ),
+        ]);
+        w.add(
+            page,
+            Object::Dictionary(dict(vec![
+                ("Type", name(b"Page")),
+                ("Parent", r(2)),
+                (
+                    "MediaBox",
+                    Object::Array(vec![int(0), int(0), int(612), int(792)]),
+                ),
+                ("Resources", Object::Dictionary(resources)),
+                ("Contents", r(contents)),
+            ])),
+        );
+        w.add_stream_raw(contents, Dictionary::new(), content.as_bytes().to_vec());
+        kids.push(r(page));
+    }
+    w.add(
+        2,
+        Object::Dictionary(dict(vec![
+            ("Type", name(b"Pages")),
+            ("Count", int(kids.len() as i64)),
+            ("Kids", Object::Array(kids)),
+        ])),
+    );
+    w.trailer((1, 0), [7; 32], None);
+    w.finish().expect("blank cases build")
+}
+
 // ---------------------------------------------------------------------------
 // The goldens
 

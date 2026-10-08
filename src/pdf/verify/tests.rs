@@ -13,10 +13,9 @@ use sha2::{Digest, Sha256};
 use super::*;
 use crate::engine::{NullProgress, PageSize};
 use crate::pdf::emit::{EmitCtx, EmitNotes, emit_resave};
-use crate::pdf::fixtures::{GOLDEN_TEXT, corrupt, golden_pdf};
+use crate::pdf::fixtures::{BLANK_CASES, GOLDEN_TEXT, blank_cases_pdf, corrupt, golden_pdf};
 use crate::pdf::model::{ByteSpan, Evidence, FindingKind, Repairability, Severity};
 use crate::pdf::rebuild::{plan_ids, rebuild_page_tree};
-use crate::pdf::text::tests::{BLANK_CASES, blank_cases_pdf};
 use crate::pdf::text::{FontKey, GlyphItem};
 use crate::pdf::write::Writer;
 
@@ -465,6 +464,54 @@ fn garbage_fails_every_gate() {
     assert_eq!(v.v1.glyph_count, r(0, golden_counts().0));
 }
 
+/// The golden with each page's `/MediaBox` set to `boxes[i]`.
+fn with_media_boxes(boxes: [[f32; 4]; 2]) -> Vec<u8> {
+    rewritten(&golden_pdf(), |objects| {
+        let (_, kids) = page_numbers(objects);
+        for (page, b) in kids.into_iter().zip(boxes) {
+            let rect = b.iter().map(|&v| Object::Real(v)).collect();
+            dict_mut(objects, page).set("MediaBox", Object::Array(rect));
+        }
+    })
+}
+
+#[test]
+fn a_huge_media_box_renders_small_and_passes() {
+    // At 1/8 scale the first page alone would be a 65535 × 65535 pixmap,
+    // about 17 GiB; the second a 125000 × 0 one.
+    let out = with_media_boxes([[0.0, 0.0, 524_280.0, 524_280.0], [0.0, 0.0, 1.0e6, 1.0]]);
+    let v = check(&out, &golden_pdf(), &[]);
+    assert!(v.v0.hayro_render_all_pages, "{:?}", v.v0);
+    assert!(v.v0.all_pass(), "{:?}", v.v0);
+}
+
+#[test]
+fn a_media_box_beyond_f32_renders_at_scale_zero() {
+    // lopdf's `Real` is `f32` and PDF numbers have no exponent, so the
+    // 41-digit width (1e40, infinite as `f32`) goes in as bytes.
+    let out = with_media_boxes([[0.0, 0.0, 612.0, 792.0], [0.0, 0.0, 777_777.0, 792.0]]);
+    let at = out
+        .windows(6)
+        .position(|w| w == b"777777")
+        .expect("the marker width");
+    let mut huge = out[..at].to_vec();
+    huge.extend_from_slice(format!("1{}", "0".repeat(40)).as_bytes());
+    huge.extend_from_slice(&out[at + 6..]);
+    // The xref offsets are off now, which hayro repairs. The page draws at
+    // scale 0 (`gate_scale`) and the gate passes rather than aborting.
+    assert!(hayro_renders_every_page(&huge, 2));
+}
+
+#[test]
+fn the_gate_scale_is_an_eighth_bounded_by_the_longest_side() {
+    assert_eq!(gate_scale(612.0, 792.0), 0.125);
+    assert_eq!(gate_scale(2048.0, 100.0), 0.125);
+    assert_eq!(gate_scale(4096.0, 100.0), 0.0625);
+    assert_eq!(gate_scale(100.0, 524_288.0), 256.0 / 524_288.0);
+    assert_eq!(gate_scale(f32::INFINITY, 792.0), 0.0);
+    assert_eq!(gate_scale(f32::NAN, f32::NAN), 0.0);
+}
+
 #[test]
 fn an_unrepaired_structural_class_fails_rediagnosis() {
     // C3 written back as it came in is still C3.
@@ -525,6 +572,33 @@ fn clean_means_no_targeted_finding_outside_the_partial_locations() {
     ));
     assert!(clean_for(&found, &[C4PageTreeBroken], &[]));
     assert!(clean_for(&[], &CorruptionClass::ALL, &[]));
+}
+
+#[test]
+fn a_site_matches_per_page_and_across_object_and_page_forms() {
+    let obj = |n| Location::Object {
+        id: (n, 0),
+        span: None,
+    };
+    let page = |index, obj: Option<u32>| Location::Page {
+        index,
+        obj: obj.map(|n| (n, 0)),
+    };
+    // A page-wide location covers every object on that page, both ways.
+    assert!(same_site(&page(1, None), &page(1, Some(7))));
+    assert!(same_site(&page(1, Some(7)), &page(1, None)));
+    assert!(!same_site(&page(1, Some(7)), &page(1, Some(8))));
+    assert!(!same_site(&page(1, None), &page(2, None)));
+    // An object and a page location naming it, both ways.
+    assert!(same_site(&obj(7), &page(1, Some(7))));
+    assert!(same_site(&page(1, Some(7)), &obj(7)));
+    assert!(!same_site(&obj(7), &page(1, Some(8))));
+    assert!(!same_site(&obj(7), &page(1, None)));
+    // Spans and the file match only themselves.
+    let span = Location::Span(ByteSpan { start: 1, end: 2 });
+    assert!(same_site(&span, &span));
+    assert!(!same_site(&span, &Location::File));
+    assert!(same_site(&Location::File, &Location::File));
 }
 
 // ── re-diagnosis spends nothing (D-074) ──────────────────────────────────
@@ -621,6 +695,27 @@ fn an_unrecoverable_stream_reported_partial_passes_v0() {
     let (v, spent) = verify_spending(&out, &carve, &base, &[C9ZlibTampered], &partial);
     assert!(v.v0.all_pass(), "{:?}", v.v0);
     assert_eq!(spent, 0);
+    // T-11b: diagnose's C6-C9 classes are still a stub, so today the output
+    // carries no C9 finding and `partial` changes nothing. Once T-11b reports
+    // the dead stream, `partial` is what keeps V0 passing.
+    let out_carve = carved(&out);
+    let out_graph = ObjectGraph::from_carve(&out_carve);
+    let findings = diagnose(
+        &out,
+        &out_carve,
+        &out_graph,
+        &classify_only(&out_carve, &out),
+    );
+    let c9_at_4 = findings.iter().any(|f| {
+        f.class == FindingKind::Corruption(C9ZlibTampered) && same_site(&f.location, &partial[0])
+    });
+    if c9_at_4 {
+        let (bare, _) = verify_spending(&out, &carve, &base, &[C9ZlibTampered], &[]);
+        assert!(
+            !bare.v0.rediagnose_clean,
+            "the finding counts without `partial`"
+        );
+    }
     // The dead stream is still in the output, as found (D-074).
     let doc = Document::load_mem(&out).unwrap();
     assert_eq!(
@@ -640,26 +735,52 @@ fn an_unrecoverable_stream_reported_partial_passes_v0() {
 /// rendering.
 const GATE: &str = "fn hayro_renders_every_page(";
 
+/// Identifiers that render or hold pixels (lowercased): any outside the
+/// gate trips the wire. `hayro_render_all_pages` and `RENDER_MAX_SIDE` are
+/// whole identifiers of their own and do not.
+const RASTER_IDENTS: [&str; 7] = [
+    "render",
+    "render_into",
+    "rendercache",
+    "rendersettings",
+    "rendercontext",
+    "pixmap",
+    "pixmapsettings",
+];
+
 #[test]
 fn nothing_outside_the_render_gate_touches_pixels() {
     let src = include_str!("../verify.rs");
     let start = src.find(GATE).expect("the render gate");
     let end = start + src[start..].find("\n}\n").expect("the gate's end");
+    let raster = |line: &str| {
+        let code = line.split("//").next().unwrap_or("").to_ascii_lowercase();
+        code.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .any(|ident| {
+                RASTER_IDENTS.contains(&ident) || ident.contains("pixmap") || ident.contains("rgba")
+            })
+    };
     let mut hits = Vec::new();
     let mut at = 0;
     for line in src.split_inclusive('\n') {
-        let code = line.split("//").next().unwrap_or("").to_ascii_lowercase();
-        let raster = ["render(", "::render", "pixmap", "rgba", "rendersettings"]
-            .iter()
-            .any(|t| code.contains(t));
-        if raster && !(start..end).contains(&at) {
+        if raster(line) && !(start..end).contains(&at) {
             hits.push(line.trim().to_owned());
         }
         at += line.len();
     }
     assert!(hits.is_empty(), "raster use outside the V0 gate: {hits:?}");
-    // The tripwire would fire: the gate itself renders.
-    assert!(src[start..end].contains("render("));
+    // The tripwire would fire: the gate itself renders, and each spelling
+    // the review named is caught.
+    assert!(raster(&src[start..end]));
+    for spelling in [
+        "use hayro::{render, RenderCache};",
+        "render (page, &cache)",
+        "let p: Pixmap = x;",
+        "data.rgba8()",
+    ] {
+        assert!(raster(spelling), "{spelling}");
+    }
+    assert!(!raster("hayro_render_all_pages: RENDER_MAX_SIDE"));
 }
 
 /// `verify`'s signature: the output's bytes, the input's carve, the
