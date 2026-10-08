@@ -5,7 +5,7 @@ PDFPundit past the state of the art in PDF repair. It is built for agents pickin
 cold, as well as for humans.
 
 ## Status
-- **Stage:** Stage 4 re-validation is done; the access gate (one batched request to the user) and then Stage 5 (the review board) are next.
+- **Stage:** Stage 4 re-validation is done; Stage 5 (the review board) is next. The access items below are a standing checklist, not a gate: nothing in Stages 5–6 waits on them.
   - P0 (foundations) is done.
   - The Charter Committee (001) is done: all three members approved with changes, 12 blocking issues were resolved, and one partial rejection was escalated to and decided by the user.
   - The P1 scoping sweep (committee 002) is done: five agents, a blind screening audit (`audits/002-screening/`), 10k rev 4 and charter rev 2.2.
@@ -20,7 +20,30 @@ cold, as well as for humans.
   - 72 reproducible observations (`observations/index.md`), including the REPDF damage characterization, the reproduction of PR #16's C9 numbers and the Stage 4 re-runs;
   - 63 gaps, 23 proposed damage classes, 6 hypotheses, 138 tooling verdicts (31 Adopt, 33 Trial, 44 Assess, 30 Hold).
 - **Paid search used:** 30 of 80.
-- **Next:** one batched access request to the user (API keys, blocked hosts, provisioning, user-only contacts; `staging/verifier/access.md` and committee 005's escalations), then Stage 5: a review board of six on the 5k plan, with replication seats (the DEFLATE reviewer runs both replay oracles on all 1,444 damaged-stream counterparts). Then the cold-start test and the research-vs-specs recommendation.
+- **Next:** Stage 5, a review board of six on the 5k plan, with replication seats (the DEFLATE reviewer runs both replay oracles on all 1,444 damaged-stream counterparts; the evaluation scientist rules on the certification target against the document count). The board also reads PR #18's outlined-text and OCR note, merged from main on 2026-10-08 (`nimbalyst-local/plans/research/research_notes/Corrupted PDF repair beyond REPDF/outlined_text_and_ocr.md`). Then the cold-start test and the research-vs-specs recommendation.
+
+### Standing access checklist (for the user, whenever convenient)
+These feed the **P4 full literature review** and some P1/P5 work packages, not Stages 5–6. Work goes on without them; each one only makes a later step faster or fuller. Sources: `staging/verifier/access.md` and committee 005's escalations.
+
+**Keys.** Add each as a variable in the cloud environment's settings (environment menu in the session title bar → Edit). A new session picks them up. Never paste a key into chat.
+
+| Variable | Priority | Why |
+|---|---|---|
+| `CORE_API_KEY` | Recommended | CORE now refuses keyless calls (HTTP 429, OBS-1208). It is P4's main open-access full-text source (WP-1.1, TOOL-306). |
+| `OPENALEX_API_KEY` | Recommended | Keyless calls work, but this container's shared IP spends the daily budget. It feeds discovery, forward citations and citation counts (WP-1.1, WP-1.3). |
+| `S2_API_KEY` | Optional | Semantic Scholar works keyless today; a key gives a dedicated quota and bulk abstracts. |
+| `HF_TOKEN` | Only if D9 is funded | Needed only for the LLM/VLM trial, if the board funds it. |
+
+Not needed: AWS, Crossref, Unpaywall, OpenCitations (all keyless). Parallel search stays capped at 80 calls.
+
+**Network hosts** (environment network settings), optional: `repdf.site` (REPDF black-box runs, the first replication route); `www.ohchr.org` or `web.archive.org` (UDHR translation pairs, WP-3.8); the Ollama model CDN (CPR model weights).
+
+**Provisioning**, optional: a working Docker daemon (GROBID, WP-1.2) and `libreoffice-writer` (second producer, WP-3.14).
+
+**User-only decisions** (agents never act on these):
+- Paywalled papers: whether to obtain any (the P4 screen lists them).
+- Contacting the PDF Association, or the REPDF corresponding author for code (replication route b).
+- Google Document AI as REPDF's OCR, or per-script Tesseract as the substitute. Per-script Tesseract is the default until the user says otherwise.
 
 *(This section is rewritten at the end of every stage.)*
 
