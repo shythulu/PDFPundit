@@ -19,7 +19,9 @@
 //! into path candidates, each candidate passes the drop gate, and the files it
 //! lets in make the cat chomp and go to the runner, which analyses then
 //! repairs each one. The one-line fallback takes no drops (D-064): it refuses
-//! them with a hint and asks the terminal to grow.
+//! them with a hint and asks the terminal to grow. The browse picker (`b`,
+//! T-37) is the fallback for a terminal that does not paste on drop; the
+//! files it picks take the same road, gate and chomp included.
 //!
 //! The loop owns the [`AppState`], the [`Director`], the runner and the history
 //! store. It hands every job event to the runner first and then to the state,
@@ -49,6 +51,7 @@ use super::input::collector::{Collector, Flush};
 use super::input::gate::{Admitted, gate};
 use super::input::paste::{PathCandidate, paths_from_paste};
 use super::input::{Input, InputSource};
+use super::layout::browse::{self, BrowseAction, BrowseKey, BrowseState};
 use super::layout::full::{self, FullLayout};
 use super::layout::modals::{ModalKey, ThemeAction, ThemeChooser};
 use super::layout::widget::{OneLine, WidgetLayout};
@@ -364,6 +367,9 @@ pub(crate) struct App {
     admitted: Vec<Admitted>,
     /// Path candidates the one-line fallback refused (D-064).
     refused_too_small: usize,
+    /// The folder the browse picker opens on: the working directory, then
+    /// the folder it was last closed in.
+    browse_from: PathBuf,
     /// Windows: typed keys, until they are known to be keys or a path.
     #[cfg(windows)]
     collector: Collector,
@@ -405,6 +411,8 @@ impl App {
             warn_above: AnalyzeOptions::default().max_file_bytes,
             admitted: Vec::new(),
             refused_too_small: 0,
+            browse_from: std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from(std::path::MAIN_SEPARATOR_STR)),
             #[cfg(windows)]
             collector: Collector::default(),
             mood: vm.mood,
@@ -448,6 +456,11 @@ impl App {
             self.set_theme(self.theme_before);
             self.state.screen = Screen::Main;
         }
+        // The one-line fallback has no picker (D-064): a shrink closes it as
+        // Esc would.
+        if self.kind == LayoutKind::OneLine && matches!(self.state.screen, Screen::Browse(_)) {
+            self.close_browse();
+        }
         self.director.set_stage(match self.kind {
             LayoutKind::Full => Stage::Full,
             LayoutKind::Widget | LayoutKind::OneLine => Stage::Widget,
@@ -478,14 +491,17 @@ impl App {
         }
     }
 
-    /// A key. On Windows the main screen's keys go through the collector
-    /// first; on Unix a key is only ever a key.
+    /// A key. On Windows the main screen's and the picker's keys go through
+    /// the collector first; on Unix a key is only ever a key. In the picker,
+    /// a path dropped as a burst of keys is a drop like a paste there (fed
+    /// through the gate, the picks left alone), not a run of picker keys that
+    /// would pick, toggle and move as it went.
     fn typed(&mut self, k: KeyEvent, _now: Duration) {
         if k.kind == KeyEventKind::Release {
             return;
         }
         #[cfg(windows)]
-        if self.state.screen == Screen::Main {
+        if matches!(self.state.screen, Screen::Main | Screen::Browse(_)) {
             for f in self.collector.key(k, _now) {
                 self.collected(f);
             }
@@ -605,6 +621,10 @@ impl App {
         }
         // A one-off hint lasts until the next key.
         self.state.hint = None;
+        if matches!(self.state.screen, Screen::Browse(_)) {
+            self.browse_key(k.code);
+            return;
+        }
         match k.code {
             KeyCode::Char('q' | 'Q') => self.quit = true,
             KeyCode::Char('T' | 't') if self.kind == LayoutKind::Full => {
@@ -613,10 +633,10 @@ impl App {
                     selected: ThemeChooser::open(Theme::all(), &Theme::all()[self.theme_index]),
                 };
             }
-            // TODO(T-37): the browse picker. Inert where the layout takes no
-            // input (the one-line fallback, D-064).
+            // The browse picker. Inert where the layout takes no input (the
+            // one-line fallback, D-064).
             KeyCode::Char('b' | 'B') if layout(self.kind).accepts_input() => {
-                self.state.hint = Some(strings::NOT_YET);
+                self.state.screen = Screen::Browse(BrowseState::open(&self.browse_from));
             }
             KeyCode::Char(c) => {
                 full::menu_key(&mut self.state, c);
@@ -653,6 +673,49 @@ impl App {
                 self.state.screen = Screen::Main;
             }
             ThemeAction::Ignore => {}
+        }
+    }
+
+    /// The browse picker's keys. Confirming closes it and sends the picked
+    /// paths through [`App::dropped`], the drop gate and chomp a paste goes
+    /// through.
+    fn browse_key(&mut self, code: KeyCode) {
+        let key = match code {
+            KeyCode::Up => BrowseKey::Up,
+            KeyCode::Down => BrowseKey::Down,
+            KeyCode::Left => BrowseKey::Left,
+            KeyCode::Right => BrowseKey::Right,
+            KeyCode::Enter => BrowseKey::Enter,
+            KeyCode::Backspace => BrowseKey::Backspace,
+            KeyCode::Esc => BrowseKey::Esc,
+            KeyCode::Char(c) => BrowseKey::Char(c),
+            _ => return,
+        };
+        let Screen::Browse(picker) = &mut self.state.screen else {
+            return;
+        };
+        match picker.key(key) {
+            BrowseAction::Stay => {}
+            BrowseAction::Cancel => self.close_browse(),
+            BrowseAction::Feed(paths) => {
+                self.close_browse();
+                let candidates = paths
+                    .into_iter()
+                    .map(|path| PathCandidate {
+                        raw: path.display().to_string(),
+                        path: Some(path),
+                        reason: None,
+                    })
+                    .collect();
+                self.dropped(candidates);
+            }
+        }
+    }
+
+    /// Closes the picker; it opens on the same folder next time.
+    fn close_browse(&mut self) {
+        if let Screen::Browse(picker) = std::mem::take(&mut self.state.screen) {
+            self.browse_from = picker.cwd;
         }
     }
 
@@ -881,14 +944,24 @@ impl App {
     }
 
     /// The canvas for `shown`: the layout, then the theme chooser over the
-    /// full layout while it is open, with the status bar's state saying so.
+    /// full layout or the browse picker over either layout while it is open,
+    /// with the full layout's status bar saying so.
     fn draw(&self, shown: &Shown) -> Canvas {
         let (w, h) = shown.size;
         let mut c = Canvas::new(w, h, &self.theme);
         layout(self.kind).draw(&mut c, &shown.vm, &shown.cat, &self.theme);
-        if let (LayoutKind::Full, Screen::Themes { selected }) = (shown.kind, &shown.screen) {
-            ThemeChooser::draw(&mut c, Theme::all(), *selected);
-            modal_status(&mut c, &shown.vm, strings::CHOOSING_THEME, &self.theme);
+        match (shown.kind, &shown.screen) {
+            (LayoutKind::Full, Screen::Themes { selected }) => {
+                ThemeChooser::draw(&mut c, Theme::all(), *selected);
+                modal_status(&mut c, &shown.vm, strings::CHOOSING_THEME, &self.theme);
+            }
+            (kind, Screen::Browse(picker)) => {
+                browse::draw(&mut c, picker, kind, &self.theme);
+                if kind == LayoutKind::Full {
+                    modal_status(&mut c, &shown.vm, strings::BROWSING, &self.theme);
+                }
+            }
+            _ => {}
         }
         c
     }

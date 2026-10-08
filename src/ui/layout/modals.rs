@@ -32,7 +32,7 @@ pub enum ModalKey {
 /// background by `f`, except a text cell's background, which steps back by
 /// 0.85; nothing behind a modal blinks. Only the full layout's 112 × 38 is
 /// stepped back: a larger terminal's margin is left as it is.
-fn step_back(c: &mut Canvas, f: f64, bg: Rgb) {
+pub(super) fn step_back(c: &mut Canvas, f: f64, bg: Rgb) {
     let (w, h) = (c.w.min(FULL_SIZE.0), c.h.min(FULL_SIZE.1));
     for y in 0..h {
         let row = usize::from(y) * usize::from(c.w);
@@ -45,9 +45,13 @@ fn step_back(c: &mut Canvas, f: f64, bg: Rgb) {
     c.blink.retain(|&(x, y)| x >= w || y >= h);
 }
 
-/// The style both modals' boxes share: the theme's modal gradient, the title
-/// on the accent, a drop shadow.
-fn modal_style<'a>(title: &'a str, note: Option<&'a str>, theme: &'a Theme) -> BoxStyle<'a> {
+/// The style every modal's box shares (the browse picker's too): the theme's
+/// modal gradient, the title on the accent, a drop shadow.
+pub(super) fn modal_style<'a>(
+    title: &'a str,
+    note: Option<&'a str>,
+    theme: &'a Theme,
+) -> BoxStyle<'a> {
     BoxStyle {
         title: Some(title),
         note,

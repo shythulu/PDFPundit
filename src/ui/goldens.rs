@@ -260,6 +260,71 @@ pub(crate) fn load(name: &str) -> Golden {
     g
 }
 
+/// Self-goldens (D-048): screens the mockup has no frame for yet (the browse
+/// picker, T-37) are checked against a frame this crate drew once and
+/// committed, in the T-00 goldens' format, under `tests/data/ui-self/`. They
+/// hold the look still until the user supplies a mockup frame, which then
+/// replaces them. To accept a deliberate change, run the test with
+/// `PDFPUNDIT_BLESS_UI=1` and review the diff.
+pub(crate) fn self_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/ui-self")
+}
+
+/// `c` in the goldens' JSON, one cell a line so a diff names the cells.
+pub(crate) fn to_json(c: &crate::ui::canvas::Canvas, name: &str) -> String {
+    let q = |s: &str| serde_json::to_string(s).expect("a string serialises");
+    let mut out = format!(
+        "{{\n\"name\": {},\n\"kind\": \"canvas\",\n\"w\": {},\n\"h\": {},\n\"cells\": [\n",
+        q(name),
+        c.w,
+        c.h
+    );
+    let mut cells = Vec::with_capacity(c.cells.len());
+    for y in 0..c.h {
+        for x in 0..c.w {
+            cells.push(match c.golden_cell(x, y) {
+                GoldenCell::Text { ch, fg, bg } => {
+                    format!("[{}, \"{fg}\", \"{bg}\"]", q(&ch.to_string()))
+                }
+                GoldenCell::Half { top, bottom } => {
+                    let px =
+                        |p: Option<Rgb>| p.map_or_else(|| "null".into(), |p| format!("\"{p}\""));
+                    format!("[\"HB\", {}, {}]", px(top), px(bottom))
+                }
+                GoldenCell::Empty => "null".into(),
+            });
+        }
+    }
+    out.push_str(&cells.join(",\n"));
+    out.push_str("\n],\n\"blink\": [");
+    let blink: Vec<String> = c.blink.iter().map(|(x, y)| format!("[{x}, {y}]")).collect();
+    out.push_str(&blink.join(", "));
+    out.push_str("]\n}\n");
+    out
+}
+
+/// Panics unless `c` equals the committed self-golden `name`, cell for cell
+/// and in its blink set.
+#[track_caller]
+pub(crate) fn assert_self_golden(c: &crate::ui::canvas::Canvas, name: &str) {
+    let path = self_dir().join(format!("{name}.json"));
+    if std::env::var_os("PDFPUNDIT_BLESS_UI").is_some() {
+        std::fs::create_dir_all(self_dir()).expect("create tests/data/ui-self");
+        std::fs::write(&path, to_json(c, name)).expect("write the self-golden");
+        return;
+    }
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!(
+            "{}: {e}; run with PDFPUNDIT_BLESS_UI=1 to write it",
+            path.display()
+        )
+    });
+    let g: Golden =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    assert_eq!(g.name, name, "{}: name field", path.display());
+    c.assert_matches(&g);
+}
+
 /// The cat-golden name for a scale and pose key (`cat-0.465-wchomp-3`).
 pub(crate) fn cat_name(scale: f64, pose: &str) -> String {
     format!("cat-{scale}-{pose}")
@@ -534,6 +599,27 @@ fn pose_floats_read_back_exactly() {
             assert_eq!(value.to_bits(), exact.to_bits(), "{name}: {field} {raw}");
         }
     }
+}
+
+/// A canvas written as a self-golden reads back as the same canvas: text,
+/// pixel pairs, characters JSON escapes, and the blink set.
+#[test]
+fn a_self_golden_reads_back_as_its_canvas() {
+    use crate::ui::canvas::Canvas;
+    use crate::ui::color::Rgb as C;
+    use crate::ui::theme::Theme;
+    let theme = Theme::default_theme();
+    let mut c = Canvas::new(6, 3, theme);
+    c.text(0, 0, "\"\\é►", C([1, 2, 3]), Some(C([4, 5, 6])));
+    c.pix(1, 3, &[[Some(C([200, 0, 0]))], [Some(C([0, 200, 0]))]]);
+    c.set_blink(5, 2);
+    let g: Golden = serde_json::from_str(&to_json(&c, "self-test")).expect("parses");
+    assert_eq!(g.name, "self-test");
+    assert_eq!(g.kind, Kind::Canvas);
+    c.assert_matches(&g);
+    let mut other = c.clone();
+    other.put(0, 0, '\'', None, None);
+    assert!(std::panic::catch_unwind(|| other.assert_matches(&g)).is_err());
 }
 
 #[test]

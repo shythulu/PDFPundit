@@ -16,6 +16,7 @@ use crate::library::RecentStatus;
 use crate::panic_guard::{self, SharedWriter};
 use crate::place::ScratchDir;
 use crate::ui::goldens;
+use crate::ui::layout::browse::BrowseState;
 use crate::ui::term::TestScreen;
 
 /// How far the fake clock moves per event: a tick, or on Windows the
@@ -446,14 +447,14 @@ fn keys_quit_open_the_chooser_and_move_the_cursor() {
         send(&mut app, key(k));
         assert_eq!(app.state.hint, hint);
     }
-    send(&mut app, key('b'));
-    assert_eq!(
-        app.state.hint,
-        Some(strings::NOT_YET),
-        "browse waits on T-37"
-    );
     send(&mut app, code(KeyCode::Left));
     assert_eq!(app.state.hint, None, "a one-off hint lasts one key");
+    send(&mut app, key('b'));
+    assert!(matches!(app.state.screen, Screen::Browse(_)));
+    send(&mut app, key('q'));
+    assert!(!app.quit, "q is not a picker key");
+    send(&mut app, code(KeyCode::Esc));
+    assert_eq!(app.state.screen, Screen::Main);
 
     queue(&mut app, 3);
     send(&mut app, code(KeyCode::Down));
@@ -564,10 +565,216 @@ fn the_theme_chooser_is_drawn_over_the_full_layout() {
 fn browse_is_inert_in_the_one_line_fallback() {
     let (mut app, _) = started(20, 1, &config::Ui::default());
     send(&mut app, key('b'));
+    assert_eq!(app.state.screen, Screen::Main, "b at 20×1 opens nothing");
     assert_eq!(app.state.hint, None);
-    let (mut app, _) = started(32, 16, &config::Ui::default());
+    for (w, h) in [(32, 16), (112, 38)] {
+        let (mut app, _) = started(w, h, &config::Ui::default());
+        send(&mut app, key('B'));
+        assert!(matches!(app.state.screen, Screen::Browse(_)), "{w}×{h}");
+    }
+}
+
+// ── the browse picker (T-37) ────────────────────────────────────────────
+
+/// An app on `w × h` whose picker opens on `dir`.
+fn browsing_in(dir: &Path, w: u16, h: u16) -> App {
+    let (mut app, _) = started(w, h, &config::Ui::default());
+    app.browse_from = dir.to_path_buf();
+    app
+}
+
+/// The ticket's fixture: `a.pdf`, `b.PDF`, `c.txt`, `sub/`.
+fn browse_fixture(label: &str) -> ScratchDir {
+    let dir = ScratchDir::new(label);
+    pdf(&dir, "a.pdf");
+    pdf(&dir, "b.PDF");
+    std::fs::write(dir.join("c.txt"), b"%PDF-1.7\n").unwrap();
+    std::fs::create_dir(dir.join("sub")).unwrap();
+    dir
+}
+
+#[test]
+fn confirming_two_picked_files_chomps_once_and_submits_both() {
+    let dir = browse_fixture("app-browse");
+    let mut app = browsing_in(dir.path(), 112, 38);
     send(&mut app, key('b'));
-    assert_eq!(app.state.hint, Some(strings::NOT_YET));
+    let Screen::Browse(picker) = &app.state.screen else {
+        panic!("b opens the picker");
+    };
+    let shown: Vec<String> = picker.entries.iter().map(|e| e.display()).collect();
+    assert_eq!(shown, ["sub", "a.pdf", "b.PDF"], "two files and one folder");
+
+    // `a` picks both, three downs reach the button, Enter feeds the cat.
+    send(&mut app, key('a'));
+    for _ in 0..3 {
+        send(&mut app, code(KeyCode::Down));
+    }
+    assert!(app.admitted.is_empty(), "nothing goes in before the button");
+    send(&mut app, code(KeyCode::Enter));
+    assert_eq!(app.state.screen, Screen::Main, "confirming closes it");
+    assert_eq!(app.state.hint, None);
+
+    let mut submitted = Vec::new();
+    let now = Duration::from_secs(3);
+    app.submit_drops(now, &mut |input| {
+        submitted.push(input);
+        JobId(submitted.len() as u64)
+    });
+    let want = [dir.join("a.pdf"), dir.join("b.PDF")].map(JobInput::File);
+    assert_eq!(submitted, want, "two submits, in name order");
+    let frame = app.director.frame(now);
+    assert_eq!(
+        (frame.n, frame.caption),
+        (2, "the drop: plop"),
+        "one Dropped{{2}}"
+    );
+    let names: Vec<&str> = app
+        .state
+        .batch
+        .entries
+        .iter()
+        .map(|e| e.name.as_str())
+        .collect();
+    assert_eq!(names, ["a.pdf", "b.PDF"]);
+    app.submit_drops(now, &mut |_| panic!("submitted twice"));
+}
+
+/// The picker's files take the paste's road: a file gone by the time the
+/// button is pressed is refused by the gate and named on the hint row.
+#[test]
+fn picked_files_pass_the_drop_gate() {
+    let dir = browse_fixture("app-browse-gate");
+    let mut app = browsing_in(dir.path(), 112, 38);
+    send(&mut app, key('b'));
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Enter));
+    std::fs::remove_file(dir.join("a.pdf")).unwrap();
+    send(&mut app, code(KeyCode::Enter));
+    assert_eq!(app.state.screen, Screen::Main);
+    assert!(app.admitted.is_empty());
+    assert_eq!(app.state.hint, Some(strings::DROP_UNREADABLE));
+}
+
+#[test]
+fn the_picker_closes_on_esc_and_on_a_shrink_to_one_line() {
+    let dir = browse_fixture("app-browse-close");
+    let mut app = browsing_in(dir.path(), 32, 16);
+    send(&mut app, key('b'));
+    send(&mut app, code(KeyCode::Enter));
+    send(&mut app, code(KeyCode::Esc));
+    assert_eq!(app.state.screen, Screen::Main);
+    assert!(app.admitted.is_empty(), "Esc feeds nothing");
+    // It opens again where it was closed.
+    send(&mut app, key('b'));
+    let Screen::Browse(picker) = &app.state.screen else {
+        panic!("open");
+    };
+    assert_eq!(picker.cwd, dir.join("sub"));
+    // Full and widget keep it; the one-line fallback closes it.
+    send(&mut app, Input::Resize(112, 38));
+    assert!(matches!(app.state.screen, Screen::Browse(_)));
+    send(&mut app, Input::Resize(20, 1));
+    assert_eq!(app.state.screen, Screen::Main);
+    send(&mut app, key('b'));
+    assert_eq!(app.state.screen, Screen::Main);
+}
+
+/// A path pasted while the picker is open is a drop: it goes through the
+/// gate and the picker stays as it was, its picks untouched.
+#[test]
+fn a_paste_in_the_picker_is_a_drop_and_leaves_the_picks_alone() {
+    let dir = browse_fixture("app-browse-paste");
+    let mut app = browsing_in(dir.path(), 112, 38);
+    send(&mut app, key('b'));
+    send(&mut app, paste_of(&[&dir.join("a.pdf")]));
+    assert_eq!(app.admitted.len(), 1);
+    let Screen::Browse(picker) = &app.state.screen else {
+        panic!("the picker stays open");
+    };
+    assert!(picker.selected.is_empty());
+    assert_eq!((picker.cursor, picker.hidden), (0, false));
+}
+
+/// Windows: a path dropped as a burst of keys while the picker is open goes
+/// through the collector like on the main screen, so its `a`s, spaces and
+/// `.`s are never read as picker keys.
+#[cfg(windows)]
+#[test]
+fn a_typed_burst_in_the_picker_is_a_drop_on_windows() {
+    let dir = browse_fixture("app-browse-burst");
+    let dropped = pdf(&dir, "a b.pdf");
+    let mut app = browsing_in(dir.path(), 112, 38);
+    send(&mut app, key('b'));
+    let text = format!("\"{}\"", dropped.display());
+    for (i, c) in text.chars().enumerate() {
+        app.on_input(
+            key(c),
+            Duration::from_secs(10) + Duration::from_millis(i as u64),
+        );
+    }
+    app.tick(Duration::from_secs(20));
+    assert_eq!(app.admitted.len(), 1);
+    assert_eq!(app.admitted[0].path, dropped);
+    let Screen::Browse(picker) = &app.state.screen else {
+        panic!("the picker stays open");
+    };
+    assert!(picker.selected.is_empty(), "no `a` picked anything");
+    assert_eq!((picker.cursor, picker.hidden), (0, false));
+}
+
+/// A sample picker over the mockup's names, independent of any disk.
+fn sample_picker() -> BrowseState {
+    use crate::ui::fs::Entry;
+    let entry = |name: &str, is_dir: bool, size: u64| Entry {
+        name: name.into(),
+        is_dir,
+        size,
+    };
+    let cwd = PathBuf::from("/evidence/case-2291");
+    BrowseState {
+        entries: vec![
+            entry("2024-q3", true, 0),
+            entry("scans", true, 0),
+            entry("contract_signed.pdf", false, 245_000),
+            entry("invoice_scan.pdf", false, 1_100_000),
+            entry("minutes_q3.pdf", false, 180_000),
+            entry("report_2024.pdf", false, 512_000),
+            entry("thesis_ar.pdf", false, 393_000),
+        ],
+        cursor: 5,
+        selected: [cwd.join("invoice_scan.pdf"), cwd.join("thesis_ar.pdf")]
+            .into_iter()
+            .collect(),
+        cwd,
+        ..BrowseState::default()
+    }
+}
+
+/// The picker's look, over the idle screen and across the widget, against
+/// self-goldens (D-048: no mockup frame exists for it yet).
+#[test]
+fn the_picker_matches_its_self_goldens() {
+    for (name, size) in [("browse-full", (112, 38)), ("browse-widget", (32, 16))] {
+        let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
+        app.state = AppState::mockup_idle();
+        app.resize(size.0, size.1);
+        app.refresh(Duration::ZERO);
+        app.state.screen = Screen::Browse(sample_picker());
+        let c = app.draw(&app.shown_at(Duration::ZERO));
+        goldens::assert_self_golden(&c, name);
+    }
+}
+
+#[test]
+fn the_full_status_bar_says_browsing() {
+    let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
+    app.state = AppState::mockup_idle();
+    app.resize(112, 38);
+    app.refresh(Duration::ZERO);
+    app.state.screen = Screen::Browse(sample_picker());
+    let c = app.draw(&app.shown_at(Duration::ZERO));
+    let bar: String = (0..112).map(|x| c.get(x, 37).expect("cell").ch).collect();
+    assert!(bar.contains(strings::BROWSING), "{bar}");
 }
 
 // ── drops (T-23b) ───────────────────────────────────────────────────────
