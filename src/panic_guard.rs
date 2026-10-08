@@ -9,9 +9,6 @@
 //! writes nothing to the terminal, so an engine panic never tears down the
 //! screen (D-051 amended, eng-r2-q3). T-23a only wires it.
 #![allow(clippy::disallowed_types)]
-// The shell (T-23a) wires this module and has not landed.
-// TODO(T-23a): remove this allow once the shell uses it.
-#![allow(dead_code)]
 
 use std::cell::RefCell;
 use std::io::Write;

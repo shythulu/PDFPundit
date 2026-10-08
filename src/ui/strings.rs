@@ -137,6 +137,14 @@ pub const STATE_IDLE: &str = "idle";
 /// setup and help.
 pub const NOT_YET: &str = "·∙· not yet ·∙·";
 
+/// The guard's one line (D-043), on stderr when stdin or stdout is not a
+/// terminal.
+pub const NOT_A_TERMINAL: &str = "PDFPundit runs in a terminal; drop PDFs on the cat.";
+
+/// The one line on stderr when the terminal cannot be set up or used; `{e}`
+/// is the system's reason.
+pub const TERMINAL_FAILED: &str = "PDFPundit could not use the terminal: {e}";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -248,6 +256,9 @@ pub const ALL: &[&str] = &[
     STATE_BUSY,
     STATE_NEEDS_YOU,
     NOT_YET,
+    // the shell (T-23a)
+    NOT_A_TERMINAL,
+    TERMINAL_FAILED,
 ];
 
 #[cfg(test)]
