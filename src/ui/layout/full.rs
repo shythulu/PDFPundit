@@ -9,6 +9,12 @@
 //! drawn where the director puts it, and the hint and the status bar follow the
 //! reaction.
 //!
+//! The mockup labels the file during a drag and the first two chomp steps
+//! (`thesis_ar.pdf +2`) and shows `dragging 3 files` in the status bar while
+//! dragging. The director carries no name or count for a drag
+//! (`CatEvent::DragAt`), so neither is drawn: the status bar keeps the
+//! batch's state. Both wait on that data.
+//!
 //! MENU draws `H history`, `S setup` and `? help` because the golden does, but
 //! v1 has no screen behind them (D-048, flagged for the user): [`menu_key`]
 //! answers those keys with the "not yet" hint and opens nothing.
@@ -192,8 +198,10 @@ fn panels(c: &mut Canvas, vm: &ViewModel, theme: &Theme) {
     let name_w = lc.inner_w().saturating_sub(3);
     for (i, r) in vm.recent.iter().take(RECENT_ROWS).enumerate() {
         let k = slot_of(r.status.role());
-        let row = format!(" {{{k}}}{} {{C}}{}", r.status.glyph(), fit(&r.name, name_w));
-        lc.line(c, CALLERS.1 + 1 + to_i32(i), &row, theme);
+        let y = CALLERS.1 + 1 + to_i32(i);
+        let x = lc.line(c, y, &format!(" {{{k}}}{} ", r.status.glyph()), theme);
+        // The name is the file's, not markup: drawn as it is.
+        lc.text(c, x, y, &fit(&r.name, name_w), theme.roles.file);
     }
     let (files, runs) = vm.history_totals;
     let totals = strings::N_FILES_N_RUNS
@@ -547,6 +555,43 @@ mod tests {
         let footer: String = row_text(&c, 16).chars().skip(2).take(23).collect();
         assert!(footer.ends_with('…'), "{footer:?}");
         assert_eq!(row_text(&c, 15).chars().nth(25), Some('║'));
+    }
+
+    /// A file's name is drawn as it is: braces in it are not colour markup and
+    /// a control character in it never reaches a cell.
+    #[test]
+    fn names_with_markup_or_control_characters_are_drawn_verbatim() {
+        let mut app = AppState::mockup_idle();
+        app.history.recent = [
+            "Invoice {A}.pdf",
+            "a{}b.pdf",
+            "x{R}.pdf",
+            "y{/K}z\u{1b}[2J.pdf",
+        ]
+        .iter()
+        .map(|n| RecentRow {
+            name: (*n).to_string(),
+            status: RecentStatus::Repaired,
+        })
+        .collect();
+        let vm = view(&app);
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        let want = [
+            "Invoice {A}.pdf",
+            "a{}b.pdf",
+            "x{R}.pdf",
+            "y{/K}z\u{fffd}[2J.pdf",
+        ];
+        for (y, name) in (10..).zip(want) {
+            let n = name.chars().count();
+            let row: String = row_text(&c, y).chars().skip(5).take(n + 1).collect();
+            assert_eq!(row, format!("{name} "), "row {y}");
+            for x in 5..5 + to_i32(n) {
+                let cell = c.get(x as u16, y).expect("cell");
+                assert_eq!(cell.fg, theme().roles.file, "({x}, {y})");
+            }
+            assert_eq!(row_text(&c, y).chars().nth(25), Some('║'), "row {y}");
+        }
     }
 
     #[test]

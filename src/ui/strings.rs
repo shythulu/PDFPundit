@@ -130,6 +130,8 @@ pub const EATING_N_PDFS: &str = "eating {n} pdfs";
 /// The view model's batch states, as the status bar shows them (T-20).
 pub const STATE_BUSY: &str = "busy";
 pub const STATE_NEEDS_YOU: &str = "needs you";
+/// Listed in [`ALL`] as the widget pose "idle".
+pub const STATE_IDLE: &str = "idle";
 
 /// The hint for a MENU key whose screen does not exist yet (D-048): history,
 /// setup and help.
@@ -271,6 +273,61 @@ mod tests {
             THEME_NAMES[0], "DarkBerry Blackwater",
             "the default theme first"
         );
+    }
+
+    /// The full layout's hand-written entries are its arrays as drawn: each
+    /// `[K] label`, numbered step and SYSTEM row is in `ALL`, and every such
+    /// entry in `ALL` is one of them, so a renamed label leaves no stale one.
+    #[test]
+    fn the_full_layouts_entries_follow_its_arrays() {
+        let keyed: Vec<String> = MENU_ITEMS
+            .iter()
+            .chain(&HOTKEYS)
+            .map(|(k, l)| format!("[{k}] {l}"))
+            .collect();
+        let how: Vec<String> = HOW_LINES
+            .iter()
+            .map(|(n, t)| n.map_or_else(|| (*t).to_string(), |n| format!("{n} {t}")))
+            .collect();
+        let sys: Vec<String> = [
+            SYS_ENGINE,
+            SYS_NETWORK,
+            SYS_FONTS,
+            (SYS_HISTORY, N_FILES),
+            SYS_ORIGINALS,
+        ]
+        .iter()
+        .map(|(l, v)| format!("{l}{v}"))
+        .collect();
+        for s in keyed.iter().chain(&how).chain(&sys) {
+            assert!(ALL.contains(&s.as_str()), "{s:?} missing from ALL");
+        }
+        let numbered = |s: &str| {
+            let mut c = s.chars();
+            c.next().is_some_and(|d| d.is_ascii_digit()) && c.next() == Some(' ')
+        };
+        let sys_label = |s: &str| {
+            [
+                SYS_ENGINE.0,
+                SYS_NETWORK.0,
+                SYS_FONTS.0,
+                SYS_HISTORY,
+                SYS_ORIGINALS.0,
+            ]
+            .iter()
+            .any(|l| s.starts_with(l.trim_end()) && s.len() > l.trim_end().len())
+        };
+        for &s in ALL {
+            if s.starts_with('[') {
+                assert!(keyed.iter().any(|k| k == s), "stale {s:?} in ALL");
+            }
+            if numbered(s) {
+                assert!(how.iter().any(|h| h == s), "stale {s:?} in ALL");
+            }
+            if sys_label(s) {
+                assert!(sys.iter().any(|r| r == s), "stale {s:?} in ALL");
+            }
+        }
     }
 
     #[test]

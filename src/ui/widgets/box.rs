@@ -3,6 +3,7 @@
 //! whose lines never write past its right border.
 
 use crate::ui::canvas::{BoxStyle, Boxed, Canvas};
+use crate::ui::color::Rgb;
 use crate::ui::theme::Theme;
 
 /// A panel drawn by [`panel`], for writing lines inside it.
@@ -30,6 +31,15 @@ impl Panel {
     pub fn line(&self, c: &mut Canvas, row: i32, text: &str, theme: &Theme) -> i32 {
         let right = u16::try_from(self.0.x + self.0.w - 1).unwrap_or(0);
         c.clipped(right, u16::MAX, |c| self.0.line(c, row, text, theme))
+    }
+
+    /// Literal `text` (no markup: a file's name) from column `x` on canvas row
+    /// `row`, in `fg` on the panel's fill, cut at the right border. Returns
+    /// the column after the text (past the border if it was cut).
+    pub fn text(&self, c: &mut Canvas, x: i32, row: i32, text: &str, fg: Rgb) -> i32 {
+        let right = u16::try_from(self.0.x + self.0.w - 1).unwrap_or(0);
+        let fill = Some(self.0.fill);
+        c.clipped(right, u16::MAX, |c| c.text(x, row, text, fg, fill))
     }
 
     /// A separator across the panel on canvas row `row`.
@@ -63,6 +73,24 @@ mod tests {
         p.line(&mut c, 1, "abcdefghijkl", t);
         let row: String = (0..12).map(|x| c.get(x, 1).expect("cell").ch).collect();
         assert_eq!(row, "║abcdef║    ");
+    }
+
+    /// Text is drawn as it is: markup tokens and control characters in it are
+    /// not read, and it stops at the border.
+    #[test]
+    fn literal_text_is_drawn_verbatim_and_stops_at_the_border() {
+        let t = Theme::default_theme();
+        let mut c = Canvas::new(14, 3, t);
+        let p = panel(&mut c, 0, 0, 14, 3, "X", t);
+        let end = p.text(&mut c, 1, 1, "a{R}{}\u{1b}b{/K}xyz", t.roles.file);
+        let row: String = (0..14).map(|x| c.get(x, 1).expect("cell").ch).collect();
+        assert_eq!(row, "║a{R}{}\u{fffd}b{/K}║");
+        assert_eq!(end, 16);
+        for x in 1..13 {
+            let cell = c.get(x, 1).expect("cell");
+            assert_eq!(cell.fg, t.roles.file, "column {x}");
+            assert_eq!(cell.bg, p.0.fill, "column {x}");
+        }
     }
 
     #[test]
