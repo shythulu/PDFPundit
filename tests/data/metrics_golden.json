@@ -1,0 +1,125 @@
+{
+  "about": "T-25 text-recovery metrics golden: hand-written (orig, rep, lang) triples with expected scores, compared exactly. Changing normalisation or tokenisation means re-baselining this file on purpose.",
+  "cases": [
+    {
+      "name": "en_case_and_whitespace",
+      "lang": "en",
+      "orig": "The quick brown fox",
+      "rep": "the  QUICK\tbrown\nfox",
+      "len_orig": 4, "len_rep": 4, "lcs": 4,
+      "lcs_f1": { "num": 8, "den": 8 },
+      "recall": { "num": 4, "den": 4 },
+      "precision": { "num": 4, "den": 4 },
+      "bag_f1": { "num": 8, "den": 8 },
+      "char_f1": { "num": 38, "den": 38 }
+    },
+    {
+      "name": "en_dropped_word",
+      "lang": "en",
+      "orig": "one two three four",
+      "rep": "one three four",
+      "len_orig": 4, "len_rep": 3, "lcs": 3,
+      "lcs_f1": { "num": 6, "den": 7 },
+      "recall": { "num": 3, "den": 4 },
+      "precision": { "num": 3, "den": 3 },
+      "bag_f1": { "num": 6, "den": 7 },
+      "char_f1": { "num": 28, "den": 32 }
+    },
+    {
+      "name": "en_swapped_halves",
+      "lang": "en",
+      "orig": "a b c d",
+      "rep": "c d a b",
+      "len_orig": 4, "len_rep": 4, "lcs": 2,
+      "lcs_f1": { "num": 4, "den": 8 },
+      "recall": { "num": 2, "den": 4 },
+      "precision": { "num": 2, "den": 4 },
+      "bag_f1": { "num": 8, "den": 8 },
+      "char_f1": { "num": 6, "den": 14 }
+    },
+    {
+      "name": "en_duplicated_word",
+      "lang": "en",
+      "orig": "red green blue",
+      "rep": "red red green blue",
+      "len_orig": 3, "len_rep": 4, "lcs": 3,
+      "lcs_f1": { "num": 6, "den": 7 },
+      "recall": { "num": 3, "den": 3 },
+      "precision": { "num": 3, "den": 4 },
+      "bag_f1": { "num": 6, "den": 7 },
+      "char_f1": { "num": 28, "den": 32 }
+    },
+    {
+      "name": "fr_nfc_and_casefold",
+      "lang": "fr",
+      "orig": "Über Café déjà",
+      "rep": "über café déjà",
+      "len_orig": 3, "len_rep": 3, "lcs": 3,
+      "lcs_f1": { "num": 6, "den": 6 },
+      "recall": { "num": 3, "den": 3 },
+      "precision": { "num": 3, "den": 3 },
+      "bag_f1": { "num": 6, "den": 6 },
+      "char_f1": { "num": 28, "den": 28 }
+    },
+    {
+      "name": "es_tilde_lost",
+      "lang": "es",
+      "orig": "El niño come pan",
+      "rep": "el nino come pan",
+      "len_orig": 4, "len_rep": 4, "lcs": 3,
+      "lcs_f1": { "num": 6, "den": 8 },
+      "recall": { "num": 3, "den": 4 },
+      "precision": { "num": 3, "den": 4 },
+      "bag_f1": { "num": 6, "den": 8 },
+      "char_f1": { "num": 30, "den": 32 }
+    },
+    {
+      "name": "ar_truncated",
+      "lang": "ar",
+      "orig": "مرحبا بالعالم",
+      "rep": "مرحبا",
+      "len_orig": 2, "len_rep": 1, "lcs": 1,
+      "lcs_f1": { "num": 2, "den": 3 },
+      "recall": { "num": 1, "den": 2 },
+      "precision": { "num": 1, "den": 1 },
+      "bag_f1": { "num": 2, "den": 3 },
+      "char_f1": { "num": 10, "den": 18 }
+    },
+    {
+      "name": "hi_swapped_words",
+      "lang": "hi",
+      "orig": "नमस्ते दुनिया",
+      "rep": "दुनिया नमस्ते",
+      "len_orig": 2, "len_rep": 2, "lcs": 1,
+      "lcs_f1": { "num": 2, "den": 4 },
+      "recall": { "num": 1, "den": 2 },
+      "precision": { "num": 1, "den": 2 },
+      "bag_f1": { "num": 4, "den": 4 },
+      "char_f1": { "num": 12, "den": 26 }
+    },
+    {
+      "name": "zh_one_wrong_character",
+      "lang": "zh",
+      "orig": "你好世界",
+      "rep": "你好世民",
+      "len_orig": 4, "len_rep": 4, "lcs": 3,
+      "lcs_f1": { "num": 6, "den": 8 },
+      "recall": { "num": 3, "den": 4 },
+      "precision": { "num": 3, "den": 4 },
+      "bag_f1": { "num": 6, "den": 8 },
+      "char_f1": { "num": 6, "den": 8 }
+    },
+    {
+      "name": "unknown_empty_original",
+      "lang": "unknown",
+      "orig": "",
+      "rep": "garbage text",
+      "len_orig": 0, "len_rep": 2, "lcs": 0,
+      "lcs_f1": { "num": 0, "den": 2 },
+      "recall": { "num": 0, "den": 1 },
+      "precision": { "num": 0, "den": 2 },
+      "bag_f1": { "num": 0, "den": 2 },
+      "char_f1": { "num": 0, "den": 12 }
+    }
+  ]
+}
