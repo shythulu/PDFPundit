@@ -438,6 +438,30 @@ fn build_all() -> Vec<Theme> {
 
 static THEMES: LazyLock<Vec<Theme>> = LazyLock::new(build_all);
 
+/// The palette file's `version` field.
+#[derive(Deserialize)]
+struct PaletteVersion {
+    version: String,
+}
+
+static PALETTE_VERSION: LazyLock<String> = LazyLock::new(|| {
+    serde_json::from_str::<PaletteVersion>(PALETTE_JSON)
+        .expect("the vendored palette has a version")
+        .version
+});
+
+impl Theme {
+    /// The DarkBerry palette's version (`"0.3.0"`) for the four flavours read
+    /// from it, which the theme chooser names as their source; `None` for the
+    /// other themes.
+    pub fn palette_version(&self) -> Option<&'static str> {
+        DARKBERRY
+            .iter()
+            .any(|&(_, name)| name == self.name)
+            .then(|| PALETTE_VERSION.as_str())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

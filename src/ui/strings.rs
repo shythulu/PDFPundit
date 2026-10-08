@@ -137,6 +137,254 @@ pub const STATE_IDLE: &str = "idle";
 /// setup and help.
 pub const NOT_YET: &str = "·∙· not yet ·∙·";
 
+// The modals (T-24): the font pick (frame 04) and the theme chooser (frame
+// 06). Strings with `{F}` tokens are the canvas's colour markup; the deny-list
+// holds their plain text.
+
+/// The font pick's title, before the file's name.
+pub const PICK_A_FONT: &str = "PiCK A FONT »";
+/// Which of the file's font questions this is: the first `{n}` this one, the
+/// second how many.
+pub const N_OF_M: &str = "{n} of {n}";
+/// The slot line's words: `slot F3 (CIDFont+F1) · first seen p.12 · 418
+/// glyph codes · language guess arabic`.
+pub const SLOT: &str = "slot";
+pub const FIRST_SEEN_P: &str = "first seen p.";
+pub const GLYPH_CODES: &str = "glyph codes";
+pub const LANGUAGE_GUESS: &str = "language guess";
+/// Why the cat asks, when the slot's `/ToUnicode` survived (C7) and when it
+/// did not (C8).
+pub const WHY_TOUNICODE: &str = "{w}The text decodes through the surviving {W}/ToUnicode{w}, but no bundled font matched by name.";
+pub const WHY_NO_TOUNICODE: &str =
+    "{w}No {W}/ToUnicode{w} survives, so each preview is decoded through its own candidate.";
+/// What the cat asks.
+pub const PICK_THE_CANDIDATE: &str = "{w}Pick the candidate whose preview {W}reads correctly{w}.";
+/// The candidate table's column heads.
+pub const CANDIDATE_COLUMNS: [&str; 4] = ["candidate", "score", "fit", "conf"];
+/// The top-ranked candidate's mark.
+pub const BEST_GUESS: &str = "◄ best guess";
+/// The label before each candidate's preview.
+pub const PREVIEW: &str = "preview";
+/// The font source row. v1 has only the bundled fonts: system fonts by name
+/// wait on fontique (M5, D-035), so `tab` switches nothing yet.
+pub const FONT_SOURCE: &str = "{D}font source  {C}(•){W} bundled sister fonts   {D}( ){w} system fonts by name   {D}[{Y}tab{D}]{D} switch";
+/// The font pick's buttons.
+pub const PICK_BUTTON: &str = "{W/m} ► Pick {/K}";
+pub const USE_BEST_BUTTON: &str = "{D}[ {W}Use best for both {D}]";
+pub const SKIP_BUTTON: &str = "{D}[ {w}Skip {D}]{D} keeps best guess, marks finding {Y}partial";
+/// The font pick's keys.
+pub const FONT_PICK_KEYS: &str =
+    "{D}↑↓ candidate · enter pick · b best for both · s skip · esc later (file stays parked)";
+/// A candidate's language label (T-28's `Lang` labels) as the slot line
+/// names it; any other label is shown as it is.
+pub const LANGUAGES: [(&str, &str); 6] = [
+    ("ar", "arabic"),
+    ("en", "english"),
+    ("es", "spanish"),
+    ("fr", "french"),
+    ("hi", "hindi"),
+    ("zh", "chinese"),
+];
+/// The status bar's state while a font question is open; `{file}` is the
+/// file's name.
+pub const RESOLVING_FILE: &str = "resolving {file}";
+
+/// The theme chooser's title and its note; `{n}` is the number of themes.
+pub const THEME_TITLE: &str = "THEME";
+pub const N_THEMES: &str = "{n} themes";
+pub const LIVE_PREVIEW: &str = "live preview";
+/// The mark of the default theme.
+pub const DEFAULT_MARK: &str = "★";
+/// Under the theme list, with their columns: loading a theme file and
+/// copying the current one are not built in v1 (flagged for the user, as
+/// D-048's menu items are), so no key answers them yet.
+pub const THEME_FILE_LINES: [(i32, &str); 6] = [
+    (6, "{D}+ {w}load theme file…"),
+    (8, "{D}~/.config/pdfpundit/themes/"),
+    (8, "{D}catppuccin-style palette.json"),
+    (8, "{D}or *.toml · 16 ansi + ramps"),
+    (8, "{D}[{Y}e{D}]{w} copy & edit current"),
+    (8, "{Y}★{D} default"),
+];
+/// One line about each theme, in [`THEME_NAMES`] order.
+pub const THEME_DESCS: [&str; 7] = [
+    "bog-witch berry · darkest",
+    "bog-witch berry · dark",
+    "bog-witch berry · dusk",
+    "bog-witch berry · light",
+    "the original 16 · 1994",
+    "lilac · blush · mint",
+    "greyscale · low colour",
+];
+/// What the preview pane says the theme can be drawn in.
+pub const COLOUR_SUPPORT: &str =
+    "{D}truecolor {G}√ {D}· 256-colour {G}√ {D}· 16-colour fallback {G}√";
+/// Where a DarkBerry flavour comes from; the palette's version follows.
+pub const PALETTE_SOURCE: &str = "{D}source {C}darkberry.slacklab.ca {D}· palette.json v";
+/// The preview pane's headings.
+pub const ROLES: &str = "ROLES";
+pub const GRADIENTS: &str = "GRADIENTS";
+pub const ANSI_0_15: &str = "ANSi 0–15";
+pub const SAMPLE: &str = "SAMPLE";
+/// The two columns of roles: the slot letter, then what it colours.
+pub const ROLE_LABELS: [[(char, &str); 5]; 2] = [
+    [
+        ('W', "headings"),
+        ('w', "body text"),
+        ('C', "file names"),
+        ('Y', "hotkeys · warn"),
+        ('D', "dim · shadows"),
+    ],
+    [
+        ('R', "errors"),
+        ('G', "repaired · ok"),
+        ('M', "needs input"),
+        ('c', "info"),
+        ('b', "lightbar · status"),
+    ],
+];
+/// The gradients' labels: border, logo, progress, attention (the modals) and
+/// batch.
+pub const GRADIENT_LABELS: [&str; 5] = ["border", "logo", "progress", "attention", "batch"];
+/// The ANSI rows' labels and the eight colours' names.
+pub const ANSI_ROWS: [&str; 2] = ["0–7", "8–15"];
+pub const ANSI_NAMES: [&str; 8] = ["blk", "red", "grn", "yel", "blu", "mag", "cyn", "wht"];
+/// The sample queue the preview pane draws in the theme: its title, its note
+/// and its rows (the first on the lightbar), then its bar's percentage.
+pub const SAMPLE_TITLE: &str = "QUEUE";
+pub const SAMPLE_NOTE: &str = "{G}3{w}/7 {D}·{M} 1 needs input";
+pub const SAMPLE_ROWS: [&str; 4] = [
+    "{C/b}☼  {W}invoice_scan.pdf     repairing · C9 salvage",
+    "{G}√  {C}report_2024.pdf      {w}repaired · 3 fixed",
+    "{M}‼  {C}thesis_ar.pdf        {M}needs input · 2 fonts",
+    "{R}[ERR] {w}C9 zlib stream   {Y}[WRN] {w}C3 trailer   {c}[iNF] {w}header ok",
+];
+pub const SAMPLE_PCT: &str = "{W} 71%";
+/// The theme chooser's keys.
+pub const THEME_KEYS: &str = "{D}↑↓ preview (screen recolours live) · enter apply · esc cancel";
+/// The status bar's state while the theme chooser is open.
+pub const CHOOSING_THEME: &str = "choosing theme";
+
+// The full layout's batch and result views (T-22b, frames 03 and 05).
+
+/// The header row's breadcrumb after the app's name: the batch view's two
+/// parts, and the result view's.
+pub const CRUMB_BATCH: (&str, &str) = ("batch", "auto-repair ON");
+pub const CRUMB_RESULTS: &str = "results";
+
+/// The queue box: its title, its counts note (`{n}` the count; the first
+/// note part's `{n}` is the done files, the second the total) and its column
+/// headings.
+pub const QUEUE: &str = "QUEUE";
+pub const N_OF_N_DONE: &str = "{n}/{n} done";
+/// One file waiting on you, or any other number of them.
+pub const N_NEEDS_INPUT: &str = "{n} needs input";
+pub const N_NEED_INPUT: &str = "{n} need input";
+pub const N_FAILED: &str = "{n} failed";
+pub const QUEUE_HEADINGS: &str = "   file                  status";
+
+/// The box asking for a decision. The second line follows the parked file's
+/// count of fonts ("2 fonts").
+pub const NEEDS_INPUT_TITLE: &str = "‼ NEEDS iNPUT";
+pub const CAN_BE_READ_NOT_REPRODUCED: (&str, &str, &str, &str) =
+    ("can be", "read", "but not", "reproduced");
+pub const PARKED_KEEPS_GOING: &str = "parked · the batch keeps going.";
+pub const NEEDS_INPUT_KEYS: [(&str, &str); 2] = [("i", "resolve now"), ("l", "later")];
+
+/// The batch view's line under the cat.
+pub const DROP_MORE: &str = "drop more pdfs on the cat to queue them";
+
+/// The analysis panel: its title before the file's name, and its headings.
+pub const ANALYSIS: &str = "ANALYSiS »";
+pub const FINDINGS: &str = "FiNDiNGS";
+pub const STREAMED_AS_FOUND: &str = "streamed as found";
+pub const LOG: &str = "LOG";
+
+/// A finding's level tag.
+pub const TAG_ERR: &str = "[ERR]";
+pub const TAG_WRN: &str = "[WRN]";
+pub const TAG_INF: &str = "[iNF]";
+
+/// The two-line progress box: the batch line (`{n}` done, then total) and
+/// what follows it while a file is parked or once one failed; a percentage.
+pub const BATCH_N_OF_N: &str = "batch {n}/{n}";
+pub const N_PARKED: &str = "{n} parked";
+pub const N_PERCENT: &str = "{n}%";
+
+/// The batch view's hotkeys, and the hotkeys while the file menu is open.
+pub const BATCH_KEYS: [(&str, &str); 6] = [
+    ("↑↓", "select"),
+    ("enter", "file menu"),
+    ("i", "resolve"),
+    ("+", "add files"),
+    ("p", "pause"),
+    ("q", "quit"),
+];
+pub const MENU_KEYS: [(&str, &str); 4] = [
+    ("↑↓", "move"),
+    ("enter", "choose"),
+    ("esc", "close menu"),
+    ("q", "quit"),
+];
+
+/// The result panel: its title before the file's name and its headings.
+pub const RESULT: &str = "RESULT »";
+pub const BEFORE_AFTER: &str = "before after";
+pub const RECOVERY: &str = "RECOVERY";
+pub const FONTS: &str = "FONTS";
+
+/// A font row's words: where the font came from, then what became of it.
+/// The intact and bundled rows are frame 05's; a re-linked, text-only or
+/// skipped slot has no frame yet, so these are T-22b's words until one
+/// exists. [`FONT_UNKNOWN`] stands in for a name the file does not give; it
+/// is not in [`ALL`], because the engine's reports say "unknown" of things.
+pub const FONT_EMBEDDED: &str = "embedded";
+pub const FONT_BUNDLED: &str = "bundled";
+pub const FONT_INTACT: &str = "intact";
+pub const FONT_RELINKED: &str = "relinked";
+pub const FONT_TEXT_ONLY: &str = "text only";
+pub const FONT_LEFT_AS_FOUND: &str = "left as found";
+pub const FONT_UNKNOWN: &str = "unknown";
+
+/// The result panel's actions row.
+pub const RESULT_KEYS: [(&str, &str); 4] = [
+    ("o", "open"),
+    ("e", "export .md"),
+    ("d", "re-diagnose"),
+    ("c", "copy"),
+];
+
+/// The result panel's sign-off and the cat's line under it.
+pub const CASE_CLOSED: &str = "─── case closed · the cat has inspected this pdf ───";
+pub const CAT_SATISFIED: (&str, &str) = ("the cat is satisfied.", "burp.");
+
+/// The per-file menu (D-048): its title and items, `None` a separator. The
+/// export item is DA:472's `Export → <name>.md` action, labelled as frame 05
+/// draws it.
+pub const FILE_MENU: &str = "FiLE";
+pub const FILE_MENU_ITEMS: [Option<(&str, char)>; 8] = [
+    Some(("Open repaired PDF", 'o')),
+    Some(("Reveal in folder", 'f')),
+    Some((EXPORT_MARKDOWN, 'e')),
+    Some(("Re-diagnose", 'd')),
+    None,
+    Some(("Repair options…", 'R')),
+    Some(("Copy report", 'c')),
+    Some(("Remove from queue", 'x')),
+];
+pub const EXPORT_MARKDOWN: &str = "Export → Markdown";
+
+/// The last row of a findings or fonts list that has more entries than rows:
+/// how many are not shown (`{n}`).
+pub const N_MORE: &str = "… {n} more";
+
+/// A finding's location in the analysis panel's detail column: an object
+/// (`{n}` its number, then its generation) or a page (`{n}` counting from 1).
+/// Neither is in [`ALL`]: "obj" is in every PDF, so the artefact scan would
+/// flag every repaired file.
+pub const LOC_OBJ: &str = "obj {n} {n}";
+pub const LOC_PAGE: &str = "p.{n}";
+
 /// The guard's one line (D-043), on stderr when stdin or stdout is not a
 /// terminal.
 pub const NOT_A_TERMINAL: &str = "PDFPundit runs in a terminal; drop PDFs on the cat.";
@@ -256,6 +504,100 @@ pub const ALL: &[&str] = &[
     STATE_BUSY,
     STATE_NEEDS_YOU,
     NOT_YET,
+    // the modals (T-24): their phrases as drawn, markup and button brackets
+    // removed; lone column heads and labels ("score", "errors", "partial")
+    // are left out, so an ordinary report word is not a hit
+    PICK_A_FONT,
+    "first seen p.{n}",
+    "{n} glyph codes",
+    "language guess",
+    "The text decodes through the surviving /ToUnicode, but no bundled font matched by name.",
+    "No /ToUnicode survives, so each preview is decoded through its own candidate.",
+    "Pick the candidate whose preview reads correctly.",
+    BEST_GUESS,
+    "font source  (•) bundled sister fonts   ( ) system fonts by name   [tab] switch",
+    " ► Pick ",
+    "Use best for both",
+    "keeps best guess, marks finding partial",
+    "↑↓ candidate · enter pick · b best for both · s skip · esc later (file stays parked)",
+    RESOLVING_FILE,
+    "{n} themes · live preview",
+    "+ load theme file…",
+    "~/.config/pdfpundit/themes/",
+    "catppuccin-style palette.json",
+    "or *.toml · 16 ansi + ramps",
+    "copy & edit current",
+    "★ default",
+    "bog-witch berry · darkest",
+    "bog-witch berry · dark",
+    "bog-witch berry · dusk",
+    "bog-witch berry · light",
+    "the original 16 · 1994",
+    "lilac · blush · mint",
+    "greyscale · low colour",
+    "truecolor √ · 256-colour √ · 16-colour fallback √",
+    "source darkberry.slacklab.ca · palette.json v",
+    ANSI_0_15,
+    "↑↓ preview (screen recolours live) · enter apply · esc cancel",
+    CHOOSING_THEME,
+    // the full layout's batch and result views (T-22b), as drawn: the
+    // breadcrumbs behind their chevron, keyed labels with their key, and the
+    // font words in the phrases a row draws them in
+    "» batch · auto-repair ON",
+    "» results",
+    QUEUE,
+    N_OF_N_DONE,
+    N_NEEDS_INPUT,
+    N_NEED_INPUT,
+    N_FAILED,
+    QUEUE_HEADINGS,
+    NEEDS_INPUT_TITLE,
+    "can be read but not reproduced.",
+    PARKED_KEEPS_GOING,
+    "[i] resolve now",
+    "[l] later",
+    DROP_MORE,
+    ANALYSIS,
+    "FiNDiNGS streamed as found",
+    LOG,
+    TAG_ERR,
+    TAG_WRN,
+    TAG_INF,
+    BATCH_N_OF_N,
+    N_PARKED,
+    N_PERCENT,
+    "[↑↓] select",
+    "[enter] file menu",
+    "[i] resolve",
+    "[+] add files",
+    "[p] pause",
+    "[q] quit",
+    "[↑↓] move",
+    "[enter] choose",
+    "[esc] close menu",
+    RESULT,
+    "FiNDiNGS before after",
+    RECOVERY,
+    FONTS,
+    "embedded intact",
+    "embedded relinked",
+    FONT_TEXT_ONLY,
+    FONT_LEFT_AS_FOUND,
+    "[o] open",
+    "[e] export .md",
+    "[d] re-diagnose",
+    "[c] copy",
+    CASE_CLOSED,
+    "the cat is satisfied. burp.",
+    FILE_MENU,
+    "Open repaired PDF",
+    "Reveal in folder",
+    EXPORT_MARKDOWN,
+    "Re-diagnose",
+    "Repair options…",
+    "Copy report",
+    "Remove from queue",
+    N_MORE,
     // the shell (T-23a)
     NOT_A_TERMINAL,
     TERMINAL_FAILED,
@@ -291,11 +633,20 @@ mod tests {
     /// entry in `ALL` is one of them, so a renamed label leaves no stale one.
     #[test]
     fn the_full_layouts_entries_follow_its_arrays() {
-        let keyed: Vec<String> = MENU_ITEMS
+        let mut keyed: Vec<String> = MENU_ITEMS
             .iter()
             .chain(&HOTKEYS)
             .map(|(k, l)| format!("[{k}] {l}"))
             .collect();
+        keyed.extend(
+            BATCH_KEYS
+                .iter()
+                .chain(&MENU_KEYS)
+                .chain(&RESULT_KEYS)
+                .chain(&NEEDS_INPUT_KEYS)
+                .map(|(k, l)| format!("[{k}] {l}")),
+        );
+        keyed.extend([TAG_ERR, TAG_WRN, TAG_INF].map(String::from));
         let how: Vec<String> = HOW_LINES
             .iter()
             .map(|(n, t)| n.map_or_else(|| (*t).to_string(), |n| format!("{n} {t}")))
@@ -338,6 +689,17 @@ mod tests {
             if sys_label(s) {
                 assert!(sys.iter().any(|r| r == s), "stale {s:?} in ALL");
             }
+        }
+    }
+
+    /// The per-file menu's export item (D-048, DA:472) and every other item
+    /// are in the deny-list as drawn.
+    #[test]
+    fn the_file_menus_labels_are_in_all() {
+        assert!(ALL.contains(&EXPORT_MARKDOWN));
+        assert!(FILE_MENU_ITEMS.contains(&Some((EXPORT_MARKDOWN, 'e'))));
+        for (label, _) in FILE_MENU_ITEMS.iter().flatten() {
+            assert!(ALL.contains(label), "{label:?} missing from ALL");
         }
     }
 
