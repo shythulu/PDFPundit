@@ -48,6 +48,8 @@ pub struct ViewModel {
     pub status_bar: StatusBar,
     /// A one-off hint for the hint row.
     pub hint: Option<&'static str>,
+    /// The per-file menu is open, the cursor on this item (T-22b).
+    pub file_menu: Option<usize>,
 }
 
 /// Files per state. Every file is in exactly one of the last six counts.
@@ -122,7 +124,11 @@ pub struct QueueRow {
     /// "3 fixed", "2 fonts", "C9 salvage", "decrypt first", …
     pub detail: Option<String>,
     /// The result view's shorter form of `detail` (frame 05): the same, except
-    /// that a clean file drops "nothing to fix" and reads just "clean".
+    /// that a clean file drops "nothing to fix" and reads just "clean", and an
+    /// encrypted one drops "decrypt first" (frame 05's last queue row, whose
+    /// column 49 shows past the file menu's edge only on that condition).
+    /// The result view gives a failed file's full `detail` on the progress
+    /// box's bottom edge instead.
     pub short_detail: Option<String>,
     /// The cursor is on this row.
     pub selected: bool,
@@ -337,6 +343,7 @@ pub fn view(app: &AppState) -> ViewModel {
             clock: app.clock,
         },
         hint: app.hint,
+        file_menu: app.file_menu,
     }
 }
 
@@ -679,8 +686,15 @@ fn row_status(e: &QueueEntry) -> RowStatus {
     }
 }
 
+/// An encrypted file: "decrypt first" in the queue, no detail in the short
+/// form.
 fn encrypted_row() -> RowStatus {
-    RowStatus::new(RowKind::Failed, "encrypted", Some("decrypt first".into()))
+    RowStatus {
+        kind: RowKind::Failed,
+        label: "encrypted",
+        detail: Some("decrypt first".into()),
+        short_detail: None,
+    }
 }
 
 /// The first reason the repair gives for being partial.
@@ -1005,7 +1019,8 @@ mod tests {
             .map(|&(g, t, s)| (g, t.to_string(), s))
             .collect();
         assert_eq!(rows, want);
-        // The result view's short form drops only the clean file's detail.
+        // The result view's short form drops the clean and encrypted files'
+        // details.
         let short: Vec<String> = vm.queue_rows.iter().map(short_text).collect();
         assert_eq!(
             short,
@@ -1016,7 +1031,7 @@ mod tests {
                 "repaired · 1 fixed",
                 "partial · 88% salvaged",
                 "repairing",
-                "encrypted · decrypt first",
+                "encrypted",
             ]
         );
 
