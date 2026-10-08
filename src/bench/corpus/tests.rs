@@ -436,3 +436,189 @@ fn a_shorter_prefix_is_a_disagreement_only_on_a_clean_stream() {
         assert!(disagree(&failed, b"abX"), "{status:?}");
     }
 }
+
+// ── the ocr mode (T-38a) ─────────────────────────────────────────────────
+
+/// A fresh directory under the system temp dir, removed on drop.
+struct TempDir(PathBuf);
+
+impl TempDir {
+    fn new(tag: &str) -> TempDir {
+        let dir = std::env::temp_dir().join(format!("pdfpundit-ocr-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        TempDir(dir)
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Every file under `dir`, relative to it, sorted.
+fn files_under(dir: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in std::fs::read_dir(&d).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                let rel = path.strip_prefix(dir).unwrap();
+                out.push(rel.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+const GOLDEN_ORIGINAL: &str = "original/print/text/Doc(print).pdf";
+const GOLDEN_REPAIRED: &str = "corrupted/print/text/Doc(print)_header.pdf";
+
+fn golden_doc<'a>(file: &'a str, langs: &'a [Lang], role: OcrRole) -> OcrDoc<'a> {
+    OcrDoc {
+        file,
+        class: if role == OcrRole::Original { "" } else { "C1" },
+        producer: "print",
+        base_doc: "Doc",
+        role,
+        langs,
+        lcs_f1: vec![Ratio { num: 3, den: 4 }; langs.len()],
+    }
+}
+
+#[test]
+fn ocr_mode_writes_one_png_per_page_and_the_page_count_repeats() {
+    let langs = [Lang::En, Lang::Fr];
+    let bytes = golden_pdf();
+    let mut counts = Vec::new();
+    for run in 0..2 {
+        let dir = TempDir::new(&format!("golden-{run}"));
+        let doc = golden_doc(GOLDEN_ORIGINAL, &langs, OcrRole::Original);
+        let rows = ocr_document(&dir.0, &doc, Some(&bytes)).expect("writes");
+        let files = files_under(&dir.0);
+        assert_eq!(files, ["Doc(print)/p0.png", "Doc(print)/p1.png"]);
+        assert_eq!(rows.len(), 2);
+        for (i, row) in rows.iter().enumerate() {
+            assert_eq!(row.page, Some(i as u32));
+            assert_eq!(row.png.as_deref(), Some(files[i].as_str()));
+            assert_eq!(row.lang, langs[i]);
+            let png = std::fs::read(dir.0.join(&files[i])).unwrap();
+            assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+            assert_eq!(&png[12..16], b"IHDR");
+            let width = u32::from_be_bytes(png[16..20].try_into().unwrap());
+            let height = u32::from_be_bytes(png[20..24].try_into().unwrap());
+            // Letter at 200/72, truncated as hayro sizes its pixmap.
+            assert_eq!(width, (612.0 * OCR_SCALE) as u32);
+            assert_eq!(height, (792.0 * OCR_SCALE) as u32);
+            assert!((1699..=1700).contains(&width) && (2199..=2200).contains(&height));
+            // 8-bit truecolour: RGB, no alpha (white background).
+            assert_eq!((png[24], png[25]), (8, 2));
+        }
+        counts.push(files.len());
+    }
+    // Pixels are not compared (FR-g1); the page count is.
+    assert_eq!(counts[0], counts[1]);
+}
+
+#[test]
+fn an_unopenable_input_yields_one_row_with_open_ok_0_and_no_png() {
+    let langs = [Lang::En, Lang::Fr];
+    let dir = TempDir::new("unopenable");
+    let doc = golden_doc(GOLDEN_REPAIRED, &langs, OcrRole::Repaired);
+    for bytes in [Some(&b"%PDF-1.7 not really"[..]), Some(&b""[..]), None] {
+        let rows = ocr_document(&dir.0, &doc, bytes).expect("writes nothing");
+        assert_eq!(rows.len(), 1, "{bytes:?}");
+        let row = &rows[0];
+        assert!(row.png.is_none());
+        assert!(!row.open_ok());
+        assert_eq!(row.page, None);
+        assert_eq!(row.file, GOLDEN_REPAIRED);
+        assert_eq!(row.role, OcrRole::Repaired);
+        assert!(files_under(&dir.0).is_empty(), "{bytes:?}");
+        let csv = ocr_csv(&rows);
+        let line = csv.lines().nth(1).unwrap();
+        assert_eq!(
+            line,
+            "corrupted/print/text/Doc(print)_header.pdf,C1,print,Doc,repaired,,und,,0,"
+        );
+    }
+}
+
+#[test]
+fn no_png_value_ends_in_pdf_and_lang_is_set_on_every_row() {
+    let langs = [Lang::En, Lang::Fr];
+    let bytes = golden_pdf();
+    let dir = TempDir::new("manifest");
+    let mut rows = ocr_document(
+        &dir.0,
+        &golden_doc(GOLDEN_ORIGINAL, &langs, OcrRole::Original),
+        Some(&bytes),
+    )
+    .unwrap();
+    rows.extend(
+        ocr_document(
+            &dir.0,
+            &golden_doc(GOLDEN_REPAIRED, &langs, OcrRole::Repaired),
+            None,
+        )
+        .unwrap(),
+    );
+    // Only PNGs land in the directory.
+    assert!(files_under(&dir.0).iter().all(|f| f.ends_with(".png")));
+
+    let csv = ocr_csv(&rows);
+    let mut lines = csv.lines();
+    assert_eq!(
+        lines.next(),
+        Some("file,class,producer,base_doc,role,page,lang,png,open_ok,lcs_f1")
+    );
+    let body: Vec<Vec<&str>> = lines.map(|l| l.split(',').collect()).collect();
+    assert_eq!(body.len(), 3);
+    for cells in &body {
+        assert_eq!(cells.len(), OCR_COLUMNS.len());
+        assert!(!cells[7].ends_with(".pdf"), "{cells:?}");
+        assert!(!cells[6].is_empty(), "{cells:?}");
+        assert_eq!(cells[8] == "1", !cells[7].is_empty(), "{cells:?}");
+    }
+    assert_eq!(
+        body[0],
+        [
+            "original/print/text/Doc(print).pdf",
+            "",
+            "print",
+            "Doc",
+            "original",
+            "0",
+            "en",
+            "Doc(print)/p0.png",
+            "1",
+            "3/4"
+        ]
+    );
+    assert_eq!(body[1][6], "fr");
+}
+
+#[test]
+fn a_repaired_file_with_more_pages_than_its_original_labels_the_extra_unknown() {
+    let langs = [Lang::Zh];
+    let bytes = golden_pdf();
+    let dir = TempDir::new("extra");
+    let rows = ocr_document(
+        &dir.0,
+        &golden_doc(GOLDEN_REPAIRED, &langs, OcrRole::Repaired),
+        Some(&bytes),
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(
+        (rows[0].lang, rows[0].lcs_f1),
+        (Lang::Zh, Some(Ratio { num: 3, den: 4 }))
+    );
+    assert_eq!((rows[1].lang, rows[1].lcs_f1), (Lang::Unknown, None));
+    assert_eq!(rows[1].png.as_deref(), Some("Doc(print)_header/p1.png"));
+}
