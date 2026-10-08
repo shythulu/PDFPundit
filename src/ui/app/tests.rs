@@ -4,7 +4,8 @@
 
 use std::collections::BTreeSet;
 use std::panic;
-use std::sync::mpsc;
+use std::path::Path;
+use std::sync::mpsc::{self, Receiver};
 
 use crossterm::event::{KeyEventState, MouseButton, MouseEvent, MouseEventKind};
 
@@ -17,7 +18,14 @@ use crate::place::ScratchDir;
 use crate::ui::goldens;
 use crate::ui::term::TestScreen;
 
-/// Time moves one tick per event; the wall clock reads 11:38 in minute
+/// How far the fake clock moves per event: a tick, or on Windows the
+/// collector's gap, so a typed key is a key by the next event.
+#[cfg(not(windows))]
+const STEP: Duration = TICK;
+#[cfg(windows)]
+const STEP: Duration = crate::ui::input::collector::BURST_GAP;
+
+/// Time moves one step per event; the wall clock reads 11:38 in minute
 /// `unix / 60`, and counts how often it is read.
 struct FakeClock {
     t: Duration,
@@ -37,7 +45,7 @@ impl FakeClock {
 
 impl Clock for FakeClock {
     fn elapsed(&mut self) -> Duration {
-        self.t += TICK;
+        self.t += STEP;
         self.t
     }
 
@@ -49,6 +57,13 @@ impl Clock for FakeClock {
         self.reads += 1;
         (11, 38)
     }
+}
+
+/// One input, then time enough for the Windows collector to give a typed
+/// key back as a key (on Unix the tick does nothing).
+fn send(app: &mut App, input: Input) {
+    app.on_input(input, Duration::ZERO);
+    app.tick(Duration::from_secs(1));
 }
 
 fn key(c: char) -> Input {
@@ -129,8 +144,11 @@ fn a_scripted_run_of_ten_ticks() {
     last.extend([key('q'), key('H')]);
     script(&mut app, &mut screen, &mut clock, last);
     assert!(app.quit);
-    // Ten ticks, `H`, the resize, Enter and `q`: fourteen events.
-    assert_eq!(clock.t, TICK * 14, "the event after q was never taken");
+    // Ten ticks, `H`, the resize, Enter and `q`: fourteen events. Windows
+    // holds a typed key for the collector's gap, so there `q` runs when the
+    // next event comes, and that event is the last one taken.
+    let taken = if cfg!(windows) { 15 } else { 14 };
+    assert_eq!(clock.t, STEP * taken, "the event after q was never taken");
     assert_eq!(clock.reads, 1, "the wall clock is read once a minute");
     assert_eq!(app.state.hint, None, "the key after q never ran");
 }
@@ -139,15 +157,15 @@ fn a_scripted_run_of_ten_ticks() {
 fn inputs_before_the_first_frame_are_dropped_and_counted() {
     let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
     app.resize(112, 38);
-    app.on_input(Input::Paste("/tmp/a.pdf".into()));
-    app.on_input(key('q'));
-    app.on_input(key('H'));
+    send(&mut app, Input::Paste("/tmp/a.pdf".into()));
+    send(&mut app, key('q'));
+    send(&mut app, key('H'));
     assert_eq!(app.pre_frame_dropped, 3);
     assert!(!app.quit && app.state.hint.is_none(), "nothing was handled");
     app.arm();
     assert!(app.debug_log.iter().any(|l| l.contains("dropped 3 inputs")));
-    app.on_input(Input::Paste("/tmp/a.pdf".into()));
-    app.on_input(key('H'));
+    send(&mut app, Input::Paste("/tmp/a.pdf".into()));
+    send(&mut app, key('H'));
     assert_eq!(app.pre_frame_dropped, 3, "armed: nothing more is dropped");
     assert_eq!(app.state.hint, Some(strings::NOT_YET));
 }
@@ -210,13 +228,13 @@ fn the_widget_asks_to_grow_once_when_a_file_first_needs_you() {
     let (mut app, _) = started(32, 16, &quiet);
     queue(&mut app, 1);
     ask(&mut app, 1);
-    app.on_input(code(KeyCode::Enter));
+    send(&mut app, code(KeyCode::Enter));
     assert!(app.out.is_empty(), "request_resize is off");
 
     let (mut app, _) = started(112, 38, &config::Ui::default());
     queue(&mut app, 1);
     ask(&mut app, 1);
-    app.on_input(code(KeyCode::Enter));
+    send(&mut app, code(KeyCode::Enter));
     assert!(
         app.out.is_empty(),
         "the full layout already shows the question"
@@ -406,43 +424,43 @@ fn the_loop_drives_the_runner_to_a_finished_row() {
 fn keys_quit_open_the_chooser_and_move_the_cursor() {
     let (mut app, _) = started(112, 38, &config::Ui::default());
     let first = app.theme.name;
-    app.on_input(key('T'));
+    send(&mut app, key('T'));
     assert_eq!(app.state.screen, Screen::Themes { selected: 0 });
-    app.on_input(code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
     assert_eq!(app.state.screen, Screen::Themes { selected: 1 });
     assert_eq!(app.theme.name, Theme::all()[1].name, "tried on the spot");
-    app.on_input(code(KeyCode::Esc));
+    send(&mut app, code(KeyCode::Esc));
     assert_eq!(app.state.screen, Screen::Main);
     assert_eq!(app.theme.name, first, "Esc goes back");
-    app.on_input(key('T'));
-    app.on_input(code(KeyCode::Down));
-    app.on_input(code(KeyCode::Down));
-    app.on_input(key('q'));
+    send(&mut app, key('T'));
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, key('q'));
     assert!(!app.quit, "q is not a chooser key");
-    app.on_input(code(KeyCode::Up));
-    app.on_input(code(KeyCode::Enter));
+    send(&mut app, code(KeyCode::Up));
+    send(&mut app, code(KeyCode::Enter));
     assert_eq!(app.theme.name, Theme::all()[1].name, "Enter keeps it");
     assert_eq!(app.state.screen, Screen::Main);
 
     for (k, hint) in [('S', Some(strings::NOT_YET)), ('?', Some(strings::NOT_YET))] {
-        app.on_input(key(k));
+        send(&mut app, key(k));
         assert_eq!(app.state.hint, hint);
     }
-    app.on_input(key('b'));
+    send(&mut app, key('b'));
     assert_eq!(
         app.state.hint,
         Some(strings::NOT_YET),
         "browse waits on T-37"
     );
-    app.on_input(code(KeyCode::Left));
+    send(&mut app, code(KeyCode::Left));
     assert_eq!(app.state.hint, None, "a one-off hint lasts one key");
 
     queue(&mut app, 3);
-    app.on_input(code(KeyCode::Down));
-    app.on_input(code(KeyCode::Down));
-    app.on_input(code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
     assert_eq!(app.state.selected, Some(2));
-    app.on_input(code(KeyCode::Up));
+    send(&mut app, code(KeyCode::Up));
     assert_eq!(app.state.selected, Some(1));
     let click = Input::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -450,12 +468,12 @@ fn keys_quit_open_the_chooser_and_move_the_cursor() {
         row: 1,
         modifiers: KeyModifiers::NONE,
     });
-    app.on_input(click);
+    send(&mut app, click);
     assert!(!app.quit);
 
     let mut ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
     ctrl_c.kind = KeyEventKind::Press;
-    app.on_input(Input::Key(ctrl_c));
+    send(&mut app, Input::Key(ctrl_c));
     assert!(app.quit);
 }
 
@@ -527,27 +545,268 @@ fn the_theme_chooser_is_drawn_over_the_full_layout() {
     app.arm();
     let frame = |app: &App| app.draw(&app.shown_at(Duration::ZERO));
     frame(&app).assert_matches(&goldens::load("01-idle"));
-    app.on_input(key('T'));
+    send(&mut app, key('T'));
     app.refresh(Duration::ZERO);
     frame(&app).assert_matches(&goldens::load("06-theme-chooser"));
 
     // The widget has no room for it: `T` opens nothing there, and a shrink
     // closes an open chooser as Esc would.
-    app.on_input(code(KeyCode::Down));
+    send(&mut app, code(KeyCode::Down));
     assert_ne!(app.theme_index, app.theme_before);
-    app.on_input(Input::Resize(32, 16));
+    send(&mut app, Input::Resize(32, 16));
     assert_eq!(app.state.screen, Screen::Main);
     assert_eq!(app.theme_index, app.theme_before);
-    app.on_input(key('T'));
+    send(&mut app, key('T'));
     assert_eq!(app.state.screen, Screen::Main);
 }
 
 #[test]
 fn browse_is_inert_in_the_one_line_fallback() {
     let (mut app, _) = started(20, 1, &config::Ui::default());
-    app.on_input(key('b'));
+    send(&mut app, key('b'));
     assert_eq!(app.state.hint, None);
     let (mut app, _) = started(32, 16, &config::Ui::default());
-    app.on_input(key('b'));
+    send(&mut app, key('b'));
     assert_eq!(app.state.hint, Some(strings::NOT_YET));
+}
+
+// ── drops (T-23b) ───────────────────────────────────────────────────────
+
+/// Writes a small PDF named `name` into `dir`.
+fn pdf(dir: &ScratchDir, name: &str) -> PathBuf {
+    let path = dir.join(name);
+    std::fs::write(&path, b"%PDF-1.7\n%%EOF\n").unwrap();
+    path
+}
+
+/// A paste of `paths`, each double-quoted as a terminal would. Double
+/// quotes, not single: the Windows style reads `'` as a name character.
+/// Scratch paths hold no `"`, `$` or `` ` ``, and a `\` in one is a Windows
+/// path, where it is a name character too.
+fn paste_of(paths: &[&Path]) -> Input {
+    let items: Vec<String> = paths
+        .iter()
+        .map(|p| format!("\"{}\"", p.display()))
+        .collect();
+    Input::Paste(items.join(" "))
+}
+
+/// Runs `events` through the loop with `runner`, then the runner's events
+/// until every job that started has finished (and, when none has, until
+/// nothing comes for a second).
+fn script_with_runner(
+    app: &mut App,
+    screen: &mut TestScreen,
+    runner: &mut JobRunner<FakeEngine>,
+    rx: &Receiver<AppEvent<Input>>,
+    events: Vec<Input>,
+) {
+    let mut events = events.into_iter();
+    let (mut started, mut finished) = (0, 0);
+    let mut next = || {
+        if let Some(input) = events.next() {
+            return Some(AppEvent::Input(input));
+        }
+        let wait = if started > finished {
+            Duration::from_secs(20)
+        } else {
+            Duration::from_secs(1)
+        };
+        let ev = rx.recv_timeout(wait).ok()?;
+        match &ev {
+            AppEvent::Job(
+                _,
+                JobEvent::Started {
+                    kind: JobKind::Analyze,
+                    ..
+                },
+            ) => started += 1,
+            AppEvent::Job(
+                _,
+                JobEvent::RepairDone(_) | JobEvent::Failed { .. } | JobEvent::Cancelled,
+            ) => finished += 1,
+            _ => {}
+        }
+        Some(ev)
+    };
+    let mut clock = FakeClock::new();
+    event_loop(app, screen, &mut next, &mut clock, Some(runner), None).unwrap();
+}
+
+#[test]
+fn a_pasted_pdf_is_chomped_analysed_and_repaired() {
+    let dir = ScratchDir::new("app-paste");
+    let a = pdf(&dir, "a b.pdf");
+    let b = pdf(&dir, "B.PDF");
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let (tx, rx) = mpsc::channel();
+    let mut runner = JobRunner::new(Arc::new(FakeEngine::new()), tx, RunnerOptions::default());
+
+    let paste = paste_of(&[&a, &b, Path::new("/nowhere/notes.txt")]);
+    script_with_runner(&mut app, &mut screen, &mut runner, &rx, vec![paste]);
+
+    let rows = &app.state.batch.entries;
+    let names: Vec<&str> = rows.iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, ["a b.pdf", "B.PDF"], "in paste order");
+    assert_eq!(rows[0].path.as_deref(), Some(a.as_path()));
+    for row in rows {
+        assert_eq!(row.state, EntryState::Done, "{}", row.name);
+        assert!(row.run.is_some(), "analysed, then repaired: {}", row.name);
+    }
+    assert_eq!(
+        app.state.hint,
+        Some(strings::DROP_NOT_A_PDF),
+        "the refused item is named on the hint row"
+    );
+    assert!(runner.shutdown(Duration::from_secs(5)));
+}
+
+#[test]
+fn a_drop_makes_the_cat_chomp_n_files() {
+    let dir = ScratchDir::new("app-chomp");
+    let paths = [pdf(&dir, "1.pdf"), pdf(&dir, "2.pdf"), pdf(&dir, "3.pdf")];
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+    send(&mut app, paste_of(&refs));
+    let mut submitted = Vec::new();
+    let now = Duration::from_secs(3);
+    app.submit_drops(now, &mut |input| {
+        submitted.push(input);
+        JobId(submitted.len() as u64)
+    });
+    let want: Vec<JobInput> = paths.iter().cloned().map(JobInput::File).collect();
+    assert_eq!(submitted, want);
+    let frame = app.director.frame(now);
+    assert_eq!(frame.n, 3);
+    assert_eq!(frame.caption, "the drop: plop");
+    let ids: Vec<JobId> = app.state.batch.entries.iter().map(|e| e.job).collect();
+    assert_eq!(ids, [JobId(1), JobId(2), JobId(3)]);
+
+    // Nothing more was let in: nothing more is submitted.
+    app.submit_drops(now, &mut |_| panic!("submitted twice"));
+}
+
+#[test]
+fn a_clean_drop_clears_the_last_refusal() {
+    let dir = ScratchDir::new("app-hint");
+    let a = pdf(&dir, "a.pdf");
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    send(&mut app, paste_of(&[Path::new("/nowhere/notes.txt")]));
+    assert_eq!(app.state.hint, Some(strings::DROP_NOT_A_PDF));
+    send(&mut app, paste_of(&[&a]));
+    assert_eq!(
+        app.state.hint, None,
+        "the good drop is not shown as refused"
+    );
+    assert_eq!(app.admitted.len(), 1);
+}
+
+#[test]
+fn a_paste_in_the_one_line_layout_is_refused_until_the_widget_fits() {
+    let dir = ScratchDir::new("app-oneline");
+    let a = pdf(&dir, "a.pdf");
+    let (mut app, mut screen) = started(20, 1, &config::Ui::default());
+    let (tx, rx) = mpsc::channel();
+    let mut runner = JobRunner::new(Arc::new(FakeEngine::new()), tx, RunnerOptions::default());
+
+    script_with_runner(
+        &mut app,
+        &mut screen,
+        &mut runner,
+        &rx,
+        vec![paste_of(&[&a])],
+    );
+    assert!(app.state.batch.entries.is_empty(), "nothing submitted");
+    assert_eq!(app.refused_too_small, 1, "counted as refused");
+    assert_eq!(app.state.hint, Some(strings::TOO_SMALL_TO_EAT));
+    assert_eq!(screen.raw(), GROW_TO_WIDGET, "one resize request");
+
+    let events = vec![Input::Resize(32, 16), paste_of(&[&a])];
+    script_with_runner(&mut app, &mut screen, &mut runner, &rx, events);
+    assert_eq!(app.state.batch.entries.len(), 1, "the widget takes it");
+    assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
+    assert_eq!(app.refused_too_small, 1);
+    assert_eq!(screen.raw(), GROW_TO_WIDGET, "no second request");
+    assert!(runner.shutdown(Duration::from_secs(5)));
+
+    // With request_resize off the refusal asks for nothing.
+    let quiet = config::Ui {
+        request_resize: false,
+        ..config::Ui::default()
+    };
+    let (mut app, _) = started(20, 1, &quiet);
+    send(&mut app, paste_of(&[&a, &a]));
+    assert_eq!(app.refused_too_small, 2);
+    assert!(app.out.is_empty());
+    assert!(app.admitted.is_empty());
+}
+
+/// Unix only: NTFS allocates what `set_len` asks for, and the gate's own
+/// test already makes these two files on every target.
+#[cfg(unix)]
+#[test]
+fn big_files_are_let_in_with_a_warning_and_huge_ones_refused() {
+    let dir = ScratchDir::new("app-size");
+    let sparse = |name: &str, len: u64| {
+        let path = pdf(&dir, name);
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_len(len)
+            .unwrap();
+        path
+    };
+    let huge = sparse("huge.pdf", 5 << 30);
+    let big = sparse("big.pdf", 600 << 20);
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+
+    send(&mut app, paste_of(&[&huge]));
+    assert!(app.admitted.is_empty());
+    assert_eq!(app.state.hint, Some(strings::DROP_TOO_BIG));
+
+    send(&mut app, paste_of(&[&big]));
+    assert_eq!(app.admitted.len(), 1);
+    assert_eq!(app.state.hint, Some(strings::DROP_BIG));
+    assert!(
+        app.debug_log.iter().any(|l| l.contains("600 MiB")),
+        "the log names the size"
+    );
+    assert!(
+        app.debug_log
+            .iter()
+            .any(|l| l.contains("%PDF- in the first KiB: true"))
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn typed_keys_never_make_a_path_on_unix() {
+    let dir = ScratchDir::new("app-typed");
+    let a = pdf(&dir, "a.pdf");
+    let (mut app, _) = started(32, 16, &config::Ui::default());
+    let text = a.display().to_string();
+    for c in text.chars() {
+        app.on_input(key(c), Duration::ZERO);
+    }
+    app.on_input(code(KeyCode::Enter), Duration::ZERO);
+    app.tick(Duration::from_secs(1));
+    assert!(app.admitted.is_empty(), "only a bracketed paste is a paste");
+}
+
+#[cfg(windows)]
+#[test]
+fn a_typed_burst_is_a_paste_on_windows() {
+    let dir = ScratchDir::new("app-typed");
+    let a = pdf(&dir, "a b.pdf");
+    let (mut app, _) = started(32, 16, &config::Ui::default());
+    let text = format!("\"{}\"", a.display());
+    for (i, c) in text.chars().enumerate() {
+        app.on_input(key(c), Duration::from_millis(i as u64));
+    }
+    assert!(app.admitted.is_empty(), "still coming");
+    app.tick(Duration::from_secs(5));
+    assert_eq!(app.admitted.len(), 1);
+    assert_eq!(app.admitted[0].path, a);
+    assert!(!app.quit);
 }

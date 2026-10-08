@@ -8,12 +8,23 @@
 //! - Unix otherwise: crossterm's reader, with bracketed paste on (the terminal
 //!   setup in `term.rs` turns it on, and every exit path turns it off).
 //!
+//! Pastes are the only text that becomes paths on Unix: crossterm's
+//! `Event::Paste`, which exists only between bracketed-paste markers. Loose
+//! key events never do. On Windows, where crossterm reports no paste, the
+//! app runs keys through the typed-path collector (`collector.rs`, D-034).
+//! Every path, from any source, passes the drop gate (`gate.rs`).
+//!
 //! The source is armed only after the first frame and the input flush
 //! (`term::flush_input`), so nothing typed, pasted or dropped before the cat
 //! is on screen reaches the queue (D-043). crossterm builds its event source
 //! lazily on the first read, on the reader thread spawned here.
 
+// The typed-path collector is built on Windows only (D-034); its tests run
+// everywhere.
+#[cfg(any(windows, test))]
 pub(crate) mod collector;
+pub(crate) mod gate;
+#[cfg(any(windows, test))]
 pub(crate) mod keys;
 pub(crate) mod osc72;
 pub(crate) mod paste;
