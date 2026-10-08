@@ -1,0 +1,1730 @@
+{
+  "summary": "Revision 9 (final) of the PDFPundit implementation plan. The panel's four planning files are internally consistent (every decision ref resolves; one canonical destination text; private-identifier grep clean). 51 tickets in dependency order: 48 buildable now (T-01 … T-32b, plus T-31), 3 blocked on user decisions or an undesigned schema (T-33 custody: D-016; T-34 OCR: D-050; T-35 release: D-046 + D-065). Critical path to a running cat: T-01 → T-02 → T-02b → T-15 → T-16 → T-23a → T-23b (the UI lane T-00, T-17…T-22b, T-24 joins at T-23a; the engine lane T-03a…T-14 replaces the stub bodies when it lands; fonts T-27a/b/c → T-29 → T-28 → T-30; benchmark T-25 → T-26 → T-38a/b; export T-32a/b). Seven tickets proceed at-risk on a user decision with bounded, named rework (T-01/D-003, T-26/D-002, T-23a+T-21/D-004, T-15/D-005 and D-062, T-29+T-28/D-021, T-21…T-37/D-045). 19 user decisions are logged with recommended answers (the eighteen-item summary in decision-log.md), 51 reversible defaults, 3 research-pending (D-009 calibration, D-058 Windows legs via the first windows-latest run, D-071 the OCR apparatus for the PR #19 board). Eight AFK tasks need no user: corpus clone, asset staging (already fetched, hash-verified), test binaries + bench files, the OCR lock, fact requests eng-r4-fr1/FR-13/FR-11, and a T-01 gate pre-flight. Nothing was written to GitHub or the repository; map-resolutions.md carries the per-issue posting plan for when the user approves.",
+  "implementation_tickets": [
+    {
+      "id": "T-01",
+      "title": "Crate scaffold and CI gates",
+      "goal": "Single package `pdfpundit` (lib + bin, publish = false, no .cargo/config.toml, no cfg), the module tree, clippy determinism bans, deny.toml, and the CI jobs lint/test/purity/network/licences/assets/release-strings. At-risk on D-003 (single package vs the map's engine crate): if the user picks the crate split this ticket changes before any other.",
+      "paths": [
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/main.rs",
+        ".github/workflows/ci.yml",
+        "rustfmt.toml",
+        "clippy.toml",
+        "deny.toml",
+        "THIRD_PARTY_NOTICES.md",
+        "tools/purity-gate.py",
+        "tools/lint-meta.sh",
+        "tests/guard.rs (placeholder)"
+      ],
+      "interfaces": "`pub fn run() -> std::process::ExitCode` placeholder in src/lib.rs (returns SUCCESS; T-23a replaces the body); `fn main() -> ExitCode { pdfpundit::run() }`; `pub(crate) mod engine;` unconditionally; clippy.toml: crate-wide disallowed-types = std::time::{Instant, SystemTime, Duration}, disallowed-methods = the full libm list (plan §3.1, D-076); `#![deny(clippy::iter_over_hash_type)]` in src/pdf/mod.rs and src/engine.rs; deny.toml allow-list per plan §3.2 with no exceptions; features: export (default), ocr (off).",
+      "acceptance": [
+        "`cargo build` and `cargo clippy --all-targets --all-features -- -D warnings` pass on the empty tree",
+        "`python3 -I tools/purity-gate.py` reports zero violations on the committed Cargo.lock for all three targets (its own test runs it)",
+        "unit test: `cfg!(feature = \"export\")` is on by default",
+        "tools/lint-meta.sh: a scratch copy with `Instant::now()` under src/pdf/ fails clippy on disallowed_types; `2.0_f64.cbrt()` fails on disallowed_methods; `for _ in HashMap::new()` trips iter_over_hash_type",
+        "facade gate test: a scratch dependant created under std::env::temp_dir() (cwd there) depending on this crate by path fails to compile `use pdfpundit::engine::analyze;` (E0432) and resolves `pdfpundit::run`, both with RUSTFLAGS unset and with RUSTFLAGS=-Dwarnings",
+        "public-surface tripwire: the lib's public items are exactly run, pdf::model::*, pdf::fixtures::*, pdf::write::*, pdf::fontdb::build::build_from_ttf",
+        "release-strings job: the --release binary contains neither `PDFPUNDIT_ASSETS` nor `PDFPUNDIT_PANIC`",
+        "network gate: Cargo.lock contains none of reqwest, ureq, hyper, rustls, native-tls, attohttpc, curl, tokio, mio-http, *http*, *tls*"
+      ],
+      "depends_on": [],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-003",
+        "D-002",
+        "D-022",
+        "D-029",
+        "D-047",
+        "D-050",
+        "D-051",
+        "D-053",
+        "D-076"
+      ],
+      "spec_refs": [
+        "plan.md §3.1, §3.2, §3.3, §6 T-01",
+        "eng-r1-fr3 §7 (purity prototype)",
+        "goal-r3-fr2 (RUSTFLAGS)",
+        "DA:256-260",
+        "TD §12.3"
+      ]
+    },
+    {
+      "id": "T-02",
+      "title": "Core types",
+      "goal": "The `pdf::model` types every later ticket names: ObjId, CorruptionClass, Finding and its kinds, Evidence, Repairability, ObjectKind, LengthSource, FileMeta, Ratio, PaintCounts, SalvageGrade.",
+      "paths": [
+        "src/pdf/model.rs"
+      ],
+      "interfaces": "Exactly the type list in plan §6 T-02: `CorruptionClass` (10 variants, code(), label(), ALL, REPAIR_ORDER = [C9,C10,C5,C4,C6,C7,C8]); `FindingKind {Corruption, Encrypted, Signed{fields}, OutlinedText{glyph_runs,contours}, Type3Text{font}}`; `Evidence {Text, HexWindow{at:u64, bytes:Vec<u8>} (HexWindow::new truncates to 64), ObjectRef, Metric{name,value}}`; `Repairability {Auto, Interactive(InteractionKind), Partial(String), Unrepairable(String), NotApplicable}`; `InteractionKind {FontPick, FontUnreproducible}`; `Ratio {num:u64, den:u64}`; `PaintCounts {path_fills, path_strokes, images, glyph_runs_visible, glyph_runs_invisible, glyphs_inked, clips}` with paint_ops(); `SalvageGrade {Exact, Accepted, Ambiguous, Unsearched}`. All serde + Debug + Clone + PartialEq; no non-string map key.",
+      "acceptance": [
+        "serde round-trip of a fixture carrying every enum variant, including a HexWindow built from 100 bytes (64 survive) and a Metric",
+        "`CorruptionClass::ALL` ordering and REPAIR_ORDER contents",
+        "`Ratio` compares without floats (Ord by cross-multiplication in u128)",
+        "`const _` assertions that every type is Serialize + DeserializeOwned + PartialEq + Send",
+        "clippy -D warnings clean"
+      ],
+      "depends_on": [
+        "T-01"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-020",
+        "D-041",
+        "D-052",
+        "D-059"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-02",
+        "TD §4.1",
+        "map-resolutions.md #14"
+      ]
+    },
+    {
+      "id": "T-02b",
+      "title": "Facade, jobs and report contract (stubs; every consumed type defined in full)",
+      "goal": "Land `trait Engine` with a stub `Pdfpundit`, every facade/jobs/report type field by field (RepairReport, SettingsSnapshot, InteractionRecord, AnalysisState/StateHandle, HistorySummary, FakeEngine), and seed `ui::strings::ALL`, so the UI, runner and store lanes never wait on the engine.",
+      "paths": [
+        "src/engine.rs",
+        "src/engine/report.rs",
+        "src/jobs.rs (types only)",
+        "src/lib.rs",
+        "src/ui/strings.rs",
+        "tests/data/contract/*.json"
+      ],
+      "interfaces": "Signatures from plan §4 and the field lists in plan §6 T-02b: `trait Engine { analyze(&self, &[u8], &AnalyzeOptions, &mut dyn Progress) -> Result<AnalysisResult, Cancelled>; plan(..) -> RepairPlan; repair(.., &FontDb, &mut dyn Interact, &mut dyn Progress) -> Result<RepairOutcome, Cancelled> }`; `SalvageBudget {work, deep_work, deep_pool, max_search_stream}`; `AnalyzeOptions {max_file_bytes, salvage_budget, threads, scratch_cap}`; `RepairOptions`; `AnalysisResult {.., #[serde(skip)] state: StateHandle}`; `StateHandle(pub(crate) Option<Arc<AnalysisState>>)` with hand-written PartialEq; `AnalysisState { carve, graph, salvage, input_sha256 }` + `heap_bytes()`; `RepairReport { schema_version: 1, .., c9_survivors: Vec<(ObjId, ..)> sorted, no placement/analysis_state fields }`; `trait Progress`, `trait Interact`, `UseBest`, `NullProgress`; jobs types `JobKind {Analyze, Repair{passes, state}, ExportMarkdown}`, `JobEvent`, `AppEvent`, `QueueEntry`, `BatchState`, `CancelToken`, `Placed`; `FakeEngine` (cfg(test), pub(crate)) with scripted events; `HistorySummary`; `pub const ALL: &[&str]` seeded with `=^..^=`, \"feed me\", \"chomp\", \"‼\", the seven theme names, pose and reaction names.",
+      "acceptance": [
+        "the stub implements Engine and `FakeEngine` replays a script; `UseBest` answers every InteractionRequest; facade types are Send",
+        "serde snapshot: `RepairReport::default_for(..)` and a fixture AnalysisResult match committed tests/data/contract/*.json (a shape change fails loudly)",
+        "populated round-trip: RepairReport, AnalysisResult and a RunRecord-shaped fixture with every Vec non-empty, every enum variant present, a two-entry c9_survivors list serialise with serde_json and deserialise equal",
+        "`const _` assertions that every serialised type is Serialize + DeserializeOwned + PartialEq",
+        "StateHandle equality: two handles to one Arc are equal, two Arcs with identical contents are not, None == None; AnalysisResult round-trips with state dropped to None",
+        "`schema_version == 1`; `ui::strings::ALL` is non-empty and contains `=^..^=`, \"‼\" and every theme name"
+      ],
+      "depends_on": [
+        "T-02"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-006",
+        "D-020",
+        "D-041",
+        "D-052",
+        "D-072",
+        "D-073"
+      ],
+      "spec_refs": [
+        "plan.md §4, §6 T-02b",
+        "TD §3",
+        "eng-r2-q1, eng-r3-q1, eng-r3-q4, goal-r3-q6"
+      ]
+    },
+    {
+      "id": "T-00",
+      "title": "Golden cell dumps from the mockup generator",
+      "goal": "A sibling Python script dumps cell-exact goldens (characters, colours, blink set) from generate.py at 9439a30 for every cat pose/scale, every keyframe, the 112x38 stills and the 32x16 widget states; the Rust UI tickets must match them 100%. Not a Rust ticket: acceptance is the dump's determinism plus the consuming Rust tests.",
+      "paths": [
+        "nimbalyst-local/mockups/pdfpundit-ansi-bbs/dump_goldens.py",
+        "tests/data/ui/*.json"
+      ],
+      "interfaces": "One JSON per frame `{w, h, cells: [[ch, fg, bg] ...], blink: [[x,y] ...]}`; half-block cells stored as [\"HB\", top, bottom]; frames: cat_grid at scales 0.93, 0.465, 0.68, 0.52 for every POSES entry and every CHOMP/DRAG/WCHOMP keyframe; the stills from still_frames() (idle, chomp step 4, batch, result, themes); the widget states; 04-font-pick with its RTL cells replaced by a fixed placeholder, policy written into the JSON. generate.py itself is untouched.",
+      "acceptance": [
+        "`python3 -I dump_goldens.py` run twice produces byte-identical files (checked by sha256 in a shell step)",
+        "every frame the Rust tests (T-18, T-21, T-22a/b, T-24) name exists in tests/data/ui/",
+        "the placeholder policy for 04-font-pick is recorded in the JSON and the file loads with serde in a Rust test (`cargo test --lib ui::goldens::load_all`)"
+      ],
+      "depends_on": [
+        "T-01"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-055",
+        "D-018"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-00",
+        "eng-r1-fr5",
+        "MOCK README \"Frames\""
+      ]
+    },
+    {
+      "id": "T-03a",
+      "title": "Writer first cut, golden fixtures, structural corruptors",
+      "goal": "Programmatic golden PDFs (classic xref, Type0 font embedding the committed 9,672 B Noto subset, DCT image, two content streams under 512 B, a signed variant) and the C1-C8/C10 corruptors reproducing REPDF's measured induction; a first cut of the lopdf writer rules.",
+      "paths": [
+        "src/pdf/fixtures.rs",
+        "src/pdf/write.rs (first cut)",
+        "tests/data/NotoSans-Regular-subset.ttf",
+        "tests/data/OFL.txt",
+        "tests/data/README.md",
+        "tests/data/tiny.jpg"
+      ],
+      "interfaces": "`pub fn golden_pdf() -> Vec<u8>`; `pub fn golden_pdf_signed() -> Vec<u8>`; `pub fn corrupt(class: CorruptionClass, pdf: &[u8], seed: u64) -> Result<Vec<u8>, NotYet>` for C1 (overwrite 12 header bytes), C2 (delete the classic xref span), C3 (delete trailer..%%EOF), C4 (delete a seeded 45-128 B span over /Pages../Count), C5 (delete exactly one `N 0 obj` header + EOL), C6 (delete the /Font entry of a page's /Resources), C7 (FontFile2 data overwritten with 0x20 in place), C8 (C7 + ToUnicode overwritten), C10 (truncate to 70.0%); C9 returns Err(NotYet) until T-03b. Glyph ids and widths read from the test font through skrifa::raw at fixture-build time; hand-built bfchar ToUnicode.",
+      "acceptance": [
+        "each corruptor changes exactly the bytes it claims (C5 removes 8 bytes; C10 keeps exactly 70%)",
+        "the goldens load in strict lopdf and render in hayro",
+        "the test font's sha256 is 6c448bfe6b5ac43a463d04a8eeb5597ec4f2d33b736ab487bcaa2e9244a94383 (9,672 B, 109 glyphs); the content's glyph ids match cmap lookups through skrifa::raw",
+        "hayro decodes tests/data/tiny.jpg",
+        "`corrupt` is deterministic per seed"
+      ],
+      "depends_on": [
+        "T-02"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-028",
+        "D-052"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-03a",
+        "TD §8",
+        "map-resolutions.md #7 (F04 #7 table)",
+        "FR-05 (c)"
+      ]
+    },
+    {
+      "id": "T-03b",
+      "title": "ObjStm golden, the C9 corruptor, adversarial builders",
+      "goal": "A hand-assembled ObjStm + xref-stream golden (never through pdf::write), the measured-distribution C9 corruptor with a replacement log, and the TD §20 adversarial builders including the predictor and multi-filter fixtures.",
+      "paths": [
+        "src/pdf/fixtures.rs"
+      ],
+      "interfaces": "`golden_pdf_objstm() -> Vec<u8>`; `corrupt(C9, ..)`; `corrupt_with_log(class, pdf, seed) -> (Vec<u8>, Vec<Replacement{at, from, to, site: FlateBody|OtherBody|Array|DictValue|Number}>)` following OBS-0005/OBS-0302 (about 42% of Flate streams hit, one byte each; non-Flate bodies in proportion 304/2,162; about one outside-stream replacement per three stream hits over arrays, dict values and bare numbers; never headers, endobj, stream/endstream or /Root /Pages /Kids /Count /Type; each replacement from the 255 other values); builders: with_stream_containing_keywords, with_wrong_length(kind), with_eol_style, with_junk_prefix(n), with_duplicate_object, with_truncated_later_duplicate, with_no_endobj, with_multi_filter, with_predictor_image, with_flate_then_dct, with_objstm_and_plain_copy(order), with_recursive_objstm, with_bad_objstm_offsets, outline_only_page, type3_only_page.",
+      "acceptance": [
+        "the C9 diff count equals the number of logged replacements and every site classification is right",
+        "the ObjStm golden loads in strict lopdf and renders in hayro",
+        "each builder's claimed property holds (keyword inside stream data; predictor declared; later duplicate truncated)",
+        "`corrupt` is deterministic per seed"
+      ],
+      "depends_on": [
+        "T-03a"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-031",
+        "D-032"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-03b",
+        "TD §20",
+        "eng-r1-q14",
+        "eng-r2-q7"
+      ]
+    },
+    {
+      "id": "T-04",
+      "title": "Tolerant lexer",
+      "goal": "TD §13 tokenizer and value parser with the near-miss keyword mode, the 5,000-element container cap, depth cap 100 and the RealNarrowed note.",
+      "paths": [
+        "src/pdf/lexer.rs"
+      ],
+      "interfaces": "TD:849-885 verbatim: `Tok<'a>`, `Lexer::{new,next,peek}`, `Lexer::with_near_miss(bool)`, `ParsedObj { value: lopdf::Object, .. }`, `parse_value(buf, pos, depth) -> Result<ParsedObj, LexErr>`, `LexNote {NearMissKeyword, ContainerTruncated, RealNarrowed{at}, ..}`, `LexErr::TooDeep`.",
+      "acceptance": [
+        "one test per robustness rule: unterminated string, unterminated hex, double sign, unknown byte progress, depth 101 -> TooDeep, stray `>>` in a literal, ref-detection restore, near-miss `11l 0 obj`, element cap",
+        "`[0.70710678 0.5]` yields exactly one RealNarrowed",
+        "property test: `pos` strictly advances on 10k random slices with no panic"
+      ],
+      "depends_on": [
+        "T-02"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-075"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-04",
+        "TD §13",
+        "FR-g2 (qpdf caps)"
+      ]
+    },
+    {
+      "id": "T-36",
+      "title": "Text extractor (hayro-interpret Device adapter) and paint counts",
+      "goal": "Glyphs in content order with ToUnicode applied and per-page PaintCounts through hayro-interpret's Device trait; the extractor verify, bench and export share. Moved to Phase 1 because T-12b and T-13a depend on it.",
+      "paths": [
+        "src/pdf/text.rs"
+      ],
+      "interfaces": "`pub(crate) fn extract_text(bytes: &[u8], opts: &ExtractOptions{render_annotations: false, include_invisible: true}) -> Result<Vec<PageText>, ExtractError{Load, Panicked}>`; `PageText { index, width, height, glyphs: Vec<GlyphItem>, unmapped: u32, paint: PaintCounts, warnings }`; `GlyphItem { text: Option<String>, x, y, size, advance, font: FontKey(u128), invisible, type3, mcid }`; `FontTable: BTreeMap<FontKey, FontInfo>` keyed by Dict::cache_key(); Device overrides draw_path/draw_rect/draw_image/draw_glyph_run; whole call under catch_unwind; no colour classification; size via sqrt of a dot product.",
+      "acceptance": [
+        "golden fixture: every glyph mapped, page count right, text equals the known strings",
+        "golden with /ToUnicode removed: Type0 glyphs None and `unmapped` counts them; unrepaired C6 fixture: glyph count about doubles",
+        "two runs give identical output; random bytes -> Err(Load); invisible text flagged",
+        "the eleven goal-r2-fr2 blank-case constructions give the tabulated PaintCounts (empty, mode-3 and n-painted pages paint_ops()==0; spaces-only glyphs_inked==0)",
+        "CI hashes the GlyphItem and PaintCounts dump of the golden on all three OSes and compares (pixels excluded); the dump adds no hypot/atan2 diagnostics"
+      ],
+      "depends_on": [
+        "T-01",
+        "T-03a"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-037",
+        "D-038",
+        "D-054",
+        "D-058",
+        "D-059"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-36",
+        "FR-04",
+        "FR-g1",
+        "goal-r2-fr2"
+      ]
+    },
+    {
+      "id": "T-06",
+      "title": "Streams A: filter chains, inflate, classification, content ops",
+      "goal": "Filter parsing, the single miniz_oxide 0.9.1 core-API inflater, predictors, stream classification with the content-grammar rule, and the tolerant content-operator iterator.",
+      "paths": [
+        "src/pdf/streams.rs",
+        "src/pdf/streams/inflate.rs"
+      ],
+      "interfaces": "`pub(crate) enum Filter {Flate, Ascii85, AsciiHex, Lzw, RunLength, Dct, Jpx, Ccitt, Jbig2, Unknown(String)}`; `filters_of(dict) -> Vec<(Filter, Option<Dictionary>)>`; `pub(crate) fn inflate(raw, cap) -> InflateResult { status: Done|AdlerMismatch|Failed{at}|NeedsMoreInput, out, consumed }` on miniz_oxide::inflate::core::decompress with PARSE_ZLIB_HEADER | USING_NON_WRAPPING_OUTPUT_BUF (retry once raw); `decode_chain(raw, &[Filter], cap) -> Result<Vec<u8>, DecodeError>` with PNG/TIFF predictors, cap 256 MiB; `pub(crate) enum StreamClass {Content, Image{codec}, Form, FontFile, CMap, Metadata, ObjStm, XRef, Other}`; `classify(dict, inflated)`; `pub(crate) fn content_ops(bytes) -> impl Iterator<Item = Op<'_>{op, operands: Vec<lopdf::Object>, at}>` (inline images skipped to EI as one op).",
+      "acceptance": [
+        "classification fixtures incl. outline-only content -> Content, JPEG/PNG/JP2 magic, font magic (00 01 00 00, OTTO, true, ttcf), CMap, XMP, ObjStm",
+        "multi-filter [/ASCII85Decode /FlateDecode]; predictor round-trip; inflate cap",
+        "`inflate` on the clean / Adler-only / data-error-at-k classes returns the right status and the same `consumed` as eng-r1-fr2's miniz column; status from TINFLStatus, never a message string",
+        "`content_ops` on the golden's content stream yields the known operator sequence with Tf/Tj/TJ operands intact; an inline image is one BI op; 10k fuzzed slices terminate"
+      ],
+      "depends_on": [
+        "T-02",
+        "T-04"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-023"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-06",
+        "TD §15, §16 step 1",
+        "eng-r1-fr2",
+        "FR-08"
+      ]
+    },
+    {
+      "id": "T-05",
+      "title": "Carver A: landmarks, assembly, extent ladder",
+      "goal": "Object-header landmarks, byte-order assembly skipping dead ranges, the six-rung stream-extent ladder, EOL tolerance (bare CR noted), caps, and cancellation.",
+      "paths": [
+        "src/pdf/carver.rs",
+        "src/pdf/carver/landmarks.rs"
+      ],
+      "interfaces": "`pub(crate) fn carve(buf: &[u8], cancel: &dyn Fn() -> bool) -> Result<CarveReport, Cancelled>` (cancel polled every 256 landmarks); `CarveReport { header, objects: Vec<CarvedObject>, orphans, xref_spans, trailer_spans, startxref, eof_markers, notes: Vec<CarveNote>, stats }` with `heap_bytes()`; `CarvedObject { declared_id, span, body: Body{Dict|Stream{dict, data, length_source}|Primitive|Unparsed}, kind, origin: TopLevel|Compressed(ObjId), notes }`. Rules 1-6 of plan §6 T-05 (24-byte walk-back, unique-endstream rule, no-foreign-header check, EOL set incl. bare CR with CarveNote::BareCrAfterStream, missing endobj, 1,000,000 landmark/object caps).",
+      "acceptance": [
+        "C2/C3/C5/C10 fixtures carve every surviving object with the right LengthSource",
+        "keyword-in-stream fixture yields no phantom objects; wrong-length fixtures hit ladder rungs b/e; two endstreams fall past rung (b)",
+        "CRLF/LF/CR/space EOL; junk-prefixed header still finds objects; duplicate ids both carved",
+        "10k fuzzed buffers never panic; cancellation mid-carve on a 64 MiB synthetic returns Err(Cancelled) within 256 landmarks"
+      ],
+      "depends_on": [
+        "T-02",
+        "T-03b",
+        "T-04"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-030"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-05",
+        "TD §14.1-14.3",
+        "FR-g2 / eng-r1-fr4 (permissive grounding)"
+      ]
+    },
+    {
+      "id": "T-07",
+      "title": "Carver B: inflate-probe extents, deferred lengths, ObjStm expansion, gap sweep",
+      "goal": "The probe-end guard, second-pass indirect /Length, ObjStm expansion with bounds and a visited set, container-offset precedence (D-031), xref-stream harvesting for diagnosis, and the gap sweep.",
+      "paths": [
+        "src/pdf/carver.rs"
+      ],
+      "interfaces": "Extends `carve` (same signature). Rules 1-6 of plan §6 T-07: probe Done trusted only when endstream/EOF follows within 2 bytes; deferred /Length in pass 2; ObjStm N <= 1,000,000, monotonic offsets, offsets within /First+data, visited set; copies ordered by container offset, greatest wins, rest shadows; xref streams decoded for diagnosis and trailer-key harvesting; gap sweep per TD:1005-1017.",
+      "acceptance": [
+        "`golden_pdf_objstm` carve finds pages reachable only through the ObjStm",
+        "wrong /Length + Flate resolved by probe; probe success without trailing endstream is not trusted; indirect /Length forward ref resolved in pass 2",
+        "C5 fixture yields one Orphan of the right kind; C10 cut mid-stream clamps with TruncatedAtEof",
+        "recursive ObjStm fixture terminates; both orders of with_objstm_and_plain_copy pick the greater container offset"
+      ],
+      "depends_on": [
+        "T-05",
+        "T-06"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-031"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-07",
+        "TD §14.3d, §14.4, §14.5",
+        "eng-r1-fr4 §5"
+      ]
+    },
+    {
+      "id": "T-08",
+      "title": "Streams B: C9 salvage ladder with a work budget (two-phase parallel, memory-bounded)",
+      "goal": "The Adler-verified byte-search ladder counting work W (never time), the per-file deep pool, grades Exact/Accepted/Ambiguous, the Flate-stage filter domain, Clean entries that keep no bytes, scratch admission and max_search_stream, and the thread-independent two-phase scheme.",
+      "paths": [
+        "src/pdf/streams/salvage.rs"
+      ],
+      "interfaces": "`pub(crate) enum Grade { Exact, Accepted{searched, window}, Ambiguous{outputs} }`; `pub(crate) enum Salvage { Clean{decoded_len, class, sha256}, ChecksumMismatch{data}, Repaired{data, edits, grade, survivors, work}, Prefix{data, in_used, in_total}, Unrecoverable, Unsearched{reason} }`; `salvage_inflate(flate_input, &SalvageBudget) -> Salvage`; `pub(crate) struct SalvageIndex { by_obj: BTreeMap<ObjId, SalvageEntry{salvage, stage: FilterStage}>, work_total }` with `heap_bytes()` and `decoded(&self, carve, id, cap) -> Result<Cow<[u8]>, DecodeError>`; `salvage_all(carve, budget, threads, scratch_cap, cancel) -> Result<SalvageIndex, Cancelled>`; `trait Localizer { window(..); early_reject(..) }`; W = input bytes consumed by candidate inflates + 244 x inflate calls; defaults work 7e8, deep_work 1e10, deep_pool 8e10, max_search_stream 4 MiB; pinned survivor order (body edits before trailer, lowest offset, lowest byte); admission 66*raw + max(12*raw, 1 MiB) <= scratch_cap.",
+      "acceptance": [
+        "each <=512 B content stream of the C9 golden is repaired byte-exact with grade Exact; the 9.6 KB font stream is ChecksumMismatch under `work` with no localizer",
+        "synthetic Adler collision grades Ambiguous{outputs: 2} with the lowest-offset survivor as data regardless of search order; trailer-byte damage carries trailer_edit evidence",
+        "budget exhaustion before an accept returns ChecksumMismatch/Prefix, never Unrecoverable; after an accept returns Accepted with the patched bytes; the same stream at work 1e6/1e7/1e8 gives identical data and edits whenever the grade is Exact or Accepted",
+        "checkpoint-resume from every checkpoint reproduces output and Adler; salvage_all is cancellable between streams",
+        "deep pool: 12 damaged streams with deep_pool = 3 x deep_work grant deep to exactly the three smallest, same order on two runs",
+        "thread independence: salvage_all at threads 1, 2 and 8 gives byte-identical SalvageIndex contents and work_total on the C9 golden and the 12-stream synthetic",
+        "filter domain: C9 hits in the predictor image, the A85+Flate content and the Flate+DCT image are repaired with edits in the Flate-input domain and FilterStage recorded",
+        "memory: Clean holds no Vec (size assertion); decoded() equals a direct inflate; a 16 MiB damaged stream is Unsearched at the default and, with max_search_stream raised to 32 MiB, peak scratch stays under scratch_cap (counting allocator) with the same digest at 1/2/8 threads; a 5 MiB stream is Unsearched at the default and Repaired at 8 MiB",
+        "no std::time type in the module (clippy)"
+      ],
+      "depends_on": [
+        "T-06",
+        "T-03b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-007",
+        "D-041",
+        "D-056",
+        "D-066",
+        "D-072"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-08",
+        "RR (C9 shape)",
+        "FR-g5",
+        "eng-r1-fr1",
+        "FR-r1-e",
+        "eng-r2-fr2",
+        "eng-r4-fr2"
+      ]
+    },
+    {
+      "id": "T-08b",
+      "title": "TrueType-checksum localizer for C9 font streams",
+      "goal": "A Localizer that narrows the C9 search window for sfnt font streams to the lowest failing table (complete window) and rejects candidates early on that table's checksum, with an Adler-only re-run guard for fonts whose original checksum was wrong.",
+      "paths": [
+        "src/pdf/streams/salvage/ttf.rs"
+      ],
+      "interfaces": "`TtfLocalizer: Localizer` (own ~80-line sfnt directory parser and the published 32-bit word-sum checksum with checkSumAdjustment zeroed for head; no skrifa); applies when the baseline decode begins 00 01 00 00, true or OTTO and the directory parses; window = output [0, end(T1)) minus verified tables mapped to input positions, margin 0; gaps-only window when no table fails; verifier B decodes to end(T1), compares incrementally, rejects on mismatch; directory positions fall back to Adler-only; an exhausted window with no accept and budget left re-runs under A.",
+      "acceptance": [
+        "sfnt parser and checksum verify every table of the test font (head with adjustment zeroed)",
+        "a seeded one-byte change inside glyf makes exactly glyf fail and the window lies inside glyf's input span; a directory change yields the gaps-only window",
+        "the test-font stream damaged in glyf is repaired byte-exact under `work` with grade Exact",
+        "a stream whose original glyf checksum is deliberately wrong is still repaired via the A re-run and the report says so",
+        "determinism under budget as in T-08; the B-rejected count equals the A-rejected count plus the no-inflate rejects on two runs"
+      ],
+      "depends_on": [
+        "T-08",
+        "T-03a"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-056"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-08b",
+        "FR-r1-e Part 2",
+        "ISO/IEC 14496-22 §4.5"
+      ]
+    },
+    {
+      "id": "T-09",
+      "title": "Object graph",
+      "goal": "Hand-rolled object graph over the carve: catalog candidates, reachability, kinds in byte order, dangling refs, page order with the pdf.js/hayro/qpdf page heuristics, and the page-level content walk through Form XObjects.",
+      "paths": [
+        "src/pdf/graph.rs"
+      ],
+      "interfaces": "`pub(crate) struct ObjectGraph`; `from_carve(&CarveReport)`; `heap_bytes()`; `catalog_candidates() -> Vec<ObjId>`; `reachable(root)`, `unreachable(root) -> BTreeSet<ObjId>`; `objects_of_kind(ObjectKind) -> Vec<ObjId>` (byte order); `reachable_fraction(root) -> Ratio`; `referrers(id)`; `dangling_refs() -> Vec<(ObjId, KeyPath, ObjId)>`; `pages_in_doc_order() -> Vec<ObjId>` (BFS over /Kids, visited set, depth cap 100, then byte-order candidates); `page_content(page) -> Vec<ContentPiece{stream, resources, via}>` (Contents array in order, Do into Form XObjects with their own resources, depth cap 16, visited set per page).",
+      "acceptance": [
+        "edges carry key paths; dangling refs from C5/C10 fixtures; cyclic /Kids terminates; a page in two /Kids arrays appears once",
+        "catalog chosen over a stale shadow; `unreachable` lists the C6 fixture's unlinked font; objects_of_kind(Font) is in byte order",
+        "page_content on a fixture with a two-stream /Contents array and a self-referencing Form XObject yields three pieces in order and terminates; inherited /Resources is carried into the piece"
+      ],
+      "depends_on": [
+        "T-07"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [],
+      "spec_refs": [
+        "plan.md §6 T-09",
+        "TD §4.3, §17.1",
+        "FR-g2 (page heuristics)"
+      ]
+    },
+    {
+      "id": "T-10",
+      "title": "Rebuild: renumbering, reconciliation, page tree",
+      "goal": "IdRemap, dangling-ref reconciliation with the generation fallback before positional matching, the page-tree plan with the MediaBox fallback chain, and the duplicate-object rule (last well-formed, non-truncated copy wins; losers kept as shadows).",
+      "paths": [
+        "src/pdf/rebuild.rs"
+      ],
+      "interfaces": "`pub(crate) struct IdRemap`; `plan_ids(carve, graph) -> IdRemap`; `rebuild_page_tree(carve, graph, remap, default_page_size) -> PageTreePlan { pages: Vec<PagePlan{id, mediabox, resources, cropbox, rotate, source: Own|Inherited|ModalSibling|Default}>, catalog: Reuse(ObjId)|Synthesize }`; reconciliation per TD:1100-1112 with same-number-other-generation first and `Evidence::Metric{\"matched_by_position_delta\"}`; duplicate keys are (num, gen).",
+      "acceptance": [
+        "C4 fixture rebuilds a flat /Pages with the right /Count; the MediaBox fallback chain hits each rung",
+        "with_truncated_later_duplicate: the truncated later copy loses; with_duplicate_object: the later well-formed copy wins and the earlier is a shadow",
+        "dangling /Contents matched to the nearest orphan stream with delta evidence; an unmatched dangling ref becomes a Warning finding input"
+      ],
+      "depends_on": [
+        "T-09"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-032"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-10",
+        "TD §17.2-17.3",
+        "eng-r1-fr4 §5/§7"
+      ]
+    },
+    {
+      "id": "T-11a",
+      "title": "Diagnose: structural classes C1-C5, C10, Encrypted, Signed; file metadata",
+      "goal": "The structural detectors of the #14 table with header-relative, +-64 B startxref tolerance, the Encrypted refusal and the Signed Info finding; stable finding ids in byte order.",
+      "paths": [
+        "src/pdf/diagnose.rs",
+        "src/pdf/meta.rs"
+      ],
+      "interfaces": "`pub(crate) fn diagnose(bytes, carve, graph, salvage: &SalvageIndex) -> Vec<Finding>` (ids `C2-001` ... in byte order; C6-C9/info arms left as empty branches for T-11b); `pub(crate) fn file_meta(carve, graph) -> FileMeta`; rules per the #14 table rows C1-C5, C10, Encrypted, Signed.",
+      "acceptance": [
+        "each structural corruptor yields its class and no other structural class on the golden and, where applicable, the ObjStm golden (C2 must not fire on an intact xref-stream file)",
+        "junk-prefix C1 with a valid body; off-by-one startxref -> Warning; encrypted fixture -> Encrypted/Unrepairable(\"decrypt first\")",
+        "golden_pdf_signed -> exactly one Signed finding; a clean file yields no findings"
+      ],
+      "depends_on": [
+        "T-08",
+        "T-10"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-052"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-11a",
+        "map-resolutions.md #14",
+        "TD §19"
+      ]
+    },
+    {
+      "id": "T-11b",
+      "title": "Diagnose: C6-C9, OutlinedText, Type3Text",
+      "goal": "The font and stream detectors: C6 per (page, slot) through page_content x content_ops, C7/C8 per the table, C9 from the SalvageIndex grades, the C9-outside-stream near-miss warning, OutlinedText and Type3Text info findings.",
+      "paths": [
+        "src/pdf/diagnose.rs"
+      ],
+      "interfaces": "Fills the arms T-11a left empty; C9 reads grades (Exact|Accepted -> Warning/Auto; Ambiguous -> Error/Partial(\"ambiguous: n candidate repairs\"); ChecksumMismatch|Prefix|Unrecoverable|Unsearched -> Error/Partial); Clean streams never inflated here; OutlinedText = filled paths with >= 3 curve segments per page; Type3Text; a slot used only inside a Form XObject carrying its own /Font is not C6.",
+      "acceptance": [
+        "C6 fixture yields C6 and names the orphan font; C7/C8 fixtures yield their class",
+        "C9 fixture (measured distribution, seeded) yields C9 and none of C1-C5/C10; width-array damage is asserted undetected",
+        "outline-only page raises OutlinedText and not C6; Type3 page raises Type3Text and not C7",
+        "the Ambiguous synthetic stream yields a Partial C9 finding whose evidence lists both survivors"
+      ],
+      "depends_on": [
+        "T-11a"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-041",
+        "D-074"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-11b",
+        "map-resolutions.md #14",
+        "TD §5.6"
+      ]
+    },
+    {
+      "id": "T-12a",
+      "title": "Emit (Resave) and the lopdf writer rules",
+      "goal": "The only writer: fresh lopdf Document, classic xref, max_id set, whitelisted trailer, /ID from the input hash, raw stream copy, C9 streams rewritten in the Flate-stage domain, Unrecoverable/Unsearched written raw, reals_narrowed counted, 4 GiB refusal.",
+      "paths": [
+        "src/pdf/write.rs (pub)",
+        "src/pdf/emit.rs"
+      ],
+      "interfaces": "`pub struct Writer` with `with_version(\"1.7\")`, `add(id, Object)`, `add_stream_raw(id, dict, bytes)`, `add_stream_uncompressed(id, dict, bytes)`, `trailer(root, id_seed: [u8;32], info: Option<ObjId>)`, `finish() -> Result<Vec<u8>, EmitError>`; `pub(crate) struct RebuildDoc { w: Writer, remap: IdRemap }`; `fn emit_resave(carve, graph, remap, page_tree, ctx) -> Result<Vec<u8>, EmitError>`; writer rules (1)-(8) of plan §6 T-12a (XrefType::CrossReferenceTable; doc.max_id by hand; never compress/save_modern/object or xref streams; filter rewrites; fresh Document; NaN/inf filtered and RealNarrowed counted; TooLarge above 4 GiB; header `%PDF-1.7\\n%` + four bytes >= 0x80).",
+      "acceptance": [
+        "Resave of C2/C3/C5/C10 fixtures reloads in strict lopdf; gapped ids (5, 9, 20, 30) give /Size 31 and separate xref subsections",
+        "the trailer contains exactly /Root /Size /ID (+ /Info only when the input had one); no /Type /XRef in the trailer",
+        "filter rewrites: the three T-03b chain fixtures with a C9 hit round-trip through hayro to samples equal to the original's; a ChecksumMismatch predictor image written uncompressed renders identically",
+        "determinism: same input twice -> byte-identical output; a committed golden sha256 for the fixture is compared on all three CI OSes",
+        "narrowing: a carved /Matrix [0.70710678 0 0 0.70710678 0 0] re-emits with reals_narrowed == 2 and the report line present; short reals report 0",
+        "an Unrecoverable stream is re-emitted with bytes equal to the carved bytes and its /Filter intact"
+      ],
+      "depends_on": [
+        "T-11a"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-019",
+        "D-022",
+        "D-074",
+        "D-075"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-12a",
+        "TD §17.4",
+        "FR-06 §4",
+        "eng-r2-q7"
+      ]
+    },
+    {
+      "id": "T-12b",
+      "title": "Verification gates V0/V1/V2",
+      "goal": "Strict lopdf reload, hayro render pass/fail, zero-budget re-diagnosis, root-and-pages check, retention from T-36 glyphs and paint counts (blank_pages from paint_ops, never pixels), plausibility ratios; all values integer Ratios.",
+      "paths": [
+        "src/pdf/verify.rs"
+      ],
+      "interfaces": "`pub(crate) fn verify(output, carve, input_text: &Baseline, targeted: &[CorruptionClass]) -> Verification { v0: Gates{lopdf_reload, hayro_render_all_pages, rediagnose_clean, page_count_ok, root_and_pages_present}, v1: Retention{text_ops, path_fills, images, content_bytes: Ratio, blank_pages: u32, glyph_count: Ratio}, v2: Plausibility{unmapped_glyph, fffd, script_consistency: Ratio, dictionary_hit: Option<Ratio>} }`; `pub(crate) enum Baseline { Extracted(Vec<PageText>), CarveProxy{show_ops, string_bytes} }`; re-diagnosis under SalvageBudget{0,0,0}; \"clean\" excludes locations already reported Partial; strict load via load_mem_with_options(strict: true, max_decompressed_size: Some(256 << 20)).",
+      "acceptance": [
+        "verify on the original golden passes everything; a page-dropping emit fails V1; an empty-content page raises blank_pages by one; the goal-r2-fr2 blank-case fixture marks exactly the paint==0 pages blank",
+        "an unrepaired C6 file fails V2; a C1 input (hayro cannot load) produces a CarveProxy baseline",
+        "no raster input: verify's signature takes no pixel buffer; a grep tripwire finds no render/Pixmap/rgba use outside the V0 gate function",
+        "the verification record of the fixture is byte-identical on the three CI OSes",
+        "re-diagnosis spends nothing: a C9+C4 fixture repaired with passes = Some([C4]) performs zero candidate inflates (Progress counter); a C9 fixture with one Unrecoverable stream, repaired, passes V0 with the finding still Partial"
+      ],
+      "depends_on": [
+        "T-12a",
+        "T-36"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-054",
+        "D-059",
+        "D-074"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-12b",
+        "SE Q5 (V0/V1)",
+        "FR-04 §6",
+        "FR-g1",
+        "goal-r2-fr2/fr3"
+      ]
+    },
+    {
+      "id": "T-13a",
+      "title": "Planner, generate-and-validate, structural passes (C1-C5, C10)",
+      "goal": "SE Q1 layer A as a rule table, run every feasible toolpath, pick by the lexicographic tuple (V0 all pass -> V1 -> V2 -> V3 preservation -> V4 prior=Resave then smaller), the RepairPass trait, and the C10/C5/C4 passes (C1-C3 resolved by re-emission).",
+      "paths": [
+        "src/pdf/plan.rs",
+        "src/pdf/repair.rs"
+      ],
+      "interfaces": "`pub(crate) fn plan(findings, carve, graph, opts) -> RepairPlan`; `trait RepairPass { class(); repair(&self, ctx: &mut RepairCtx, findings) -> PassOutcome }`; `RepairCtx { bytes, carve, graph, remap, doc: &mut RebuildDoc, salvage: &SalvageIndex, fonts: &FontDb, ask: &mut dyn Interact, sink: &mut dyn Progress, cancel }`; `PassOutcome { fixed, partial, actions: Vec<RepairAction> }`; `RepairOptions.passes: Option<Vec<CorruptionClass>>` (None = planner decides; Some = restrict and Log the rest); TemplateAssemble rows skipped with a Log until T-30.",
+      "acceptance": [
+        "each of the C2-C5 and C10 fixtures -> output re-diagnoses clean for the targeted class and passes V0/V1",
+        "`RepairOptions.passes = Some([..])` overrides the planner; one test per planner table row",
+        "the tuple comparison is a pure function with a table test"
+      ],
+      "depends_on": [
+        "T-12b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-008",
+        "D-041"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-13a",
+        "SE Q1/Q2",
+        "map-resolutions.md #2, #12"
+      ]
+    },
+    {
+      "id": "T-13b",
+      "title": "C9 swap and C6 re-link passes",
+      "goal": "The C9 pass swapping salvaged bytes with per-action SalvageGrade and the c9_summary counts (Accepted counted apart from Exact), Ambiguous/Prefix/Unrecoverable/Unsearched as Partial, and the C6 per-(page, slot) re-link against unreachable fonts by slot name, byte proximity and width agreement, never by CIDFont+Fn name.",
+      "paths": [
+        "src/pdf/repair.rs"
+      ],
+      "interfaces": "C9 pass: Exact|Accepted -> Fixed with `RepairAction.grade` and c9_summary filled; Ambiguous -> pinned-order survivor written, Partial(\"ambiguous: n candidate repairs, see report\"); Prefix|ChecksumMismatch -> Partial; Unrecoverable|Unsearched -> carved bytes kept, Partial(\"unrecoverable stream\") / Partial(\"stream over max_search_stream, not searched\"); C6 pass: Tf slots from page_content x content_ops matched to graph.unreachable(root) ∩ objects_of_kind(Font); no match -> Interactive(FontPick) escalation.",
+      "acceptance": [
+        "C9 fixture -> output re-diagnoses clean and Exact streams are byte-identical to the original's raw data",
+        "a C9 fixture under work = 1e5 reports the <=512 B streams Accepted with c9_summary.accepted equal to their count and the fixed line \"k accepted without a uniqueness check\"",
+        "the Ambiguous synthetic -> Partial with both survivors in the report; one Unrecoverable stream -> Partial and the output passes V0",
+        "C6 fixture -> re-linked and passes V2; with the orphan font deleted -> FontPick escalation; a slot used only inside a Form XObject with its own /Font -> no C6 and no re-link"
+      ],
+      "depends_on": [
+        "T-13a",
+        "T-11b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-008",
+        "D-041",
+        "D-074"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-13b",
+        "RR change #3",
+        "goal-r3-q12"
+      ]
+    },
+    {
+      "id": "T-14",
+      "title": "Facade bodies and end-to-end tests",
+      "goal": "Replace the T-02b stub bodies with the real pipeline (state reuse by hash, settings snapshot, interaction records, c9_summary, reals_narrowed, report lines) without changing any shape; the facade end-to-end tests and the artefact deny-list test as inline cfg(test) modules.",
+      "paths": [
+        "src/engine.rs",
+        "src/engine/tests.rs",
+        "src/engine/artefact_tests.rs",
+        "tests/data/"
+      ],
+      "interfaces": "Plan §4 signatures unchanged; `analyze` fills AnalysisResult.state; `repair` reuses the state when `state.input_sha256 == sha256(bytes)`, otherwise re-runs carve -> salvage -> graph and returns analysis_state: Rebuilt{reason}; settings snapshotted from RepairOptions + AnalyzeOptions (never threads/scratch_cap); every Interact::ask appended to interactions; `RepairReport::lines()` renders the D-041, D-052 and D-075 fixed lines.",
+      "acceptance": [
+        "for each class with a landed pass, analyze -> plan -> repair on the fixture yields Ok|Partial, the output reloads strictly, and analyze(output) has no finding of that class; UseBest as the handler",
+        "cancellation via Progress::cancelled() returns Err(Cancelled) mid-carve on a large synthetic; golden_pdf_signed -> signed_note set; the facade takes &[u8] and returns bytes (no file I/O)",
+        "the fixture's RepairReport is byte-identical on two runs; state reuse: repair after analyze on the C9 golden calls salvage_all zero times (phase counter) and says Reused; mismatched bytes re-analyse without panic and say Rebuilt",
+        "report purity: analyze->repair and repair-from-history (AnalysisResult deserialised from JSON) give byte-identical serialised reports",
+        "settings replay: re-running repair with the recorded settings and a scripted Interact replaying `interactions` gives byte-identical output and report; the C9 golden's report serialises with serde_json (non-empty c9_survivors)",
+        "artefact_tests: every artefact (repaired PDF, serialised report, lines(), later the .md) contains no string from ui::strings::ALL, and the deny-list is asserted non-empty"
+      ],
+      "depends_on": [
+        "T-13b",
+        "T-02b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-006",
+        "D-041",
+        "D-052",
+        "D-073",
+        "D-075"
+      ],
+      "spec_refs": [
+        "plan.md §4, §6 T-14",
+        "goal-r2-q11, goal-r2-q12, goal-r3-q9"
+      ]
+    },
+    {
+      "id": "T-15",
+      "title": "Job runner with parked jobs, no-clobber placement, and the panic guard",
+      "goal": "JobRunner<E: Engine> with the parked-job state machine that never stops the batch (evict-and-replay at the 1 GiB retained cap counting input + AnalysisState::heap_bytes), destination_for/output_dir with the pre-engine write probe, the three-tier no-replace placement, content-named image directories, BatchInputs, and the UI-thread-scoped panic hook. At-risk on D-005 (one branch in the cap handler) and D-062 (one branch in destination_for).",
+      "paths": [
+        "src/jobs.rs",
+        "src/place.rs",
+        "src/panic_guard.rs"
+      ],
+      "interfaces": "`JobRunner<E: Engine>::{submit, cancel, reply(id, InteractionReply), on_job_event, shutdown(grace)}`; `parked_cap` 1 GiB; eviction step (1) drop state cheapest-first by salvage_work_total emitting Evicted{id}, step (2) release re-readable inputs largest-first with a sha256 re-check on reply (Failed(\"input changed while waiting\")), file-promise inputs pinned; `WaitingForYou{parked}` status only; `destination_for(input, cfg) -> PathBuf`; Repair job opens its temp file with create_new in the destination before any engine work, EROFS/EACCES/EPERM/ENOENT -> Failed(\"can't write beside the original (read-only); set [general] output_dir\"); `place::write_new(dir, stem, ext, bytes) -> io::Result<(PathBuf, Placed)>` with tiers renameat_with(NOREPLACE)/MoveFileExW(WRITE_THROUGH) -> hard_link+remove (Unix) -> create_new claim + rename; AlreadyExists at any tier -> next (N) suffix; images dir `<stem>.<sha256[..8 hex]>.images/`; `BatchInputs: BTreeSet<PathBuf>`; `panic_guard::install(ui_thread: ThreadId, restore: Vec<u8>, writer: Box<dyn Write + Send>)` and `set_job_sink`.",
+      "acceptance": [
+        "against FakeEngine: sequential batch order; cancel removes pending; a worker-thread panic becomes Failed{panicked: true}, the runner continues, the fake writer gets zero bytes and the sink holds the payload",
+        "quit-while-prompted: dropping the UI side ends the job Cancelled within 400 ms; a parked job does not block the next; a reply resumes and finishes",
+        "an always-asking FakeEngine on 20 files with parked_cap = three fake inputs finishes analysing all 20, emits WaitingForYou{20}, emits Evicted in ascending salvage_work_total order and never for the C9-sized state while a cheaper one remains, keeps every row, replays earlier replies on each reply and records Rebuilt{\"evicted while parked\"}",
+        "a parked input modified on disk before the reply -> Failed(\"input changed while waiting\"); a job with no durable path is never released at step (2); heap_bytes() = 3 x input.len() on 1 MB inputs with parked_cap = 6 MB evicts after the second parked job while heap_bytes() = 0 evicts only when inputs alone exceed the cap; a pinned input over the cap is held and the next job still starts",
+        "Analyze's StateHandle is the same Arc the Repair job receives (Arc::ptr_eq); output path never equals an input path; an existing a.repaired.pdf survives byte-identical and the new output lands in a.repaired (2).pdf; dropping a.pdf and a.repaired.pdf in one batch writes a.repaired (2).pdf and a.repaired.repaired.pdf",
+        "destination: a read-only temp dir (0o555 / deny ACL) produces the Failed row with nothing written anywhere; output_dir set: two inputs sharing a stem land as <stem>.repaired.pdf and <stem>.repaired (2).pdf; no durable path + no output_dir fails with the fixed message",
+        "placement matrix on all three CI OSes: absent -> Atomic; a user file with different bytes -> (2) and unchanged; dangling symlink treated as existing (Unix); 16 threads racing one name -> exactly one Atomic success; tier 1 forced to ENOTSUP via a fn-pointer seam -> tiers 2/3 exercised and reported; macOS-only #[ignore] exFAT image -> ClaimedThenRenamed; images dir reused when identical, (2) when different"
+      ],
+      "depends_on": [
+        "T-02b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-005",
+        "D-039",
+        "D-044",
+        "D-051",
+        "D-060",
+        "D-061",
+        "D-062",
+        "D-066",
+        "D-073",
+        "D-076"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-15",
+        "GG §1",
+        "TD §3, TD:592",
+        "FR-r1-f",
+        "lead-r4-fr1",
+        "goal-r3-fr4"
+      ]
+    },
+    {
+      "id": "T-16",
+      "title": "Config, app dirs and history store",
+      "goal": "TD §6 config with the D-017/D-041/D-072 knob names and [general] output_dir, no offline knob; a hand-rolled app-dirs module on std + windows-sys (no directories crate, no MPL-2.0 exception); the JSON history store with RunRecord carrying the run facts the report may not.",
+      "paths": [
+        "src/config.rs",
+        "src/appdirs.rs",
+        "src/library.rs"
+      ],
+      "interfaces": "`appdirs::AppDirs { config_dir, data_dir, cache_dir, documents_dir: Option<PathBuf> }`, `AppDirs::resolve() -> Option<AppDirs>` reproducing ProjectDirs::from(\"dev\", \"shythulu\", \"PDFPundit\"); `Config::load(dirs) -> (Config, Vec<Warning>, PathBuf)`; sections TD:589-617 minus [general] offline, with [general] output_dir = \"\", [fonts] unreproducible, [repair] salvage_work = 700000000, salvage_deep_work = 10000000000, salvage_deep_pool = 80000000000, max_search_stream = 4194304; `trait HistoryStore { upsert_file, record_run, list_files(filter), runs_for, delete_file, summary() -> HistorySummary }`; `RunRecord { started_at: u64, input_sha256, input_name, output_path, placed: Option<Placed>, analysis_state: AnalysisStateUse, config_path, report: RepairReport }`; `JsonStore` with index.json cache and files/<sha256>.json, temp+fsync+rename.",
+      "acceptance": [
+        "default config parses; unknown key warns (including `offline` and the old `max_stream`); output_dir round-trips and \"\" means beside",
+        "appdirs: absolute XDG_CONFIG_HOME honoured, relative XDG_CACHE_HOME ignored, XDG_DOCUMENTS_DIR read from a fixture user-dirs.dirs, the three macOS paths; the Windows branch executes on the windows CI leg",
+        "JsonStore round-trip with RepairReport::default_for(..) and with T-02b's fully populated report fixture inside a RunRecord",
+        "summary() on 7 files / 9 runs gives {7, 9} and the five newest names in order; a corrupt index is rebuilt; atomic write leaves no .tmp on success and no partial file on simulated failure",
+        "`cargo clippy -D warnings` passes with no allow in library.rs"
+      ],
+      "depends_on": [
+        "T-02b"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-017",
+        "D-041",
+        "D-046",
+        "D-050",
+        "D-061",
+        "D-072",
+        "D-073",
+        "D-076"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-16",
+        "TD §6",
+        "goal-r2-fr1"
+      ]
+    },
+    {
+      "id": "T-17",
+      "title": "Themes and colour math",
+      "goal": "The seven themes with the DarkBerry palette roles, and the hand-rolled sRGB<->OKLab/mix/ramp on libm in f64 so the gradients are bit-stable and cell-exact against the goldens.",
+      "paths": [
+        "src/ui/theme.rs",
+        "src/ui/color.rs",
+        "assets/theme/darkberry-palette.json"
+      ],
+      "interfaces": "`pub struct Theme { name, dark, ansi: [Rgb; 16], roles: Roles{bg, lightbar, heading, body, dim, file, hotkey, error, ok, needs_input, accent, info, border_stops}, logo_ramp }`; `Theme::all()` (Blackwater, Mire, Fen, Wisp, ACiD Classic, Pastel Parlour, Mono Ink); `Theme::default_theme()`; `fn ramp(stops, t: f64) -> Rgb`; `Theme::downgrade(&self, caps: ColorCaps) -> Theme`; colour math ported from generate.py lines 34-92 using libm::cbrt/pow and round_ties_even; no f32 in ui/color or ui/cat.",
+      "acceptance": [
+        "the palette JSON loads and every role resolves for all four DarkBerry flavours; the role table matches MOCK",
+        "`ramp` values equal the T-00 goldens' colours at the sampled t values",
+        "the 16-colour downgrade is deterministic",
+        "a grep tripwire finds no `f32` in src/ui/color.rs"
+      ],
+      "depends_on": [
+        "T-01",
+        "T-00"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-018",
+        "D-055"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-17",
+        "MOCK \"Theme roles\"",
+        "eng-r1-fr5"
+      ]
+    },
+    {
+      "id": "T-18",
+      "title": "Cat renderer",
+      "goal": "The Smudge cat renderer ported from generate.py (pose, sphere warp, 2x2 supersampling, half-block packing, min line width, glow ring, LRU cache), cell-exact against every T-00 cat golden at scales 0.93/0.68/0.52/0.465.",
+      "paths": [
+        "src/ui/cat.rs",
+        "src/ui/cat/geometry.rs",
+        "examples/cat_dump.rs"
+      ],
+      "interfaces": "`pub struct Pose { yaw, pitch, eo, mouth, gx, gy, ears: f64, happy: bool, meme: f64, plate: Option<f64>, chew: bool, puff: f64 }`; `pub struct CellGrid { cols, rows, cells: Vec<Option<Cell{fg, bg, ch}>> }`; `pub fn render(pose: &Pose, scale: f64, theme: &Theme, glow: f64) -> CellGrid`; `pub fn plate(width: u16, off: Option<f64>) -> CellGrid`; `pub fn gaze_to(pose: &mut Pose, target_px: (f64, f64))`; all trig through libm (sin, atan2, asin); hsh() ported exactly.",
+      "acceptance": [
+        "`render` equals the T-00 golden grid for every (scale, pose) pair, cell-exact, with the mismatch list printed on failure",
+        "the widget cat keeps lids/mouth/whiskers >= 1 px; `render` is pure (two calls equal)",
+        "examples/cat_dump.rs builds and writes HTML (human likeness review; not a gate)",
+        "no f32 in src/ui/cat (grep tripwire); clippy clean under the crate-wide libm ban (libm crate calls only)"
+      ],
+      "depends_on": [
+        "T-17",
+        "T-00"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-018",
+        "D-055",
+        "D-065"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-18",
+        "generate.py pose/cat_sample/whiskers/plate_grid/cat_grid",
+        "eng-r1-fr5"
+      ]
+    },
+    {
+      "id": "T-19",
+      "title": "Director (cat timeline)",
+      "goal": "The cat's state machine and keyframe tables (drag, chomp, widget drop) copied from generate.py as f64 constants, with moods, the NeedsYou blink and gaze; every keyframe renders to its golden.",
+      "paths": [
+        "src/ui/director.rs",
+        "src/ui/strings.rs (appended)"
+      ],
+      "interfaces": "`pub enum CatEvent { DragAt(Option<CellPos>), Dropped{n}, Mood(Mood) }`; `pub enum Mood { Idle, Working{progress: Ratio}, NeedsYou, Done{ok, partial, failed}, Failed }`; `pub struct CatFrame { pose, glow: f64, hint, caption, file_at: Option<FileAt{x, pixel_row, first_row}>, fx, crumbs: bool, panel_dim: f64, blink_on: bool }`; `Director::{new, on(&mut self, CatEvent), frame(&self, t: Duration) -> CatFrame}`; const tables DRAG/DRAG_DURS, CHOMP/CHOMP_DURS/CHOMP_DOC/CHOMP_FX/CRUMBS, WDRAG_DOC/WCHOMP_DOC/WCHOMP_FX with the values in plan §6 T-19; transitions Idle -> Dragging -> Idle, Idle -> Chomp from step 1, Dragging -> Chomp from step 4, Chomp -> mood pose after step 8.",
+      "acceptance": [
+        "a drop with no drag starts the chomp at \"plop\"; a drop after DragAt events skips to step 4; both end on \"burp\"; a drag that leaves without a drop returns to idle",
+        "each reaction has at most 10 keyframes (const assertion); NeedsYou makes the cat look at the viewer and blink_on alternates at 2 Hz",
+        "each keyframe's pose renders through T-18 to its T-00 golden cell-exact at 0.93 and 0.465",
+        "every hint and caption is in ui::strings::ALL; the durations sum to the mockup totals; `frame` is pure for a given event history and t; file_at is None after the doc is gone"
+      ],
+      "depends_on": [
+        "T-18"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-055"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-19",
+        "UI:201-211",
+        "MOCK drag/chomp/widget tables",
+        "generate.py 800-937, 1261"
+      ]
+    },
+    {
+      "id": "T-20",
+      "title": "View model",
+      "goal": "The pure `view(app) -> ViewModel` deriving counts, progress, needs_you, queue rows, findings, c9_line, mood, recent files, history totals and the status bar from AppState, with the `mockup_idle()` fixture that pins the idle golden's sample data.",
+      "paths": [
+        "src/ui/view.rs",
+        "src/ui/state.rs"
+      ],
+      "interfaces": "`pub fn view(app: &AppState) -> ViewModel { counts, current, batch_progress, needs_you, done_summary, queue_rows, selected_findings, font_resolutions, c9_line: Option<String>, mood, recent: Vec<RecentRow>, history_totals: (u64, u64), status_bar: StatusBar{node, state, queued, offline: true, size, clock}, hint }`; `AppState { history: HistorySummary, term_size, clock: Option<(u8, u8)>, screen: Screen{Main, Browse(BrowseState), FontPick(..), Themes(..)}, .. }`; the RecentStatus mapping table; `AppState::mockup_idle()` under cfg(test).",
+      "acceptance": [
+        "fixture AppStates for idle (mockup_idle), batch (frame 03), result (frame 05), done tally produce the expected ViewModels",
+        "mood derivation table; the RecentStatus table (Fixed+Ok -> Repaired, any Partial -> Partial, analysis only -> Pending, Failed|Encrypted -> Failed)",
+        "FindingKind info rows (incl. Signed) render as info, not errors; c9_line is None with no C9 stream touched and carries the three counts otherwise"
+      ],
+      "depends_on": [
+        "T-02b",
+        "T-19"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-041",
+        "D-048",
+        "D-050"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-20",
+        "UI (view.rs row)",
+        "eng-r3-q4"
+      ]
+    },
+    {
+      "id": "T-21",
+      "title": "Canvas, layout seam, choose, widget adapter and the one-line fallback",
+      "goal": "The framework-free Canvas ported from generate.py, the Layout trait, choose(size, pin), the 32x16 widget adapter and the status-only OneLine fallback that accepts no input. At-risk on D-045 (the seam contradicts UI:215) and D-004.",
+      "paths": [
+        "src/ui/canvas.rs",
+        "src/ui/layout/mod.rs",
+        "src/ui/layout/widget.rs",
+        "src/ui/strings.rs (appended)"
+      ],
+      "interfaces": "`pub struct Canvas { w, h, cells: Vec<CanvasCell{ch, fg, bg}>, blink: BTreeSet<(u16, u16)> }` with put, rich, gtext, boxed, pix, blit_grid; `pub trait Layout { min_size(); draw(&self, c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme); accepts_input() -> bool }`; `LayoutPin`, `LayoutKind`, `choose(size, pin)` (Full iff >= 112x38 unless pinned; Widget iff >= 32x16; else OneLine); `WidgetLayout` (cat at (1,0) scale 0.465, plate rows 11-13, status row 14, status bar row 15); `OneLine` renders `=^..^= 3/7 ‼` and accepts_input() == false.",
+      "acceptance": [
+        "choose table (112x38, 111x38, 32x16, 31x16, pins)",
+        "the widget Canvas equals the T-00 widget goldens for each state, cell-exact",
+        "the one-line fallback at 20x1 renders and accepts_input() == false there; no cell is written outside the area",
+        "strings::ALL contains `=^..^=`, \"‼\" and every theme name"
+      ],
+      "depends_on": [
+        "T-17",
+        "T-18",
+        "T-19",
+        "T-20",
+        "T-00"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-045",
+        "D-004",
+        "D-064",
+        "D-055"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-21",
+        "UI:164-191, UI:215",
+        "generate.py Canvas"
+      ]
+    },
+    {
+      "id": "T-22a",
+      "title": "Full layout: frame chrome and idle",
+      "goal": "The 112x38 frame: block-pixel logo, tagline, cat at (27,8), plate strip, LAST CALLERS, MENU, HOW iT WORKS, SYSTEM, hint/hotkeys/status rows, gradient double-line borders; the H/S/? menu items drawn as the golden requires and answered with a \"not yet\" hint.",
+      "paths": [
+        "src/ui/layout/full.rs",
+        "src/ui/widgets/logo.rs",
+        "src/ui/widgets/box.rs",
+        "src/ui/widgets/lightbar.rs",
+        "src/ui/strings.rs (appended)"
+      ],
+      "interfaces": "`FullLayout: Layout`; cell positions per plan §6 T-22a (logo (12,1) 6 rows from generate.py FONT, tagline row 7, cat (27,8) scale 0.93, plate (25,30) width 61, LAST CALLERS (1,9) 25x10, MENU (1,20) 25x13, HOW iT WORKS (86,9) 25x12, SYSTEM (86,22) 25x11, hint row 35, hotkeys row 36, status bar row 37); side panels dim during drag steps.",
+      "acceptance": [
+        "the idle canvas (against AppState::mockup_idle()) and the chomp-step-4 canvas equal the T-00 goldens cell-exact",
+        "an AppState with an empty history draws five blank LAST CALLERS rows and \"0 files · 0 runs\" without panicking",
+        "every drawn cell is inside 112x38; H, S and ? set the \"not yet\" hint and open nothing"
+      ],
+      "depends_on": [
+        "T-21"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-048",
+        "D-055"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-22a",
+        "MOCK \"Layout (cells)\"",
+        "generate.py main_panels 827-866"
+      ]
+    },
+    {
+      "id": "T-22b",
+      "title": "Full layout: batch and result views",
+      "goal": "The batch view (queue box, analysis panel, two-line progress) and the result view (before/after findings, recovery bars, font resolutions, the c9_line count line, per-file menu with Export -> <name>.md).",
+      "paths": [
+        "src/ui/layout/full.rs",
+        "src/ui/widgets/bar.rs",
+        "src/ui/widgets/queue.rs",
+        "src/ui/widgets/findings.rs",
+        "src/ui/strings.rs (appended)"
+      ],
+      "interfaces": "Batch and result drawing in FullLayout from frames 03 and 05; `c9_line` occupies the result view's hint row when present (the mockup has no line for it yet).",
+      "acceptance": [
+        "batch and result canvases equal the T-00 goldens cell-exact (the frame-05 fixture has c9_line: None)",
+        "a result fixture with c9_line set draws it in the hint row",
+        "the Export menu item's label is in ui::strings::ALL"
+      ],
+      "depends_on": [
+        "T-22a"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-041",
+        "D-048"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-22b",
+        "MOCK frames 03, 05",
+        "DA:472"
+      ]
+    },
+    {
+      "id": "T-24",
+      "title": "Modals: font pick and theme chooser",
+      "goal": "The FontPick and ThemeChooser modals drawn into the Canvas from frames 04 and 06, with the RTL placeholder policy for the font-pick golden.",
+      "paths": [
+        "src/ui/layout/modals.rs"
+      ],
+      "interfaces": "`FontPickModal::draw(c: &mut Canvas, req: &FontPickRequest, selected: usize)`; `ThemeChooser::draw(c: &mut Canvas, themes: &[Theme], selected: usize)`; keyboard model as a pure state machine.",
+      "acceptance": [
+        "the theme chooser canvas equals the T-00 golden cell-exact",
+        "the font-pick canvas equals the T-00 golden with the placeholder policy for the RTL cells",
+        "keyboard model unit tests (up/down/enter/esc)"
+      ],
+      "depends_on": [
+        "T-22a"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-055"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-24",
+        "MOCK frames 04, 06",
+        "TD §5.3"
+      ]
+    },
+    {
+      "id": "T-23a",
+      "title": "Terminal guard, event loop, Canvas blit, input flush",
+      "goal": "The shell: IsTerminal guard (exit 2 before reading any input), raw mode/alt screen, the Unix kitty handshake slot, first frame, tcflush/FlushConsoleInputBuffer then arm input, the event loop over AppEvent, the single Canvas -> ratatui Buffer blit, and wiring of T-15's panic guard. At-risk on D-004 (only the ~50-line blit and the non-kitty reader change).",
+      "paths": [
+        "src/ui/app.rs",
+        "src/ui/term.rs",
+        "src/ui/input/mod.rs",
+        "tests/guard.rs"
+      ],
+      "interfaces": "`pub fn run() -> ExitCode` (replaces T-01's placeholder body); startup order (1) IsTerminal on stdin and stdout else print `PDFPundit runs in a terminal; drop PDFs on the cat.` to stderr and return 2, argv never inspected; (2) raw mode, alt screen, truecolor probe, failure exits non-zero with one line; (3) Unix-only handshake slot (no-op until T-31), non-reply bytes discarded and counted; (4) first frame; (5) `term::flush_input()` (rustix tcflush IFlush on Unix; FlushConsoleInputBuffer on CONIN$ opened read+write on Windows) then arm; `pub enum Input { Key, Mouse, Paste(String), Resize, Dnd(DndEvent), Tick }`; `InputSource::spawn(cfg, handshake) -> Receiver<Input>` (Windows: crossterm always; Unix kitty: T-31 splitter; Unix otherwise: crossterm with bracketed paste); loop fills history/term_size/clock, handles Resize -> choose, keys q/T/b/H/S/?/Enter/arrows; the blit is the only place ratatui types appear outside term.rs.",
+      "acceptance": [
+        "TestBackend smoke run of 10 ticks with a scripted Input sequence",
+        "tests/guard.rs (gating on all three OSes, run under `cargo test --release`): the binary with stdin piped (fixture path written with `let _ = write_all`), stdout a File, stderr piped exits with code 2, stderr equals the one line, the stdout file is empty, the fixture's temp dir holds exactly the fixture and the stdout file; variants: everything piped, stdin null",
+        "true case: inside a pty the binary does not exit 2 within 500 ms (required on ubuntu/macos; #[ignore] on Windows until ConPTY is shown to work); pty via rustix `pty` as a dev-dependency feature",
+        "hook wiring: a UI-thread panic writes exactly the composed restore sequence to the fake writer once",
+        "pre-frame input: a paste before the first frame is dropped and counted; a paste during the handshake window submits nothing and the first frame draws; `ab` + a bracketed paste written to the pty master before the child starts yields zero events after the flush while a `Z` written after it arrives as Key(Char('Z'))",
+        "the release binary contains no PDFPUNDIT_PANIC string (T-01's job)"
+      ],
+      "depends_on": [
+        "T-15",
+        "T-16",
+        "T-21",
+        "T-22a"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-004",
+        "D-033",
+        "D-043",
+        "D-051",
+        "D-058"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-23a",
+        "FR-r1-g",
+        "lead-r4-fr2",
+        "eng-r3-q3"
+      ]
+    },
+    {
+      "id": "T-23b",
+      "title": "Paste parser, Windows typed-path collector, drop gate",
+      "goal": "Path candidates from pastes and file:// URIs, the Windows-only typed-path collector armed after the first frame, the extension-only drop gate with the 4 GiB ceiling and 512 MiB warning (the %PDF- sniff is evidence), the one-line-mode refusal, and the Dropped{n} -> Analyze + Repair{state} submission.",
+      "paths": [
+        "src/ui/input/paste.rs",
+        "src/ui/input/keys.rs",
+        "src/ui/input/collector.rs"
+      ],
+      "interfaces": "`pub fn paths_from_paste(text: &str) -> Vec<PathCandidate{raw, path: Option<PathBuf>, reason}>` (newline/space items, shell quoting and escapes, file:// with empty or localhost host, percent-decoded; U+FFFD rejected); Unix pastes count only inside bracketed-paste markers; `collector.rs` (cfg(windows)) accumulates printable chars < 150 ms apart, flushes on Enter or idle; drop gate: `.pdf` case-insensitive + readable + <= max_file_bytes, hard refusal only above 4 GiB with the hint \"too big to repair: outputs above 4 GiB cannot be written\", warning row above 512 MiB, `drop_sniff: bool` recorded; when the layout's accepts_input() is false every candidate is refused with `too small to eat: make me at least 32×16` and one CSI 8;16;32 t when request_resize is on; accepted paths -> CatEvent::Dropped{n} then JobRunner::submit(Analyze) and Repair{state}.",
+      "acceptance": [
+        "paths_from_paste unit tests: spaces, quotes, backslash escapes, multiple lines, CRLF, file:// with %20, non-pdf, U+FFFD",
+        "collector timing with a fake clock (windows cfg, run on the windows CI leg)",
+        "the C1 fixture (.pdf with the header overwritten) is accepted and its analysis has a C1 finding; a .txt with a %PDF- header is refused",
+        "a 5 GiB sparse file is refused with the hint; a 600 MiB sparse file is accepted with the warning",
+        "a scripted paste at 20x1 submits nothing, is counted as refused, and the resize request is written once; the same paste after a resize to 32x16 submits"
+      ],
+      "depends_on": [
+        "T-23a"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-034",
+        "D-049",
+        "D-064"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-23b",
+        "FR-02",
+        "DA:388",
+        "TD:639 vs TD:1221"
+      ]
+    },
+    {
+      "id": "T-37",
+      "title": "Browse picker (browse..., DA M1)",
+      "goal": "The in-TUI .pdf-filtered filesystem picker, the guaranteed fallback for terminals that do not paste on drop; confirming sends the selection through the same drop gate and chomp as a paste. Its look is self-golden until the user supplies a mockup frame.",
+      "paths": [
+        "src/ui/layout/browse.rs",
+        "src/ui/fs.rs"
+      ],
+      "interfaces": "`BrowseState { cwd, entries: Vec<Entry{name, is_dir, size}>, cursor, selected: BTreeSet<PathBuf>, filter: PdfOnly }`; keys: arrows, Enter (descend/select), Backspace (up), Space (toggle), a (select all .pdf in view), Esc, Enter on \"feed the cat\"; drawn with the same Canvas boxes, lightbar and theme roles; `b` inert when accepts_input() is false; hidden files only with `.`; no symlink following out of the tree.",
+      "acceptance": [
+        "listing is sorted and filtered; the navigation state machine; a fixture dir with a.pdf, b.PDF, c.txt, sub/ shows two files and one directory",
+        "confirming two files emits one Dropped{2} and two submits; `b` at 20x1 opens nothing",
+        "a self-golden snapshot of the canvas (flagged in D-048 until a frame exists)"
+      ],
+      "depends_on": [
+        "T-23b"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-034",
+        "D-048",
+        "D-064"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-37",
+        "DA:386-389, DA:503",
+        "MOCK:187"
+      ]
+    },
+    {
+      "id": "T-31",
+      "title": "kitty OSC 72 drag tracking",
+      "goal": "The Unix kitty handshake, the raw-stdin framer that owns stdin on kitty (legacy keys, SGR mouse, bracketed paste), and the OSC 72 protocol as published (move/leave/drop, required t=m:o= replies, chunked base64 data, t=R errors, file promises read before completion), with observed kitty framing accepted as tolerance only. Implementable now; the FR-12 live capture adds one more byte fixture.",
+      "paths": [
+        "src/ui/input/osc72.rs",
+        "src/ui/input/keys.rs",
+        "src/ui/term.rs (handshake)"
+      ],
+      "interfaces": "Handshake: write `ESC ] 72 ; t=q ST` then DA1 `ESC [ c`, read raw <= 300 ms; a t=q reply before DA1 -> opt in with `ESC ] 72 ; t=a ; text/uri-list ST` and the splitter owns stdin; otherwise never t=a and crossterm reads; non-reply bytes discarded and counted; `t=A` on every exit path incl. the panic hook. Framer: frames `ESC ] 72 ; metadata ; payload (ST|BEL)` (payload cap 4,096 B per frame, 1 MiB per drop), order-independent key=value metadata, unknown keys and i= tolerated, chunking on every event (m=1 continuation chunks may carry no other metadata). Protocol per plan §6 T-31: t=m -> CatEvent::DragAt(Some(cell)) and the reply `t=m:o=1 ; text/uri-list` (o=0 off the cat); x=-1:y=-1 -> DragAt(None); t=M -> `t=r:x=<index>`; data chunks concatenated then base64-decoded once (padding optional); RFC 2483 list, file:// only, host empty or localhost, percent-decoded, NUL rejected; every file read into memory (512 MiB guard) before `t=r:o=1`; t=R with any POSIX error name ends the drop with a hint; `t=r:o=0` after t=R.",
+      "acceptance": [
+        "byte-fixture tests for every frame in both the documented-minimal and the observed-kitty framings",
+        "chunk reassembly across split reads incl. continuation chunks with no metadata and a chunked t=M list; unpadded last-chunk base64; cap enforcement; a frame interleaved with key bytes",
+        "hostile paths and a file://host/ URI rejected; every listed error name plus an unknown one handled",
+        "handshake state machine with DA1-first, t=q-first (with and without the trailing `;`) and timeout orders, with leftover bytes discarded and counted (a bracketed paste inside the window as one fixture)",
+        "a mock terminal asserts the t=m:o= reply after the first move and t=r:o=0|1 on every exit path including after t=R",
+        "unparsed OSC bytes are never delivered as keys"
+      ],
+      "depends_on": [
+        "T-23b",
+        "T-19"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-033",
+        "D-039",
+        "D-057"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-31",
+        "https://sw.kovidgoyal.net/kitty/dnd-protocol/",
+        "FR-r1-b",
+        "FR-09 (tolerance items only)"
+      ]
+    },
+    {
+      "id": "T-25",
+      "title": "Text-recovery metrics",
+      "goal": "The pure metric module: normalisation (NFC, casefold, whitespace), tokens (per character for zh), LCS-F1/recall/precision/bag-F1/char-F1 as integer Ratios via similar's Myers diff, and exact rational aggregation.",
+      "paths": [
+        "src/bench/metrics.rs",
+        "tests/data/metrics_golden.json"
+      ],
+      "interfaces": "`pub(crate) fn normalize(&str) -> String`; `pub(crate) enum Lang { En, Fr, Es, Ar, Hi, Zh, Unknown }` + `Lang::from_label`; `pub(crate) fn tokens(text, lang) -> Vec<String>`; `pub(crate) struct TextScores { lcs_f1, recall, precision, bag_f1, char_f1: Ratio, len_orig, len_rep, lcs: u64 }`; `pub(crate) fn score(orig, rep, lang) -> TextScores` (lcs = Equal tokens of similar::TextDiff::from_slices; lcs_f1 = 2·lcs/(len_orig+len_rep); recall = lcs/len_orig; precision = lcs/len_rep; bag_f1 over BTreeMap multisets; char_f1 over chars); `pub(crate) struct Aggregate { groups: BTreeMap<String, Mean{sum_num: u128, sum_den: u128, n}> }`; `aggregate(rows)`; zero denominators -> Ratio{0,1}; no f32/f64, no HashMap.",
+      "acceptance": [
+        "identical texts -> every score 1; disjoint -> 0; a page-permuted pair gives bag_f1 == 1 and lcs_f1 < 1; a duplicated word never exceeds 1 and lowers precision",
+        "zh scored per character (one wrong char in four -> 3/4); composed/decomposed é equal; Ü/ü equal; whitespace collapses; an empty original gives Ratio{0,1} without panic",
+        "aggregate over three rows gives the exact rational mean in BTreeMap order",
+        "the committed golden table tests/data/metrics_golden.json (ten triples) matches exactly and hashes identically on the three CI OSes"
+      ],
+      "depends_on": [
+        "T-01",
+        "T-02"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-069"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-25",
+        "TD §8",
+        "SE Q4"
+      ]
+    },
+    {
+      "id": "T-26",
+      "title": "Corpus harness and the CI smoke job",
+      "goal": "The ignored, corpus-only harness (refuses any file not in the committed 1,100-entry REPDF blob manifest), the committed 44-path smoke subset, the per-file CSV and labelled aggregate table, the golden gate, and the sparse-checkout CI job that uploads nothing. At-risk on D-002 (test vs TD:707's dev-only bin: a file move); the paper reference columns are blocked on D-070 and are prepared but not read.",
+      "paths": [
+        "src/bench/corpus.rs",
+        "bench/repdf_manifest.txt",
+        "bench/smoke_subset.txt",
+        "bench/golden_smoke.csv",
+        "bench/repdf_paper_tables.toml (not read)",
+        ".github/workflows/corpus-smoke.yml",
+        "AGENTS.md (one line)"
+      ],
+      "interfaces": "`PDFPUNDIT_CORPUS=<dir> cargo test --release --lib -- --ignored bench::corpus::[smoke|full]`; before any file is analysed its git blob id sha1(\"blob <len>\\0\" + bytes) must be in bench/repdf_manifest.txt (copied verbatim from facts/lead-r4-fr3-manifest.txt, sha256 3fb3cb0478e9ea21bea69ca16d62fde1d9dc9dccd9d8d81b35141bf36df27cf1) else the run ends with \"not a REPDF corpus file: the harness runs only on the pinned corpus (e547d4d)\"; smoke = the 44 paths of bench/smoke_subset.txt (from facts/lead-r4-fr3-scratch/smoke_resolved.txt; D-077 byte-order rule re-derived from the manifest on every run and compared); CSV columns per plan §6 T-26; per-page `lang` from the original's extracted text (script by Unicode block; en/fr/es by a compiled stopword table; unknown otherwise), repaired pages inherit by index; every table and the golden CSV's first line carry the D-063 header verbatim; gate lcs_f1 >= golden - 2% per class; CI: depth-1 blob:none sparse clone at the pinned SHA, print the table, upload no artifact, no cache. No edits under research/.",
+      "acceptance": [
+        "the manifest check accepts a file whose bytes hash to a manifest entry and refuses the golden fixture with the one-line message",
+        "bench/repdf_manifest.txt has 1,100 lines and the pinned sha256; every path in bench/smoke_subset.txt is in it; the D-077 resolution over the manifest equals bench/smoke_subset.txt line for line",
+        "the golden CSV's first line equals the D-063 header; the printed table's first line equals it",
+        "with the corpus present (ignored test): each original yields each of the four scripts; the smoke run writes target/corpus/corpus_results.csv with the documented columns and the aggregate table, and records per-stream zlib-rs vs miniz_oxide class disagreements (expected 0)",
+        "the paper-reference constants file exists with its citation and is not read (a test asserts the columns are absent)"
+      ],
+      "depends_on": [
+        "T-14",
+        "T-25",
+        "T-36"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-002",
+        "D-012",
+        "D-013",
+        "D-014",
+        "D-036",
+        "D-063",
+        "D-069",
+        "D-070",
+        "D-077"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-26",
+        "map-resolutions.md #8, #11",
+        "FR-07",
+        "lead-r4-fr3",
+        "eng-r3-fr1 §1"
+      ]
+    },
+    {
+      "id": "T-38a",
+      "title": "Corpus `ocr` mode: page rasters and manifest for the OCR harness",
+      "goal": "An ignored corpus mode that runs smoke, then renders every page of each original and repaired output through hayro at 200 dpi to PNG under target/corpus/ocr_inputs/ with a manifest carrying class, producer, role, page, lang, open_ok and lcs_f1.",
+      "paths": [
+        "src/bench/corpus.rs (ocr mode)"
+      ],
+      "interfaces": "`PDFPUNDIT_CORPUS=<dir> cargo test --release --lib -- --ignored bench::corpus::ocr`; hayro::render with InterpreterSettings::default(), embedded fonts, scale 200/72, white background, 8-bit RGB PNG; manifest.csv columns file, class, producer, base_doc, role (original|repaired), page, lang, png, open_ok, lcs_f1; an unopenable repaired file gets one row with open_ok = 0 and no PNG; only PNGs under ocr_inputs/.",
+      "acceptance": [
+        "on the golden fixture, ocr mode writes one PNG per page and the page count is identical on two runs (pixels not compared)",
+        "an unopenable input yields a manifest row with open_ok = 0 and no PNG",
+        "no png value ends in .pdf; lang is set on every row"
+      ],
+      "depends_on": [
+        "T-26",
+        "T-36"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-069"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-38a",
+        "eng-r3-fr1 §1",
+        "FR-g1"
+      ]
+    },
+    {
+      "id": "T-38b",
+      "title": "REPDF OCR word-recall harness (Python dev tooling, nightly)",
+      "goal": "tools/ocr-recall: an engine-agnostic Python scorer (paddle built first; tesseract and documentai stubs exit with their blocking decision), hash-locked requirements, pinned models routed per script (tiny tier), the REPDF-style clipped-bag word recall with two sensitivity columns and text_visual_gap, and the nightly workflow with the D-063 header. Not Rust: acceptance is pytest without any model download.",
+      "paths": [
+        "tools/ocr-recall/",
+        "tools/ocr-recall/engines/{paddle,tesseract,documentai}.py",
+        "tools/ocr-recall/requirements.lock",
+        "tools/ocr-recall/models.toml",
+        "tools/ocr-recall/README.md",
+        "tools/ocr-recall/tests/",
+        ".github/workflows/corpus-ocr.yml"
+      ],
+      "interfaces": "`ocr-recall --manifest target/corpus/ocr_inputs/manifest.csv --out target/corpus/ocr_results.csv [--tier tiny|medium] [--engine paddle|tesseract|documentai]`; engine interface `ocr(png) -> list[str]`; models passed explicitly (PP-OCRv6_tiny det/rec for Latin and Han; PP-OCRv5_mobile_det + arabic/devanagari PP-OCRv5_mobile_rec), HF revisions and inference.pdiparams sha256 in models.toml verified before the first page; scoring: tokens = whitespace-split NFC+casefolded OCR lines (zh per character), ocr_word_recall = Σ min(c_orig, c_rep) / Σ c_orig, plus ocr_word_recall_nopunct and ocr_char_recall, text_visual_gap = lcs_f1 - ocr_word_recall; open_ok = 0 or missing pages score 0; the D-063 header is the first header line with engine, version, tier, model names; no artifact uploaded.",
+      "acceptance": [
+        "`python3 -I -m pytest tools/ocr-recall/tests` passes with no model download: perfect/zero/partial recall; clipping (`a a` vs `a a a` -> 1.0; `a a a` vs `a` -> 1/3); casefold and NFC equivalence; zh per character; open_ok = 0 -> 0; the three columns differ on a punctuated pair",
+        "a manifest row whose png ends in .pdf is rejected; a models.toml hash mismatch aborts before any OCR",
+        "`--engine documentai` exits non-zero with the D-014 line and `--engine tesseract` with the D-071 line; identical line lists from any engine score identically",
+        "the first header line of the output equals the D-063 label; a dry run with paddle absent exits non-zero with a one-line install hint naming the lock file"
+      ],
+      "depends_on": [
+        "T-38a"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-014",
+        "D-063",
+        "D-067",
+        "D-068",
+        "D-069",
+        "D-071"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-38b",
+        "DA M7 (DA:452)",
+        "eng-r3-fr1",
+        "goal-r3-fr3"
+      ]
+    },
+    {
+      "id": "T-27a",
+      "title": "AGL and the glyph-name ladder",
+      "goal": "The Adobe Glyph List (BSD-3) with the specification algorithm and a tagged heuristic layer (gNN/cNN, ligature names, the 127 pdf.js TeX names under Apache-2.0 with a notice), as a checked-in generated table.",
+      "paths": [
+        "src/pdf/fontdb/agl.rs",
+        "src/pdf/fontdb/agl_table.rs (generated)",
+        "assets/agl/glyphlist.txt",
+        "assets/agl/zapfdingbats.txt",
+        "assets/agl/LICENSE.md",
+        "assets/licenses/pdfjs-Apache-2.0.txt",
+        "THIRD_PARTY_NOTICES.md (entry)"
+      ],
+      "interfaces": "`pub(crate) fn glyph_name_to_unicode(name: &str) -> Decoded { text: String, provenance: Vec<Prov> }` with `Prov::{Agl, UniRule, URule, Heuristic(&'static str)}`; the heuristic layer runs only on a miss and tags its output; the table is generated by a #[test]-guarded generator (no build.rs).",
+      "acceptance": [
+        "the AGL specification examples decode correctly",
+        "assets/agl/glyphlist.txt is 78,060 B with sha256 a3b2f61ced9f3644cc0d4ecde5c59df34ca286c689d9484a43a710a81c466789; zapfdingbats.txt is 3,879 B",
+        "`g36` decodes only via Heuristic; the generator test regenerates agl_table.rs identically"
+      ],
+      "depends_on": [
+        "T-02"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-040"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-27a",
+        "TD §18.3",
+        "FR-01"
+      ]
+    },
+    {
+      "id": "T-27b",
+      "title": ".gmap, GmapTable, ToUnicode builder, gmap/index builder",
+      "goal": "The 9-byte gmap record format and loader, the ToUnicode CMap builder (bfrange/bfchar, <= 100 per block), and build_from_ttf shared by tools/build-templates and the runtime.",
+      "paths": [
+        "src/pdf/fontdb/gmap.rs",
+        "src/pdf/fontdb/build.rs"
+      ],
+      "interfaces": "`.gmap` records `gid: u16, unicode: u32, width: u16, source: u8` via bytemuck; `GmapTable` loader; `build_tounicode(map: &BTreeMap<u16, char>) -> Vec<u8>`; `pub fn build_from_ttf(bytes: &[u8]) -> Result<(IndexEntry, Vec<u8>), BuildError>` (every cmap entry via raw encoding_records() + map_codepoint; shaped Latin ligatures via harfrust =0.13.3; widths from hmtx scaled by units_per_em; sha256 of the source).",
+      "acceptance": [
+        "gmap round-trip; build_from_ttf on the test font gives 104 entries and is deterministic",
+        "ToUnicode output reloads in lopdf; build_tounicode on the golden's map equals the hand-built bfchar CMap T-03a committed",
+        "blocks never exceed 100 entries"
+      ],
+      "depends_on": [
+        "T-27a",
+        "T-03a"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-035"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-27b",
+        "TD §18.1, §18.3",
+        "FR-03"
+      ]
+    },
+    {
+      "id": "T-27c",
+      "title": "Decode-through-own-fonts ladder",
+      "goal": "Decode a slot's codes through the document's own resources first: surviving /ToUnicode, /Encoding + /Differences through the AGL ladder, the embedded program's cmap and post names, CFF charset/subfont_index for CID-keyed programs; width fingerprint from hmtx.",
+      "paths": [
+        "src/pdf/fontdb/decode.rs"
+      ],
+      "interfaces": "`decode_codes(font: &CarvedFont, codes: &[u16]) -> Vec<Decoded>`; rungs in order: /ToUnicode -> /Encoding base table + /Differences names via glyph_name_to_unicode -> embedded cmap (raw encoding_records incl. (1,0)/(3,0)) and post names -> read_fonts::ps::cff::CffFontRef charset().string_id / subfont_index; `width_fingerprint(font) -> Vec<u16>` from hmtx; all through skrifa::raw.",
+      "acceptance": [
+        "the ladder on the test font (cmap (3,1) format 4, post 2.0 names, composites) decodes the golden's codes to the known strings",
+        "a synthetic CFF/CID blob decodes through the CFF rung",
+        "width extraction matches hmtx"
+      ],
+      "depends_on": [
+        "T-27b",
+        "T-06"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-035"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-27c",
+        "RR change #2",
+        "FR-03 entry points"
+      ]
+    },
+    {
+      "id": "T-29",
+      "title": "tools/build-templates and the runtime template builder",
+      "goal": "The workspace tool that builds the committed gmaps and font index from the two unhinted Noto Regular TTFs (with --check for the CI assets job), and the runtime template builder that assembles the one-page carrier PDF in memory through pdf::write. At-risk on D-021 (committed assets vs the map's git-ignored build step).",
+      "paths": [
+        "tools/build-templates/",
+        "src/pdf/fontdb/template.rs",
+        "assets/fonts/NotoSans-Regular.ttf",
+        "assets/fonts/NotoSerif-Regular.ttf",
+        "assets/licenses/OFL-Noto.txt",
+        "assets/gmaps/*.gmap",
+        "assets/fontindex.json",
+        "fetch-assets.sh"
+      ],
+      "interfaces": "the tool reads assets/fonts/*.ttf, calls build_from_ttf, writes assets/gmaps/*.gmap and assets/fontindex.json, exits non-zero on `--check` if the output differs from the committed files; `template::build(font_bytes, gmap) -> Vec<u8>` (one page, full font as FontFile2, Identity-H, widths from the gmap) called lazily by FontDb::bundled() and cached per process; coverage check: every code point in Basic Latin, Latin-1 and Latin Extended-A maps.",
+      "acceptance": [
+        "the pinned fonts have sha256 f3961a9cde016d41a4879aecda1474d3a36d6bf54fa0e4643de029cc2248b0e8 (NotoSans, 431,364 B) and a15cfbbc1539d707115111d672d590a3d70d4f74b4c0a315956da20ae19a14e1 (NotoSerif, 482,540 B); OFL-Noto.txt has sha256 cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a",
+        "the runtime template reloads strictly and renders in hayro; gmap entry count equals the font's cmap count (2,965 for both)",
+        "the index lists both fonts with the pinned hashes; `--check` passes on the committed files; two runs are byte-identical; FontDb::bundled().sha256() is stable",
+        "the CI `assets` job (`git diff --exit-code assets/` after running the tool) is green"
+      ],
+      "depends_on": [
+        "T-01",
+        "T-12a",
+        "T-27b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-021",
+        "D-027",
+        "D-035"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-29",
+        "TD §5.1, §18.1",
+        "FR-05 (a)"
+      ]
+    },
+    {
+      "id": "T-28",
+      "title": "Inference scorer and FontResolution policy (code; assets blocked)",
+      "goal": "The TD §18.2 inference scorer with SE Q3's corrections (non-negative margin, sample-size floor), the Dictionary trait with EmptyDictionary and a FrequencyList loader, the interim D-009 auto-accept clamp, the FontPick/FontUnreproducible resolution policy, and the bundled FontDb loading. The code lands now; assets/dicts and non-Noto gmaps are blocked on D-011 and D-010.",
+      "paths": [
+        "src/pdf/fontdb/score.rs",
+        "src/pdf/fontdb/dict.rs",
+        "src/pdf/fontdb/mod.rs"
+      ],
+      "interfaces": "`trait Dictionary { lang(); contains(w); longest_prefix(w) -> usize; bigram_millinats(a, b) -> Option<i32> }`; `EmptyDictionary`; `FrequencyList::from_bytes(lang, bytes) -> Result<_, DictError>`; `CodeRun { codes: Vec<u16>, breaks: Vec<usize> }`; `Candidate { font_id, lang, score: i64 (x1000), hit, margin, confidence: Ratio, preview (<= 200 chars) }`; `InferenceTrace`; `infer(codes, fonts, gmap_of, dicts, tounicode_dict) -> (Vec<Candidate>, InferenceTrace)` sorted by (score desc, font_id asc) with weights 2000/500/-3000/-1500/-2000 per plan §6 T-28; `margin = clamp(best.hit - second.hit, 0, 1)`; `confidence = (hit + margin)/2`; `resolve(cands, trace, opts, slot, needed_codes) -> FontDecision { AutoAccept, Ask(FontPickRequest), Unreproducible(UnreproducibleRequest), TextOnly }` with auto-accept iff confidence >= 0.35 and hit >= 1/2 and n_chars >= 20; Unreproducible when no DB font covers >= 95% of needed codes; FontDb::bundled() via include_bytes! (PDFPUNDIT_ASSETS only under cfg(debug_assertions)); FontDb::sha256() over index + gmaps.",
+      "acceptance": [
+        "with the two-font test DB and a 50-word compiled English dictionary, a slot from the golden's codes ranks the right font first with hit >= 9/10, deterministically",
+        "EmptyDictionary gives hit == 0 for every candidate and resolve returns Ask, never AutoAccept; negative scores never panic and margin stays in [0, 1]",
+        "a 12-character slot never auto-accepts at hit == 1; a 40-character slot with hit == 1 and a clear margin auto-accepts",
+        "a surviving /ToUnicode dictionary ranks the right font first on an inflected French sample with é",
+        "FrequencyList parses the FR-05 format and rejects a malformed line; FontDb::bundled().sha256() is stable; a tampered gmap -> HashMismatch",
+        "previews <= 200 chars and candidates <= max_font_candidates; a slot needing uncovered code points yields Unreproducible under Ask and TextOnly under TextOnly; no f32/f64 in score.rs (grep tripwire)"
+      ],
+      "depends_on": [
+        "T-27c",
+        "T-29",
+        "T-02b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-009",
+        "D-010",
+        "D-011",
+        "D-021",
+        "D-051"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-28",
+        "TD §5.2, §18.2",
+        "SE Q3",
+        "FR-05"
+      ]
+    },
+    {
+      "id": "T-30",
+      "title": "C7/C8 passes, TemplateAssemble, font-pick interaction",
+      "goal": "The C7 pass (decode through the surviving /ToUnicode, infer, substitute via TemplateAssemble), the C8 pass (DB by family name for Save-As names, inference for CIDFont+Fn names, /ToUnicode rebuilt), per-family batching of FontUnreproducible, the TemplateAssemble emitter harvesting the runtime template's font subtree, and the planner's font-track rows.",
+      "paths": [
+        "src/pdf/repair.rs",
+        "src/pdf/emit.rs",
+        "src/pdf/fontdb/template.rs",
+        "src/pdf/plan.rs"
+      ],
+      "interfaces": "`fn emit_template_assemble(carve, graph, remap, page_tree, substitutions: &[Substitution{page, slot, font_id, used_codes: BTreeMap<u16, char>}], fonts: &FontDb, ctx) -> Result<Vec<u8>, EmitError>` (FontFile2, FontDescriptor, CIDFontType2 with /W from the gmap and /CIDToGIDMap /Identity, Type0 Identity-H, /ToUnicode from build_tounicode over used codes; everything else unchanged; the Resave emit tail); C7/C8 pass behaviour and reply handling per plan §6 T-30 (Pick/UseBest/Skip -> Partial(\"font substituted without confirmation\")/Substitute/TextOnly); FontUnreproducible asked once per family per file; planner rows C7/C8 -> [TemplateAssemble, Resave], prior Resave.",
+      "acceptance": [
+        "the C7 fixture under UseBest: output passes V0, V2 unmapped_glyph is 0, extracted text equals the golden's, the report lists the substitution and font_db_sha256",
+        "the C8 fixture with the real /BaseFont hits the name path (trace shows no infer); renamed CIDFont+F1 skips the name path and infer runs; both give the golden's text",
+        "a scripted Interact returning Pick, UseBest, Skip, Substitute, TextOnly produces the documented outcome, action and InteractionRecord each time",
+        "two slots of one family produce exactly one FontUnreproducible ask applied to both; unreproducible = substitute_generic asks nothing and records source: Policy",
+        "the TemplateAssemble output's /ToUnicode blocks have <= 100 entries covering exactly the used codes; the file reloads strictly and renders in hayro; the output is byte-identical on two runs",
+        "the planner runs both toolpaths on a C7 fixture and chooses TemplateAssemble by V2; with template assembly forced to fail V0 (test seam) it falls back to Resave; the output passes the artefact deny-list"
+      ],
+      "depends_on": [
+        "T-13b",
+        "T-28"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-020",
+        "D-027",
+        "D-009"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-30",
+        "TD §17.4, §5.3, §5.4, §18.3",
+        "RR changes #2/#3",
+        "SE Q3"
+      ]
+    },
+    {
+      "id": "T-32a",
+      "title": "Layout analysis for Markdown export",
+      "goal": "Own layout analysis over T-36's glyphs in integer milli-points: shadow dedup, run merge, line clustering, tiny/invisible filter, XY-cut columns, reading order (RTL aware), headings, lists, best-effort tables, links, images, and notes from findings (outlined/Type3/unmapped) so nothing is dropped silently.",
+      "paths": [
+        "src/pdf/export/layout.rs"
+      ],
+      "interfaces": "`pub(crate) struct PageLayout { index, width_pt, height_pt, blocks: Vec<Block>, notes: Vec<LayoutNote> }`; `enum Block { Heading{level, runs}, Paragraph(Vec<Line>), List{ordered, items}, Table{rows, header}, Image{name, sha256, len}, Rule }`; `Run { text, bold, italic, mono, link }`; `enum LayoutNote { OutlinedText{paths, contours}, Type3Text, ImageOnly, Unmapped{glyphs} }`; `UriAnnot { rect: [i32; 4], uri }`; `pub(crate) fn analyse(page: &PageText, fonts: &FontTable, findings: &[Finding], images: &[ExtractedImage], annots: &[UriAnnot]) -> PageLayout`; passes (1)-(12) with the thresholds in plan §6 T-32a as consts; all comparisons on i64 milli-points after one entry conversion.",
+      "acceptance": [
+        "a synthetic two-column PageText reads column-by-column; a 24 pt title over 11 pt body yields one Heading{1} and one Paragraph",
+        "a 3x3 aligned grid becomes a Table of 3x3; three bullet lines become one unordered List and `1. 2. 3.` an ordered one",
+        "a glyph and its shadow (20 milli-em offset) yield one run; a render-mode-3 glyph never appears in a Run; a UriAnnot over a run attaches link",
+        "an OutlinedText finding yields the matching note; an image-only page yields ImageOnly; an Arabic-majority page reverses column order",
+        "analyse is deterministic and its serde dump of the fixture hashes identically on the three CI OSes; 10k fuzzed PageTexts terminate; no f32/f64 method outside the entry conversion (grep + clippy)"
+      ],
+      "depends_on": [
+        "T-36",
+        "T-11b",
+        "T-02b"
+      ],
+      "determinacy": "defaulted",
+      "decision_refs": [
+        "D-024",
+        "D-038"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-32a",
+        "TD §5.6",
+        "DA:111-112",
+        "FR-10"
+      ]
+    },
+    {
+      "id": "T-32b",
+      "title": "Markdown emitter and the export action",
+      "goal": "GFM emission from PageLayout with content-named image directories, the outlined/Type3 note, URI links, the on-request export action (Actions panel item and the repair -> export one-shot flow) through the no-clobber writer; .md bytes never depend on disk state; no cat in the output.",
+      "paths": [
+        "src/pdf/export/markdown.rs",
+        "src/jobs.rs (JobKind::ExportMarkdown)",
+        "src/ui/layout/full.rs (menu item wiring)"
+      ],
+      "interfaces": "`pub fn to_markdown(doc: &[PageLayout], opts: &MarkdownOptions { page_separators: bool, image_dir_name: Option<String> }) -> String` (GFM; `![](<stem>.<hash8>.images/p3-1.jpg)` for extracted DCT images whose bytes come from RepairOutcome.images; links from /Annots URI actions; the `<!-- text drawn as outlines on this page (n paths, m contours) was not extracted -->` note when ocr is off); export runs only on request; output `<stem>.md` (`<stem> (N).md` on a clash, bytes unchanged) and `<stem>.<sha256[..8]>.images/` (reused when identical, (N) only for a different existing directory, reported); destination via T-15's destination_for.",
+      "acceptance": [
+        "golden Markdown for the fixture; a two-column synthetic page reads column-by-column; table rendering; the outlined-page note",
+        "an existing report.md survives byte-identical and the export lands in report (2).md",
+        "two exports of one input into one folder give byte-identical .md contents and write the images directory once; a pre-existing foreign <stem>.<hash8>.images/ with different contents never captures the links (the export gets (2) and the report lists it)",
+        "the one-shot flow submits Repair then ExportMarkdown for the same entry",
+        "the fixtures' .md passes src/engine/artefact_tests.rs's deny-list"
+      ],
+      "depends_on": [
+        "T-32a",
+        "T-15"
+      ],
+      "determinacy": "determined",
+      "decision_refs": [
+        "D-024",
+        "D-044",
+        "D-048",
+        "D-060",
+        "D-061",
+        "D-073"
+      ],
+      "spec_refs": [
+        "plan.md §6 T-32b",
+        "DA:111-112, DA:472",
+        "TD §5.6"
+      ]
+    },
+    {
+      "id": "T-33",
+      "title": "Custody mode (M6b): schema and per-batch case prompt",
+      "goal": "BLOCKED on D-016 (the custody JSON schema and hash-chain entry format are a design ticket that needs T-14's RepairReport and must represent a macOS file-promise drop with no durable original path, D-039). Nothing to build until the schema is decided; the per-batch case-reference/examiner prompt is UI-side (D-020) and also needs a mockup frame (D-048).",
+      "paths": [
+        "src/custody.rs (future)",
+        "<name>.custody.json (future)"
+      ],
+      "interfaces": "Not yet specified: see decision-log D-016 and plan §7.",
+      "acceptance": [
+        "none until D-016 resolves; the design ticket's output is the schema and its fixtures"
+      ],
+      "depends_on": [
+        "T-14",
+        "T-16"
+      ],
+      "determinacy": "blocked",
+      "decision_refs": [
+        "D-016",
+        "D-020",
+        "D-039",
+        "D-048"
+      ],
+      "spec_refs": [
+        "plan.md §7",
+        "DA:427-449"
+      ]
+    },
+    {
+      "id": "T-34",
+      "title": "OCR (M9, feature = \"ocr\")",
+      "goal": "BLOCKED on D-050 (user decision: model delivery; first-use download conflicts with 'fully offline', recommended: no network code, ocr-bundled or a model pack from a file). Also unbuilt: the only all-script pure-Rust route is a pure-Rust ONNX runtime (tract or rten) with PaddleOCR models, TD §5.7's spike. T-38b does not wait on this.",
+      "paths": [
+        "src/pdf/ocr.rs (future)"
+      ],
+      "interfaces": "Not yet specified beyond TD §5.7 and D-015/D-050.",
+      "acceptance": [
+        "none until D-050 resolves and the pure-Rust ONNX spike is measured"
+      ],
+      "depends_on": [
+        "T-36",
+        "T-32b"
+      ],
+      "determinacy": "blocked",
+      "decision_refs": [
+        "D-050",
+        "D-015"
+      ],
+      "spec_refs": [
+        "plan.md §7",
+        "TD §5.7",
+        "DA:113-115, DA:126, DA:236, DA:478",
+        "eng-r3-fr1 §7"
+      ]
+    },
+    {
+      "id": "T-35",
+      "title": "Release packaging (cargo-dist), docs, notices completeness",
+      "goal": "BLOCKED on D-046 (the project licence: cargo-dist metadata and the notices file need it) and D-065 (the Smudge likeness: a legal check before the first public binary). When unblocked: pin cargo-dist-version, re-run the eng-r4-fr3 RUSTFLAGS probe on every dist upgrade, complete THIRD_PARTY_NOTICES.md, README with usage.",
+      "paths": [
+        "Cargo.toml [workspace.metadata.dist]",
+        "THIRD_PARTY_NOTICES.md",
+        "README.md",
+        ".github/workflows/release.yml"
+      ],
+      "interfaces": "Not yet specified beyond plan §7; `publish = false` stays; the shipped binary carries no cfg to drop.",
+      "acceptance": [
+        "none until D-046 and D-065 resolve; then: `dist build` produces artifacts for the three targets and the release-strings/guard tests pass on the dist-built binary"
+      ],
+      "depends_on": [
+        "T-23b"
+      ],
+      "determinacy": "blocked",
+      "decision_refs": [
+        "D-046",
+        "D-065",
+        "D-047"
+      ],
+      "spec_refs": [
+        "plan.md §7",
+        "eng-r4-fr3",
+        "DA M7"
+      ]
+    }
+  ],
+  "afk_tasks": [
+    {
+      "id": "A-01",
+      "title": "Clone the REPDF corpus outside the repo and verify it against the committed manifest",
+      "steps": "`mkdir -p ~/corpora && git clone --depth 1 https://github.com/dfrc-korea/REPDF ~/corpora/repdf` (plain blobs, no git-lfs, ~70 s, 1.5 GB); confirm `git -C ~/corpora/repdf rev-parse HEAD` is e547d4d (if master moved, `git fetch --depth 1 origin e547d4d && git checkout e547d4d`); run `python3 -I /tmp/pdfpundit-run/plan/facts/lead-r4-fr3-scratch/verify.py` (or re-hash: for every file, sha1(\"blob <len>\\0\" + bytes) must match /tmp/pdfpundit-run/plan/facts/lead-r4-fr3-manifest.txt; expect 1,100 files, 0 mismatches); export `PDFPUNDIT_CORPUS=$HOME/corpora/repdf` in the agent's shell profile. The corpus is unlicensed: never copy any PDF into the repo, a fixture or an artifact.",
+      "unblocks": [
+        "T-26",
+        "T-38a",
+        "A-05"
+      ]
+    },
+    {
+      "id": "A-02",
+      "title": "Stage the pinned font and AGL assets with hash verification and write fetch-assets.sh",
+      "steps": "Every file is already fetched under /tmp/pdfpundit-run/dl with hashes matching the plan: tf/NotoSans-Regular-subset.ttf (6c448bfe…4383, 9,672 B), noto/unhinted/NotoSans-Regular.ttf (f3961a9c…b0e8), noto/unhinted/NotoSerif-Regular.ttf (a15cfbbc…14e1), noto/OFL.txt (cee9892f…c061a), agl/glyphlist.txt (a3b2f61c…6789), agl/zapfdingbats.txt, agl/LICENSE.md. Copy them into a staging tree mirroring the plan's paths (tests/data/, assets/fonts/, assets/licenses/OFL-Noto.txt, assets/agl/) with a SHA256SUMS file, and write `fetch-assets.sh` that re-downloads from the pinned sources (notofonts/notofonts.github.io at commit 28b15b4b43b7bed62b5cf6e6b0b5ff5846270535; adobe-type-tools/agl-aglfn) and verifies the same hashes. Do not commit: the implementing tickets commit them.",
+      "unblocks": [
+        "T-03a",
+        "T-27a",
+        "T-29"
+      ]
+    },
+    {
+      "id": "A-03",
+      "title": "Produce the remaining committed test binaries and stage the bench files",
+      "steps": "Make tests/data/tiny.jpg: an 8x8 baseline JPEG of a few hundred bytes (python3 -I with Pillow in /tmp/pdfpundit-run/venv, or any JPEG encoder outside the build); verify hayro decodes it using the eng-r3-fr1 probe crate under /tmp/pdfpundit-run/scratch/eng-r3-fr1/crates; record its sha256. Stage bench/repdf_manifest.txt (copy facts/lead-r4-fr3-manifest.txt verbatim; sha256 3fb3cb0478e9ea21bea69ca16d62fde1d9dc9dccd9d8d81b35141bf36df27cf1) and bench/smoke_subset.txt (copy facts/lead-r4-fr3-scratch/smoke_resolved.txt, 44 lines) into the staging tree beside A-02's files.",
+      "unblocks": [
+        "T-03a",
+        "T-26"
+      ]
+    },
+    {
+      "id": "A-04",
+      "title": "Build the hash-locked Python environment and models.toml for the OCR harness",
+      "steps": "On Python 3.12: `uv pip compile --generate-hashes` for paddleocr==3.7.0, paddlex==3.7.2, paddlepaddle==3.3.1 (CPU) into tools/ocr-recall/requirements.lock; install it in a scratch venv with `uv pip install --require-hashes` and confirm the import works; write models.toml with the Hugging Face repo, revision and inference.pdiparams sha256 for PP-OCRv6_tiny_det/rec, PP-OCRv6_medium det/rec, PP-OCRv5_mobile_det, arabic_PP-OCRv5_mobile_rec and devanagari_PP-OCRv5_mobile_rec, copied from /tmp/pdfpundit-run/plan/facts/eng-r3-fr1.md §2 and re-verified by downloading into PADDLE_PDX_CACHE_HOME under /tmp. Record download sizes. Nothing from this task enters the Rust build.",
+      "unblocks": [
+        "T-38b"
+      ]
+    },
+    {
+      "id": "A-05",
+      "title": "Fact request eng-r4-fr1: per-page language identification on the 100 REPDF originals",
+      "steps": "Needs A-01. With the hayro extraction probe (/tmp/pdfpundit-run/scratch/eng-r3-fr1/crates) dump each original's per-page text; compute the majority Unicode block per page (Arabic, Devanagari, Han, Latin); for Latin pages test a table of about twenty stopwords each for en, fr and es (the, and, of, to / le, la, les, et, des / el, la, los, de, y …) and report whether every Latin page is separated unambiguously; list the two Print-to-PDF originals whose text layer holds only 50-60% of visible text (OBS-0708) separately. Write the answer as /tmp/pdfpundit-run/plan/facts/eng-r4-fr1.md. Non-blocking: it strengthens T-26's per-language test from per-script to per-language (D-069).",
+      "unblocks": [
+        "T-26"
+      ]
+    },
+    {
+      "id": "A-06",
+      "title": "Fact request FR-13: do any REPDF corpus fonts use a predefined CMap?",
+      "steps": "Needs A-01. Over the 100 originals, list every Type0 font's /Encoding name; report any value other than Identity-H/Identity-V and which CMap files hayro's embed-cmaps feature would need for them. Write /tmp/pdfpundit-run/plan/facts/fr-13.md. Informs D-037 (whether the +465 KB embed-cmaps feature can be trimmed); blocks nothing.",
+      "unblocks": []
+    },
+    {
+      "id": "A-07",
+      "title": "Fact request FR-11: a permissively licensed en/fr/es word-frequency source",
+      "steps": "Search for word-frequency lists for English, French and Spanish under CC0, MIT, Apache-2.0, BSD or public-domain terms (candidates to check: wordfreq's data licences, OpenSubtitles-derived lists, Wiktionary frequency lists, Leipzig Corpora terms, Google Books n-grams terms); for each candidate record the licence text URL, size at 10k/50k cut, format and whether ShareAlike or NonCommercial applies. Write /tmp/pdfpundit-run/plan/facts/fr-11.md with a recommendation. This informs the user's D-011; it does not decide it.",
+      "unblocks": []
+    },
+    {
+      "id": "A-08",
+      "title": "Pre-flight the T-01 gates on a scratch crate with the §3.2 pins",
+      "steps": "In a scratch directory under /tmp, create a crate with exactly the dependencies and features of plan §3.2 (lopdf 0.45.0 default-features = false, miniz_oxide =0.9.1, hayro/hayro-syntax/hayro-interpret 0.8.0, skrifa 0.46.2, harfrust =0.13.3, ratatui 0.30.2, crossterm 0.29.0, rustix 1.1.4 with std/stdio/fs/termios on unix, windows-sys 0.61 with the five features on windows, serde, serde_json, toml, sha2, thiserror, similar, unicode-normalization, libm 0.2.16, bytemuck, base64 0.22, percent-encoding 2.3; dev: sha1 0.11); `cargo generate-lockfile`; run the eng-r1-fr3 §7 purity prototype over `cargo tree --locked --target <t> -e normal,build` for the three targets; run `cargo deny check licenses` with the plan's allow-list and no exceptions; confirm `cargo tree -d` shows one read-fonts and no tokio/rayon/http crates. Report any resolution that differs from §3.2 so T-01 starts green.",
+      "unblocks": [
+        "T-01"
+      ]
+    }
+  ],
+  "decision_count": {
+    "user_decision": 19,
+    "defaulted_reversible": 51,
+    "research_pending": 3
+  }
+}
