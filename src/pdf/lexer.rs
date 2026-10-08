@@ -12,9 +12,9 @@ use lopdf::Object;
 /// Deepest container nesting [`parse_value`] accepts (TD §13.3).
 pub const MAX_DEPTH: u8 = 100;
 
-/// Most elements kept per array, or entries per dictionary: the figure qpdf's
-/// 12.2.0 recovery adopts. The rest are skipped with
-/// [`LexNote::ContainerTruncated`].
+/// Most elements read per array, or entries per dictionary: the figure qpdf's
+/// 12.2.0 recovery adopts. Elements and entries that were dropped count too.
+/// The rest are skipped with [`LexNote::ContainerTruncated`].
 pub const MAX_ELEMENTS: usize = 5_000;
 
 /// One token. `Kw` is any bareword, keyword or not (content operators too).
@@ -40,9 +40,11 @@ pub enum Tok<'a> {
 /// buffer the lexer was given.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LexNote {
-    /// A `(` with no closing `)` before EOF or the next `endobj`.
+    /// A `(` with no balancing `)`: it ends at EOF, or before an `endobj`
+    /// that is followed by an `obj` (the next object's header) or EOF first.
     UnterminatedString { at: u64 },
-    /// A `<` with no closing `>` before EOF or another delimiter.
+    /// A `<` with no closing `>` before EOF, another delimiter or a structural
+    /// keyword (`endobj`, `obj`, `stream`, `xref`, ...).
     UnterminatedHex { at: u64 },
     /// A hex string held a byte that is not a hex digit; decoding stopped there.
     BadHexByte { at: u64 },
@@ -59,7 +61,8 @@ pub enum LexNote {
     /// [`MAX_ELEMENTS`]; the rest were skipped.
     ContainerTruncated { at: u64 },
     /// A real does not round-trip through `f32`, which is what
-    /// `lopdf::Object::Real` stores (D-075).
+    /// `lopdf::Object::Real` stores (D-075). A number beyond the `f32` range
+    /// is clamped to `±f32::MAX` and gets this note from the tokenizer.
     RealNarrowed { at: u64 },
     /// A dictionary key or value that did not parse was dropped.
     DictRecovered { at: u64 },
@@ -85,6 +88,7 @@ pub enum LexErr {
 }
 
 /// One parsed value, the offset just past it, and what was tolerated.
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParsedObj {
     pub value: Object,
     pub end: usize,
@@ -96,6 +100,7 @@ pub struct Lexer<'a> {
     buf: &'a [u8],
     pub pos: usize,
     near_miss: bool,
+    keyword_cutoff: bool,
     notes: Vec<LexNote>,
 }
 
@@ -105,6 +110,7 @@ impl<'a> Lexer<'a> {
             buf,
             pos,
             near_miss: false,
+            keyword_cutoff: true,
             notes: Vec::new(),
         }
     }
@@ -114,6 +120,23 @@ impl<'a> Lexer<'a> {
     pub fn with_near_miss(mut self, on: bool) -> Self {
         self.near_miss = on;
         self
+    }
+
+    /// On by default: an unterminated string stops before the object-structure
+    /// keywords that follow it (see [`LexNote::UnterminatedString`] and
+    /// [`LexNote::UnterminatedHex`]). Turn it off for content streams, which
+    /// have no object structure: there a string runs to its terminator or EOF.
+    pub fn with_keyword_cutoff(mut self, on: bool) -> Self {
+        self.keyword_cutoff = on;
+        self
+    }
+
+    /// Parses one value at `pos` with this lexer's settings, as
+    /// [`parse_value`] does; notes collect on the lexer. For callers such as
+    /// the content-operator iterator that read values and operators in turn.
+    pub fn read_value(&mut self, depth: u8) -> Result<Object, LexErr> {
+        let (at, tok) = self.next_at();
+        value(self, at, tok, depth)
     }
 
     /// The next token; skips whitespace and comments first. Never panics.
@@ -264,11 +287,18 @@ impl<'a> Lexer<'a> {
             return if point { Tok::Real(0.0) } else { Tok::Int(0) };
         }
         if !point {
+            // Accumulated with its sign, so i64::MIN stays an integer.
             let int = text.iter().try_fold(0i64, |acc, &d| {
-                acc.checked_mul(10)?.checked_add(i64::from(d - b'0'))
+                let d = i64::from(d - b'0');
+                let acc = acc.checked_mul(10)?;
+                if negative {
+                    acc.checked_sub(d)
+                } else {
+                    acc.checked_add(d)
+                }
             });
             if let Some(v) = int {
-                return Tok::Int(if negative { -v } else { v });
+                return Tok::Int(v);
             }
         }
         // ASCII digits and one point: always valid UTF-8 and a valid float.
@@ -276,12 +306,23 @@ impl<'a> Lexer<'a> {
             .ok()
             .and_then(|t| t.parse::<f64>().ok())
             .unwrap_or(0.0);
-        Tok::Real(if negative { -v } else { v })
+        let v = if negative { -v } else { v };
+        // A run too long for f64 parses to infinity, which no PDF writer can
+        // emit: clamp it, and anything past f32, to the largest f32.
+        let limit = f64::from(f32::MAX);
+        if v.abs() > limit {
+            self.note(LexNote::RealNarrowed { at: start as u64 });
+            return Tok::Real(if v < 0.0 { -limit } else { limit });
+        }
+        Tok::Real(v)
     }
 
     /// A run of regular bytes. In near-miss mode a run one byte away from a
-    /// carver keyword reads as that keyword (the differing byte may be a
-    /// delimiter or whitespace that split the run).
+    /// carver keyword reads as that keyword. A run that is the keyword less one
+    /// byte, followed by a delimiter that starts a token (`ob<<`), reads as a
+    /// deletion and leaves the delimiter unread. Otherwise the window may
+    /// substitute one byte, which may be a delimiter or whitespace that split
+    /// the run (`endob)`).
     fn read_bareword(&mut self, start: usize) -> Tok<'a> {
         let buf = self.buf;
         let end = start + buf[start..].iter().take_while(|&&b| is_reg(b)).count();
@@ -289,6 +330,16 @@ impl<'a> Lexer<'a> {
         self.pos = end;
         if !self.near_miss || NEAR_MISS_KEYWORDS.contains(&run) {
             return Tok::Kw(run);
+        }
+        if buf
+            .get(end)
+            .is_some_and(|b| matches!(b, b'<' | b'(' | b'[' | b'/'))
+            && let Some(kw) = NEAR_MISS_KEYWORDS
+                .into_iter()
+                .find(|kw| is_one_deletion(run, kw))
+        {
+            self.note(LexNote::NearMissKeyword { at: start as u64 });
+            return Tok::Kw(kw);
         }
         for kw in NEAR_MISS_KEYWORDS {
             let stop = start + kw.len();
@@ -336,11 +387,12 @@ impl<'a> Lexer<'a> {
         Tok::Name(Cow::Owned(out))
     }
 
-    /// A string runs to its balancing `)`, but never past the next `endobj`
-    /// keyword: one that does is unterminated and ends before that keyword.
+    /// A string runs to its balancing `)`. With the keyword cutoff on, one
+    /// whose `)` is missing ends before the `endobj` that closes its object:
+    /// see [`scan_lit`].
     fn read_lit_string(&mut self, start: usize) -> Tok<'a> {
         let from = start + 1;
-        match scan_lit(self.buf, from) {
+        match scan_lit(self.buf, from, self.keyword_cutoff) {
             Ok(close) => {
                 self.pos = close + 1;
                 Tok::LitStr(decode_lit(&self.buf[from..close]))
@@ -353,9 +405,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Hex digits to `>`, ignoring whitespace. Another delimiter or EOF ends
-    /// an unterminated string; a regular non-hex byte stops decoding, and the
-    /// string still runs to its terminator.
+    /// Hex digits to `>`, ignoring whitespace. Another delimiter, EOF or (with
+    /// the keyword cutoff on) a standalone structural keyword ends an
+    /// unterminated string, left unread. A regular non-hex byte stops
+    /// decoding, and the string still runs to one of those terminators.
     fn read_hex_string(&mut self, start: usize) -> Tok<'a> {
         let buf = self.buf;
         let mut i = start + 1;
@@ -374,6 +427,12 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 None => {
+                    self.note(LexNote::UnterminatedHex { at: start as u64 });
+                    break;
+                }
+                Some(_)
+                    if self.keyword_cutoff && STRUCTURAL.iter().any(|kw| is_kw_at(buf, i, kw)) =>
+                {
                     self.note(LexNote::UnterminatedHex { at: start as u64 });
                     break;
                 }
@@ -444,10 +503,17 @@ fn hex_val(b: u8) -> Option<u8> {
 }
 
 /// Where a literal string whose body starts at `from` ends: `Ok` at the `)`
-/// that balances it (escaped bytes skipped), `Err` where it is cut off, at the
-/// first `endobj` keyword or EOF. One pass, so the cost is the string's length.
-fn scan_lit(buf: &[u8], from: usize) -> Result<usize, usize> {
+/// that balances it (escaped bytes skipped), else `Err` where it is cut off.
+/// A standalone `endobj` inside a string does not end it by itself, so
+/// `(endobj) Tj` is one string. With `cutoff` on, the string is cut before
+/// the first such `endobj` when an `obj` keyword (the next object's header)
+/// or EOF comes before any balancing `)`; without one, at EOF. A string that
+/// really holds `endobj` and later `obj` with no `)` after them is cut too:
+/// that is the price of finding the object boundary. One pass, so the cost is
+/// the distance scanned.
+fn scan_lit(buf: &[u8], from: usize, cutoff: bool) -> Result<usize, usize> {
     let mut depth = 1usize;
+    let mut endobj: Option<usize> = None;
     let mut i = from;
     while let Some(&b) = buf.get(i) {
         match b {
@@ -459,19 +525,33 @@ fn scan_lit(buf: &[u8], from: usize) -> Result<usize, usize> {
                     return Ok(i);
                 }
             }
-            b'e' if is_endobj_at(buf, i) => return Err(i),
+            b'e' if cutoff && endobj.is_none() && is_kw_at(buf, i, b"endobj") => {
+                endobj = Some(i);
+            }
+            b'o' if endobj.is_some() && is_kw_at(buf, i, b"obj") => {
+                return Err(endobj.unwrap_or(i));
+            }
             _ => {}
         }
         i += 1;
     }
-    Err(buf.len())
+    Err(endobj.unwrap_or(buf.len()))
 }
 
-/// `endobj` standing as its own token at `i`.
-fn is_endobj_at(buf: &[u8], i: usize) -> bool {
-    buf[i..].starts_with(b"endobj")
+/// `kw` standing as its own token at `i`.
+fn is_kw_at(buf: &[u8], i: usize, kw: &[u8]) -> bool {
+    buf.get(i..).is_some_and(|rest| rest.starts_with(kw))
         && (i == 0 || !is_reg(buf[i - 1]))
-        && buf.get(i + 6).is_none_or(|&b| !is_reg(b))
+        && buf.get(i + kw.len()).is_none_or(|&b| !is_reg(b))
+}
+
+/// `run` is `kw` with exactly one byte deleted.
+fn is_one_deletion(run: &[u8], kw: &[u8]) -> bool {
+    if run.len() + 1 != kw.len() {
+        return false;
+    }
+    let same = run.iter().zip(kw).take_while(|(a, b)| a == b).count();
+    run[same..] == kw[same + 1..]
 }
 
 /// Resolves escapes in a literal string body (ISO 32000-1 7.3.4.2): an
@@ -531,8 +611,7 @@ fn decode_lit(body: &[u8]) -> Vec<u8> {
 /// `N G R` as a reference. `depth` is the caller's nesting level, 0 at the top.
 pub fn parse_value(buf: &[u8], pos: usize, depth: u8) -> Result<ParsedObj, LexErr> {
     let mut lx = Lexer::new(buf, pos);
-    let (at, tok) = lx.next_at();
-    let value = value(&mut lx, at, tok, depth)?;
+    let value = lx.read_value(depth)?;
     Ok(ParsedObj {
         value,
         end: lx.pos,
@@ -591,9 +670,11 @@ fn is_structural(tok: &Tok<'_>) -> bool {
 }
 
 /// Elements to `]`. A non-value element is dropped; `>>`, EOF or a structural
-/// keyword ends the array unterminated, without consuming it.
+/// keyword ends the array unterminated, without consuming it. Dropped
+/// elements count toward [`MAX_ELEMENTS`].
 fn array(lx: &mut Lexer<'_>, open: usize, depth: u8) -> Result<Object, LexErr> {
     let mut items = Vec::new();
+    let mut seen = 0usize;
     loop {
         let mark = lx.mark();
         let (at, tok) = lx.next_at();
@@ -609,16 +690,19 @@ fn array(lx: &mut Lexer<'_>, open: usize, depth: u8) -> Result<Object, LexErr> {
                 lx.note(LexNote::UnterminatedContainer { at: open as u64 });
                 break;
             }
-            t if items.len() == MAX_ELEMENTS => {
+            t if seen == MAX_ELEMENTS => {
                 lx.note(LexNote::ContainerTruncated { at: open as u64 });
                 skip_rest(lx, &t, open);
                 break;
             }
-            t => match value(lx, at, t, depth + 1) {
-                Ok(v) => items.push(v),
-                Err(LexErr::TooDeep) => return Err(LexErr::TooDeep),
-                Err(_) => lx.note(LexNote::ElementSkipped { at: at as u64 }),
-            },
+            t => {
+                seen += 1;
+                match value(lx, at, t, depth + 1) {
+                    Ok(v) => items.push(v),
+                    Err(LexErr::TooDeep) => return Err(LexErr::TooDeep),
+                    Err(_) => lx.note(LexNote::ElementSkipped { at: at as u64 }),
+                }
+            }
         }
     }
     Ok(Object::Array(items))
@@ -627,9 +711,10 @@ fn array(lx: &mut Lexer<'_>, open: usize, depth: u8) -> Result<Object, LexErr> {
 /// `key value` pairs to `>>`. A key whose value does not parse is dropped and
 /// the tokens up to the next key or `>>` are skipped (`DictRecovered`); a
 /// literal string is one token, so a `>>` inside it never closes the dict.
+/// Every entry read, kept or recovered, counts toward [`MAX_ELEMENTS`].
 fn dict(lx: &mut Lexer<'_>, open: usize, depth: u8) -> Result<Object, LexErr> {
     let mut dict = lopdf::Dictionary::new();
-    let mut entries = 0usize;
+    let mut seen = 0usize;
     loop {
         let mark = lx.mark();
         let (at, tok) = lx.next_at();
@@ -640,12 +725,13 @@ fn dict(lx: &mut Lexer<'_>, open: usize, depth: u8) -> Result<Object, LexErr> {
                 lx.note(LexNote::UnterminatedContainer { at: open as u64 });
                 break;
             }
-            t @ Tok::Name(_) if entries == MAX_ELEMENTS => {
+            t if seen == MAX_ELEMENTS => {
                 lx.note(LexNote::ContainerTruncated { at: open as u64 });
                 skip_rest(lx, &t, open);
                 break;
             }
             Tok::Name(key) => {
+                seen += 1;
                 let vmark = lx.mark();
                 let (vat, vtok) = lx.next_at();
                 match vtok {
@@ -660,10 +746,7 @@ fn dict(lx: &mut Lexer<'_>, open: usize, depth: u8) -> Result<Object, LexErr> {
                         break;
                     }
                     t => match value(lx, vat, t, depth + 1) {
-                        Ok(v) => {
-                            dict.set(key.into_owned(), v);
-                            entries += 1;
-                        }
+                        Ok(v) => dict.set(key.into_owned(), v),
                         Err(LexErr::TooDeep) => return Err(LexErr::TooDeep),
                         Err(_) => {
                             skip_to_key(lx);
@@ -673,6 +756,7 @@ fn dict(lx: &mut Lexer<'_>, open: usize, depth: u8) -> Result<Object, LexErr> {
                 }
             }
             t => {
+                seen += 1;
                 let opens = usize::from(matches!(t, Tok::ArrOpen | Tok::DictOpen));
                 skip_to_key_from(lx, opens);
                 lx.note(LexNote::DictRecovered { at: at as u64 });
@@ -799,6 +883,50 @@ mod tests {
         assert_eq!(n[0], LexNote::UnterminatedString { at: 0 });
     }
 
+    // A terminated string that holds a standalone `endobj` keeps it.
+    #[test]
+    fn endobj_inside_a_terminated_string() {
+        let (t, n) = toks(b"(endobj) Tj", false);
+        assert_eq!(t, vec![Tok::LitStr(b"endobj".to_vec()), Tok::Kw(b"Tj")]);
+        assert!(n.is_empty());
+
+        let p = parse(b"<< /Title (About endobj syntax) /Author (x) /N 3 >>");
+        let d = dict(&p.value);
+        assert_eq!(get(d, b"Title"), Some(&lit(b"About endobj syntax")));
+        assert_eq!(get(d, b"Author"), Some(&lit(b"x")));
+        assert_eq!(get(d, b"N"), Some(&Object::Integer(3)));
+        assert!(p.notes.is_empty());
+    }
+
+    #[test]
+    fn unterminated_string_cut_at_endobj_before_eof() {
+        let src = b"(abc endobj\n";
+        let (t, n) = toks(src, false);
+        assert_eq!(t, vec![Tok::LitStr(b"abc ".to_vec()), Tok::Kw(b"endobj")]);
+        assert_eq!(n, vec![LexNote::UnterminatedString { at: 0 }]);
+    }
+
+    // Content streams have no object structure: no cutoff at `endobj`.
+    #[test]
+    fn keyword_cutoff_off_for_content() {
+        let src = b"(a endobj 5 0 obj b";
+        let mut lx = Lexer::new(src, 0).with_keyword_cutoff(false);
+        assert_eq!(lx.next(), Tok::LitStr(b"a endobj 5 0 obj b".to_vec()));
+        assert_eq!(lx.take_notes(), vec![LexNote::UnterminatedString { at: 0 }]);
+
+        let mut lx = Lexer::new(b"<41 endobj>", 0).with_keyword_cutoff(false);
+        // `e` is a hex digit; `n` stops decoding but not the string.
+        assert_eq!(lx.next(), Tok::HexStr(vec![0x41, 0xe0]));
+        assert_eq!(lx.pos, 11);
+
+        let mut lx = Lexer::new(b"[(a) 1] TJ", 0).with_keyword_cutoff(false);
+        assert_eq!(
+            lx.read_value(0),
+            Ok(Object::Array(vec![lit(b"a"), Object::Integer(1)]))
+        );
+        assert_eq!(lx.next(), Tok::Kw(b"TJ"));
+    }
+
     #[test]
     fn literal_string_escapes_and_balanced_parens() {
         let src = b"(a\\n\\(b\\)\\\\ (c) \\101\\7x\\\r\nd\re\\q)";
@@ -827,6 +955,26 @@ mod tests {
         let (t, n) = toks(b"<4", false);
         assert_eq!(t, vec![Tok::HexStr(vec![0x40])]);
         assert_eq!(n, vec![LexNote::UnterminatedHex { at: 0 }]);
+    }
+
+    #[test]
+    fn unterminated_hex_stops_before_endobj() {
+        let src = b"<ABCD\nendobj\n5 0 obj\n<< /A 1 >>";
+        let (t, n) = toks(src, false);
+        assert_eq!(t[0], Tok::HexStr(vec![0xab, 0xcd]));
+        assert_eq!(t[1], Tok::Kw(b"endobj"));
+        assert_eq!(t[2], Tok::Int(5));
+        assert_eq!(n, vec![LexNote::UnterminatedHex { at: 0 }]);
+
+        let src = b"<< /A <ABCD\nendobj\n5 0 obj\n<< /B 1 >>";
+        let p = parse(src);
+        assert_eq!(&src[p.end..].trim_ascii_start()[..6], b"endobj");
+        let d = dict(&p.value);
+        assert_eq!(
+            get(d, b"A"),
+            Some(&Object::String(vec![0xab, 0xcd], StringFormat::Hexadecimal))
+        );
+        assert!(p.notes.contains(&LexNote::UnterminatedContainer { at: 0 }));
     }
 
     #[test]
@@ -1008,6 +1156,30 @@ mod tests {
         assert_eq!(p.end, 6);
     }
 
+    // Near-miss: a deleted `j` in a compact `obj<<` leaves the dict intact.
+    #[test]
+    fn near_miss_deletion_before_a_delimiter() {
+        let (t, n) = toks(b"1 0 ob<</A 1>>", true);
+        assert_eq!(
+            t,
+            vec![
+                Tok::Int(1),
+                Tok::Int(0),
+                Tok::Kw(b"obj"),
+                Tok::DictOpen,
+                Tok::Name(Cow::Borrowed(b"A")),
+                Tok::Int(1),
+                Tok::DictClose,
+            ]
+        );
+        assert_eq!(n, vec![LexNote::NearMissKeyword { at: 4 }]);
+        let (t, _) = toks(b"endobj 2 0 obj(x)endstrem[", true);
+        assert_eq!(t[3], Tok::Kw(b"obj"));
+        assert_eq!(t[4], Tok::LitStr(b"x".to_vec()));
+        assert_eq!(t[5], Tok::Kw(b"endstream"));
+        assert_eq!(t[6], Tok::ArrOpen);
+    }
+
     // Near-miss: `115 0 obj` damaged to `11l 0 obj` (RR). The number token is
     // never shortened to 11.
     #[test]
@@ -1081,6 +1253,25 @@ mod tests {
         assert!(p.notes.is_empty());
     }
 
+    // Dropped elements and recovered entries count toward the cap, so junk
+    // cannot produce more than 5,000 notes per container.
+    #[test]
+    fn element_cap_counts_dropped_elements() {
+        let src = [b"[".to_vec(), b"a ".repeat(20_000), b"] 7".to_vec()].concat();
+        let p = parse(&src);
+        assert!(arr(&p.value).is_empty());
+        assert_eq!(p.notes.len(), 5_001);
+        assert_eq!(p.notes[5_000], LexNote::ContainerTruncated { at: 0 });
+        assert_eq!(&src[p.end..], b" 7");
+
+        let src = [b"<<".to_vec(), b"/a b ".repeat(20_000), b">> 7".to_vec()].concat();
+        let p = parse(&src);
+        assert!(dict(&p.value).is_empty());
+        assert_eq!(p.notes.len(), 5_001);
+        assert_eq!(p.notes[5_000], LexNote::ContainerTruncated { at: 0 });
+        assert_eq!(&src[p.end..], b" 7");
+    }
+
     // D-075: a real that does not round-trip through f32 is noted once.
     #[test]
     #[allow(clippy::approx_constant)] // the ticket's figure, not 1/sqrt(2)
@@ -1104,6 +1295,14 @@ mod tests {
             Object::String(b"A@".to_vec(), StringFormat::Hexadecimal)
         );
         assert_eq!(parse(b"99999999999999999999").value, Object::Real(1e20));
+        assert_eq!(
+            parse(b"-9223372036854775808").value,
+            Object::Integer(i64::MIN)
+        );
+        assert_eq!(
+            parse(b"-9223372036854775809").value,
+            Object::Real(-9.223_372e18)
+        );
         assert!(matches!(
             parse_value(b"  ", 0, 0),
             Err(LexErr::UnexpectedEof)
@@ -1116,6 +1315,28 @@ mod tests {
             parse_value(b"1", 5, 0),
             Err(LexErr::UnexpectedEof)
         ));
+    }
+
+    // A number too large for f64 (or f32) clamps to f32::MAX with one note.
+    #[test]
+    fn huge_numbers_clamp_to_f32_max() {
+        let src = vec![b'9'; 400];
+        let p = parse(&src);
+        assert_eq!(p.value, Object::Real(f32::MAX));
+        assert_eq!(p.notes, vec![LexNote::RealNarrowed { at: 0 }]);
+        let src = format!("[-1{} 4{}]", "0".repeat(39), "0".repeat(38));
+        let p = parse(src.as_bytes());
+        assert_eq!(
+            arr(&p.value),
+            &[Object::Real(-f32::MAX), Object::Real(f32::MAX)]
+        );
+        assert_eq!(
+            p.notes,
+            vec![
+                LexNote::RealNarrowed { at: 1 },
+                LexNote::RealNarrowed { at: 43 }
+            ]
+        );
     }
 
     /// xorshift64*: a fixed, platform-independent byte source for the fuzz test.
