@@ -702,7 +702,7 @@ mod tests {
     #[test]
     fn unrepaired_c6_doubles_the_glyphs_on_the_page_that_lost_its_font() {
         let golden = extract(&golden_pdf());
-        let c6 = corrupt(CorruptionClass::C6FontMapLost, &golden_pdf(), 7).expect("C6");
+        let c6 = corrupt(CorruptionClass::C6FontMapLost, &golden_pdf(), 7);
         let pages = extract(&c6);
         assert_eq!(pages.len(), golden.len());
         let hit: Vec<usize> = (0..pages.len())
@@ -1172,7 +1172,7 @@ mod tests {
 
     #[test]
     fn scanned_page_order_is_recorded() {
-        let c4 = corrupt(CorruptionClass::C4PageTreeBroken, &golden_pdf(), 3).expect("C4");
+        let c4 = corrupt(CorruptionClass::C4PageTreeBroken, &golden_pdf(), 3);
         let pages = extract(&c4);
         assert_eq!(pages.len(), GOLDEN_TEXT.len());
         for page in &pages {
