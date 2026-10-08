@@ -30,6 +30,22 @@
 //! when a class's mean LCS-F1 falls more than 2% (20 thousandths) below the
 //! committed golden.
 //!
+//! **The `ocr` mode (T-38a).** `bench::corpus::ocr` runs the smoke run, then
+//! renders every page of each smoke original and of each repaired output
+//! through hayro (default interpreter settings, embedded fonts, 200 dpi,
+//! white background, 8-bit RGB PNG) into
+//! `target/corpus/ocr_inputs/<file-stem>/p<N>.png`, `N` the 0-based page, and
+//! writes `ocr_inputs/manifest.csv` for the OCR harness (T-38b): `file, class,
+//! producer, base_doc, role, page, lang, png, open_ok, lcs_f1`. `png` is
+//! relative to the manifest; `lang` is the original page's label (`und` past
+//! the original's page count); `lcs_f1` is the page's text-layer score as
+//! `num/den` (an original against itself). A repaired file hayro cannot open,
+//! or with no output at all, gets one row with no page, no PNG and
+//! `open_ok = 0`; a page that panics or is too large to rasterise gets its row
+//! with no PNG and `open_ok = 0`. Only PNGs and the manifest go under
+//! `ocr_inputs/`, which each run empties first. Pixels are not portable
+//! (FR-g1); nothing here compares them.
+//!
 //! **Languages (D-069, eng-r4-fr1).** A page's label comes from the original's
 //! extracted text, never from its index: the dominant non-Latin script when
 //! non-Latin letters are at least 20% of the letters (and at least 3), else
@@ -894,12 +910,261 @@ fn permille_at_least(r: Ratio, floor: u64) -> bool {
     u128::from(r.num) * 1000 >= u128::from(floor) * u128::from(r.den)
 }
 
+// ── the ocr mode (T-38a) ─────────────────────────────────────────────────
+
+/// 200 dpi: a PDF unit is 1/72 inch. A plain division, no libm; hayro
+/// truncates the scaled page size, so A4 is 1653 × 2338 px.
+const OCR_SCALE: f32 = 200.0 / 72.0;
+
+/// A page whose longer raster side would pass this many pixels is not
+/// rendered: hayro allocates width × height pixels for whatever a carved
+/// `/MediaBox` says, and an allocation failure aborts the process, which
+/// `catch_unwind` cannot catch. 10,000 px is 50 inches at 200 dpi; every
+/// REPDF page is A4 or Letter.
+const OCR_MAX_SIDE: f32 = 10_000.0;
+
+/// The OCR manifest's columns (plan §6 T-38a), in order.
+const OCR_COLUMNS: [&str; 10] = [
+    "file", "class", "producer", "base_doc", "role", "page", "lang", "png", "open_ok", "lcs_f1",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OcrRole {
+    Original,
+    Repaired,
+}
+
+impl OcrRole {
+    fn name(self) -> &'static str {
+        match self {
+            OcrRole::Original => "original",
+            OcrRole::Repaired => "repaired",
+        }
+    }
+}
+
+/// One document to rasterise: who it is, and per page of its original that
+/// page's label and this document's text-layer LCS-F1 on it.
+#[derive(Debug, Clone)]
+struct OcrDoc<'a> {
+    /// The corpus path (the corrupted file's, for a repaired output).
+    file: &'a str,
+    /// The class code; empty for an original.
+    class: &'a str,
+    producer: &'a str,
+    base_doc: &'a str,
+    role: OcrRole,
+    langs: &'a [Lang],
+    lcs_f1: Vec<Ratio>,
+}
+
+/// One manifest row: one rendered page, or a page or file hayro could not
+/// render (no PNG, `open_ok = 0`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OcrRow {
+    file: String,
+    class: String,
+    producer: String,
+    base_doc: String,
+    role: OcrRole,
+    /// `None` on the one row of a file hayro cannot open (or that has no page).
+    page: Option<u32>,
+    lang: Lang,
+    /// Relative to the manifest's directory, `/`-separated.
+    png: Option<String>,
+    lcs_f1: Option<Ratio>,
+}
+
+impl OcrRow {
+    fn open_ok(&self) -> bool {
+        self.png.is_some()
+    }
+}
+
+/// Every page of `bytes` as an 8-bit RGB PNG: hayro with
+/// `InterpreterSettings::default()` (embedded fonts), 200 dpi, white
+/// background. `None` when hayro cannot open the file; a page that panics or
+/// passes [`OCR_MAX_SIDE`] is `None` in the list.
+fn rasterise(bytes: &[u8]) -> Option<Vec<Option<Vec<u8>>>> {
+    use hayro::hayro_interpret::InterpreterSettings;
+    use hayro::hayro_syntax::Pdf;
+    use hayro::vello_cpu::color::palette::css::WHITE;
+    use hayro::{PixmapSettings, RenderCache, RenderSettings, render};
+
+    let pdf = catch_unwind(AssertUnwindSafe(|| Pdf::new(bytes.to_vec()).ok()))
+        .ok()
+        .flatten()?;
+    let pages = catch_unwind(AssertUnwindSafe(|| pdf.pages())).ok()?;
+    let cache = RenderCache::new();
+    let interpreter = InterpreterSettings::default();
+    let settings = RenderSettings::default();
+    let pixmap = PixmapSettings {
+        x_scale: OCR_SCALE,
+        y_scale: OCR_SCALE,
+        bg_color: WHITE,
+    };
+    let out = pages
+        .iter()
+        .map(|page| {
+            catch_unwind(AssertUnwindSafe(|| {
+                let (w, h) = page.render_dimensions();
+                let side = w.max(h) * OCR_SCALE;
+                if !side.is_finite() || side > OCR_MAX_SIDE {
+                    return None;
+                }
+                render(page, &cache, &interpreter, &settings, &pixmap)
+                    .into_png()
+                    .ok()
+            }))
+            .ok()
+            .flatten()
+        })
+        .collect();
+    Some(out)
+}
+
+/// The file name without `.pdf`: the PNG directory of a document.
+fn file_stem(file: &str) -> &str {
+    let name = file.rsplit('/').next().unwrap_or(file);
+    name.strip_suffix(".pdf").unwrap_or(name)
+}
+
+/// Render `bytes` (`None`: there is no output to render) into
+/// `dir/<file-stem>/p<N>.png` and return the document's rows. Pages past the
+/// original's count are labelled `und` with no score.
+fn ocr_document(dir: &Path, doc: &OcrDoc, bytes: Option<&[u8]>) -> Result<Vec<OcrRow>, String> {
+    let row = |page: Option<u32>, png: Option<String>| {
+        let i = page.map(|p| p as usize);
+        OcrRow {
+            file: doc.file.to_owned(),
+            class: doc.class.to_owned(),
+            producer: doc.producer.to_owned(),
+            base_doc: doc.base_doc.to_owned(),
+            role: doc.role,
+            page,
+            lang: i
+                .and_then(|i| doc.langs.get(i).copied())
+                .unwrap_or(Lang::Unknown),
+            png,
+            lcs_f1: i.and_then(|i| doc.lcs_f1.get(i).copied()),
+        }
+    };
+    let pages = bytes.and_then(rasterise).unwrap_or_default();
+    if pages.is_empty() {
+        return Ok(vec![row(None, None)]);
+    }
+    let stem = file_stem(doc.file);
+    let sub = dir.join(stem);
+    std::fs::create_dir_all(&sub).map_err(|e| format!("{}: {e}", sub.display()))?;
+    let mut rows = Vec::new();
+    for (i, png) in pages.into_iter().enumerate() {
+        let page = u32::try_from(i).map_err(|_| format!("{}: too many pages", doc.file))?;
+        let rel = match png {
+            Some(png) => {
+                let name = format!("p{i}.png");
+                std::fs::write(sub.join(&name), png).map_err(|e| format!("{stem}/{name}: {e}"))?;
+                Some(format!("{stem}/{name}"))
+            }
+            None => None,
+        };
+        rows.push(row(Some(page), rel));
+    }
+    Ok(rows)
+}
+
+/// The OCR manifest: the column line, then one line per row.
+fn ocr_csv(rows: &[OcrRow]) -> String {
+    let mut out = OCR_COLUMNS.join(",");
+    out.push('\n');
+    for r in rows {
+        let cells = [
+            field(&r.file),
+            field(&r.class),
+            field(&r.producer),
+            field(&r.base_doc),
+            r.role.name().to_owned(),
+            r.page.map_or(String::new(), |p| p.to_string()),
+            r.lang.label().to_owned(),
+            r.png.as_deref().map_or(String::new(), field),
+            u8::from(r.open_ok()).to_string(),
+            r.lcs_f1.map_or(String::new(), ratio),
+        ];
+        out.push_str(&cells.join(","));
+        out.push('\n');
+    }
+    out
+}
+
+/// The ocr phase of a smoke run: `dir` is emptied, then every page of each
+/// smoke path, in list order, is rendered (an original re-read through the
+/// manifest gate, a corrupted file as its repair), and `dir/manifest.csv` is
+/// written. Nothing but the PNGs and the manifest goes under `dir`: a PDF
+/// there would let PaddleOCR rasterise it with PDFium instead of hayro.
+fn write_ocr(
+    dir: &Path,
+    manifest: &Manifest,
+    root: &Path,
+    paths: &[String],
+    originals: &BTreeMap<String, Original>,
+    repaired: &BTreeMap<String, (Option<Vec<u8>>, Vec<Ratio>)>,
+) -> Result<Vec<OcrRow>, String> {
+    if dir.exists() {
+        std::fs::remove_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let mut rows = Vec::new();
+    for (n, path) in paths.iter().enumerate() {
+        eprintln!("corpus: ocr rasters, file {} of {}", n + 1, paths.len());
+        let p = CorpusPath::parse(path)?;
+        let original = originals
+            .get(&p.original())
+            .ok_or_else(|| format!("{path}: its original was not read"))?;
+        let langs = &original.labels.langs;
+        let doc = |role, lcs_f1| OcrDoc {
+            file: path,
+            class: p.class.map_or("", CorruptionClass::code),
+            producer: p.producer,
+            base_doc: p.base,
+            role,
+            langs,
+            lcs_f1,
+        };
+        rows.extend(match p.class {
+            None => {
+                let bytes = read_checked(manifest, root, path)?;
+                let own = original
+                    .pages
+                    .iter()
+                    .zip(langs)
+                    .map(|(page, &lang)| score(page, page, lang).lcs_f1)
+                    .collect();
+                ocr_document(dir, &doc(OcrRole::Original, own), Some(&bytes))?
+            }
+            Some(_) => {
+                let (bytes, scores) = repaired
+                    .get(path)
+                    .ok_or_else(|| format!("{path}: no repair was recorded"))?;
+                ocr_document(
+                    dir,
+                    &doc(OcrRole::Repaired, scores.clone()),
+                    bytes.as_deref(),
+                )?
+            }
+        });
+    }
+    std::fs::write(dir.join("manifest.csv"), ocr_csv(&rows))
+        .map_err(|e| format!("manifest.csv: {e}"))?;
+    Ok(rows)
+}
+
 // ── the run ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Smoke,
     Full,
+    /// Smoke, then the T-38a page rasters and manifest.
+    Ocr,
 }
 
 /// What a run printed and whether its gate held.
@@ -1017,13 +1282,18 @@ fn toolpath_name(t: Toolpath) -> &'static str {
     }
 }
 
+/// One corrupted file's run: its rows, its inflate tally, whether the
+/// repair panicked, and the bytes that were scored as its repair (the output,
+/// or the input itself when there was nothing to repair).
+struct FileRun {
+    rows: Vec<Row>,
+    tally: InflateTally,
+    panicked: bool,
+    repaired: Option<Vec<u8>>,
+}
+
 /// Analyse, plan and repair one corrupted file and score its pages.
-fn run_file(
-    path: &str,
-    bytes: &[u8],
-    original: &Original,
-    fonts: &FontDb,
-) -> (Vec<Row>, InflateTally, bool) {
+fn run_file(path: &str, bytes: &[u8], original: &Original, fonts: &FontDb) -> FileRun {
     let p = CorpusPath::parse(path).expect("a corrupted corpus path");
     let class = p.class.expect("a corrupted file").code();
     let aopts = AnalyzeOptions {
@@ -1059,13 +1329,15 @@ fn run_file(
     let input = texts(bytes);
     let baseline = input.as_ref().map(|(t, _)| t.clone()).unwrap_or_default();
     let mut rows = Vec::new();
+    // The planner found nothing to repair: the examiner keeps the input as
+    // it is, so the input is what is scored.
+    let untouched = work.as_ref().is_ok_and(|(plan, outcome, _)| {
+        outcome.output.is_none()
+            && outcome.status == OutcomeStatus::Ok
+            && plan.candidates.is_empty()
+    });
     let (outcome_name, chosen, v, repaired, report, tally) = match &work {
         Ok((plan, outcome, tally)) => {
-            // The planner found nothing to repair: the examiner keeps the
-            // input as it is, so the input is what is scored.
-            let untouched = outcome.output.is_none()
-                && outcome.status == OutcomeStatus::Ok
-                && plan.candidates.is_empty();
             let name = match outcome.status {
                 _ if untouched => "nothing_to_repair",
                 OutcomeStatus::Ok => "ok",
@@ -1136,7 +1408,18 @@ fn run_file(
             inflate_disagreements: tally.disagree,
         });
     }
-    (rows, tally, work.is_err())
+    let panicked = work.is_err();
+    let repaired = match work {
+        Ok((_, outcome, _)) if !untouched => outcome.output,
+        Ok(_) => Some(bytes.to_vec()),
+        Err(_) => None,
+    };
+    FileRun {
+        rows,
+        tally,
+        panicked,
+        repaired,
+    }
 }
 
 /// The whole run over `root`. Errors are one line each.
@@ -1149,7 +1432,7 @@ fn run(mode: Mode, root: &Path) -> Result<Summary, String> {
         return Err("the D-077 smoke resolution differs from bench/smoke_subset.txt".to_owned());
     }
     let paths: Vec<String> = match mode {
-        Mode::Smoke => resolved,
+        Mode::Smoke | Mode::Ocr => resolved,
         Mode::Full => manifest.entries.iter().map(|e| e.path.clone()).collect(),
     };
 
@@ -1180,6 +1463,8 @@ fn run(mode: Mode, root: &Path) -> Result<Summary, String> {
     let mut rows = Vec::new();
     let mut inflate = InflateTally::default();
     let mut panicked = 0;
+    // The ocr mode's inputs: per corrupted file, its repair and page scores.
+    let mut repaired = BTreeMap::<String, (Option<Vec<u8>>, Vec<Ratio>)>::new();
     for (n, path) in corrupted.iter().enumerate() {
         eprintln!("corpus: file {} of {}", n + 1, corrupted.len());
         let bytes = read_checked(&manifest, root, path)?;
@@ -1187,11 +1472,15 @@ fn run(mode: Mode, root: &Path) -> Result<Summary, String> {
         let original = originals
             .get(&original)
             .ok_or_else(|| format!("{path}: its original was not read"))?;
-        let (file_rows, tally, panic) = run_file(path, &bytes, original, &fonts);
-        rows.extend(file_rows);
-        inflate.compared += tally.compared;
-        inflate.disagree += tally.disagree;
-        panicked += u32::from(panic);
+        let file = run_file(path, &bytes, original, &fonts);
+        if mode == Mode::Ocr {
+            let scores = file.rows.iter().map(|r| r.scores.lcs_f1).collect();
+            repaired.insert((*path).clone(), (file.repaired, scores));
+        }
+        rows.extend(file.rows);
+        inflate.compared += file.tally.compared;
+        inflate.disagree += file.tally.disagree;
+        panicked += u32::from(file.panicked);
     }
 
     let out = out_dir();
@@ -1201,12 +1490,23 @@ fn run(mode: Mode, root: &Path) -> Result<Summary, String> {
     };
     write("corpus_results.csv", csv(&rows))?;
     let (header, golden) = match mode {
-        Mode::Smoke => {
+        Mode::Smoke | Mode::Ocr => {
             write("golden_smoke.csv", golden_csv(&rows))?;
             (D063_HEADER, Some(Golden::parse(GOLDEN_SMOKE)?))
         }
         Mode::Full => (FULL_HEADER, None),
     };
+    if mode == Mode::Ocr {
+        let dir = out.join("ocr_inputs");
+        let rows = write_ocr(&dir, &manifest, root, &paths, &originals, &repaired)?;
+        let unopened = rows.iter().filter(|r| !r.open_ok()).count();
+        println!(
+            "ocr: {} rows, {} PNGs, {unopened} without a raster (open_ok = 0); {}",
+            rows.len(),
+            rows.len() - unopened,
+            dir.join("manifest.csv").display()
+        );
+    }
     Ok(Summary {
         tables: tables(header, &rows, golden.as_ref()),
         inflate,
@@ -1243,6 +1543,14 @@ fn harness(mode: Mode) {
 #[ignore = "needs PDFPUNDIT_CORPUS: a local REPDF clone at e547d4d"]
 fn smoke() {
     harness(Mode::Smoke);
+}
+
+/// The smoke run, then every page of each original and each repaired output
+/// rasterised for the OCR harness (T-38a, T-38b).
+#[test]
+#[ignore = "needs PDFPUNDIT_CORPUS: a local REPDF clone at e547d4d"]
+fn ocr() {
+    harness(Mode::Ocr);
 }
 
 /// Every corrupted file of the corpus; no gate.
