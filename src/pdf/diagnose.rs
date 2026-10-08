@@ -47,23 +47,30 @@
 //!   only a form uses, from its own `/Resources`, is not C6). The re-link
 //!   candidates are the fonts no reference from the catalog reaches, less
 //!   the descendants of another candidate; with none the slot needs a pick.
-//!   A slot whose value names nothing is C5's or C4's, not C6.
+//!   A slot whose value names nothing is C5's or C4's, not C6, and so is
+//!   every slot of a `/Resources` or `/Font` entry that names nothing usable
+//!   (its target lost its header, or is not a dictionary).
 //! - **C7**: a `/FontDescriptor` with no `/FontFile`, `/FontFile2` or
 //!   `/FontFile3`, or one whose stream is missing, empty, all 0x20 or does not
-//!   read as a font. A standard-14 name without a program is how such fonts
-//!   are written and gives no finding; a Type3 font's descriptor is skipped.
-//!   A font program whose Flate data does not decode is C9's.
+//!   read as a font. A font never embedded (no such key) is C7 too, as #14
+//!   has it. A standard-14 name without a program is how such fonts are
+//!   written and gives no finding: #14's "not embedded" Warning has no
+//!   `FindingKind` to carry it. A Type3 font's descriptor is skipped. A font
+//!   program whose Flate data does not decode is C9's.
 //! - **C8**: C7, and the font's `/ToUnicode` (a CIDFont's is on its Type0
 //!   parent) is missing, empty, all 0x20 or holds no `bfchar`/`bfrange`
 //!   CMap. C8 replaces C7 for that font. Both need a font pick: diagnose has
-//!   no font DB to look the name up in.
+//!   no font DB to look the name up in; T-30 upgrades a name T-28's DB
+//!   knows to `Auto`.
 //! - **C9**: one finding per stream whose salvage is not `Clean`: `Exact` and
 //!   `Accepted` repairs are Warnings repaired automatically; `Ambiguous`,
 //!   `ChecksumMismatch`, `Prefix`, `Unrecoverable` and `Unsearched` are
 //!   Errors repaired in part, an `Ambiguous` one listing every survivor's
-//!   edits. A font stream C7 or C8 found blank is theirs, not C9's: it holds
-//!   no zlib data to repair. A near-miss keyword the lexer read
-//!   (`C9-outside-stream`) is a Warning on its object.
+//!   edits. A font stream whose stored bytes C7 or C8 found blank is theirs,
+//!   not C9's: it holds no zlib data to repair. A near-miss keyword the lexer
+//!   read (`C9-outside-stream`) is a Warning on its object, marked
+//!   `Metric{"salvage": "OutsideStream"}`.
+//! - None of these run on an encrypted file: its streams are ciphertext.
 //! - **OutlinedText**: a page whose content fills paths of three or more
 //!   curve segments, counted with their contours. **Type3Text**: one per
 //!   (page, Type3 font) a `Tf` selects. Both Info.
@@ -77,12 +84,13 @@
 mod tests;
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use lopdf::{Dictionary, Object};
 
 use crate::pdf::carver::{Body, CarveNote, CarveReport, Origin, Orphan};
-use crate::pdf::graph::{ContentPiece, MAX_TREE_DEPTH, ObjectGraph};
+use crate::pdf::graph::{ContentPiece, MAX_TREE_DEPTH, ObjectGraph, Resources};
 use crate::pdf::lexer::{self, LexNote};
 use crate::pdf::model::{
     ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, HexWindow, InteractionKind,
@@ -120,7 +128,13 @@ pub(crate) fn diagnose(
     drafts.extend(c10);
     let c4 = c4(&cx);
     let c5 = c5(&cx);
-    let content = content(&cx, salvage);
+    let encrypted = encrypted(&cx);
+    // An encrypted file's streams are ciphertext: its fonts, content and
+    // Flate data cannot be read, so the content rules do not run.
+    let content = match encrypted {
+        Some(_) => Vec::new(),
+        None => content(&cx, salvage),
+    };
     // Where a C4, C5 or C6 cut may have moved the bytes after it.
     let cuts: Vec<u64> = c4
         .iter()
@@ -139,7 +153,7 @@ pub(crate) fn diagnose(
     }
     drafts.extend(c4);
     drafts.extend(c5);
-    drafts.extend(encrypted(&cx));
+    drafts.extend(encrypted);
     drafts.extend(signed(&cx));
     drafts.extend(content);
     number(drafts)
@@ -255,9 +269,6 @@ struct Cx<'a> {
     startxref: Option<(u64, u64)>,
     /// The streams, as the salvage index reads them.
     source: CarveSource<'a>,
-    /// Each id's last stream copy, by its index in `carve.objects` (the copy
-    /// `source` gives).
-    streams: BTreeMap<ObjId, usize>,
 }
 
 /// A cross-reference section: where it starts and its in-use entries
@@ -289,12 +300,6 @@ impl<'a> Cx<'a> {
             }
         }));
         xrefs.sort_by_key(|x| x.start);
-        let mut streams = BTreeMap::new();
-        for (i, o) in carve.objects.iter().enumerate() {
-            if let Body::Stream { .. } = o.body {
-                streams.insert(o.declared_id, i);
-            }
-        }
         Cx {
             bytes,
             carve,
@@ -309,7 +314,6 @@ impl<'a> Cx<'a> {
                 .rev()
                 .find_map(|&(at, v)| Some((at, v?))),
             source: CarveSource::new(carve, bytes),
-            streams,
         }
     }
 
@@ -329,6 +333,21 @@ impl<'a> Cx<'a> {
                 Orphan::Dict { dict, .. } => Some(dict),
                 Orphan::Stream { .. } => None,
             },
+        }
+    }
+
+    /// The dictionary of object `id`, a stream's included.
+    fn dict_or_stream(&self, id: ObjId) -> Option<&'a Dictionary> {
+        match self.remap.target(id)? {
+            Held::Object(i) => match &self.carve.objects.get(i)?.body {
+                Body::Dict(d) | Body::Stream { dict: d, .. } => Some(d),
+                _ => None,
+            },
+            Held::Orphan(i) => {
+                let (Orphan::Dict { dict, .. } | Orphan::Stream { dict, .. }) =
+                    self.carve.orphans.get(i)?;
+                Some(dict)
+            }
         }
     }
 
@@ -380,7 +399,7 @@ impl<'a> Cx<'a> {
     /// The copy of stream `id` the salvage index reads: the object's span,
     /// its data's span and the raw data.
     fn stream(&self, id: ObjId) -> Option<(ByteSpan, ByteSpan, &'a [u8])> {
-        let o = &self.carve.objects[*self.streams.get(&id)?];
+        let o = &self.carve.objects[self.source.last_index(id)?];
         match &o.body {
             Body::Stream { data, .. } => Some((o.span, *data, slice(self.bytes, *data))),
             _ => None,
@@ -1163,8 +1182,38 @@ fn font_slot<'v>(
     }
 }
 
+/// The dictionary `resources`' slots resolve against, read through the
+/// remap from its owner's `/Resources` entry. `None` when that entry names
+/// nothing usable (its target lost its header or is not a dictionary): the
+/// break is C5's or C4's, so none of its slots is C6's.
+fn piece_resources<'a: 'p, 'p>(cx: &Cx<'a>, resources: &'p Resources) -> Option<&'p Dictionary> {
+    let Some(owner) = resources.owner else {
+        return Some(&resources.dict);
+    };
+    match cx
+        .dict_or_stream(owner)
+        .and_then(|d| d.get(b"Resources").ok())
+    {
+        Some(v) => cx.dict_of(v),
+        None => Some(&resources.dict),
+    }
+}
+
 fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
-    let decoded = |id: ObjId| salvage.decoded(&cx.source, id, DEFAULT_CAP).ok();
+    // Decoded streams, so `page_content`'s `Do` search and the scan below
+    // inflate each once. A page's own streams leave the cache when scanned;
+    // forms stay, since other pages draw them too.
+    let cache: RefCell<BTreeMap<ObjId, Option<Cow<'_, [u8]>>>> = RefCell::default();
+    let decode = |id: ObjId| salvage.decoded(&cx.source, id, DEFAULT_CAP).ok();
+    let decoded = |id: ObjId| {
+        if let Some(hit) = cache.borrow().get(&id) {
+            return hit.clone();
+        }
+        let got = decode(id);
+        cache.borrow_mut().insert(id, got.clone());
+        got
+    };
+    let mut forms: BTreeSet<ObjId> = BTreeSet::new();
     // Each stream is scanned once, however many pages draw it.
     let mut scans: BTreeMap<ObjId, Option<Scan>> = BTreeMap::new();
     let mut candidates: Option<Vec<ObjId>> = None;
@@ -1176,24 +1225,30 @@ fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
         let own = pieces
             .iter()
             .find(|p| p.via.is_empty())
-            .map(|p| &p.resources.dict);
+            .map(|p| piece_resources(cx, &p.resources));
         let mut missing: BTreeSet<Vec<u8>> = BTreeSet::new();
         let mut type3: BTreeSet<ObjId> = BTreeSet::new();
         let (mut paths, mut contours) = (0u32, 0u32);
         for piece in &pieces {
-            let Some(scan) = scans
-                .entry(piece.stream)
-                .or_insert_with(|| decoded(piece.stream).map(|b| scan(&b)))
-            else {
+            if !piece.via.is_empty() {
+                forms.insert(piece.stream);
+            }
+            let Some(scan) = scans.entry(piece.stream).or_insert_with(|| {
+                let bytes = cache.borrow_mut().remove(&piece.stream);
+                bytes
+                    .unwrap_or_else(|| decode(piece.stream))
+                    .map(|b| scan(&b))
+            }) else {
                 continue;
             };
             paths = paths.saturating_add(scan.paths);
             contours = contours.saturating_add(scan.contours);
+            let here = piece_resources(cx, &piece.resources);
             for slot in &scan.slots {
                 let mut value = None;
                 let mut unknown = false;
-                for resources in [Some(&piece.resources.dict), own].into_iter().flatten() {
-                    match font_slot(cx, resources, slot) {
+                for resources in [Some(here), own].into_iter().flatten() {
+                    match resources.and_then(|r| font_slot(cx, r, slot)) {
                         Some(Some(v)) => {
                             value = Some(v);
                             break;
@@ -1220,6 +1275,7 @@ fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
                 }
             }
         }
+        cache.borrow_mut().retain(|id, _| forms.contains(id));
 
         let at = cx.remap.target(page).map_or(0, |h| cx.place(h).1);
         let location = Location::Page {
@@ -1338,8 +1394,11 @@ const STANDARD_14: [&str; 14] = [
 enum Data<'s> {
     /// Nothing by that id is a stream.
     Missing,
-    /// Empty, or every byte 0x20, raw or decoded.
-    Blank,
+    /// Empty, or every byte 0x20: `raw` when the stored bytes are, else
+    /// only what they decode to.
+    Blank {
+        raw: bool,
+    },
     Bytes(Cow<'s, [u8]>),
     /// It does not decode, or it lost its header: C9's or C5's.
     Unknown,
@@ -1353,10 +1412,10 @@ fn data_of<'s>(cx: &Cx<'_>, salvage: &'s SalvageIndex, id: ObjId) -> Data<'s> {
         };
     };
     if blank(raw) {
-        return Data::Blank;
+        return Data::Blank { raw: true };
     }
     match salvage.decoded(&cx.source, id, DEFAULT_CAP) {
-        Ok(b) if blank(&b) => Data::Blank,
+        Ok(b) if blank(&b) => Data::Blank { raw: false },
         Ok(b) => Data::Bytes(b),
         Err(_) => Data::Unknown,
     }
@@ -1437,7 +1496,14 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
         // C7: the program.
         let mut evidence = vec![Evidence::ObjectRef(desc)];
         let why = match FONT_FILES.iter().find_map(|&k| Some((k, d.get(k).ok()?))) {
+            // The #14 table wants a Warning "not embedded" here, but no
+            // FindingKind carries one: only Corruption(C7) fits, which the
+            // table rules out. No finding until one exists (decision pending).
             None if name.as_deref().is_some_and(|n| STANDARD_14.contains(&n)) => continue,
+            // Deliberate, per the #14 table: a font that was never embedded
+            // (no `/FontFile*` key at all, a system font left out on purpose)
+            // is C7, and C8 with no `/ToUnicode`. Whether such a font should
+            // be a Warning instead is a pending decision.
             None => "not embedded".to_owned(),
             Some((key, Object::Reference(id))) => {
                 if let Some((_, data, raw)) = cx.stream(*id) {
@@ -1451,8 +1517,10 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
                         id.0,
                         id.1
                     ),
-                    Data::Blank => {
-                        blanked.insert(*id);
+                    Data::Blank { raw } => {
+                        if raw {
+                            blanked.insert(*id);
+                        }
                         "blank (empty or all 0x20)".to_owned()
                     }
                     Data::Bytes(b) if !sniffs_as_font(&b) => "not a font program".to_owned(),
@@ -1478,8 +1546,10 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
             None => Some((None, None)),
             Some(Object::Reference(id)) => match data_of(cx, salvage, *id) {
                 Data::Missing => Some((Some(*id), None)),
-                Data::Blank => {
-                    blanked.insert(*id);
+                Data::Blank { raw } => {
+                    if raw {
+                        blanked.insert(*id);
+                    }
                     Some((Some(*id), None))
                 }
                 Data::Bytes(b) if !is_tounicode(&b) => {
@@ -1504,7 +1574,8 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
             }
         };
         let mut draft = draft.evidence(evidence);
-        // Diagnose has no font DB to look the name up in (T-28).
+        // Diagnose has no font DB to look the name up in (T-28): the table's
+        // Auto for a name the DB knows is for T-30's pass to upgrade to.
         draft.repair = Repairability::Interactive(InteractionKind::FontPick);
         out.push(draft);
     }
@@ -1652,8 +1723,14 @@ fn edit_list(edits: &[Edit]) -> String {
     each.join(", ")
 }
 
+/// The `Metric{"salvage"}` of a `C9-outside-stream` finding: it names no
+/// stream, so no [`SalvageIndex`] entry is behind it.
+pub(crate) const OUTSIDE_STREAM: &str = "OutsideStream";
+
 /// `C9-outside-stream`: a keyword the lexer read one byte off, in a
-/// top-level object (in a packed one it is the object stream's data).
+/// top-level object (in a packed one it is the object stream's data). The
+/// carver does not lex in near-miss mode yet, so only a carve that carries
+/// the note gets here.
 fn near_misses(cx: &Cx<'_>) -> Vec<Draft> {
     let mut out = Vec::new();
     for o in cx
@@ -1679,10 +1756,13 @@ fn near_misses(cx: &Cx<'_>) -> Vec<Draft> {
                         "C9-outside-stream: a keyword one byte off at byte {at} in {} {} obj",
                         o.declared_id.0, o.declared_id.1
                     ))
-                    .evidence(vec![Evidence::HexWindow(HexWindow::new(
-                        at,
-                        &cx.bytes[from..],
-                    ))]),
+                    .evidence(vec![
+                        Evidence::Metric {
+                            name: "salvage".to_owned(),
+                            value: MetricValue::Text(OUTSIDE_STREAM.to_owned()),
+                        },
+                        Evidence::HexWindow(HexWindow::new(at, &cx.bytes[from..])),
+                    ]),
             );
         }
     }

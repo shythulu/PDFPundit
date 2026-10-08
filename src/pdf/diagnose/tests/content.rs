@@ -17,7 +17,9 @@ use crate::pdf::streams::salvage::{
 };
 use crate::pdf::streams::{ImgCodec, StreamClass};
 
-use CorruptionClass::{C6FontMapLost, C7FontStreamDeleted, C8FontResourcesDeleted, C9ZlibTampered};
+use CorruptionClass::{
+    C5ObjectTagStripped, C6FontMapLost, C7FontStreamDeleted, C8FontResourcesDeleted, C9ZlibTampered,
+};
 
 // ── helpers ─────────────────────────────────────────────────────────────
 
@@ -222,6 +224,73 @@ fn a_slot_the_page_maps_is_not_c6() {
     assert_eq!(findings(&buf), vec![]);
 }
 
+/// `buf` with `n 0 obj` blanked to spaces: the object loses its header and
+/// every offset stays put.
+fn strip_header(buf: &[u8], n: u32) -> Vec<u8> {
+    let tag = format!("\n{n} 0 obj");
+    let at = find(buf, tag.as_bytes()).expect("the object") + 1;
+    let mut out = buf.to_vec();
+    out[at..at + tag.len() - 1].fill(b' ');
+    out
+}
+
+/// A one-page file whose `/F1` is mapped by resources object 5: from the
+/// page (`inherited` false) or from its `/Pages` node.
+fn indirect_resources(inherited: bool) -> Vec<u8> {
+    let (node, leaf) = if inherited {
+        ("/Resources 5 0 R ", "")
+    } else {
+        ("", "/Resources 5 0 R ")
+    };
+    classic(
+        &[
+            obj(1, CATALOG),
+            obj(
+                2,
+                &format!("<< /Type /Pages /Kids [3 0 R] /Count 1 {node}>>"),
+            ),
+            obj(
+                3,
+                &format!(
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] {leaf}/Contents 4 0 R >>"
+                ),
+            ),
+            obj(4, &stream_body("", "BT /F1 12 Tf (Hi) Tj ET")),
+            obj(5, "<< /Font << /F1 6 0 R >> >>"),
+            obj(6, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+        ],
+        "",
+    )
+}
+
+#[test]
+fn resources_that_lost_their_header_are_c5_and_not_c6() {
+    for inherited in [false, true] {
+        let buf = indirect_resources(inherited);
+        assert_eq!(findings(&buf), vec![], "inherited {inherited}: clean");
+        let found = findings(&strip_header(&buf, 5));
+        assert_eq!(
+            structural(&found),
+            BTreeSet::from([C5ObjectTagStripped]),
+            "inherited {inherited}: {found:#?}"
+        );
+        assert!(
+            of_class(&found, C6FontMapLost).is_empty(),
+            "inherited {inherited}: the slot is not orphaned: {found:#?}"
+        );
+    }
+}
+
+#[test]
+fn resources_that_name_no_dictionary_are_not_c6() {
+    // Object 5 is a number, so the page's `/Resources` maps nothing: that
+    // break is not a lost font map.
+    let buf = String::from_utf8(indirect_resources(false)).expect("ascii");
+    let buf = buf.replace("<< /Font << /F1 6 0 R >> >>", "42");
+    let found = findings(buf.as_bytes());
+    assert!(of_class(&found, C6FontMapLost).is_empty(), "{found:#?}");
+}
+
 // ── C7 / C8 ─────────────────────────────────────────────────────────────
 
 #[test]
@@ -355,6 +424,70 @@ fn a_surviving_but_unparsable_tounicode_is_c8() {
     assert_eq!(f.class, FindingKind::Corruption(C8FontResourcesDeleted));
     assert!(texts(f).contains(&"tounicode unparsable"), "{f:#?}");
     assert_eq!(refs(f), vec![(6, 0), (7, 0)]);
+}
+
+#[test]
+fn a_font_never_embedded_is_c7_or_c8_as_the_table_has_it() {
+    // Pinned on purpose: #14 makes any non-standard-14 font without a
+    // program C7, and C8 with no `/ToUnicode`, even a Word-style system font
+    // left out deliberately. Whether such a font should be a Warning is a
+    // pending decision; until then this is the behaviour.
+    let arial = font_file(
+        "/BaseFont /Arial /Encoding /WinAnsiEncoding ",
+        "/FontName /Arial ",
+        &[],
+    );
+    let found = findings(&arial);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    let f = &found[0];
+    assert_eq!(f.class, FindingKind::Corruption(C8FontResourcesDeleted));
+    assert_eq!(
+        f.summary,
+        "the font program of Arial is not embedded, and its /ToUnicode is lost"
+    );
+    assert_eq!(
+        f.repair,
+        Repairability::Interactive(InteractionKind::FontPick)
+    );
+}
+
+#[test]
+fn a_font_program_that_only_decodes_blank_keeps_its_c9() {
+    // The stored bytes are not blank: the salvage's damaged decode is. C7
+    // reports the blank program, and C9 still reports the damaged stream.
+    let program = (8, 0);
+    let buf = font_file(
+        "/BaseFont /Garamond /ToUnicode 7 0 R ",
+        "/FontName /Garamond /FontFile2 8 0 R ",
+        &[
+            obj(
+                7,
+                &stream_body("", "begincmap 1 beginbfchar <01> <0041> endbfchar endcmap"),
+            ),
+            obj(
+                8,
+                &stream_body("/Filter /FlateDecode ", "not zlib, but not blank"),
+            ),
+        ],
+    );
+    let index = index_of(vec![(
+        program,
+        Salvage::ChecksumMismatch { data: Vec::new() },
+    )]);
+    let found = findings_with(&buf, &index);
+    let classes: Vec<FindingKind> = found.iter().map(|f| f.class).collect();
+    assert_eq!(
+        classes,
+        vec![
+            FindingKind::Corruption(C7FontStreamDeleted),
+            FindingKind::Corruption(C9ZlibTampered),
+        ],
+        "{found:#?}"
+    );
+    assert!(matches!(
+        found[1].location,
+        Location::Object { id, .. } if id == program
+    ));
 }
 
 // ── OutlinedText and Type3Text ──────────────────────────────────────────
@@ -733,6 +866,10 @@ fn a_near_miss_keyword_is_a_c9_outside_stream_warning() {
     assert_eq!(f.class, FindingKind::Corruption(C9ZlibTampered));
     assert_eq!(f.severity, Severity::Warning);
     assert!(f.summary.starts_with("C9-outside-stream"), "{}", f.summary);
+    assert_eq!(
+        metric(f, "salvage"),
+        Some(&MetricValue::Text(OUTSIDE_STREAM.into()))
+    );
     assert!(
         f.evidence
             .iter()
@@ -774,5 +911,34 @@ fn clean_files_stay_clean_under_a_real_salvage() {
             "{name}: {found:#?}"
         );
         assert_eq!(found, findings(&buf), "{name}: the index changes nothing");
+    }
+}
+
+#[test]
+fn an_encrypted_file_gets_no_content_findings_under_a_real_salvage() {
+    // Ciphertext reads as damaged Flate data and as fonts that are not font
+    // programs: only the Encrypted finding stands.
+    let golden = fixtures::golden_pdf();
+    for (class, seed) in [
+        (C9ZlibTampered, 0),
+        (C9ZlibTampered, 1),
+        (C7FontStreamDeleted, 0),
+    ] {
+        let buf = fixtures::corrupt(class, &golden, seed);
+        let plain = findings_with(&buf, &salvaged(&buf));
+        assert!(
+            !of_class(&plain, class).is_empty(),
+            "{class:?} seed {seed} is found unencrypted: {plain:#?}"
+        );
+        let trailer = rfind(&buf, b"trailer").expect("trailer");
+        let at = trailer + find(&buf[trailer..], b"<<").expect("trailer dict") + 2;
+        let buf = insert(&buf, at, b"/Encrypt 99 0 R");
+        let found = findings_with(&buf, &salvaged(&buf));
+        let classes: Vec<FindingKind> = found.iter().map(|f| f.class).collect();
+        assert_eq!(
+            classes,
+            vec![FindingKind::Encrypted],
+            "{class:?} seed {seed}: {found:#?}"
+        );
     }
 }

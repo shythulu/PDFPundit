@@ -344,6 +344,12 @@ impl<'a> CarveSource<'a> {
         CarveSource { carve, buf, last }
     }
 
+    /// The index in `carve.objects` of stream `id`'s copy that
+    /// [`StreamSource::stream`] reads: its last one.
+    pub(crate) fn last_index(&self, id: ObjId) -> Option<usize> {
+        self.last.get(&id).copied()
+    }
+
     fn at(&self, at: usize) -> Option<(ObjId, &'a Dictionary, &'a [u8])> {
         let obj = &self.carve.objects[at];
         let Body::Stream { dict, data, .. } = &obj.body else {
@@ -363,7 +369,7 @@ impl StreamSource for CarveSource<'_> {
     }
 
     fn stream(&self, id: ObjId) -> Option<(&Dictionary, &[u8])> {
-        let (_, dict, raw) = self.at(*self.last.get(&id)?)?;
+        let (_, dict, raw) = self.at(self.last_index(id)?)?;
         Some((dict, raw))
     }
 }
