@@ -4,22 +4,27 @@
 //! what the document itself still carries. Each code climbs the ladder on its
 //! own and the first rung that gives text wins:
 //! 1. the font's `/ToUnicode` CMap;
-//! 2. simple fonts: the `/Differences` name for the code, else the name in the
-//!    base table (`/Encoding`'s name or `/BaseEncoding`; `StandardEncoding`
-//!    when neither is given, the font is not symbolic and its program has no
-//!    built-in encoding), each through [`glyph_name_to_unicode`] (the ITC
-//!    Zapf Dingbats list first for ZapfDingbats);
+//! 2. simple fonts: the `/Differences` name for the code, else (for a code
+//!    `/Differences` does not cover; its name replaces the base one) the name
+//!    in the base table (`/Encoding`'s name or `/BaseEncoding`;
+//!    `StandardEncoding` when neither is given, the font is not symbolic and
+//!    its program has no built-in encoding), through [`glyph_name_to_unicode`]
+//!    (the ITC Zapf Dingbats list first for ZapfDingbats);
 //! 3. the embedded program, read through `skrifa::raw` (D-035):
-//!    - a TrueType program's glyph is found through its raw (3,0) subtable
-//!      (code 0xF000, 0x0000, 0xF100 then 0xF200 plus the code) or (1,0)
-//!      subtable for a simple font, and through `/CIDToGIDMap` for a
-//!      CIDFontType2; the glyph is named by the Unicode `cmap` subtables read
+//!    - a TrueType program's glyph is found, for a simple font, by the
+//!      `/Differences` name in `post`, else through its raw (3,0) subtable
+//!      (code 0xF000, 0x0000, 0xF100 then 0xF200 plus the code), (1,0)
+//!      subtable or, for a symbolic font, (3,1) subtable; for a CIDFontType2
+//!      it is found through `/CIDToGIDMap` (a present but unreadable map
+//!      skips this rung); the glyph is named by the Unicode `cmap` subtables read
 //!      backwards (the lowest code point they map to it, the most
 //!      comprehensive subtable winning where they disagree), else by its
 //!      `post` name, else by the (1,0) subtable read backwards through
 //!      `MacRomanEncoding`;
 //!    - a bare CFF program's glyph is found through its built-in encoding for
-//!      a simple font and through its charset (CID → glyph) for a CID-keyed
+//!      a simple font whose code `/Differences` does not cover (a covered
+//!      code's glyph is named by the name that did not decode, so it stops
+//!      here) and through its charset (CID → glyph) for a CID-keyed
 //!      one, whose glyph must also lie in a subfont (`subfont_index`, the
 //!      FDSelect); a name-keyed glyph is named by its charset string;
 //! 4. composite fonts: the CID's character collection (`/CIDSystemInfo`, else
@@ -27,8 +32,10 @@
 //!    or Korea1.
 //!
 //! A composite code whose glyph the embedded program lacks (glyph 0, past the
-//! glyph count, or a CID outside the charset) draws `.notdef`, so it skips
-//! rung 4. A code no rung decodes gives an empty [`Decoded`]; a rung whose
+//! glyph count when `maxp` gives one, or a CID outside the charset) draws
+//! `.notdef`, so it skips rung 4. A Type0 `/Encoding` CMap gets each code
+//! without its byte length: a code up to 0xFF is looked up as two bytes,
+//! then as one. A code no rung decodes gives an empty [`Decoded`]; a rung whose
 //! text is only NUL or U+FFFD counts as a miss. Type 1 programs (`/FontFile`)
 //! are not read: such a font gets the `StandardEncoding` default.
 //!
@@ -37,7 +44,8 @@
 //! descriptor's font file, `/CIDToGIDMap` and a Type0 `/Encoding` CMap are
 //! `Object::Stream`s holding their raw, still-filtered data, which this module
 //! decodes through [`decode_chain`]. A reference left in place counts as a
-//! missing object, which is what a damaged one is.
+//! missing object, which is what a damaged one is, except that a
+//! `/CIDToGIDMap` left as one is unknown rather than the default identity.
 
 // T-28 (scorer) and T-30 (template assembly) are the first callers outside
 // the tests.
@@ -114,8 +122,8 @@ enum Format {
 struct Streams {
     tounicode: Option<Vec<u8>>,
     program: Option<(Format, Vec<u8>)>,
-    /// A CIDFontType2's `/CIDToGIDMap` stream.
-    cid_to_gid: Option<Vec<u8>>,
+    /// A CIDFontType2's `/CIDToGIDMap`.
+    cid_to_gid: CidToGid<Vec<u8>>,
     /// A Type0 font's embedded `/Encoding` CMap.
     encoding_cmap: Option<Vec<u8>>,
 }
@@ -126,7 +134,7 @@ impl Streams {
         Streams {
             tounicode: stream_data(font.get(b"ToUnicode").ok()),
             program: program(font),
-            cid_to_gid: descendant(font).and_then(|d| stream_data(d.get(b"CIDToGIDMap").ok())),
+            cid_to_gid: descendant(font).map_or(CidToGid::Identity, cid_to_gid),
             encoding_cmap: if composite {
                 stream_data(font.get(b"Encoding").ok())
             } else {
@@ -149,16 +157,42 @@ enum Kind<'a> {
         differences: BTreeMap<u8, String>,
         base: Option<Box<[&'static str; 256]>>,
         zapf: bool,
+        /// The descriptor's Symbolic flag, or a standard symbolic font.
+        symbolic: bool,
     },
     Composite {
         /// Code → CID; `None` when the Type0 `/Encoding` cannot be read.
         cids: Option<Cids>,
-        /// The `/CIDToGIDMap` stream (CID → big-endian glyph id); `None` is
-        /// the identity.
-        cid_to_gid: Option<&'a [u8]>,
+        /// The `/CIDToGIDMap`: CID → big-endian glyph id.
+        cid_to_gid: CidToGid<&'a [u8]>,
         /// The character collection's UCS2 CMap: CID → text.
         collection: Option<Box<CMap>>,
     },
+}
+
+/// A CIDFontType2's CID → glyph map (ISO 32000-1 Table 117).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CidToGid<T> {
+    /// Absent, null or `/Identity`: the glyph is the CID.
+    Identity,
+    /// A stream whose data decoded.
+    Map(T),
+    /// Present but unreadable (a stream whose filters fail, a reference left
+    /// in place, any other object): the glyph is unknown, so the program
+    /// rung is skipped.
+    Unknown,
+}
+
+/// The `/CIDToGIDMap` of `cid_font`, its stream data decoded.
+fn cid_to_gid(cid_font: &Dictionary) -> CidToGid<Vec<u8>> {
+    match cid_font.get(b"CIDToGIDMap").ok() {
+        None | Some(Object::Null) => CidToGid::Identity,
+        Some(Object::Name(name)) if name == b"Identity" => CidToGid::Identity,
+        Some(object @ Object::Stream(_)) => {
+            stream_data(Some(object)).map_or(CidToGid::Unknown, CidToGid::Map)
+        }
+        Some(_) => CidToGid::Unknown,
+    }
 }
 
 /// A Type0 font's code → CID map.
@@ -175,16 +209,22 @@ enum Program<'a> {
 
 /// A TrueType or OpenType program and the lookups the rungs make in it.
 struct TrueType<'a> {
-    num_glyphs: u32,
+    /// `maxp`'s glyph count; `None` when `maxp` is missing or unreadable.
+    num_glyphs: Option<u32>,
     /// Glyph → the lowest code point the Unicode subtables map to it.
     unicode: BTreeMap<u16, char>,
     post: BTreeMap<u32, &'a str>,
+    /// `post` name → the lowest glyph with that name.
+    post_glyph: BTreeMap<&'a str, u16>,
     /// The (3,0) symbol subtable.
     symbol: Option<CmapSubtable<'a>>,
     /// The (1,0) Macintosh Roman subtable.
     mac: Option<CmapSubtable<'a>>,
-    /// Glyph → its lowest code in the (1,0) subtable.
-    mac_reverse: BTreeMap<u16, u8>,
+    /// The (3,1) Unicode BMP subtable.
+    windows_unicode: Option<CmapSubtable<'a>>,
+    /// Glyph → the `MacRomanEncoding` name of its lowest code in the (1,0)
+    /// subtable.
+    mac_reverse: BTreeMap<u16, &'static str>,
 }
 
 impl<'a> Ladder<'a> {
@@ -240,7 +280,11 @@ impl<'a> Ladder<'a> {
                 });
             Kind::Composite {
                 cids,
-                cid_to_gid: streams.cid_to_gid.as_deref(),
+                cid_to_gid: match &streams.cid_to_gid {
+                    CidToGid::Identity => CidToGid::Identity,
+                    CidToGid::Map(data) => CidToGid::Map(data.as_slice()),
+                    CidToGid::Unknown => CidToGid::Unknown,
+                },
                 collection,
             }
         } else {
@@ -279,6 +323,7 @@ impl<'a> Ladder<'a> {
                 differences,
                 base: base.map(|src| Box::new(table(src))),
                 zapf: base_font == Some(b"ZapfDingbats".as_slice()),
+                symbolic,
             }
         };
         Ladder {
@@ -303,6 +348,7 @@ impl<'a> Ladder<'a> {
                 differences,
                 base,
                 zapf,
+                symbolic,
             } => {
                 let code = u8::try_from(code).ok()?;
                 let by_name = |name: &str| {
@@ -313,11 +359,18 @@ impl<'a> Ladder<'a> {
                     };
                     (!d.text.is_empty()).then_some(d)
                 };
-                differences
-                    .get(&code)
-                    .and_then(|name| by_name(name))
-                    .or_else(|| base.as_ref().and_then(|t| by_name(t[usize::from(code)])))
-                    .or_else(|| self.simple_program(code))
+                match differences.get(&code) {
+                    // A `/Differences` name replaces the base table's for its
+                    // code (ISO 32000-1 9.6.6.1): the base name is not the
+                    // glyph drawn, so it is never a fallback.
+                    Some(name) => {
+                        by_name(name).or_else(|| self.simple_program(code, Some(name), *symbolic))
+                    }
+                    None => base
+                        .as_ref()
+                        .and_then(|t| by_name(t[usize::from(code)]))
+                        .or_else(|| self.simple_program(code, None, *symbolic)),
+                }
             }
             Kind::Composite {
                 cids,
@@ -326,7 +379,17 @@ impl<'a> Ladder<'a> {
             } => {
                 let cid = match cids.as_ref()? {
                     Cids::Identity => u32::from(code),
-                    Cids::CMap(cmap) => cmap.lookup_cid_code(u32::from(code), 2)?,
+                    // A code comes without its byte length: one up to 0xFF
+                    // is tried as two bytes, then as one (a one-byte
+                    // codespace, or the single-byte half of a mixed one).
+                    Cids::CMap(cmap) => {
+                        let code = u32::from(code);
+                        cmap.lookup_cid_code(code, 2).or_else(|| {
+                            (code <= 0xFF)
+                                .then(|| cmap.lookup_cid_code(code, 1))
+                                .flatten()
+                        })?
+                    }
                 };
                 let by_collection = || {
                     let text = match collection.as_ref()?.lookup_bf_string(cid)? {
@@ -339,13 +402,16 @@ impl<'a> Ladder<'a> {
                     Program::None => by_collection(),
                     Program::TrueType(tt) => {
                         let gid = match cid_to_gid {
-                            None => u16::try_from(cid).ok()?,
-                            Some(map) => {
+                            CidToGid::Identity => u16::try_from(cid).ok()?,
+                            CidToGid::Map(map) => {
                                 let at = usize::try_from(cid).ok()?.checked_mul(2)?;
                                 u16::from_be_bytes([*map.get(at)?, *map.get(at + 1)?])
                             }
+                            CidToGid::Unknown => return by_collection(),
                         };
-                        if gid == 0 || u32::from(gid) >= tt.num_glyphs {
+                        // An unreadable `maxp` leaves the glyph count unknown,
+                        // and then only glyph 0 is known to be `.notdef`.
+                        if gid == 0 || tt.num_glyphs.is_some_and(|n| u32::from(gid) >= n) {
                             return None;
                         }
                         tt.glyph_text(gid).or_else(by_collection)
@@ -370,10 +436,22 @@ impl<'a> Ladder<'a> {
     }
 
     /// Rung 3 for a simple font: the code's glyph in the embedded program.
-    fn simple_program(&self, code: u8) -> Option<Decoded> {
+    /// `name` is the code's `/Differences` name, which did not decode.
+    fn simple_program(&self, code: u8, name: Option<&str>, symbolic: bool) -> Option<Decoded> {
         match &self.program {
             Program::None => None,
-            Program::TrueType(tt) => tt.glyph_text(tt.simple_glyph(code)?),
+            Program::TrueType(tt) => {
+                // The glyph `post` gives that name, else the raw code's.
+                let gid = match name.and_then(|n| tt.post_glyph.get(n)) {
+                    Some(0) => return None,
+                    Some(&gid) => gid,
+                    None => tt.simple_glyph(code, symbolic)?,
+                };
+                tt.glyph_text(gid)
+            }
+            // The name picks the glyph through the charset, and a name-keyed
+            // glyph's text is its charset name: the one that did not decode.
+            Program::Cff(_) if name.is_some() => None,
             Program::Cff(cff) => {
                 let gid = cff.encoding()?.map(code)?;
                 if gid.to_u32() == 0 {
@@ -387,7 +465,7 @@ impl<'a> Ladder<'a> {
 
 impl<'a> TrueType<'a> {
     fn new(font: &FontRef<'a>) -> TrueType<'a> {
-        let num_glyphs = font.maxp().map_or(0, |m| u32::from(m.num_glyphs()));
+        let num_glyphs = font.maxp().ok().map(|m| u32::from(m.num_glyphs()));
         let mut unicode = BTreeMap::new();
         for (c, gid) in unicode_cmap(font).unwrap_or_default() {
             unicode.entry(gid).or_insert(c);
@@ -400,12 +478,19 @@ impl<'a> TrueType<'a> {
                     .collect()
             },
         );
-        let (mut symbol, mut mac) = (None, None);
+        let mut post_glyph = BTreeMap::new();
+        for (&gid, &name) in &post {
+            if let Ok(gid) = u16::try_from(gid) {
+                post_glyph.entry(name).or_insert(gid);
+            }
+        }
+        let (mut symbol, mut mac, mut windows_unicode) = (None, None, None);
         if let Ok(cmap) = font.cmap() {
             for record in cmap.encoding_records() {
                 let slot = match (record.platform_id(), record.encoding_id()) {
                     (PlatformId::Windows, 0) => &mut symbol,
                     (PlatformId::Macintosh, 0) => &mut mac,
+                    (PlatformId::Windows, 1) => &mut windows_unicode,
                     _ => continue,
                 };
                 if slot.is_none() {
@@ -415,12 +500,13 @@ impl<'a> TrueType<'a> {
         }
         let mut mac_reverse = BTreeMap::new();
         if let Some(sub) = &mac {
+            let names = table(MAC_ROMAN);
             for code in 0..=255u8 {
                 if let Some(gid) = sub.map_codepoint(code)
                     && let Ok(gid) = u16::try_from(gid.to_u32())
                     && gid != 0
                 {
-                    mac_reverse.entry(gid).or_insert(code);
+                    mac_reverse.entry(gid).or_insert(names[usize::from(code)]);
                 }
             }
         }
@@ -428,15 +514,18 @@ impl<'a> TrueType<'a> {
             num_glyphs,
             unicode,
             post,
+            post_glyph,
             symbol,
             mac,
+            windows_unicode,
             mac_reverse,
         }
     }
 
     /// A simple font's glyph for `code` through the (3,0), else the (1,0),
-    /// subtable (ISO 32000-1 9.6.6.4).
-    fn simple_glyph(&self, code: u8) -> Option<u16> {
+    /// subtable (ISO 32000-1 9.6.6.4); for a symbolic font, else the raw code
+    /// in the (3,1) subtable, as subsetters that write only (3,1) expect.
+    fn simple_glyph(&self, code: u8, symbolic: bool) -> Option<u16> {
         let code = u32::from(code);
         let found = |sub: &CmapSubtable, cp: u32| {
             sub.map_codepoint(cp)
@@ -450,7 +539,10 @@ impl<'a> TrueType<'a> {
         {
             return Some(gid);
         }
-        found(self.mac.as_ref()?, code)
+        if let Some(gid) = self.mac.as_ref().and_then(|sub| found(sub, code)) {
+            return Some(gid);
+        }
+        found(self.windows_unicode.as_ref().filter(|_| symbolic)?, code)
     }
 
     /// The text a glyph stands for: Unicode `cmap`, `post` name, (1,0) code.
@@ -464,8 +556,7 @@ impl<'a> TrueType<'a> {
                 return Some(d);
             }
         }
-        let code = *self.mac_reverse.get(&gid)?;
-        let d = glyph_name_to_unicode(table(MAC_ROMAN)[usize::from(code)]);
+        let d = glyph_name_to_unicode(self.mac_reverse.get(&gid)?);
         (!d.text.is_empty()).then_some(d)
     }
 }
@@ -591,8 +682,10 @@ fn differences(array: &[Object]) -> BTreeMap<u8, String> {
             Object::Integer(n) => code = Some(*n),
             Object::Name(name) => {
                 let Some(c) = code else { continue };
-                if let (Ok(c), Ok(name)) = (u8::try_from(c), std::str::from_utf8(name)) {
-                    map.insert(c, name.to_owned());
+                // A name that is not UTF-8 still replaces the base name; it
+                // cannot decode, so lossy conversion loses nothing.
+                if let Ok(c) = u8::try_from(c) {
+                    map.insert(c, String::from_utf8_lossy(name).into_owned());
                 }
                 code = c.checked_add(1);
             }
@@ -1020,6 +1113,44 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_cidtogidmap_skips_the_program() {
+        let mut font = golden_font();
+        font.remove(b"ToUnicode");
+        let codes = &golden_codes()[0][0];
+        // `/Identity` and an explicit null are the default identity map.
+        for identity in [name("Identity"), Object::Null] {
+            cid_font(&mut font).set("CIDToGIDMap", identity);
+            assert_decodes_golden(&font);
+        }
+        // A stream whose filter fails, a reference left in place, or another
+        // object leave the glyph unknown: the golden's Adobe-Identity
+        // collection has no UCS2 CMap, so nothing decodes.
+        for unknown in [
+            stream(vec![("Filter", name("FlateDecode"))], b"not zlib".to_vec()),
+            Object::Reference((999, 0)),
+            name("Other"),
+        ] {
+            cid_font(&mut font).set("CIDToGIDMap", unknown.clone());
+            let decoded = decode_codes(&font, codes);
+            assert!(
+                decoded.iter().all(|d| *d == Decoded::default()),
+                "{unknown:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unreadable_maxp_does_not_hide_the_glyphs() {
+        let mut font = golden_font();
+        font.remove(b"ToUnicode");
+        let font = with_program(font, sfnt_with(TEST_FONT, &[(*b"maxp", None)]));
+        let prov = assert_decodes_golden(&font);
+        assert!(prov.iter().all(|&p| p == Prov::Cmap));
+        // Glyph 0 is still `.notdef`.
+        assert_eq!(decode_codes(&font, &[0])[0], Decoded::default());
+    }
+
+    #[test]
     fn width_fingerprint_matches_hmtx() {
         let program = FontRef::new(TEST_FONT).unwrap();
         let upem = u32::from(program.head().unwrap().units_per_em());
@@ -1104,6 +1235,128 @@ mod tests {
         assert_eq!(texts, ["é", "’", "C", "’", "€", ""]);
         assert_eq!(decoded[0].provenance, [Prov::Agl]);
         assert_eq!(decoded[1].provenance, [Prov::UniRule]);
+    }
+
+    /// A `post` 2.0 table for `num_glyphs` glyphs, all `.notdef` but `gid`,
+    /// named `custom`.
+    fn post_naming(num_glyphs: u16, gid: u16, custom: &str) -> Vec<u8> {
+        let mut out = 0x0002_0000u32.to_be_bytes().to_vec();
+        out.extend([0; 28]);
+        out.extend(num_glyphs.to_be_bytes());
+        for g in 0..num_glyphs {
+            out.extend(if g == gid { 258u16 } else { 0 }.to_be_bytes());
+        }
+        out.push(u8::try_from(custom.len()).unwrap());
+        out.extend(custom.as_bytes());
+        out
+    }
+
+    #[test]
+    fn an_undecodable_difference_hides_the_base_name() {
+        // /glyph65 replaces WinAnsi's `A` at 65: the glyph drawn is not `A`.
+        let encoding = Object::Dictionary(dict(vec![
+            ("BaseEncoding", name("WinAnsiEncoding")),
+            (
+                "Differences",
+                Object::Array(vec![Object::Integer(65), name("glyph65")]),
+            ),
+        ]));
+        let mut bare = truetype_font(Some(encoding.clone()), NONSYMBOLIC, Vec::new());
+        bare.remove(b"FontDescriptor");
+        let decoded = decode_codes(&bare, &[65, 66]);
+        assert_eq!(decoded[0], Decoded::default());
+        assert_eq!(text(&decoded), "B");
+
+        let charmap = FontRef::new(TEST_FONT).unwrap().charmap();
+        let gid = |c: char| u16::try_from(charmap.map(c).unwrap().to_u32()).unwrap();
+        // With a program, the code's glyph decodes: here a (1,0) subtable
+        // sends 65 to the glyph of `é`, named `eacute` in `post`.
+        let program = sfnt_with(
+            TEST_FONT,
+            &[(*b"cmap", Some(cmap_table(&[(1, 0, 65, &[gid('é')])])))],
+        );
+        let font = truetype_font(Some(encoding.clone()), NONSYMBOLIC, program);
+        let decoded = decode_codes(&font, &[65]);
+        assert_eq!(text(&decoded), "é");
+        assert_eq!(decoded[0].provenance, [Prov::Agl]);
+
+        // `post` naming a glyph /glyph65 finds it before any raw-code lookup.
+        let program = sfnt_with(
+            TEST_FONT,
+            &[(*b"post", Some(post_naming(109, gid('ñ'), "glyph65")))],
+        );
+        let font = truetype_font(Some(encoding), NONSYMBOLIC, program);
+        let decoded = decode_codes(&font, &[65, 66]);
+        assert_eq!(text(&decoded), "ñB");
+        assert_eq!(provenance(&decoded), [Prov::Cmap, Prov::Agl]);
+
+        // A CFF program's built-in encoding does not stand in for the name.
+        let mut cff = cff_simple_font(name_keyed_cff());
+        cff.set(
+            "Encoding",
+            Object::Dictionary(dict(vec![(
+                "Differences",
+                Object::Array(vec![Object::Integer(0x41), name("glyph65")]),
+            )])),
+        );
+        let decoded = decode_codes(&cff, &[0x41, 0x61]);
+        assert_eq!(decoded[0], Decoded::default());
+        assert_eq!(text(&decoded), "a");
+    }
+
+    #[test]
+    fn a_simple_font_reads_its_one_byte_tounicode() {
+        let tounicode = b"/CIDInit /ProcSet findresource begin\n\
+            12 dict begin\nbegincmap\n\
+            1 begincodespacerange\n<00> <FF>\nendcodespacerange\n\
+            1 beginbfchar\n<41> <0078>\nendbfchar\n\
+            endcmap\nend\nend\n";
+        let mut font = truetype_font(Some(name("WinAnsiEncoding")), NONSYMBOLIC, Vec::new());
+        font.remove(b"FontDescriptor");
+        font.set("ToUnicode", stream(vec![], tounicode.to_vec()));
+        let decoded = decode_codes(&font, &[0x41, 0x42]);
+        assert_eq!(text(&decoded), "xB");
+        assert_eq!(provenance(&decoded), [Prov::ToUnicode, Prov::Agl]);
+    }
+
+    #[test]
+    fn a_symbolic_truetype_font_falls_back_to_its_3_1_subtable() {
+        // The test font has only Unicode subtables; a symbolic font with no
+        // /Encoding reads the raw code through (3,1).
+        let font = truetype_font(None, SYMBOLIC, TEST_FONT.to_vec());
+        let decoded = decode_codes(&font, &[0x41, 0x61]);
+        assert_eq!(text(&decoded), "Aa");
+        assert!(provenance(&decoded).iter().all(|&p| p == Prov::Cmap));
+    }
+
+    #[test]
+    fn fontfile3_without_a_subtype_is_sniffed() {
+        let unsubtyped = |mut font: Dictionary| {
+            let Ok(Object::Dictionary(descriptor)) = font.get_mut(b"FontDescriptor") else {
+                panic!();
+            };
+            let Ok(Object::Stream(s)) = descriptor.get_mut(b"FontFile3") else {
+                panic!();
+            };
+            s.dict.remove(b"Subtype");
+            font
+        };
+        // CFF data starts with major version 1.
+        let cff = unsubtyped(cff_simple_font(name_keyed_cff()));
+        assert_eq!(text(&decode_codes(&cff, &[0x41, 0x80])), "A中");
+        // Anything else is sfnt, as `/Subtype /OpenType` is.
+        let mut sfnt = truetype_font(None, SYMBOLIC, Vec::new());
+        let Ok(Object::Dictionary(descriptor)) = sfnt.get_mut(b"FontDescriptor") else {
+            panic!();
+        };
+        descriptor.remove(b"FontFile2");
+        descriptor.set(
+            "FontFile3",
+            stream(vec![("Subtype", name("OpenType"))], TEST_FONT.to_vec()),
+        );
+        assert_eq!(text(&decode_codes(&sfnt, &[0x41])), "A");
+        let sfnt = unsubtyped(sfnt);
+        assert_eq!(text(&decode_codes(&sfnt, &[0x41])), "A");
     }
 
     #[test]
@@ -1446,6 +1699,57 @@ mod tests {
             let font = cid_cff_font(cid_keyed_cff(), info);
             assert_eq!(text(&decode_codes(&font, &[34, 35, 36])), "ABC", "{info:?}");
         }
+    }
+
+    #[test]
+    fn a_composite_font_without_its_program_reads_its_collection() {
+        // C7/C8: the program is lost; /CIDSystemInfo still names Japan1.
+        let mut font = cid_cff_font(cid_keyed_cff(), Some(("Adobe", "Japan1")));
+        let Some(Object::Dictionary(descriptor)) = font
+            .get_mut(b"DescendantFonts")
+            .ok()
+            .and_then(|o| o.as_array_mut().ok())
+            .and_then(|a| a.first_mut())
+            .and_then(|cid| cid.as_dict_mut().ok())
+            .and_then(|cid| cid.get_mut(b"FontDescriptor").ok())
+        else {
+            panic!("descriptor");
+        };
+        descriptor.remove(b"FontFile3");
+        // Without a program nothing says CID 37 or 38 is `.notdef`.
+        let decoded = decode_codes(&font, &[34, 35, 37, 38]);
+        assert_eq!(text(&decoded), "ABDE");
+        assert!(
+            provenance(&decoded)
+                .iter()
+                .all(|&p| p == Prov::CidCollection)
+        );
+    }
+
+    #[test]
+    fn a_predefined_encoding_cmap_maps_codes_to_cids() {
+        // UniJIS-UCS2-H sends U+0041… to CIDs 34….
+        let mut font = cid_cff_font(cid_keyed_cff(), Some(("Adobe", "Japan1")));
+        font.set("Encoding", name("UniJIS-UCS2-H"));
+        assert_eq!(text(&decode_codes(&font, &[0x41, 0x42, 0x43])), "ABC");
+        // A CMap name nothing knows decodes nothing.
+        font.set("Encoding", name("No-Such-CMap"));
+        let decoded = decode_codes(&font, &[0x41]);
+        assert_eq!(decoded[0], Decoded::default());
+    }
+
+    #[test]
+    fn an_embedded_one_byte_encoding_cmap_maps_codes_to_cids() {
+        let cmap = b"/CIDInit /ProcSet findresource begin\n\
+            12 dict begin\nbegincmap\n/CMapName /Test-H def\n\
+            1 begincodespacerange\n<00> <FF>\nendcodespacerange\n\
+            1 begincidrange\n<41> <43> 34\nendcidrange\n\
+            endcmap\nend\nend\n";
+        let mut font = cid_cff_font(cid_keyed_cff(), Some(("Adobe", "Japan1")));
+        font.set("Encoding", stream(vec![], cmap.to_vec()));
+        let decoded = decode_codes(&font, &[0x41, 0x42, 0x43, 0x44]);
+        assert_eq!(text(&decoded), "ABC");
+        assert_eq!(decoded[3], Decoded::default());
     }
 
     #[test]
