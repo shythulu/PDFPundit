@@ -250,7 +250,7 @@ const UNICODE_SUBTABLES: [(PlatformId, u16); 8] = [
 
 /// Every code point a Unicode subtable maps to a glyph other than `.notdef`;
 /// where subtables disagree, the most comprehensive one wins.
-fn unicode_cmap(font: &FontRef) -> Result<BTreeMap<char, u16>, BuildError> {
+pub(super) fn unicode_cmap(font: &FontRef) -> Result<BTreeMap<char, u16>, BuildError> {
     let cmap = font.cmap().map_err(|_| BuildError::MissingTable("cmap"))?;
     let limits = CmapIterLimits::default_for_font(font);
     let mut map = BTreeMap::new();
