@@ -36,6 +36,14 @@ pub(crate) enum Prov {
     URule,
     /// A non-standard rule, named `"<version>:<rule>"`, e.g. `"v1:gNN"`.
     Heuristic(&'static str),
+    /// The font's own `/ToUnicode` CMap (the decode ladder, T-27c).
+    ToUnicode,
+    /// The embedded program's Unicode `cmap`, read from glyph to code point
+    /// (the decode ladder, T-27c).
+    Cmap,
+    /// The CID's character collection, through Adobe's UCS2 CMap for it
+    /// (the decode ladder, T-27c).
+    CidCollection,
 }
 
 /// The text a glyph name maps to, with one [`Prov`] per character of `text`.
