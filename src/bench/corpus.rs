@@ -1,1 +1,1253 @@
 //! Ignored REPDF corpus harness, corpus-only (T-26, D-002).
+//!
+//! `PDFPUNDIT_CORPUS=<dir> cargo test --release --lib -- --ignored
+//! bench::corpus::smoke` (or `bench::corpus::full`) runs every corrupted file
+//! of the D-013 smoke subset (or of the whole corpus) through the engine
+//! facade, `analyze → plan → repair` under [`UseBest`], and scores each page
+//! of the repaired file's text layer against the same page of the original
+//! with T-25's metrics. Without the variable the tests print why and pass.
+//!
+//! **Corpus-only (goal-r3-q8).** Before any file is analysed its git blob id,
+//! `sha1("blob <len>\0" + bytes)`, must be the one `bench/repdf_manifest.txt`
+//! records for its path (the e547d4d tree, FR-07, lead-r4-fr3); anything else
+//! ends the run with [`NOT_CORPUS`]. The check hashes the bytes it read, so a
+//! checkout that altered them is refused, never analysed. This is what keeps
+//! an ignored test that analyses, repairs and writes outputs for a whole tree
+//! from being a headless batch repairer for anyone's files.
+//!
+//! **The smoke list (D-013, D-077).** The two lowest base-document names in
+//! byte order, the defective C6 document excluded; both producers; the
+//! original then the ten classes. [`resolve_smoke`] re-derives it from the
+//! manifest's paths on every run and the run stops if it differs from the
+//! committed `bench/smoke_subset.txt`.
+//!
+//! **Outputs.** `target/corpus/corpus_results.csv` (one row per page of
+//! every corrupted file; it names corpus files and per-page scores, so it stays
+//! on the machine that ran it and is never a CI artifact), the aggregate
+//! tables on stdout, each headed by the D-063 label, and
+//! `target/corpus/golden_smoke.csv`, the candidate golden: copying it over
+//! `bench/golden_smoke.csv` is a deliberate re-baseline. The smoke run fails
+//! when a class's mean LCS-F1 falls more than 2% (20 thousandths) below the
+//! committed golden.
+//!
+//! **Languages (D-069, eng-r4-fr1).** A page's label comes from the original's
+//! extracted text, never from its index: the dominant non-Latin script when
+//! non-Latin letters are at least 20% of the letters (and at least 3), else
+//! Latin split into en, fr and es by stopword tables that share no word; one
+//! unknown page per document may be filled from the six-language set. Pages of
+//! a repaired file inherit the label of the original's page with their index.
+//!
+//! **Paper reference columns (D-070).** Blocked until the user answers:
+//! `bench/repdf_paper_tables.toml` holds the cited constants and nothing here
+//! reads it.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::{Path, PathBuf};
+
+use sha1::{Digest, Sha1};
+
+use crate::bench::metrics::{Aggregate, Lang, TextScores, aggregate, score, tokens};
+use crate::engine::{
+    self, AnalyzeOptions, CandidateReport, FontDb, NullProgress, OutcomeStatus, RepairOptions,
+    Toolpath, UseBest,
+};
+use crate::pdf::carver::{Body, CarveReport};
+use crate::pdf::model::{ByteSpan, CorruptionClass, Ratio};
+use crate::pdf::streams::inflate::{InflateResult, InflateStatus, inflate};
+use crate::pdf::streams::{DEFAULT_CAP, Filter, filters_of};
+use crate::pdf::text::{ExtractOptions, PageText, extract_text};
+
+#[cfg(test)]
+mod tests;
+
+/// The D-063 label: the first line of every printed table and of the golden
+/// CSV. The repository and its CI logs are public (goal-r3-q2); this line is
+/// what makes the numbers a baseline rather than a claim.
+const D063_HEADER: &str = "regression baseline; 44-file REPDF smoke subset; text-layer LCS-F1; \
+                           not REPDF's metric; not comparable to the paper; \
+                           not a published recovery rate";
+
+/// The same label for a full run, which is not the smoke subset.
+const FULL_HEADER: &str = "regression baseline; 1,000-file REPDF corpus; text-layer LCS-F1; \
+                           not REPDF's metric; not comparable to the paper; \
+                           not a published recovery rate";
+
+/// The one line a file outside the pinned corpus ends the run with.
+const NOT_CORPUS: &str =
+    "not a REPDF corpus file: the harness runs only on the pinned corpus (e547d4d)";
+
+/// `path blob-sha1 size` per corpus PDF at e547d4d, sorted by path in byte
+/// order (lead-r4-fr3). A changed manifest is a re-pin of the corpus.
+const MANIFEST: &str = include_str!("../../bench/repdf_manifest.txt");
+const MANIFEST_SHA256: &str = "3fb3cb0478e9ea21bea69ca16d62fde1d9dc9dccd9d8d81b35141bf36df27cf1";
+const SMOKE_SUBSET: &str = include_str!("../../bench/smoke_subset.txt");
+const GOLDEN_SMOKE: &str = include_str!("../../bench/golden_smoke.csv");
+
+/// The document whose Save-As C6 file is defective (OBS-0004): 33,754 B
+/// against a 436,319 B original. D-013 excludes it from the smoke list.
+const DEFECTIVE_DOC: &str = "AeroChef_Drone_Delivery_Cooking_Service";
+
+/// REPDF's file-name suffix per class (FR-07), C1 first.
+const SUFFIXES: [(&str, CorruptionClass); 10] = [
+    ("header", CorruptionClass::C1Header),
+    ("xref", CorruptionClass::C2XrefMissing),
+    ("trailer", CorruptionClass::C3TrailerDamaged),
+    ("page_tree", CorruptionClass::C4PageTreeBroken),
+    ("object_header", CorruptionClass::C5ObjectTagStripped),
+    ("font_mapping_loss", CorruptionClass::C6FontMapLost),
+    ("remove_fonts", CorruptionClass::C7FontStreamDeleted),
+    (
+        "remove_unicode_fonts",
+        CorruptionClass::C8FontResourcesDeleted,
+    ),
+    ("stream_zlib", CorruptionClass::C9ZlibTampered),
+    ("partial_cut", CorruptionClass::C10Truncated),
+];
+
+const PRODUCERS: [&str; 2] = ["print", "saveas"];
+const KINDS: [&str; 2] = ["text", "text+img"];
+
+/// How far below the golden a class's mean may fall, in thousandths (TD §8:
+/// `recovery ≥ golden − 2%`).
+const GATE_SLACK_PERMILLE: u64 = 20;
+
+/// The per-page results file's columns (plan §6 T-26), in order.
+const CSV_COLUMNS: [&str; 28] = [
+    "file",
+    "class",
+    "producer",
+    "base_doc",
+    "page",
+    "lang",
+    "outcome",
+    "chosen_toolpath",
+    "v0",
+    "v1",
+    "v2",
+    "v3",
+    "v4",
+    "lcs_f1",
+    "recall",
+    "precision",
+    "bag_f1",
+    "char_f1",
+    "baseline_lcs_f1",
+    "extract_failed",
+    "unmapped_glyphs",
+    "c9_streams_exact",
+    "c9_streams_accepted",
+    "c9_streams_ambiguous",
+    "c9_streams_unsearched",
+    "c9_work_total",
+    "reals_narrowed",
+    "inflate_backend_disagreements",
+];
+
+// ── the manifest gate ────────────────────────────────────────────────────
+
+/// One corpus file as the pinned tree records it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Entry {
+    path: String,
+    blob: [u8; 20],
+    size: u64,
+}
+
+/// The parsed manifest: its entries in file order, indexed by blob id.
+#[derive(Debug)]
+struct Manifest {
+    entries: Vec<Entry>,
+    by_blob: BTreeMap<[u8; 20], usize>,
+}
+
+/// A file whose bytes are not a pinned corpus file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NotCorpus;
+
+impl fmt::Display for NotCorpus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(NOT_CORPUS)
+    }
+}
+
+/// The git blob id of `bytes`: `sha1("blob <len>\0" + bytes)`.
+fn blob_id(bytes: &[u8]) -> [u8; 20] {
+    let mut h = Sha1::new();
+    h.update(format!("blob {}\0", bytes.len()).as_bytes());
+    h.update(bytes);
+    let mut id = [0; 20];
+    id.copy_from_slice(&h.finalize());
+    id
+}
+
+impl Manifest {
+    /// The committed manifest.
+    fn pinned() -> Manifest {
+        Manifest::parse(MANIFEST).expect("bench/repdf_manifest.txt parses")
+    }
+
+    /// Lines of `path blob-sha1 size`, single-space separated, LF, sorted by
+    /// path in byte order, no blob twice.
+    fn parse(text: &str) -> Result<Manifest, String> {
+        let mut entries = Vec::new();
+        let mut by_blob = BTreeMap::new();
+        for (n, line) in text.lines().enumerate() {
+            let bad = || format!("manifest line {}: {line:?}", n + 1);
+            let fields: Vec<&str> = line.split(' ').collect();
+            let [path, blob, size] = fields[..] else {
+                return Err(bad());
+            };
+            let blob = parse_hex20(blob).ok_or_else(bad)?;
+            let size = size.parse::<u64>().map_err(|_| bad())?;
+            if path.is_empty() || size.to_string().len() != fields[2].len() {
+                return Err(bad());
+            }
+            if entries
+                .last()
+                .is_some_and(|e: &Entry| e.path.as_str() >= path)
+            {
+                return Err(format!("{}: not sorted by path", bad()));
+            }
+            if by_blob.insert(blob, entries.len()).is_some() {
+                return Err(format!("{}: blob listed twice", bad()));
+            }
+            entries.push(Entry {
+                path: path.to_owned(),
+                blob,
+                size,
+            });
+        }
+        Ok(Manifest { entries, by_blob })
+    }
+
+    /// The entry `bytes` hash to, or [`NotCorpus`].
+    fn check(&self, bytes: &[u8]) -> Result<&Entry, NotCorpus> {
+        let entry = &self.entries[*self.by_blob.get(&blob_id(bytes)).ok_or(NotCorpus)?];
+        if entry.size == bytes.len() as u64 {
+            Ok(entry)
+        } else {
+            Err(NotCorpus)
+        }
+    }
+
+    /// [`Self::check`], and the entry must be the file at `path`: a corpus
+    /// file copied under another corpus name is refused too.
+    fn check_at(&self, bytes: &[u8], path: &str) -> Result<&Entry, NotCorpus> {
+        self.check(bytes).and_then(|e| {
+            if e.path == path {
+                Ok(e)
+            } else {
+                Err(NotCorpus)
+            }
+        })
+    }
+
+    fn by_path(&self, path: &str) -> Option<&Entry> {
+        self.entries
+            .binary_search_by(|e| e.path.as_str().cmp(path))
+            .ok()
+            .map(|i| &self.entries[i])
+    }
+}
+
+fn parse_hex20(s: &str) -> Option<[u8; 20]> {
+    if s.len() != 40 {
+        return None;
+    }
+    let mut out = [0; 20];
+    for (i, b) in out.iter_mut().enumerate() {
+        *b = u8::from_str_radix(s.get(2 * i..2 * i + 2)?, 16).ok()?;
+    }
+    Some(out)
+}
+
+// ── corpus paths and the smoke list ──────────────────────────────────────
+
+/// `{corrupted,original}/{print,saveas}/{text,text+img}/<base>(<producer>)[_<suffix>].pdf`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CorpusPath<'a> {
+    producer: &'a str,
+    kind: &'a str,
+    base: &'a str,
+    /// `None` for an original.
+    class: Option<CorruptionClass>,
+}
+
+impl<'a> CorpusPath<'a> {
+    fn parse(path: &'a str) -> Result<CorpusPath<'a>, String> {
+        let bad = || format!("not a REPDF path: {path}");
+        let parts: Vec<&str> = path.split('/').collect();
+        let [top, producer, kind, name] = parts[..] else {
+            return Err(bad());
+        };
+        if !PRODUCERS.contains(&producer) || !KINDS.contains(&kind) {
+            return Err(bad());
+        }
+        let stem = name.strip_suffix(".pdf").ok_or_else(bad)?;
+        let tag = format!("({producer})");
+        let at = stem.rfind(&tag).ok_or_else(bad)?;
+        let (base, rest) = (&stem[..at], &stem[at + tag.len()..]);
+        if base.is_empty() {
+            return Err(bad());
+        }
+        let class = match (top, rest) {
+            ("original", "") => None,
+            ("corrupted", rest) => {
+                let suffix = rest.strip_prefix('_').ok_or_else(bad)?;
+                let (_, class) = SUFFIXES
+                    .iter()
+                    .find(|(s, _)| *s == suffix)
+                    .ok_or_else(bad)?;
+                Some(*class)
+            }
+            _ => return Err(bad()),
+        };
+        Ok(CorpusPath {
+            producer,
+            kind,
+            base,
+            class,
+        })
+    }
+
+    /// The original this file was corrupted from.
+    fn original(&self) -> String {
+        let (p, k, b) = (self.producer, self.kind, self.base);
+        format!("original/{p}/{k}/{b}({p}).pdf")
+    }
+}
+
+/// D-013 under D-077: the two lowest base-document names in byte order, the
+/// defective one excluded; for each, print then saveas, the original then the
+/// classes in C1..C10 order.
+fn resolve_smoke(manifest: &Manifest) -> Result<Vec<String>, String> {
+    let mut kinds = BTreeMap::<&str, BTreeSet<&str>>::new();
+    for entry in &manifest.entries {
+        let p = CorpusPath::parse(&entry.path)?;
+        kinds.entry(p.base).or_default().insert(p.kind);
+    }
+    let mut out = Vec::new();
+    for (base, kind) in kinds.iter().filter(|(b, _)| **b != DEFECTIVE_DOC).take(2) {
+        let [kind] = kind.iter().copied().collect::<Vec<_>>()[..] else {
+            return Err(format!("{base} is in more than one kind directory"));
+        };
+        for producer in PRODUCERS {
+            let paths =
+                std::iter::once(format!("original/{producer}/{kind}/{base}({producer}).pdf"))
+                    .chain(SUFFIXES.iter().map(|(suffix, _)| {
+                        format!("corrupted/{producer}/{kind}/{base}({producer})_{suffix}.pdf")
+                    }));
+            for path in paths {
+                manifest
+                    .by_path(&path)
+                    .ok_or_else(|| format!("smoke path not in the manifest: {path}"))?;
+                out.push(path);
+            }
+        }
+    }
+    Ok(out)
+}
+
+// ── page text and languages ──────────────────────────────────────────────
+
+/// A page's text in content order: a newline where the baseline moves by more
+/// than 0.4 em, a space where the gap to the previous glyph exceeds 0.15 em
+/// in either direction (Arabic steps left), U+FFFD for an unmapped glyph.
+fn page_string(page: &PageText) -> String {
+    let mut out = String::new();
+    let mut prev: Option<&crate::pdf::text::GlyphItem> = None;
+    for g in &page.glyphs {
+        if let Some(p) = prev {
+            let size = p.size.max(g.size);
+            let width = |x: &crate::pdf::text::GlyphItem| {
+                x.advance.map_or(0.0, |a| f64::from(a) / 1000.0 * x.size)
+            };
+            let gap = if g.x >= p.x {
+                g.x - (p.x + width(p))
+            } else {
+                p.x - (g.x + width(g))
+            };
+            if (g.y - p.y).abs() > 0.4 * size {
+                out.push('\n');
+            } else if gap > 0.15 * size {
+                out.push(' ');
+            }
+        }
+        out.push_str(g.text.as_deref().unwrap_or("\u{fffd}"));
+        prev = Some(g);
+    }
+    out
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Script {
+    Latin,
+    Arabic,
+    Devanagari,
+    Han,
+}
+
+impl Script {
+    fn of(c: char) -> Option<Script> {
+        let u = u32::from(c);
+        if !c.is_alphabetic() {
+            return None;
+        }
+        Some(match u {
+            0x0600..=0x06ff
+            | 0x0750..=0x077f
+            | 0x08a0..=0x08ff
+            | 0xfb50..=0xfdff
+            | 0xfe70..=0xfeff => Script::Arabic,
+            0x0900..=0x097f => Script::Devanagari,
+            0x4e00..=0x9fff | 0x3400..=0x4dbf | 0xf900..=0xfaff => Script::Han,
+            _ if u < 0x0250 || (0x1e00..=0x1eff).contains(&u) => Script::Latin,
+            _ => return None,
+        })
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Script::Latin => "latin",
+            Script::Arabic => "arabic",
+            Script::Devanagari => "devanagari",
+            Script::Han => "han",
+        }
+    }
+}
+
+/// The page's script (eng-r4-fr1 §3): the dominant non-Latin script when
+/// non-Latin letters are at least 20% of all letters and at least 3, else
+/// Latin when there is a Latin letter, else `None`.
+fn script_of(text: &str) -> Option<Script> {
+    let mut counts = BTreeMap::<Script, u64>::new();
+    for s in text.chars().filter_map(Script::of) {
+        *counts.entry(s).or_default() += 1;
+    }
+    let latin = counts.get(&Script::Latin).copied().unwrap_or(0);
+    let non_latin: u64 = counts
+        .iter()
+        .filter(|(s, _)| **s != Script::Latin)
+        .map(|(_, n)| n)
+        .sum();
+    if non_latin >= 3 && non_latin * 5 >= (latin + non_latin) {
+        // The most letters wins; a tie goes to the first in Script order.
+        let mut best: Option<(Script, u64)> = None;
+        for (&s, &n) in counts.iter().filter(|(s, _)| **s != Script::Latin) {
+            if best.is_none_or(|(_, m)| n > m) {
+                best = Some((s, n));
+            }
+        }
+        best.map(|(s, _)| s)
+    } else if latin > 0 {
+        Some(Script::Latin)
+    } else {
+        None
+    }
+}
+
+/// eng-r4-fr1's unique tables: no word is in two of them (facts, no licence).
+const STOPWORDS_EN: [&str; 20] = [
+    "the", "and", "of", "to", "in", "is", "that", "for", "it", "with", "as", "are", "on", "by",
+    "this", "be", "from", "or", "at", "an",
+];
+const STOPWORDS_FR: [&str; 15] = [
+    "le", "les", "et", "des", "du", "une", "est", "pour", "dans", "sur", "au", "aux", "avec",
+    "par", "qui",
+];
+const STOPWORDS_ES: [&str; 14] = [
+    "el", "los", "las", "y", "una", "es", "por", "con", "para", "se", "del", "al", "como", "su",
+];
+
+/// A Latin page's language: the table with the most hits when it has at
+/// least 3 and at least three times the runner-up's, else `Unknown`.
+fn latin_lang(text: &str) -> Lang {
+    let lower = text.to_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let hits = |table: &[&str]| words.iter().filter(|w| table.contains(w)).count();
+    let mut scored = [
+        (hits(&STOPWORDS_EN), Lang::En),
+        (hits(&STOPWORDS_FR), Lang::Fr),
+        (hits(&STOPWORDS_ES), Lang::Es),
+    ];
+    scored.sort_by_key(|s| std::cmp::Reverse(s.0));
+    let (top, second) = (scored[0].0, scored[1].0);
+    if top >= 3 && top >= 3 * second {
+        scored[0].1
+    } else {
+        Lang::Unknown
+    }
+}
+
+/// One page's label from its own text.
+fn page_lang(text: &str) -> Lang {
+    match script_of(text) {
+        Some(Script::Arabic) => Lang::Ar,
+        Some(Script::Devanagari) => Lang::Hi,
+        Some(Script::Han) => Lang::Zh,
+        Some(Script::Latin) => latin_lang(text),
+        None => Lang::Unknown,
+    }
+}
+
+const SIX: [Lang; 6] = [Lang::En, Lang::Zh, Lang::Hi, Lang::Es, Lang::Fr, Lang::Ar];
+
+/// An original's page labels and scripts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Labels {
+    langs: Vec<Lang>,
+    scripts: Vec<Option<Script>>,
+}
+
+fn label_pages(pages: &[String]) -> Labels {
+    Labels {
+        langs: pages.iter().map(|p| page_lang(p)).collect(),
+        scripts: pages.iter().map(|p| script_of(p)).collect(),
+    }
+}
+
+impl Labels {
+    /// When exactly one page is `Unknown` and the others are five distinct
+    /// languages of the six, that page gets the sixth (eng-r4-fr1 §4).
+    /// Returns the page filled.
+    fn fill_one_unknown(&mut self) -> Option<usize> {
+        let unknown: Vec<usize> = (0..self.langs.len())
+            .filter(|&i| self.langs[i] == Lang::Unknown)
+            .collect();
+        let [at] = unknown[..] else { return None };
+        let missing: Vec<Lang> = SIX
+            .into_iter()
+            .filter(|l| !self.langs.contains(l))
+            .collect();
+        if self.langs.len() != 6 || missing.len() != 1 {
+            return None;
+        }
+        self.langs[at] = missing[0];
+        Some(at)
+    }
+
+    /// The four scripts are all present (the D-069 test until eng-r4-fr1
+    /// answered) and, after the fill, the six languages once each.
+    fn check(&self, path: &str) -> Result<(), String> {
+        for s in [
+            Script::Latin,
+            Script::Arabic,
+            Script::Devanagari,
+            Script::Han,
+        ] {
+            if !self.scripts.contains(&Some(s)) {
+                return Err(format!("{path}: no {} page", s.name()));
+            }
+        }
+        let mut langs = self.langs.clone();
+        langs.sort_by_key(|l| l.label());
+        let mut six = SIX.to_vec();
+        six.sort_by_key(|l| l.label());
+        if langs != six {
+            let got: Vec<&str> = self.langs.iter().map(|l| l.label()).collect();
+            return Err(format!("{path}: languages {got:?}, not the six once each"));
+        }
+        Ok(())
+    }
+}
+
+// ── the inflate tripwire ─────────────────────────────────────────────────
+
+/// Flate streams compared, and how many the two inflaters disagree on.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct InflateTally {
+    compared: u32,
+    disagree: u32,
+}
+
+/// Every carved stream whose first filter is Flate, decoded by our inflater
+/// (miniz_oxide 0.9.1's core API) and by lopdf's loader (flate2 on zlib-rs,
+/// eng-r1-fr2). lopdf reports no status, only bytes, so the class is compared
+/// as far as its bytes show it: where ours is clean (`Done`) lopdf must give
+/// the same bytes, and where ours fails (an Adler-32 mismatch, invalid data,
+/// truncation) lopdf must give a prefix of ours and nothing else. On a failure
+/// flate2's reader keeps what it returned before the error and drops the chunk
+/// it was decoding, so a shorter prefix is the same class (measured on the
+/// smoke subset's C9 files: every Adler-32 stream). A rejected zlib header is
+/// skipped: lopdf then retries raw deflate past the header, a different
+/// decoder path, not a class judgement. eng-r1-fr2 found no disagreement on
+/// the corpus; the column is a tripwire.
+fn inflate_disagreements(input: &[u8], carve: &CarveReport) -> InflateTally {
+    let mut tally = InflateTally::default();
+    for obj in &carve.objects {
+        let Body::Stream { dict, data, .. } = &obj.body else {
+            continue;
+        };
+        if !matches!(filters_of(dict).first(), Some((Filter::Flate, _))) {
+            continue;
+        }
+        let raw = span(input, *data);
+        let ours = inflate(raw, DEFAULT_CAP);
+        let mut d = lopdf::Dictionary::new();
+        d.set("Filter", lopdf::Object::Name(b"FlateDecode".to_vec()));
+        let theirs = lopdf::Stream::new(d, raw.to_vec())
+            .decompressed_content_with_limit(DEFAULT_CAP)
+            .unwrap_or_default();
+        tally.compared += 1;
+        if disagree(&ours, &theirs) {
+            tally.disagree += 1;
+        }
+    }
+    tally
+}
+
+fn disagree(ours: &InflateResult, theirs: &[u8]) -> bool {
+    match ours.status {
+        InflateStatus::Done => theirs != ours.out.as_slice(),
+        InflateStatus::Failed { at } if at <= 2 && ours.out.is_empty() => false,
+        InflateStatus::CapHit => false,
+        InflateStatus::AdlerMismatch
+        | InflateStatus::Failed { .. }
+        | InflateStatus::NeedsMoreInput => !ours.out.starts_with(theirs),
+    }
+}
+
+fn span(bytes: &[u8], s: ByteSpan) -> &[u8] {
+    let start = usize::try_from(s.start)
+        .unwrap_or(usize::MAX)
+        .min(bytes.len());
+    let end = usize::try_from(s.end)
+        .unwrap_or(usize::MAX)
+        .clamp(start, bytes.len());
+    &bytes[start..end]
+}
+
+// ── results ──────────────────────────────────────────────────────────────
+
+/// The chosen candidate's selection tuple (V0..V4, SE Q2) as CSV cells.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Tuple {
+    v0: String,
+    v1: String,
+    v2: String,
+    v3: String,
+    v4: String,
+}
+
+/// One page of one corrupted file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Row {
+    file: String,
+    class: String,
+    producer: String,
+    base_doc: String,
+    page: u32,
+    lang: Lang,
+    outcome: String,
+    chosen_toolpath: String,
+    v: Tuple,
+    /// The repaired page against the original's.
+    scores: TextScores,
+    /// The unrepaired input's page against the original's.
+    baseline: TextScores,
+    extract_failed: bool,
+    unmapped_glyphs: u32,
+    c9_exact: u32,
+    c9_accepted: u32,
+    c9_ambiguous: u32,
+    c9_unsearched: u32,
+    c9_work_total: u64,
+    reals_narrowed: u32,
+    inflate_disagreements: u32,
+}
+
+fn ratio(r: Ratio) -> String {
+    format!("{}/{}", r.num, r.den)
+}
+
+/// A CSV field, quoted when it holds a comma, a quote or a line break.
+fn field(s: &str) -> String {
+    if s.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_owned()
+    }
+}
+
+/// The per-page results file: the column line, then one line per row.
+fn csv(rows: &[Row]) -> String {
+    let mut out = CSV_COLUMNS.join(",");
+    out.push('\n');
+    for r in rows {
+        let cells = [
+            field(&r.file),
+            field(&r.class),
+            field(&r.producer),
+            field(&r.base_doc),
+            r.page.to_string(),
+            r.lang.label().to_owned(),
+            field(&r.outcome),
+            field(&r.chosen_toolpath),
+            field(&r.v.v0),
+            field(&r.v.v1),
+            field(&r.v.v2),
+            field(&r.v.v3),
+            field(&r.v.v4),
+            ratio(r.scores.lcs_f1),
+            ratio(r.scores.recall),
+            ratio(r.scores.precision),
+            ratio(r.scores.bag_f1),
+            ratio(r.scores.char_f1),
+            ratio(r.baseline.lcs_f1),
+            u8::from(r.extract_failed).to_string(),
+            r.unmapped_glyphs.to_string(),
+            r.c9_exact.to_string(),
+            r.c9_accepted.to_string(),
+            r.c9_ambiguous.to_string(),
+            r.c9_unsearched.to_string(),
+            r.c9_work_total.to_string(),
+            r.reals_narrowed.to_string(),
+            r.inflate_disagreements.to_string(),
+        ];
+        out.push_str(&cells.join(","));
+        out.push('\n');
+    }
+    out
+}
+
+/// The committed golden: mean LCS-F1 per class, in thousandths.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Golden {
+    per_class: BTreeMap<String, u64>,
+}
+
+const GOLDEN_COLUMNS: &str = "class,pages,lcs_f1";
+
+impl Golden {
+    /// The D-063 header, the column line, then `class,pages,d.ddd` rows.
+    fn parse(text: &str) -> Result<Golden, String> {
+        let mut lines = text.lines();
+        if lines.next() != Some(D063_HEADER) {
+            return Err("the golden's first line is not the D-063 header".to_owned());
+        }
+        if lines.next() != Some(GOLDEN_COLUMNS) {
+            return Err(format!(
+                "the golden's second line is not {GOLDEN_COLUMNS:?}"
+            ));
+        }
+        let mut per_class = BTreeMap::new();
+        for line in lines {
+            let bad = || format!("golden row {line:?}");
+            let [class, _pages, mean] = line.split(',').collect::<Vec<_>>()[..] else {
+                return Err(bad());
+            };
+            let (whole, frac) = mean.split_once('.').ok_or_else(bad)?;
+            if frac.len() != 3 {
+                return Err(bad());
+            }
+            let permille = whole.parse::<u64>().map_err(|_| bad())? * 1000
+                + frac.parse::<u64>().map_err(|_| bad())?;
+            per_class.insert(class.to_owned(), permille);
+        }
+        Ok(Golden { per_class })
+    }
+}
+
+/// Mean `lcs_f1` and mean baseline per key.
+fn means(rows: &[Row], key: impl Fn(&Row) -> String) -> (Aggregate, Aggregate) {
+    let keys: Vec<String> = rows.iter().map(&key).collect();
+    let repaired = aggregate(
+        keys.iter()
+            .map(String::as_str)
+            .zip(rows.iter().map(|r| &r.scores)),
+    );
+    let baseline = aggregate(
+        keys.iter()
+            .map(String::as_str)
+            .zip(rows.iter().map(|r| &r.baseline)),
+    );
+    (repaired, baseline)
+}
+
+/// The candidate golden written from `rows`.
+fn golden_csv(rows: &[Row]) -> String {
+    let (repaired, _) = means(rows, |r| r.class.clone());
+    let mut out = format!("{D063_HEADER}\n{GOLDEN_COLUMNS}\n");
+    for class in CorruptionClass::ALL {
+        if let Some(m) = repaired.groups.get(class.code()) {
+            out.push_str(&format!(
+                "{},{},{}\n",
+                class.code(),
+                m.n,
+                m.ratio().display_permille()
+            ));
+        }
+    }
+    out
+}
+
+/// The printed tables and the classes that failed the gate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Tables {
+    text: String,
+    failed: Vec<String>,
+}
+
+/// Three tables (per class with the gate, per class and producer, per
+/// language), each headed by `header`, separated by blank lines.
+fn tables(header: &str, rows: &[Row], golden: Option<&Golden>) -> Tables {
+    let mut failed = Vec::new();
+    let mut text = String::new();
+
+    let (repaired, baseline) = means(rows, |r| r.class.clone());
+    text.push_str(&format!(
+        "{header}\nmean text-layer LCS-F1 per page, repaired and unrepaired against the original, per class\n"
+    ));
+    text.push_str(&format!(
+        "{:<6} {:>6} {:>9} {:>11} {:>8} {:>5}\n",
+        "class", "pages", "repaired", "unrepaired", "golden", "gate"
+    ));
+    for class in CorruptionClass::ALL.map(CorruptionClass::code) {
+        let row = repaired.groups.get(class);
+        let want = golden.and_then(|g| g.per_class.get(class).copied());
+        if row.is_none() && want.is_none() {
+            continue;
+        }
+        let got = row.map(|m| m.ratio());
+        let gate = match (want, got) {
+            // A class with results and no golden fails a gated run.
+            (None, Some(_)) if golden.is_some() => {
+                failed.push(class.to_owned());
+                "FAIL"
+            }
+            (None, _) => "-",
+            (Some(w), Some(g)) if permille_at_least(g, w.saturating_sub(GATE_SLACK_PERMILLE)) => {
+                "pass"
+            }
+            (Some(_), _) => {
+                failed.push(class.to_owned());
+                "FAIL"
+            }
+        };
+        let base = baseline
+            .groups
+            .get(class)
+            .map(|m| m.ratio().display_permille());
+        text.push_str(&format!(
+            "{:<6} {:>6} {:>9} {:>11} {:>8} {:>5}\n",
+            class,
+            row.map_or(0, |m| m.n),
+            got.map_or("-".to_owned(), |g| g.display_permille()),
+            base.unwrap_or_else(|| "-".to_owned()),
+            want.map_or("-".to_owned(), |w| format!("{}.{:03}", w / 1000, w % 1000)),
+            gate
+        ));
+    }
+
+    let order = |code: &str| CorruptionClass::ALL.iter().position(|c| c.code() == code);
+    let (repaired, baseline) = means(rows, |r| format!("{} {}", r.class, r.producer));
+    let mut keys: Vec<&String> = repaired.groups.keys().collect();
+    keys.sort_by_key(|k| {
+        let (class, producer) = k.split_once(' ').unwrap_or((k, ""));
+        (order(class), producer.to_owned())
+    });
+    text.push_str(&format!("\n{header}\nper class and producer\n"));
+    text.push_str(&format!(
+        "{:<6} {:<8} {:>6} {:>9} {:>11}\n",
+        "class", "producer", "pages", "repaired", "unrepaired"
+    ));
+    for k in keys {
+        let (class, producer) = k.split_once(' ').unwrap_or((k, ""));
+        text.push_str(&format!(
+            "{:<6} {:<8} {:>6} {:>9} {:>11}\n",
+            class,
+            producer,
+            repaired.groups[k].n,
+            repaired.groups[k].ratio().display_permille(),
+            baseline.groups[k].ratio().display_permille()
+        ));
+    }
+
+    let (repaired, baseline) = means(rows, |r| r.lang.label().to_owned());
+    text.push_str(&format!(
+        "\n{header}\nper language of the original's page (D-069)\n"
+    ));
+    text.push_str(&format!(
+        "{:<6} {:>6} {:>9} {:>11}\n",
+        "lang", "pages", "repaired", "unrepaired"
+    ));
+    for (k, m) in &repaired.groups {
+        text.push_str(&format!(
+            "{:<6} {:>6} {:>9} {:>11}\n",
+            k,
+            m.n,
+            m.ratio().display_permille(),
+            baseline.groups[k].ratio().display_permille()
+        ));
+    }
+
+    Tables { text, failed }
+}
+
+/// `r >= floor / 1000`, exactly.
+fn permille_at_least(r: Ratio, floor: u64) -> bool {
+    u128::from(r.num) * 1000 >= u128::from(floor) * u128::from(r.den)
+}
+
+// ── the run ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Smoke,
+    Full,
+}
+
+/// What a run printed and whether its gate held.
+struct Summary {
+    tables: Tables,
+    inflate: InflateTally,
+    panicked: u32,
+}
+
+/// One original, read once: its pages' text and labels.
+struct Original {
+    pages: Vec<String>,
+    labels: Labels,
+}
+
+fn texts(bytes: &[u8]) -> Option<(Vec<String>, Vec<u32>)> {
+    let pages = extract_text(bytes, &ExtractOptions::default()).ok()?;
+    Some((
+        pages.iter().map(page_string).collect(),
+        pages.iter().map(|p| p.unmapped).collect(),
+    ))
+}
+
+fn read_checked(manifest: &Manifest, root: &Path, path: &str) -> Result<Vec<u8>, String> {
+    let bytes = std::fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?;
+    manifest.check_at(&bytes, path).map_err(|e| e.to_string())?;
+    Ok(bytes)
+}
+
+/// The clone looks like REPDF: both top directories, and for a full run every
+/// producer and kind directory (a sparse smoke checkout has only `text`).
+fn check_layout(root: &Path, mode: Mode) -> Result<(), String> {
+    for top in ["corrupted", "original"] {
+        for producer in PRODUCERS {
+            let kinds: &[&str] = if mode == Mode::Full {
+                &KINDS
+            } else {
+                &KINDS[..1]
+            };
+            for kind in kinds {
+                let dir = root.join(top).join(producer).join(kind);
+                if !dir.is_dir() {
+                    return Err(format!(
+                        "{} is not a REPDF clone: {top}/{producer}/{kind} is missing",
+                        root.display()
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn out_dir() -> PathBuf {
+    std::env::var_os("CARGO_TARGET_DIR")
+        .map_or_else(
+            || Path::new(env!("CARGO_MANIFEST_DIR")).join("target"),
+            PathBuf::from,
+        )
+        .join("corpus")
+}
+
+/// Selection tuple cells of the chosen candidate.
+fn tuple(chosen: Option<&CandidateReport>, output: Option<&[u8]>, prior: Toolpath) -> Tuple {
+    let Some(c) = chosen else {
+        return Tuple::default();
+    };
+    let g = &c.verification.v0;
+    let bit = |b: bool| if b { '1' } else { '0' };
+    let v1 = &c.verification.v1;
+    let v2 = &c.verification.v2;
+    let v3 = output.map(crate::pdf::repair::preservation);
+    Tuple {
+        v0: [
+            g.lopdf_reload,
+            g.hayro_render_all_pages,
+            g.rediagnose_clean,
+            g.page_count_ok,
+            g.root_and_pages_present,
+        ]
+        .map(bit)
+        .iter()
+        .collect(),
+        v1: format!(
+            "blank={};glyphs={};text_ops={};images={};path_fills={};content_bytes={}",
+            v1.blank_pages,
+            ratio(v1.glyph_count),
+            ratio(v1.text_ops),
+            ratio(v1.images),
+            ratio(v1.path_fills),
+            ratio(v1.content_bytes)
+        ),
+        v2: format!(
+            "fffd={};unmapped={};script={};dict={}",
+            ratio(v2.fffd),
+            ratio(v2.unmapped_glyph),
+            ratio(v2.script_consistency),
+            v2.dictionary_hit.map_or("-".to_owned(), ratio)
+        ),
+        v3: v3.map_or(String::new(), |p| {
+            format!("features={};annotations={}", p.features, p.annotations)
+        }),
+        v4: format!(
+            "prior={};size={}",
+            u8::from(c.toolpath == prior),
+            output.map_or(0, <[u8]>::len)
+        ),
+    }
+}
+
+fn toolpath_name(t: Toolpath) -> &'static str {
+    match t {
+        Toolpath::Resave => "resave",
+        Toolpath::TemplateAssemble => "template_assemble",
+    }
+}
+
+/// Analyse, plan and repair one corrupted file and score its pages.
+fn run_file(
+    path: &str,
+    bytes: &[u8],
+    original: &Original,
+    fonts: &FontDb,
+) -> (Vec<Row>, InflateTally, bool) {
+    let p = CorpusPath::parse(path).expect("a corrupted corpus path");
+    let class = p.class.expect("a corrupted file").code();
+    let aopts = AnalyzeOptions {
+        threads: crate::jobs::salvage_threads(),
+        ..AnalyzeOptions::default()
+    };
+    let ropts = RepairOptions {
+        analyze: aopts.clone(),
+        ..RepairOptions::default()
+    };
+    let work = catch_unwind(AssertUnwindSafe(|| {
+        let analysis = engine::analyze(bytes, &aopts, &mut NullProgress).expect("never cancelled");
+        let plan = engine::plan(&analysis, &ropts);
+        let outcome = engine::repair(
+            bytes,
+            &analysis,
+            &plan,
+            &ropts,
+            fonts,
+            &mut UseBest,
+            &mut NullProgress,
+        )
+        .expect("never cancelled");
+        let tally = analysis
+            .state
+            .0
+            .as_ref()
+            .map(|s| inflate_disagreements(bytes, &s.carve))
+            .unwrap_or_default();
+        (plan, outcome, tally)
+    }));
+
+    let input = texts(bytes);
+    let baseline = input.as_ref().map(|(t, _)| t.clone()).unwrap_or_default();
+    let mut rows = Vec::new();
+    let (outcome_name, chosen, v, repaired, report, tally) = match &work {
+        Ok((plan, outcome, tally)) => {
+            // The planner found nothing to repair: the examiner keeps the
+            // input as it is, so the input is what is scored.
+            let untouched = outcome.output.is_none()
+                && outcome.status == OutcomeStatus::Ok
+                && plan.candidates.is_empty();
+            let name = match outcome.status {
+                _ if untouched => "nothing_to_repair",
+                OutcomeStatus::Ok => "ok",
+                OutcomeStatus::Partial(_) => "partial",
+                OutcomeStatus::Failed(_) => "failed",
+            };
+            let chosen = outcome.report.candidates.iter().find(|c| c.chosen);
+            let v = tuple(chosen, outcome.output.as_deref(), plan.prior);
+            let repaired = match outcome.output.as_deref() {
+                Some(out) => texts(out),
+                None if untouched => input.clone(),
+                None => None,
+            };
+            (
+                name,
+                outcome.report.chosen.map_or("", toolpath_name),
+                v,
+                repaired,
+                Some(&outcome.report),
+                *tally,
+            )
+        }
+        Err(_) => (
+            "panicked",
+            "",
+            Tuple::default(),
+            None,
+            None,
+            InflateTally::default(),
+        ),
+    };
+
+    for (i, orig) in original.pages.iter().enumerate() {
+        let lang = original.labels.langs[i];
+        let (rep_text, unmapped) = repaired
+            .as_ref()
+            .map(|(t, u)| {
+                (
+                    t.get(i).map_or("", String::as_str),
+                    u.get(i).copied().unwrap_or(0),
+                )
+            })
+            .unwrap_or(("", 0));
+        let scores = score(orig, rep_text, lang);
+        let base = score(orig, baseline.get(i).map_or("", String::as_str), lang);
+        let orig_tokens = tokens(&crate::bench::metrics::normalize(orig), lang).len();
+        let c9 = report.map(|r| r.c9_summary).unwrap_or_default();
+        rows.push(Row {
+            file: path.to_owned(),
+            class: class.to_owned(),
+            producer: p.producer.to_owned(),
+            base_doc: p.base.to_owned(),
+            page: i as u32,
+            lang,
+            outcome: outcome_name.to_owned(),
+            chosen_toolpath: chosen.to_owned(),
+            v: v.clone(),
+            scores,
+            baseline: base,
+            extract_failed: repaired.is_none() || orig_tokens == 0,
+            unmapped_glyphs: unmapped,
+            c9_exact: c9.exact,
+            c9_accepted: c9.accepted,
+            c9_ambiguous: c9.ambiguous,
+            c9_unsearched: c9.unsearched,
+            c9_work_total: report.map_or(0, |r| r.stats.salvage_work_total),
+            reals_narrowed: report.map_or(0, |r| r.reals_narrowed),
+            inflate_disagreements: tally.disagree,
+        });
+    }
+    (rows, tally, work.is_err())
+}
+
+/// The whole run over `root`. Errors are one line each.
+fn run(mode: Mode, root: &Path) -> Result<Summary, String> {
+    check_layout(root, mode)?;
+    let manifest = Manifest::pinned();
+    let resolved = resolve_smoke(&manifest)?;
+    let committed: Vec<&str> = SMOKE_SUBSET.lines().collect();
+    if resolved != committed {
+        return Err("the D-077 smoke resolution differs from bench/smoke_subset.txt".to_owned());
+    }
+    let paths: Vec<String> = match mode {
+        Mode::Smoke => resolved,
+        Mode::Full => manifest.entries.iter().map(|e| e.path.clone()).collect(),
+    };
+
+    // Every file is checked before any is analysed; each is checked again
+    // when it is read for analysis.
+    for path in &paths {
+        read_checked(&manifest, root, path)?;
+    }
+
+    let mut originals = BTreeMap::<String, Original>::new();
+    for path in paths.iter().filter(|p| p.starts_with("original/")) {
+        let bytes = read_checked(&manifest, root, path)?;
+        let (pages, _) =
+            texts(&bytes).ok_or_else(|| format!("{path}: the original did not load"))?;
+        let mut labels = label_pages(&pages);
+        if let Some(i) = labels.fill_one_unknown() {
+            println!("corpus: {path} page {i}: language inferred from the other five");
+        }
+        labels.check(path)?;
+        originals.insert(path.clone(), Original { pages, labels });
+    }
+
+    let fonts = FontDb::bundled();
+    let corrupted: Vec<&String> = paths
+        .iter()
+        .filter(|p| p.starts_with("corrupted/"))
+        .collect();
+    let mut rows = Vec::new();
+    let mut inflate = InflateTally::default();
+    let mut panicked = 0;
+    for (n, path) in corrupted.iter().enumerate() {
+        eprintln!("corpus: file {} of {}", n + 1, corrupted.len());
+        let bytes = read_checked(&manifest, root, path)?;
+        let original = CorpusPath::parse(path)?.original();
+        let original = originals
+            .get(&original)
+            .ok_or_else(|| format!("{path}: its original was not read"))?;
+        let (file_rows, tally, panic) = run_file(path, &bytes, original, &fonts);
+        rows.extend(file_rows);
+        inflate.compared += tally.compared;
+        inflate.disagree += tally.disagree;
+        panicked += u32::from(panic);
+    }
+
+    let out = out_dir();
+    std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let write = |name: &str, text: String| {
+        std::fs::write(out.join(name), text).map_err(|e| format!("{name}: {e}"))
+    };
+    write("corpus_results.csv", csv(&rows))?;
+    let (header, golden) = match mode {
+        Mode::Smoke => {
+            write("golden_smoke.csv", golden_csv(&rows))?;
+            (D063_HEADER, Some(Golden::parse(GOLDEN_SMOKE)?))
+        }
+        Mode::Full => (FULL_HEADER, None),
+    };
+    Ok(Summary {
+        tables: tables(header, &rows, golden.as_ref()),
+        inflate,
+        panicked,
+    })
+}
+
+fn harness(mode: Mode) {
+    let Some(root) = std::env::var_os("PDFPUNDIT_CORPUS") else {
+        println!(
+            "corpus: PDFPUNDIT_CORPUS is not set; skipped (set it to a local clone of \
+             github.com/dfrc-korea/REPDF at e547d4d)"
+        );
+        return;
+    };
+    let summary = run(mode, Path::new(&root)).unwrap_or_else(|e| panic!("{e}"));
+    println!("{}", summary.tables.text);
+    println!(
+        "inflate backend disagreements: {} of {} Flate streams (expected 0)",
+        summary.inflate.disagree, summary.inflate.compared
+    );
+    println!("files whose repair panicked: {}", summary.panicked);
+    assert_eq!(summary.panicked, 0, "a repair panicked");
+    assert_eq!(summary.inflate.disagree, 0, "the inflate backends disagree");
+    assert!(
+        summary.tables.failed.is_empty(),
+        "below the golden by more than 2%: {}",
+        summary.tables.failed.join(", ")
+    );
+}
+
+/// The D-013 smoke subset, gated against `bench/golden_smoke.csv`.
+#[test]
+#[ignore = "needs PDFPUNDIT_CORPUS: a local REPDF clone at e547d4d"]
+fn smoke() {
+    harness(Mode::Smoke);
+}
+
+/// Every corrupted file of the corpus; no gate.
+#[test]
+#[ignore = "needs PDFPUNDIT_CORPUS: a local REPDF clone at e547d4d"]
+fn full() {
+    harness(Mode::Full);
+}

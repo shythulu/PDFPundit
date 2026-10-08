@@ -22,3 +22,7 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/age
   - `tools/lint-meta.sh` proves those bans fire.
   - `python3 -I tools/purity-gate.py` checks for no compiled or vendored C or assembly, per CI target. `--network` checks for no HTTP/TLS crate in `Cargo.lock`.
   - `cargo deny check licenses` enforces the dependency licence allow-list in `deny.toml`.
+
+## Corpus
+
+- REPDF corpus: set `PDFPUNDIT_CORPUS` to a local depth-1 clone of github.com/dfrc-korea/REPDF at e547d4d (plain blobs, no git-lfs needed, 1.5 GB on disk, no licence: never inside the repo, never in CI artifacts).

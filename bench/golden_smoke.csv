@@ -1,0 +1,12 @@
+regression baseline; 44-file REPDF smoke subset; text-layer LCS-F1; not REPDF's metric; not comparable to the paper; not a published recovery rate
+class,pages,lcs_f1
+C1,24,1.000
+C2,24,1.000
+C3,24,1.000
+C4,24,0.767
+C5,24,1.000
+C6,24,0.355
+C7,24,1.000
+C8,24,0.260
+C9,24,0.815
+C10,24,0.408

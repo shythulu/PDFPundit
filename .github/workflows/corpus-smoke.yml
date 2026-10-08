@@ -1,0 +1,54 @@
+# REPDF corpus smoke gate (T-26, map #1 standing decision, D-013, D-036, D-063).
+#
+# The corpus has no licence. This job fetches only the 44 files of
+# bench/smoke_subset.txt at the pinned commit, runs the ignored smoke test
+# against them and prints the aggregate per-class table (headed by the D-063
+# label) to the log, which is public. Nothing is cached and nothing is
+# uploaded: the per-file CSV names corpus files and holds per-page scores, so
+# it stays in target/corpus/ on the runner, which is discarded.
+name: corpus smoke
+
+on:
+  pull_request:
+    paths:
+      - "src/pdf/**"
+      - "src/engine/**"
+      - "src/engine.rs"
+      - "src/bench/**"
+      - "bench/**"
+      - ".github/workflows/corpus-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  REPDF_URL: https://github.com/dfrc-korea/REPDF
+  REPDF_COMMIT: e547d4d1b77ead7e8cccce8b02878a6d33aa427a
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    # The gate holds on every PR that reaches it, src/pdf/** included.
+    continue-on-error: false
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Sparse shallow checkout of the smoke subset at the pinned commit
+        run: |
+          set -eu
+          dir="$RUNNER_TEMP/repdf"
+          git init --quiet "$dir"
+          git -C "$dir" remote add origin "$REPDF_URL"
+          git -C "$dir" config core.sparseCheckout true
+          git -C "$dir" sparse-checkout set --no-cone --stdin < bench/smoke_subset.txt
+          git -C "$dir" fetch --quiet --depth 1 --filter=blob:none origin "$REPDF_COMMIT"
+          git -C "$dir" checkout --quiet FETCH_HEAD
+          test "$(git -C "$dir" rev-parse HEAD)" = "$REPDF_COMMIT"
+          test "$(find "$dir" -name '*.pdf' | wc -l)" -eq 44
+          echo "PDFPUNDIT_CORPUS=$dir" >> "$GITHUB_ENV"
+      - name: Smoke run (prints the per-class table and gates on it)
+        run: cargo test --locked --release --lib -- --ignored --nocapture bench::corpus::smoke
