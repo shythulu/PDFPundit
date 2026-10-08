@@ -40,8 +40,9 @@ pub enum Tok<'a> {
 /// buffer the lexer was given.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LexNote {
-    /// A `(` with no balancing `)`: it ends at EOF, or before an `endobj`
-    /// that is followed by an `obj` (the next object's header) or EOF first.
+    /// A `(` with no balancing `)`: it ends at EOF or, with the keyword
+    /// cutoff on, before an `endobj` that the next object's header, `xref`,
+    /// `trailer`, `startxref`, `%%EOF` or EOF follows.
     UnterminatedString { at: u64 },
     /// A `<` with no closing `>` before EOF, another delimiter or a structural
     /// keyword (`endobj`, `obj`, `stream`, `xref`, ...).
@@ -61,8 +62,9 @@ pub enum LexNote {
     /// [`MAX_ELEMENTS`]; the rest were skipped.
     ContainerTruncated { at: u64 },
     /// A real does not round-trip through `f32`, which is what
-    /// `lopdf::Object::Real` stores (D-075). A number beyond the `f32` range
-    /// is clamped to `±f32::MAX` and gets this note from the tokenizer.
+    /// `lopdf::Object::Real` stores (D-075). The tokenizer adds it too for an
+    /// integer past the `i64` range (read as a real) and for a number beyond
+    /// the `f32` range (clamped to `±f32::MAX`). One note per token.
     RealNarrowed { at: u64 },
     /// A dictionary key or value that did not parse was dropped.
     DictRecovered { at: u64 },
@@ -300,6 +302,9 @@ impl<'a> Lexer<'a> {
             if let Some(v) = int {
                 return Tok::Int(v);
             }
+            // Past the i64 range: a real, which changes its type and may
+            // round its value.
+            self.note(LexNote::RealNarrowed { at: start as u64 });
         }
         // ASCII digits and one point: always valid UTF-8 and a valid float.
         let v = std::str::from_utf8(text)
@@ -311,7 +316,9 @@ impl<'a> Lexer<'a> {
         // emit: clamp it, and anything past f32, to the largest f32.
         let limit = f64::from(f32::MAX);
         if v.abs() > limit {
-            self.note(LexNote::RealNarrowed { at: start as u64 });
+            if point {
+                self.note(LexNote::RealNarrowed { at: start as u64 });
+            }
             return Tok::Real(if v < 0.0 { -limit } else { limit });
         }
         Tok::Real(v)
@@ -319,8 +326,8 @@ impl<'a> Lexer<'a> {
 
     /// A run of regular bytes. In near-miss mode a run one byte away from a
     /// carver keyword reads as that keyword. A run that is the keyword less one
-    /// byte, followed by a delimiter that starts a token (`ob<<`), reads as a
-    /// deletion and leaves the delimiter unread. Otherwise the window may
+    /// byte, followed by `<`, `>`, `(`, `[`, `]`, `/` or `%` (`ob<<`,
+    /// `endob>>`), reads as a deletion and leaves the delimiter unread. Otherwise the window may
     /// substitute one byte, which may be a delimiter or whitespace that split
     /// the run (`endob)`).
     fn read_bareword(&mut self, start: usize) -> Tok<'a> {
@@ -333,7 +340,7 @@ impl<'a> Lexer<'a> {
         }
         if buf
             .get(end)
-            .is_some_and(|b| matches!(b, b'<' | b'(' | b'[' | b'/'))
+            .is_some_and(|b| matches!(b, b'<' | b'>' | b'(' | b'[' | b']' | b'/' | b'%'))
             && let Some(kw) = NEAR_MISS_KEYWORDS
                 .into_iter()
                 .find(|kw| is_one_deletion(run, kw))
@@ -388,8 +395,8 @@ impl<'a> Lexer<'a> {
     }
 
     /// A string runs to its balancing `)`. With the keyword cutoff on, one
-    /// whose `)` is missing ends before the `endobj` that closes its object:
-    /// see [`scan_lit`].
+    /// whose `)` is missing ends before an `endobj` that the file structure
+    /// follows: see [`scan_lit`].
     fn read_lit_string(&mut self, start: usize) -> Tok<'a> {
         let from = start + 1;
         match scan_lit(self.buf, from, self.keyword_cutoff) {
@@ -504,38 +511,107 @@ fn hex_val(b: u8) -> Option<u8> {
 
 /// Where a literal string whose body starts at `from` ends: `Ok` at the `)`
 /// that balances it (escaped bytes skipped), else `Err` where it is cut off.
-/// A standalone `endobj` inside a string does not end it by itself, so
-/// `(endobj) Tj` is one string. With `cutoff` on, the string is cut before
-/// the first such `endobj` when an `obj` keyword (the next object's header)
-/// or EOF comes before any balancing `)`; without one, at EOF. A string that
-/// really holds `endobj` and later `obj` with no `)` after them is cut too:
-/// that is the price of finding the object boundary. One pass, so the cost is
-/// the distance scanned.
+/// A standalone `endobj` inside a string ends it only when, with `cutoff`
+/// on, [`ends_object`] finds the file structure going on right after it; so
+/// `(endobj) Tj` and `(About endobj syntax)` stay whole. Without such an
+/// `endobj` the string runs to EOF. The decision looks at most
+/// [`BOUNDARY_LOOKAHEAD`] bytes past each `endobj` and the lexer resumes at
+/// the cut, so bytes scanned stay within that distance of bytes consumed and
+/// tokenizing any buffer is linear.
 fn scan_lit(buf: &[u8], from: usize, cutoff: bool) -> Result<usize, usize> {
     let mut depth = 1usize;
-    let mut endobj: Option<usize> = None;
     let mut i = from;
-    while let Some(&b) = buf.get(i) {
+    let mut looked = from;
+    let result = loop {
+        let Some(&b) = buf.get(i) else {
+            break Err(buf.len());
+        };
         match b {
             b'\\' => i += 1,
             b'(' => depth += 1,
             b')' => {
                 depth -= 1;
                 if depth == 0 {
-                    return Ok(i);
+                    break Ok(i);
                 }
             }
-            b'e' if cutoff && endobj.is_none() && is_kw_at(buf, i, b"endobj") => {
-                endobj = Some(i);
-            }
-            b'o' if endobj.is_some() && is_kw_at(buf, i, b"obj") => {
-                return Err(endobj.unwrap_or(i));
+            b'e' if cutoff && is_kw_at(buf, i, b"endobj") => {
+                let (ends, seen) = ends_object(buf, i + 6);
+                looked = looked.max(seen);
+                if ends {
+                    break Err(i);
+                }
+                // `endobj` holds no `(`, `)` or backslash.
+                i += 5;
             }
             _ => {}
         }
         i += 1;
+    };
+    #[cfg(test)]
+    LIT_SCANNED.with(|c| c.set(c.get() + looked.max(i).min(buf.len()) - from));
+    #[cfg(not(test))]
+    let _ = looked;
+    result
+}
+
+/// Bytes [`ends_object`] reads past an `endobj` at most. The bound keeps a
+/// scan linear even when many `endobj`s share one long comment line.
+const BOUNDARY_LOOKAHEAD: usize = 256;
+
+/// Whether the bytes from `i` (just past an `endobj`) are where the file
+/// structure goes on: after whitespace and comments, EOF, `%%EOF`, `xref`,
+/// `trailer`, `startxref` or an `N G obj` header. Reads at most
+/// [`BOUNDARY_LOOKAHEAD`] bytes (plus a keyword's length); a window that runs
+/// out first is not a boundary. Also returns one past the last byte read.
+fn ends_object(buf: &[u8], i: usize) -> (bool, usize) {
+    let limit = i.saturating_add(BOUNDARY_LOOKAHEAD).min(buf.len());
+    let mut j = i;
+    loop {
+        if j >= limit {
+            return (j == buf.len(), j);
+        }
+        match buf[j] {
+            b if is_ws(b) => j += 1,
+            b'%' => {
+                if buf[j..].starts_with(b"%%EOF") {
+                    return (true, j + 5);
+                }
+                while j < limit && buf[j] != b'\r' && buf[j] != b'\n' {
+                    j += 1;
+                }
+            }
+            _ => break,
+        }
     }
-    Err(endobj.unwrap_or(buf.len()))
+    if let Some(kw) = [&b"xref"[..], b"trailer", b"startxref"]
+        .into_iter()
+        .find(|kw| is_kw_at(buf, j, kw))
+    {
+        return (true, j + kw.len() + 1);
+    }
+    let run = |from: usize, f: fn(u8) -> bool| {
+        from + buf[from..limit].iter().take_while(|&&b| f(b)).count()
+    };
+    let mut at = j;
+    for f in [is_digit, is_ws, is_digit, is_ws] {
+        let next = run(at, f);
+        if next == at {
+            return (false, next + 1);
+        }
+        at = next;
+    }
+    (is_kw_at(buf, at, b"obj"), at + 4)
+}
+
+fn is_digit(b: u8) -> bool {
+    b.is_ascii_digit()
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Bytes [`scan_lit`] has read on this thread, lookahead included.
+    static LIT_SCANNED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// `kw` standing as its own token at `i`.
@@ -628,8 +704,10 @@ fn value(lx: &mut Lexer<'_>, at: usize, tok: Tok<'_>, depth: u8) -> Result<Objec
         Tok::Int(a) => int_or_ref(lx, a),
         Tok::Real(v) => {
             let narrow = v as f32;
-            if f64::from(narrow).to_bits() != v.to_bits() {
-                lx.note(LexNote::RealNarrowed { at: at as u64 });
+            let note = LexNote::RealNarrowed { at: at as u64 };
+            // The tokenizer may have noted this token already.
+            if f64::from(narrow).to_bits() != v.to_bits() && lx.notes.last() != Some(&note) {
+                lx.note(note);
             }
             Object::Real(narrow)
         }
@@ -906,6 +984,77 @@ mod tests {
         assert_eq!(n, vec![LexNote::UnterminatedString { at: 0 }]);
     }
 
+    // The cut needs the file structure right after `endobj`; anything else
+    // keeps it inside the string.
+    #[test]
+    fn unterminated_string_endobj_boundaries() {
+        for tail in [
+            &b"xref\n0 1"[..],
+            b"trailer <<>>",
+            b"startxref 9",
+            b"%%EOF\n",
+            b"% note\n12 0 obj",
+            b"\r\n  7 0\tobj<<>>",
+        ] {
+            let src = [&b"(abc endobj\n"[..], tail].concat();
+            let (t, n) = toks(&src, false);
+            assert_eq!(t[0], Tok::LitStr(b"abc ".to_vec()), "{tail:?}");
+            assert_eq!(t[1], Tok::Kw(b"endobj"), "{tail:?}");
+            assert_eq!(n[0], LexNote::UnterminatedString { at: 0 });
+        }
+        for src in [
+            &b"(a endobj b"[..],
+            b"(a endobj (b",
+            b"(a endobj 5 0 R b",
+            b"(a endobj 5 objx",
+        ] {
+            let (t, n) = toks(src, false);
+            assert_eq!(t, vec![Tok::LitStr(src[1..].to_vec())]);
+            assert_eq!(n, vec![LexNote::UnterminatedString { at: 0 }]);
+        }
+        // Past the lookahead window an `endobj` does not cut.
+        let src = [&b"(a endobj"[..], &[b' '; 300], b"5 0 obj"].concat();
+        let (t, _) = toks(&src, false);
+        assert_eq!(t, vec![Tok::LitStr(src[1..].to_vec())]);
+    }
+
+    // Tokenizing never re-reads a long tail: the bytes the string scanner
+    // reads stay within a constant factor of the input, however the
+    // `endobj`s fall.
+    #[test]
+    fn string_scanning_is_linear() {
+        let scanned = || LIT_SCANNED.with(std::cell::Cell::get);
+        let comment_line = [&b"(a endobj %"[..], &b" endobj".repeat(20_000)].concat();
+        let cases = [
+            b"(a endobj ".repeat(20_000),
+            b"(a endobj x ".repeat(20_000),
+            b"(a endobj 1 0 obj ".repeat(20_000),
+            b"(endobj) ".repeat(20_000),
+            comment_line,
+        ];
+        for (k, src) in cases.iter().enumerate() {
+            for cutoff in [true, false] {
+                let before = scanned();
+                let mut lx = Lexer::new(src, 0).with_keyword_cutoff(cutoff);
+                while lx.next() != Tok::Eof {}
+                let work = scanned() - before;
+                assert!(work <= 2 * src.len(), "case {k}: {work} for {}", src.len());
+
+                let before = scanned();
+                let mut pos = 0;
+                while pos < src.len() {
+                    let mut lx = Lexer::new(src, pos).with_keyword_cutoff(cutoff);
+                    match lx.read_value(0) {
+                        Err(LexErr::UnexpectedEof) => break,
+                        _ => pos = lx.pos,
+                    }
+                }
+                let work = scanned() - before;
+                assert!(work <= 2 * src.len(), "case {k}: {work} for {}", src.len());
+            }
+        }
+    }
+
     // Content streams have no object structure: no cutoff at `endobj`.
     #[test]
     fn keyword_cutoff_off_for_content() {
@@ -1178,6 +1327,26 @@ mod tests {
         assert_eq!(t[4], Tok::LitStr(b"x".to_vec()));
         assert_eq!(t[5], Tok::Kw(b"endstream"));
         assert_eq!(t[6], Tok::ArrOpen);
+        // `>`, `]` and `%` leave the delimiter unread too.
+        let (t, n) = toks(b"<</A 1 endob>>ob]endob%c", true);
+        assert_eq!(
+            t[3..],
+            [
+                Tok::Kw(b"endobj"),
+                Tok::DictClose,
+                Tok::Kw(b"obj"),
+                Tok::ArrClose,
+                Tok::Kw(b"endobj"),
+            ]
+        );
+        assert_eq!(
+            n,
+            vec![
+                LexNote::NearMissKeyword { at: 7 },
+                LexNote::NearMissKeyword { at: 14 },
+                LexNote::NearMissKeyword { at: 17 },
+            ]
+        );
     }
 
     // Near-miss: `115 0 obj` damaged to `11l 0 obj` (RR). The number token is
@@ -1294,15 +1463,22 @@ mod tests {
             parse(b"<414>").value,
             Object::String(b"A@".to_vec(), StringFormat::Hexadecimal)
         );
-        assert_eq!(parse(b"99999999999999999999").value, Object::Real(1e20));
         assert_eq!(
             parse(b"-9223372036854775808").value,
             Object::Integer(i64::MIN)
         );
-        assert_eq!(
-            parse(b"-9223372036854775809").value,
-            Object::Real(-9.223_372e18)
-        );
+        assert!(parse(b"-9223372036854775808").notes.is_empty());
+        // An integer past i64 becomes a real, noted once even when f32 then
+        // rounds it as well.
+        for (src, v) in [
+            (&b"99999999999999999999"[..], 1e20),
+            (b"-9223372036854775809", -9.223_372e18),
+            (b"9223372036854775809", 9.223_372e18),
+        ] {
+            let p = parse(src);
+            assert_eq!(p.value, Object::Real(v));
+            assert_eq!(p.notes, vec![LexNote::RealNarrowed { at: 0 }]);
+        }
         assert!(matches!(
             parse_value(b"  ", 0, 0),
             Err(LexErr::UnexpectedEof)
@@ -1367,8 +1543,14 @@ mod tests {
                     }
                 })
                 .collect();
-            for near_miss in [false, true] {
-                let mut lx = Lexer::new(&buf, 0).with_near_miss(near_miss);
+            for (near_miss, cutoff) in [(false, false), (false, true), (true, false), (true, true)]
+            {
+                let lexer = || {
+                    Lexer::new(&buf, 0)
+                        .with_near_miss(near_miss)
+                        .with_keyword_cutoff(cutoff)
+                };
+                let mut lx = lexer();
                 let mut steps = 0;
                 loop {
                     let before = lx.pos;
@@ -1381,6 +1563,21 @@ mod tests {
                     assert!(lx.pos <= buf.len());
                     steps += 1;
                     assert!(steps <= len, "case {case}: too many tokens");
+                }
+                let mut lx = lexer();
+                let mut steps = 0;
+                loop {
+                    let before = lx.pos;
+                    if lx.read_value(0) == Err(LexErr::UnexpectedEof) {
+                        break;
+                    }
+                    assert!(
+                        lx.pos > before,
+                        "case {case}: no value progress at {before}"
+                    );
+                    assert!(lx.pos <= buf.len());
+                    steps += 1;
+                    assert!(steps <= len, "case {case}: too many values");
                 }
             }
             let mut pos = 0;
