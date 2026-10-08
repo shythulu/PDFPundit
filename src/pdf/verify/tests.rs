@@ -795,9 +795,10 @@ fn verify_takes_no_pixel_buffer() {
 // ── determinism ──────────────────────────────────────────────────────────
 
 /// sha256 of the JSON verification record of the unrepaired C6 fixture's
-/// Resave (golden, seed 7), whose V2 counts unmapped glyphs. The `test` job
-/// runs this on all three CI OSes.
-const C6_RECORD_SHA256: &str = "fcd93c3d2746778f452a87ad6f705a5978b821bdf0230db68dfb2b8efd840882";
+/// Resave (golden, seed 7), whose V2 counts unmapped glyphs. Its V0 fails
+/// `rediagnose_clean`: Resave repairs nothing, so the output still carries
+/// the targeted C6 finding. The `test` job runs this on all three CI OSes.
+const C6_RECORD_SHA256: &str = "e4fcece5d82b9116bc5a079db7eec22e159bceedf36b96b5d13fea7fa039bd8e";
 
 #[test]
 fn the_verification_record_is_the_committed_one() {
@@ -806,6 +807,7 @@ fn the_verification_record_is_the_committed_one() {
     let a = check(&out, &input, &[C6FontMapLost]);
     let b = check(&out, &input, &[C6FontMapLost]);
     assert_eq!(a, b);
+    assert!(!a.v0.rediagnose_clean, "an unrepaired C6 is not clean");
     let json = serde_json::to_string(&a).expect("serialise");
     let hex: String = Sha256::digest(json.as_bytes())
         .iter()
