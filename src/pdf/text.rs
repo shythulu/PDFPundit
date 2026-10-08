@@ -13,16 +13,19 @@
 //! the glyph geometry is hayro's own affine products plus one subtraction and
 //! one `sqrt` of a dot product per glyph. No `hypot`, `powf` or trig.
 //!
-//! Known limits (D-038), recorded in [`PageText::warnings`] where they apply:
-//! glyphs in hidden optional-content groups are never produced; on a file whose
-//! page tree is unreadable hayro finds pages by scanning and orders them by
-//! file offset. Always true, so not repeated per page: `ActualText` is not
-//! surfaced and glyphs carry no bounding box. hayro gives no warning for a
-//! dropped Flate stream or an unresolved font, so [`PageText::unmapped`] and
-//! the glyph count per page are the integrity signals.
+//! Known limits (D-038). Two depend on the file and are recorded in
+//! [`PageText::warnings`] where they apply: glyphs in hidden optional-content
+//! groups are never produced, and on a file whose page tree is unreadable hayro
+//! finds pages by scanning and orders them by file offset. The rest hold for
+//! every file, so they are not repeated per page but kept in [`KNOWN_LIMITS`]
+//! for a report to quote once: `ActualText` is not surfaced, glyphs carry no
+//! bounding box, text in render mode 7 (clip only) reaches the `Device` as a
+//! clip and never as glyphs, and hayro gives no warning for a dropped Flate
+//! stream or an unresolved font, so [`PageText::unmapped`] and the glyph count
+//! per page are the integrity signals.
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -35,9 +38,10 @@ use hayro_interpret::{
     interpret_page,
 };
 use hayro_syntax::object::dict::keys::{
-    BASE_FONT, DESCENDANT_FONTS, FLAGS, FONT_DESC, FONT_NAME, FONT_WEIGHT, KIDS, PAGES, SUBTYPE,
+    BASE_FONT, DESCENDANT_FONTS, FLAGS, FONT, FONT_DESC, FONT_NAME, FONT_WEIGHT, KIDS,
+    OCPROPERTIES, PAGES, RESOURCES, SUBTYPE, XOBJECT,
 };
-use hayro_syntax::object::{Array, Dict, Name, Object};
+use hayro_syntax::object::{Array, Dict, Name, Object, Stream};
 use hayro_syntax::{LoadPdfError, Pdf};
 
 use crate::pdf::model::PaintCounts;
@@ -87,7 +91,10 @@ pub(crate) struct PageText {
     pub unmapped: u32,
     pub paint: PaintCounts,
     /// Fixed sentences, in a fixed order: the D-038 limits that apply to this
-    /// file, then what hayro's warning sink reported for this page.
+    /// file, then what hayro's warning sink reported for this page. The limits
+    /// that hold for every file are in [`KNOWN_LIMITS`], not here. An empty
+    /// list is not a health signal: under this adapter and the default options
+    /// the sink almost never fires (see `WarningTally`).
     pub warnings: Vec<String>,
 }
 
@@ -95,6 +102,14 @@ pub(crate) struct PageText {
 /// fixed-key hash of its bytes, so the same on every run and platform).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct FontKey(pub u128);
+
+impl FontKey {
+    /// The key of a glyph with no font dictionary behind it: hayro's fallback
+    /// Helvetica (the font resource is missing or broken, as in C6) or a
+    /// Type3 font (hayro exposes no key for one). [`GlyphItem::type3`] tells
+    /// the two apart. Never in a [`FontTable`].
+    pub const UNKEYED: FontKey = FontKey(0);
+}
 
 /// One glyph as drawn.
 #[derive(Debug, Clone, PartialEq)]
@@ -110,8 +125,11 @@ pub(crate) struct GlyphItem {
     pub size: f64,
     /// The font's advance width in 1/1000 em (`None` for Type3 glyphs).
     pub advance: Option<f32>,
-    /// The font; Type3 glyphs carry `FontKey(0)` (hayro exposes no key for a
-    /// Type3 font) and are marked by `type3`.
+    /// The font. [`FontKey::UNKEYED`] with `type3` false means no font
+    /// dictionary resolved and hayro drew with its fallback Helvetica (an
+    /// integrity signal: the page lost its font); with `type3` true it is a
+    /// Type3 font. Look it up with `FontTable::get`: an unkeyed glyph, or a
+    /// font met only in an annotation appearance, has no entry.
     pub font: FontKey,
     /// Drawn in render mode 3.
     pub invisible: bool,
@@ -139,7 +157,9 @@ pub(crate) struct FontInfo {
     pub mono: bool,
 }
 
-/// Every font dictionary among the document's objects.
+/// Every font dictionary among the document's objects, plus those written
+/// inline in a page's or a Form XObject's `/Resources /Font`. A glyph's font can
+/// still be missing (see [`GlyphItem::font`]), so index it with `get`.
 pub(crate) type FontTable = BTreeMap<FontKey, FontInfo>;
 
 /// Glyphs and paint counts for every page hayro finds in `bytes`. The whole
@@ -161,6 +181,16 @@ pub(crate) fn font_table(bytes: &[u8]) -> Result<FontTable, ExtractError> {
     .unwrap_or(Err(ExtractError::Panicked))
 }
 
+/// The D-038 limits that hold for every file, as fixed sentences in a fixed
+/// order, for a report to quote once per document.
+pub(crate) const KNOWN_LIMITS: [&str; 4] = [
+    "text marked with ActualText is extracted as drawn; the ActualText is not used",
+    "glyphs carry an origin and a size but no bounding box",
+    "text drawn in render mode 7 (clip only) is not extracted",
+    "the interpreter gives no warning for a dropped compressed stream or an unresolved font; \
+     unmapped glyphs and the glyph count per page are the integrity signals",
+];
+
 const HIDDEN_LAYERS: &str =
     "the document has optional content: text in hidden layers is not extracted";
 const SCANNED_PAGES: &str =
@@ -169,7 +199,7 @@ const SCANNED_PAGES: &str =
 fn extract_pages(bytes: &[u8], opts: &ExtractOptions) -> Result<Vec<PageText>, ExtractError> {
     let pdf = Pdf::new(bytes.to_vec()).map_err(ExtractError::Load)?;
     let mut doc_warnings = Vec::new();
-    if pdf.xref().has_optional_content_groups() {
+    if has_optional_content(&pdf) {
         doc_warnings.push(HIDDEN_LAYERS.to_owned());
     }
     if !page_tree_readable(&pdf) {
@@ -217,6 +247,16 @@ fn extract_pages(bytes: &[u8], opts: &ExtractOptions) -> Result<Vec<PageText>, E
     Ok(out)
 }
 
+/// Whether the catalog has `/OCProperties`, the test hayro's optional-content
+/// state is built from. `XRef::has_optional_content_groups` is not used: it is
+/// set only when the trailer is read, so a file whose catalog was found by
+/// scanning reports `false` while its hidden layers are still suppressed.
+fn has_optional_content(pdf: &Pdf) -> bool {
+    let xref = pdf.xref();
+    xref.get::<Dict<'_>>(xref.root_id())
+        .is_some_and(|root| root.get::<Dict<'_>>(OCPROPERTIES).is_some())
+}
+
 /// hayro walks `/Root /Pages /Kids` when it can and scans for page
 /// dictionaries when it cannot; this is the same test from outside.
 fn page_tree_readable(pdf: &Pdf) -> bool {
@@ -226,7 +266,12 @@ fn page_tree_readable(pdf: &Pdf) -> bool {
         .is_some_and(|pages| pages.get::<Array<'_>>(KIDS).is_some())
 }
 
-/// What hayro's warning sink reported for one page.
+/// What hayro's warning sink reported for one page. Under this adapter and
+/// hayro-interpret 0.8.0 little of it can fire: `UnsupportedFont` is never
+/// emitted, `ImageDecodeFailure` only when a device decodes an image (the
+/// `Collector` never does), and `UnresolvedAnnotationAppearance` only with
+/// `render_annotations` on (off by default). It is kept for later versions;
+/// an empty tally says nothing about the file's health.
 #[derive(Debug, Default)]
 struct WarningTally {
     unsupported_font: u32,
@@ -380,7 +425,7 @@ impl<'a> Device<'a> for Collector {
             let text = unicode(g);
             let (advance, font, type3) = match &**g {
                 Glyph::Outline(o) => (o.advance_width(), FontKey(o.font_cache_key()), false),
-                Glyph::Type3(_) => (None, FontKey(0), true),
+                Glyph::Type3(_) => (None, FontKey::UNKEYED, true),
             };
             if text.is_none() {
                 self.unmapped = self.unmapped.saturating_add(1);
@@ -429,24 +474,77 @@ impl<'a> Device<'a> for Collector {
 // ---------------------------------------------------------------------------
 // The font table
 
+/// How deep [`add_resource_fonts`] follows Form XObjects inside Form XObjects.
+const FORM_DEPTH: u32 = 8;
+
 fn build_font_table(pdf: &Pdf) -> FontTable {
     let mut table = FontTable::new();
     for object in pdf.objects() {
         let Object::Dict(dict) = object else { continue };
-        let Some(subtype) = dict.get::<Name<'_>>(SUBTYPE) else {
-            continue;
-        };
-        if !matches!(
-            &*subtype,
-            b"Type0" | b"Type1" | b"MMType1" | b"TrueType" | b"OpenType" | b"Type3"
-        ) {
-            continue;
-        }
-        table
-            .entry(FontKey(dict.cache_key()))
-            .or_insert_with(|| font_info(&dict, &subtype));
+        add_font(&mut table, &dict);
+    }
+    // Inline font dictionaries are not objects of their own; hayro keys them
+    // by the same `cache_key`, so they are found through the resources that
+    // hold them.
+    let mut seen_forms = BTreeSet::new();
+    for page in pdf.pages().iter() {
+        let res = page.resources();
+        add_resource_fonts(&mut table, &res.fonts, &res.x_objects, 0, &mut seen_forms);
     }
     table
+}
+
+/// Adds `dict` if it is a font dictionary.
+fn add_font(table: &mut FontTable, dict: &Dict<'_>) {
+    let Some(subtype) = dict.get::<Name<'_>>(SUBTYPE) else {
+        return;
+    };
+    if !matches!(
+        &*subtype,
+        b"Type0" | b"Type1" | b"MMType1" | b"TrueType" | b"OpenType" | b"Type3"
+    ) {
+        return;
+    }
+    table
+        .entry(FontKey(dict.cache_key()))
+        .or_insert_with(|| font_info(dict, &subtype));
+}
+
+/// Adds every font of a `/Font` resource dictionary, then does the same for
+/// each Form XObject in `xobjects`, once per form and at most [`FORM_DEPTH`]
+/// deep.
+fn add_resource_fonts(
+    table: &mut FontTable,
+    fonts: &Dict<'_>,
+    xobjects: &Dict<'_>,
+    depth: u32,
+    seen_forms: &mut BTreeSet<u128>,
+) {
+    for (name, _) in fonts.entries() {
+        if let Some(font) = fonts.get::<Dict<'_>>(&*name) {
+            add_font(table, &font);
+        }
+    }
+    if depth >= FORM_DEPTH {
+        return;
+    }
+    for (name, _) in xobjects.entries() {
+        let Some(form) = xobjects.get::<Stream<'_>>(&*name) else {
+            continue;
+        };
+        let dict = form.dict();
+        if dict.get::<Name<'_>>(SUBTYPE).as_deref() != Some(b"Form".as_slice())
+            || !seen_forms.insert(dict.cache_key())
+        {
+            continue;
+        }
+        let Some(res) = dict.get::<Dict<'_>>(RESOURCES) else {
+            continue;
+        };
+        let inner_fonts = res.get::<Dict<'_>>(FONT).unwrap_or_default();
+        let inner_xobjects = res.get::<Dict<'_>>(XOBJECT).unwrap_or_default();
+        add_resource_fonts(table, &inner_fonts, &inner_xobjects, depth + 1, seen_forms);
+    }
 }
 
 fn font_info(font: &Dict<'_>, subtype: &[u8]) -> FontInfo {
@@ -550,7 +648,7 @@ mod tests {
         let fonts = font_table(&golden_pdf()).expect("font table");
         let key = first.font;
         assert!(pages.iter().flat_map(|p| &p.glyphs).all(|g| g.font == key));
-        let info = &fonts[&key];
+        let info = fonts.get(&key).expect("the golden's font is in the table");
         assert_eq!(info.subtype, "Type0");
         assert_eq!(info.base_font.as_deref(), Some("AAAAAA+NotoSans-Regular"));
         assert_eq!(info.postscript_name.as_deref(), Some("NotoSans-Regular"));
@@ -620,6 +718,14 @@ mod tests {
             "unmapped {} of {n}",
             page.unmapped
         );
+        // No font dictionary behind any of them: hayro's fallback, not Type3.
+        assert!(
+            page.glyphs
+                .iter()
+                .all(|g| g.font == FontKey::UNKEYED && !g.type3)
+        );
+        let fonts = font_table(&c6).expect("font table");
+        assert!(!fonts.contains_key(&FontKey::UNKEYED));
     }
 
     #[test]
@@ -817,12 +923,14 @@ mod tests {
         assert_eq!(page_string(&pages[7]), "Hello");
     }
 
-    /// One page drawing `content` with a non-embedded Helvetica as `/F1`;
-    /// `catalog` and `resources` add entries, `extra` adds objects from 5 on.
+    /// One page drawing `content` with a non-embedded Helvetica written inline
+    /// as `/F1`; `catalog`, `resources` and `page` add entries, `extra` adds
+    /// objects from 5 on.
     fn one_page_pdf(
         content: &[u8],
         catalog: Vec<(&str, Object)>,
         resources: Vec<(&str, Object)>,
+        page: Vec<(&str, Object)>,
         extra: Vec<Object>,
     ) -> Vec<u8> {
         let mut w = Writer::with_version("1.7");
@@ -854,19 +962,20 @@ mod tests {
         for (k, v) in resources {
             res.set(k, v);
         }
-        w.add(
-            3,
-            Object::Dictionary(obj_dict(vec![
-                ("Type", name("Page")),
-                ("Parent", Object::Reference((2, 0))),
-                (
-                    "MediaBox",
-                    Object::Array(vec![0.into(), 0.into(), 612.into(), 792.into()]),
-                ),
-                ("Resources", Object::Dictionary(res)),
-                ("Contents", Object::Reference((4, 0))),
-            ])),
-        );
+        let mut page_dict = obj_dict(vec![
+            ("Type", name("Page")),
+            ("Parent", Object::Reference((2, 0))),
+            (
+                "MediaBox",
+                Object::Array(vec![0.into(), 0.into(), 612.into(), 792.into()]),
+            ),
+            ("Resources", Object::Dictionary(res)),
+            ("Contents", Object::Reference((4, 0))),
+        ]);
+        for (k, v) in page {
+            page_dict.set(k, v);
+        }
+        w.add(3, Object::Dictionary(page_dict));
         w.add_stream_raw(4, Dictionary::new(), content.to_vec());
         for (i, o) in extra.into_iter().enumerate() {
             w.add(5 + i as u32, o);
@@ -880,7 +989,7 @@ mod tests {
         // Mode 2 (fill, then stroke), then mode 1 (stroke) for a run of the
         // same length right after a filled one.
         let content = b"BT /F1 12 Tf 2 Tr 72 700 Td (Bold) Tj 0 Tr (ab) Tj 1 Tr (cd) Tj ET";
-        let pages = extract(&one_page_pdf(content, vec![], vec![], vec![]));
+        let pages = extract(&one_page_pdf(content, vec![], vec![], vec![], vec![]));
         assert_eq!(page_string(&pages[0]), "Boldabcd");
         // Each paint call is counted; each glyph is inked once.
         assert_eq!(pages[0].paint.glyph_runs_visible, 4);
@@ -891,15 +1000,16 @@ mod tests {
     fn glyphs_carry_the_innermost_mcid() {
         let content = b"BT /F1 12 Tf 72 700 Td /P << /MCID 3 >> BDC (Tag) Tj \
                         /Span BMC (in) Tj EMC EMC (Free) Tj ET";
-        let pages = extract(&one_page_pdf(content, vec![], vec![], vec![]));
+        let pages = extract(&one_page_pdf(content, vec![], vec![], vec![], vec![]));
         let mcids: Vec<Option<i32>> = pages[0].glyphs.iter().map(|g| g.mcid).collect();
         let mut want = vec![Some(3); 5];
         want.extend([None; 4]);
         assert_eq!(mcids, want);
     }
 
-    #[test]
-    fn hidden_layer_text_is_absent_and_the_page_says_so() {
+    /// One page whose `Secret` sits in an optional-content group that is off
+    /// by default and whose `Shown` does not.
+    fn hidden_layer_pdf() -> Vec<u8> {
         let ocg = Object::Reference((5, 0));
         let catalog = vec![(
             "OCProperties",
@@ -920,10 +1030,144 @@ mod tests {
             ("Name", Object::string_literal("Hidden")),
         ]));
         let content = b"BT /F1 12 Tf 72 700 Td /OC /oc1 BDC (Secret) Tj EMC (Shown) Tj ET";
-        let pages = extract(&one_page_pdf(content, catalog, resources, vec![layer]));
+        one_page_pdf(content, catalog, resources, vec![], vec![layer])
+    }
+
+    /// `pdf` with everything from its last `xref` keyword to the end blanked
+    /// to spaces: no xref table, no trailer, no `startxref`.
+    fn without_xref_and_trailer(pdf: &[u8]) -> Vec<u8> {
+        let at = pdf
+            .windows(5)
+            .rposition(|w| w == b"\nxref")
+            .expect("an xref table")
+            + 1;
+        let mut out = pdf.to_vec();
+        out[at..].fill(b' ');
+        out
+    }
+
+    #[test]
+    fn hidden_layer_text_is_absent_and_the_page_says_so() {
+        let pages = extract(&hidden_layer_pdf());
         assert_eq!(page_string(&pages[0]), "Shown");
         assert_eq!(pages[0].paint.glyph_runs_visible, 1);
         assert_eq!(pages[0].warnings, vec![HIDDEN_LAYERS.to_owned()]);
+    }
+
+    #[test]
+    fn hidden_layers_are_reported_when_the_catalog_was_found_by_scanning() {
+        let damaged = without_xref_and_trailer(&hidden_layer_pdf());
+        assert!(!damaged.windows(7).any(|w| w == b"trailer"));
+        let pages = extract(&damaged);
+        assert_eq!(pages.len(), 1);
+        assert_eq!(page_string(&pages[0]), "Shown");
+        assert!(
+            pages[0].warnings.contains(&HIDDEN_LAYERS.to_owned()),
+            "{:?}",
+            pages[0].warnings
+        );
+    }
+
+    #[test]
+    fn inline_fonts_in_page_and_form_resources_are_in_the_table() {
+        // `/F1` is written inline in the page's resources; `/Fx` inline in a
+        // Form XObject's own resources.
+        let courier = obj_dict(vec![
+            ("Type", name("Font")),
+            ("Subtype", name("Type1")),
+            ("BaseFont", name("Courier")),
+        ]);
+        let form = Object::Stream(lopdf::Stream::new(
+            obj_dict(vec![
+                ("Type", name("XObject")),
+                ("Subtype", name("Form")),
+                (
+                    "BBox",
+                    Object::Array(vec![0.into(), 0.into(), 612.into(), 792.into()]),
+                ),
+                (
+                    "Resources",
+                    Object::Dictionary(obj_dict(vec![(
+                        "Font",
+                        Object::Dictionary(obj_dict(vec![("Fx", Object::Dictionary(courier))])),
+                    )])),
+                ),
+            ]),
+            b"BT /Fx 10 Tf 72 600 Td (Form) Tj ET".to_vec(),
+        ));
+        let resources = vec![(
+            "XObject",
+            Object::Dictionary(obj_dict(vec![("Fm1", Object::Reference((5, 0)))])),
+        )];
+        let content = b"BT /F1 12 Tf 72 700 Td (Page) Tj ET /Fm1 Do";
+        let pdf = one_page_pdf(content, vec![], resources, vec![], vec![form]);
+        let pages = extract(&pdf);
+        assert_eq!(page_string(&pages[0]), "PageForm");
+        let fonts = font_table(&pdf).expect("font table");
+        let names: Vec<Option<&str>> = pages[0]
+            .glyphs
+            .iter()
+            .map(|g| fonts.get(&g.font).and_then(|f| f.base_font.as_deref()))
+            .collect();
+        let mut want = vec![Some("Helvetica"); 4];
+        want.extend([Some("Courier"); 4]);
+        assert_eq!(names, want);
+        assert_eq!(fonts.len(), 2);
+        assert!(!fonts.contains_key(&FontKey::UNKEYED));
+    }
+
+    #[test]
+    fn annotation_text_is_left_out_unless_asked_for() {
+        let appearance = Object::Stream(lopdf::Stream::new(
+            obj_dict(vec![
+                ("Type", name("XObject")),
+                ("Subtype", name("Form")),
+                (
+                    "BBox",
+                    Object::Array(vec![0.into(), 0.into(), 200.into(), 20.into()]),
+                ),
+            ]),
+            b"BT /F1 10 Tf 2 5 Td (Note) Tj ET".to_vec(),
+        ));
+        let annot = Object::Dictionary(obj_dict(vec![
+            ("Type", name("Annot")),
+            ("Subtype", name("FreeText")),
+            (
+                "Rect",
+                Object::Array(vec![100.into(), 100.into(), 300.into(), 120.into()]),
+            ),
+            (
+                "AP",
+                Object::Dictionary(obj_dict(vec![("N", Object::Reference((5, 0)))])),
+            ),
+        ]));
+        let page = vec![("Annots", Object::Array(vec![Object::Reference((6, 0))]))];
+        let content = b"BT /F1 12 Tf 72 700 Td (Body) Tj ET";
+        let pdf = one_page_pdf(content, vec![], vec![], page, vec![appearance, annot]);
+
+        let pages = extract(&pdf);
+        assert_eq!(page_string(&pages[0]), "Body");
+        assert_eq!(pages[0].paint.glyph_runs_visible, 1);
+
+        let opts = ExtractOptions {
+            render_annotations: true,
+            ..ExtractOptions::default()
+        };
+        let pages = extract_text(&pdf, &opts).expect("extracts");
+        assert_eq!(page_string(&pages[0]), "BodyNote");
+        assert_eq!(pages[0].paint.glyph_runs_visible, 2);
+    }
+
+    #[test]
+    fn clip_only_text_produces_a_clip_and_no_glyphs() {
+        let content = b"BT /F1 12 Tf 7 Tr 72 700 Td (Clip) Tj ET";
+        let pages = extract(&one_page_pdf(content, vec![], vec![], vec![], vec![]));
+        assert!(pages[0].glyphs.is_empty());
+        assert_eq!(pages[0].paint.clips, 1);
+        assert_eq!(pages[0].paint.paint_ops(), 0);
+        // A limit of every file: documented once, not repeated per page.
+        assert!(KNOWN_LIMITS.iter().any(|l| l.contains("render mode 7")));
+        assert!(pages[0].warnings.is_empty(), "{:?}", pages[0].warnings);
     }
 
     #[test]
