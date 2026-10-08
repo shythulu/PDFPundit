@@ -1,0 +1,6 @@
+# Committed bytes that are hashed or compiled in must be the same on every
+# checkout (D-021): no end-of-line conversion.
+assets/fontindex.json -text
+assets/gmaps/*.gmap -text
+assets/fonts/*.ttf -text
+assets/licenses/OFL-Noto.txt -text

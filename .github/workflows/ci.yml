@@ -27,7 +27,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cargo fmt --all --check
       - name: clippy
-        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       # The determinism bans must fire: a scratch copy with Instant, f64::cbrt or a
       # HashMap loop under src/pdf/ must fail clippy (own temp target dir).
       - name: lint meta-tests
@@ -99,21 +99,20 @@ jobs:
         run: tools/check-ui-goldens.sh
 
   # Generated font assets are committed; regenerating them must change nothing
-  # (D-021 amended). Inactive until tools/build-templates exists (T-29).
+  # (D-021 amended, T-29).
   assets:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: tool tests
+        run: cargo test --locked --release -p build-templates
       - name: regenerate and diff assets
         run: |
-          if [ ! -f tools/build-templates/Cargo.toml ]; then
-            echo "tools/build-templates does not exist yet (T-29); nothing to regenerate"
-            exit 0
-          fi
-          cargo run --locked --release --manifest-path tools/build-templates/Cargo.toml
+          cargo run --locked --release -p build-templates
           git diff --exit-code assets/
+          test -z "$(git status --porcelain assets/)"
 
   # Dev-only switches exist only under cfg(debug_assertions) (D-051).
   release-strings:
