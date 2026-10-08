@@ -1,8 +1,8 @@
 //! UI state (T-20): everything the screen is drawn from. The loop owns one
 //! [`AppState`] and fills it from job events, the history store, `Resize` and
 //! the wall clock; [`super::view::view`] turns it into what the layouts draw.
-// The loop (T-23a), the modals (T-24) and the picker (T-37) build these.
-// TODO(T-23a, T-24, T-37): remove this allow once they do.
+// The loop (T-23a) and the modals (T-24) build these.
+// TODO(T-23a, T-24): remove this allow once they do.
 #![allow(dead_code)]
 
 use crate::jobs::BatchState;
@@ -46,10 +46,8 @@ pub enum Screen {
     Themes { selected: usize },
 }
 
-/// The browse picker's state. A placeholder: T-37 gives it its fields
-/// (`cwd`, `entries`, `cursor`, `selected`, `filter`).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BrowseState {}
+/// The browse picker's state (T-37) lives with its keyboard model.
+pub use super::layout::browse::BrowseState;
 
 #[cfg(test)]
 pub(crate) mod fixtures {

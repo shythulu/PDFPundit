@@ -412,6 +412,29 @@ pub const DROP_BIG: &str = "big one: a pdf above 512 MiB is held in memory while
 /// The one-line fallback takes no drops (D-064).
 pub const TOO_SMALL_TO_EAT: &str = "too small to eat: make me at least 32×16";
 
+// The browse picker (T-37, DA M1). Its look is the panel's own until the user
+// supplies a mockup frame (D-048).
+
+/// The picker's title.
+pub const BROWSE_TITLE: &str = "BROWSE";
+/// The top edge's count of picked files, from every folder visited; `{n}` is
+/// the count.
+pub const N_SELECTED: &str = "{n} selected";
+/// The button that sends the picked files to the cat: under the cursor, not
+/// under it, and with nothing picked.
+pub const FEED_BUTTON_ON: &str = "{W/m} ► feed the cat {/K}";
+pub const FEED_BUTTON_OFF: &str = "{D}[ {W}feed the cat {D}]";
+pub const FEED_BUTTON_EMPTY: &str = "{D}[ feed the cat ]";
+/// The picker's keys, and the widget's shorter line.
+pub const BROWSE_KEYS: &str =
+    "{D}↑↓ move · enter open/pick · space toggle · a all pdfs · ⌫ up · . hidden · esc cancel";
+pub const BROWSE_KEYS_SHORT: &str = "{D}␣ pick · a all · ⌫ up · esc";
+/// A folder with nothing to show, and one that cannot be read.
+pub const NO_PDFS_HERE: &str = "no pdfs or folders here";
+pub const CANT_READ_FOLDER: &str = "can't read this folder";
+/// The status bar's state while the picker is open.
+pub const BROWSING: &str = "browsing";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -628,6 +651,15 @@ pub const ALL: &[&str] = &[
     DROP_TOO_BIG,
     DROP_BIG,
     TOO_SMALL_TO_EAT,
+    // the browse picker (T-37), its phrases as drawn
+    BROWSE_TITLE,
+    N_SELECTED,
+    "feed the cat",
+    "↑↓ move · enter open/pick · space toggle · a all pdfs · ⌫ up · . hidden · esc cancel",
+    "␣ pick · a all · ⌫ up · esc",
+    NO_PDFS_HERE,
+    CANT_READ_FOLDER,
+    BROWSING,
 ];
 
 #[cfg(test)]

@@ -45,3 +45,12 @@ Our own 8×8 baseline JFIF JPEG, three components (650 bytes, sha256
 `b138c5b6855e4eb2c36341f8e9ff7d10f00d153d1583bf9327b91f38791cb1ea`): the goldens'
 DCT image. No JPEG encoder is a dependency, so it is committed as is; a test
 asserts hayro decodes it.
+
+## `ui-self/` (T-37, D-048)
+
+Self-goldens: frames of screens the mockup has no frame for yet (the browse
+picker, full layout and widget), drawn once by this crate and committed in the
+`ui/` goldens' JSON format. They hold the look still until the user supplies a
+mockup frame. To accept a deliberate change, run the test with
+`PDFPUNDIT_BLESS_UI=1` and review the diff. The file names in them are the
+mockup's sample names, not corpus files.
