@@ -43,6 +43,20 @@ impl Lang {
             _ => Lang::Unknown,
         }
     }
+
+    /// The label [`Lang::from_label`] reads; `Unknown` is `"und"` (BCP 47's
+    /// undetermined language), which reads back as `Unknown`.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Lang::En => "en",
+            Lang::Fr => "fr",
+            Lang::Es => "es",
+            Lang::Ar => "ar",
+            Lang::Hi => "hi",
+            Lang::Zh => "zh",
+            Lang::Unknown => "und",
+        }
+    }
 }
 
 /// NFC, then per-char `to_lowercase` as the casefold, then whitespace runs

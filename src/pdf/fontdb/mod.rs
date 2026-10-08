@@ -1,4 +1,12 @@
 //! Font DB: AGL, glyph maps, decoding through our own fonts, inference, builders.
+//!
+//! [`FontDb`] is the database repair draws replacement fonts from (T-28, D-021):
+//! an index (`fontindex.json`'s format, [`IndexEntry`]) and, per font, its
+//! TrueType program and `.gmap`, each checked against the index's hashes when
+//! the database is loaded. Template PDFs are built from them on first use
+//! through [`template::build`] and kept for the life of the database. The
+//! bundled database is compiled in with `include_bytes!` and has no word list
+//! (D-011): its fonts are scored with [`dict::EmptyDictionary`].
 
 pub mod build;
 
@@ -7,6 +15,256 @@ pub(crate) mod agl;
 #[rustfmt::skip]
 mod agl_table;
 pub(crate) mod decode;
+pub(crate) mod dict;
 pub(crate) mod gmap;
 pub(crate) mod score;
 pub(crate) mod template;
+
+use std::borrow::Cow;
+use std::sync::{Arc, OnceLock};
+
+use sha2::{Digest, Sha256};
+
+use crate::engine::FontDbError;
+use build::IndexEntry;
+use gmap::GmapTable;
+use template::TemplateError;
+
+/// The font database repair draws replacement fonts from.
+///
+/// Its hash covers the index and then every `.gmap` in index order; the index
+/// carries every program's and `.gmap`'s hash, checked on load, so two
+/// databases with one hash hold the same fonts and compare equal.
+#[derive(Clone)]
+pub(crate) struct FontDb {
+    sha256: [u8; 32],
+    fonts: Vec<DbFont>,
+}
+
+/// One font of a [`FontDb`], already checked against its index entry.
+// T-30 (template assembly) reads the programs and templates.
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Clone)]
+struct DbFont {
+    entry: IndexEntry,
+    ttf: Cow<'static, [u8]>,
+    gmap: Cow<'static, [u8]>,
+    template: OnceLock<Result<Vec<u8>, TemplateError>>,
+}
+
+// T-30 (the C7/C8 passes) is the first caller of the lookups outside the
+// tests.
+#[cfg_attr(not(test), allow(dead_code))]
+impl FontDb {
+    /// A database from an index (`fontindex.json`'s format) and a blob
+    /// lookup that answers `<id>.ttf` and `<id>.gmap` for every indexed font.
+    ///
+    /// Refuses an index that is not a JSON array of entries or repeats an id
+    /// ([`FontDbError::BadIndex`]), a blob the lookup lacks
+    /// ([`FontDbError::MissingBlob`]), a blob whose SHA-256 is not the
+    /// index's ([`FontDbError::HashMismatch`]), and a `.gmap` that does not
+    /// load (`BadIndex`). The blobs are copied.
+    pub(crate) fn from_bytes<'b>(
+        index: &[u8],
+        blobs: &dyn Fn(&str) -> Option<&'b [u8]>,
+    ) -> Result<Self, FontDbError> {
+        FontDb::load(index, blobs, &|b| Cow::Owned(b.to_vec()))
+    }
+
+    /// The bundled database: `assets/fontindex.json`, `assets/fonts/*.ttf`
+    /// and `assets/gmaps/*.gmap`, compiled in (D-021) and loaded once per
+    /// process. A debug build reads them from the directory
+    /// `PDFPUNDIT_ASSETS` names instead, when it is set and loads (D-051);
+    /// the report's `font_db_sha256` records which database was used.
+    pub(crate) fn bundled() -> Arc<FontDb> {
+        static DB: OnceLock<Arc<FontDb>> = OnceLock::new();
+        DB.get_or_init(|| {
+            #[cfg(debug_assertions)]
+            if let Some(dir) = std::env::var_os("PDFPUNDIT_ASSETS")
+                && let Ok(db) = FontDb::from_dir(std::path::Path::new(&dir))
+            {
+                return Arc::new(db);
+            }
+            Arc::new(FontDb::compiled_in())
+        })
+        .clone()
+    }
+
+    /// No fonts; its hash is the SHA-256 of no bytes.
+    pub(crate) fn empty() -> FontDb {
+        FontDb {
+            sha256: Sha256::digest([]).into(),
+            fonts: Vec::new(),
+        }
+    }
+
+    /// SHA-256 over the index and then every `.gmap` in index order.
+    pub(crate) fn sha256(&self) -> [u8; 32] {
+        self.sha256
+    }
+
+    /// Every font's index entry, in index order.
+    pub(crate) fn entries(&self) -> Vec<&IndexEntry> {
+        self.fonts.iter().map(|f| &f.entry).collect()
+    }
+
+    /// Font `id`'s index entry.
+    pub(crate) fn entry(&self, id: &str) -> Option<&IndexEntry> {
+        self.font(id).map(|f| &f.entry)
+    }
+
+    /// Font `id`'s glyph map.
+    pub(crate) fn gmap(&self, id: &str) -> Option<GmapTable<'_>> {
+        // Checked on load, so this cannot fail.
+        self.font(id).and_then(|f| GmapTable::new(&f.gmap).ok())
+    }
+
+    /// Every font's glyph map, in index order: what [`score::infer`]'s
+    /// `gmap_of` looks fonts up in.
+    pub(crate) fn gmaps(&self) -> Vec<(&str, GmapTable<'_>)> {
+        self.fonts
+            .iter()
+            .filter_map(|f| Some((f.entry.id.as_str(), GmapTable::new(&f.gmap).ok()?)))
+            .collect()
+    }
+
+    /// Font `id`'s template PDF, built on first use and kept.
+    pub(crate) fn template(&self, id: &str) -> Option<Result<&[u8], TemplateError>> {
+        let font = self.font(id)?;
+        let built = font.template.get_or_init(|| {
+            let gmap = GmapTable::new(&font.gmap).expect("checked on load");
+            template::build(&font.ttf, &gmap)
+        });
+        Some(built.as_ref().map(Vec::as_slice).map_err(Clone::clone))
+    }
+
+    fn font(&self, id: &str) -> Option<&DbFont> {
+        self.fonts.iter().find(|f| f.entry.id == id)
+    }
+
+    fn compiled_in() -> FontDb {
+        let blob = |name: &str| -> Option<&'static [u8]> {
+            let font = template::BUNDLED.iter().find(|f| {
+                name.strip_prefix(f.id)
+                    .is_some_and(|ext| ext.starts_with('.'))
+            })?;
+            match &name[font.id.len()..] {
+                ".ttf" => Some(font.ttf),
+                ".gmap" => Some(font.gmap),
+                _ => None,
+            }
+        };
+        // The template tests check the committed assets load and hash as the
+        // index says.
+        FontDb::load(template::BUNDLED_INDEX, &blob, &Cow::Borrowed)
+            .expect("the bundled font assets load")
+    }
+
+    /// `dir/fontindex.json`, `dir/fonts/<id>.ttf` and `dir/gmaps/<id>.gmap`:
+    /// the layout of `assets/`.
+    #[cfg(any(debug_assertions, test))]
+    fn from_dir(dir: &std::path::Path) -> Result<FontDb, FontDbError> {
+        let read = |path: std::path::PathBuf| {
+            std::fs::read(&path).map_err(|_| FontDbError::MissingBlob(path.display().to_string()))
+        };
+        let index = read(dir.join("fontindex.json"))?;
+        let entries: Vec<IndexEntry> =
+            serde_json::from_slice(&index).map_err(|e| FontDbError::BadIndex(e.to_string()))?;
+        let mut blobs = Vec::new();
+        for e in &entries {
+            for (sub, name) in [
+                ("fonts", format!("{}.ttf", e.id)),
+                ("gmaps", format!("{}.gmap", e.id)),
+            ] {
+                if let Ok(bytes) = std::fs::read(dir.join(sub).join(&name)) {
+                    blobs.push((name, bytes));
+                }
+            }
+        }
+        let blob = |name: &str| {
+            blobs
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, b)| b.as_slice())
+        };
+        FontDb::from_bytes(&index, &blob)
+    }
+
+    fn load<'b>(
+        index: &[u8],
+        blobs: &dyn Fn(&str) -> Option<&'b [u8]>,
+        keep: &dyn Fn(&'b [u8]) -> Cow<'static, [u8]>,
+    ) -> Result<FontDb, FontDbError> {
+        let entries: Vec<IndexEntry> =
+            serde_json::from_slice(index).map_err(|e| FontDbError::BadIndex(e.to_string()))?;
+        let mut sha256 = Sha256::new();
+        sha256.update(index);
+        let mut fonts: Vec<DbFont> = Vec::with_capacity(entries.len());
+        for entry in entries {
+            if fonts.iter().any(|f| f.entry.id == entry.id) {
+                return Err(FontDbError::BadIndex(format!(
+                    "font {} indexed twice",
+                    entry.id
+                )));
+            }
+            let ttf = checked_blob(blobs, &format!("{}.ttf", entry.id), &entry.sha256)?;
+            let gmap_name = format!("{}.gmap", entry.id);
+            let gmap = checked_blob(blobs, &gmap_name, &entry.gmap_sha256)?;
+            GmapTable::new(gmap).map_err(|e| FontDbError::BadIndex(format!("{gmap_name}: {e}")))?;
+            sha256.update(gmap);
+            fonts.push(DbFont {
+                entry,
+                ttf: keep(ttf),
+                gmap: keep(gmap),
+                template: OnceLock::new(),
+            });
+        }
+        Ok(FontDb {
+            sha256: sha256.finalize().into(),
+            fonts,
+        })
+    }
+}
+
+/// Blob `name`, refused unless its SHA-256 is `want` (lowercase hex).
+fn checked_blob<'b>(
+    blobs: &dyn Fn(&str) -> Option<&'b [u8]>,
+    name: &str,
+    want: &str,
+) -> Result<&'b [u8], FontDbError> {
+    let bytes = blobs(name).ok_or_else(|| FontDbError::MissingBlob(name.to_owned()))?;
+    let got: String = Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    if got != want {
+        return Err(FontDbError::HashMismatch {
+            name: name.to_owned(),
+        });
+    }
+    Ok(bytes)
+}
+
+impl PartialEq for FontDb {
+    fn eq(&self, other: &Self) -> bool {
+        self.sha256 == other.sha256
+    }
+}
+
+impl Eq for FontDb {}
+
+impl std::fmt::Debug for FontDb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let sha256: String = self.sha256.iter().map(|b| format!("{b:02x}")).collect();
+        f.debug_struct("FontDb")
+            .field("sha256", &sha256)
+            .field(
+                "fonts",
+                &self.fonts.iter().map(|f| &f.entry.id).collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests;
