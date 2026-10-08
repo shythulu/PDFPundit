@@ -15,6 +15,7 @@ use crate::jobs::{FakeEngine, JobInput, QueueEntry};
 use crate::library::RecentStatus;
 use crate::panic_guard::{self, SharedWriter};
 use crate::place::ScratchDir;
+use crate::ui::director::CellPos;
 use crate::ui::goldens;
 use crate::ui::layout::browse::BrowseState;
 use crate::ui::term::TestScreen;
@@ -169,13 +170,6 @@ fn inputs_before_the_first_frame_are_dropped_and_counted() {
     send(&mut app, key('H'));
     assert_eq!(app.pre_frame_dropped, 3, "armed: nothing more is dropped");
     assert_eq!(app.state.hint, Some(strings::NOT_YET));
-}
-
-#[test]
-fn the_handshake_slot_reads_nothing_until_t31() {
-    // `shell` logs the slot's count; until T-31 there is no window to count.
-    let h = term::handshake();
-    assert_eq!((h.kitty, h.discarded), (false, 0));
 }
 
 fn needs_you_request() -> InteractionRequest {
@@ -1014,6 +1008,217 @@ fn a_typed_burst_is_a_paste_on_windows() {
     assert!(app.admitted.is_empty(), "still coming");
     app.tick(Duration::from_secs(5));
     assert_eq!(app.admitted.len(), 1);
-    assert_eq!(app.admitted[0].path, a);
+    assert_eq!(app.admitted[0].0.path, a);
     assert!(!app.quit);
+}
+
+// ── kitty drops (T-31) ──────────────────────────────────────────────────
+
+const ACCEPT: &[u8] = b"\x1b]72;t=m:o=1;text/uri-list\x1b\\";
+const DECLINE: &[u8] = b"\x1b]72;t=m:o=0\x1b\\";
+const REQUEST: &[u8] = b"\x1b]72;t=r:x=1\x1b\\";
+const DONE: &[u8] = b"\x1b]72;t=r:o=1\x1b\\";
+const CANCELLED: &[u8] = b"\x1b]72;t=r:o=0\x1b\\";
+
+fn drag(x: u16, y: u16) -> Input {
+    Input::Dnd(DndEvent::Move {
+        cell: Some(CellPos { x, y }),
+        copy: true,
+        mimes: Some(vec!["text/uri-list".into()]),
+    })
+}
+
+fn drop_on(x: u16, y: u16) -> Input {
+    Input::Dnd(DndEvent::Drop {
+        cell: Some(CellPos { x, y }),
+        copy: true,
+        mimes: vec!["text/uri-list".into(), "text/plain".into()],
+    })
+}
+
+/// The `text/uri-list` naming `paths`.
+fn uri_list(paths: &[&Path]) -> Input {
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    const KEEP: &percent_encoding::AsciiSet = &NON_ALPHANUMERIC
+        .remove(b'/')
+        .remove(b'.')
+        .remove(b'-')
+        .remove(b'_');
+    let list: String = paths
+        .iter()
+        .map(|p| {
+            let p = p.to_str().expect("a UTF-8 scratch path");
+            format!("file://{}\r\n", utf8_percent_encode(p, KEEP))
+        })
+        .collect();
+    Input::Dnd(DndEvent::Data {
+        idx: Some(1),
+        data: Ok(list.into_bytes()),
+    })
+}
+
+fn at_rest(app: &App, now: Duration) -> bool {
+    app.director.frame(now) == Director::new().frame(now)
+}
+
+/// The mock terminal: every byte the loop wrote, as the terminal reads it.
+fn wire(screen: &TestScreen) -> Vec<u8> {
+    screen.raw().to_vec()
+}
+
+#[test]
+fn a_kitty_drop_on_the_cat_is_read_before_it_completes() {
+    let dir = ScratchDir::new("app-kitty");
+    let a = pdf(&dir, "a b.pdf");
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let mut clock = FakeClock::new();
+
+    // The first move over the cat is answered; the cat watches the drag.
+    script(&mut app, &mut screen, &mut clock, vec![drag(50, 20)]);
+    assert_eq!(wire(&screen), ACCEPT);
+    assert!(!at_rest(&app, Duration::from_secs(1)), "the cat watches");
+
+    // The drop asks for the list; the list's file is read, then completed.
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drop_on(50, 20), uri_list(&[&a])],
+    );
+    assert_eq!(wire(&screen), [ACCEPT, REQUEST, DONE].concat());
+    assert_eq!(app.admitted.len(), 1);
+    assert_eq!(app.admitted[0].0.path, a);
+    let want = std::fs::read(&a).unwrap();
+    assert_eq!(app.admitted[0].1.as_deref(), Some(want.as_slice()));
+
+    // The file goes away when the drop ends (a file promise); its bytes
+    // were taken while it was there. The runner pins them and, with the path
+    // gone, never writes beside it (D-039, D-061; runner_tests.rs).
+    std::fs::remove_file(&a).unwrap();
+    let mut submitted = Vec::new();
+    app.submit_drops(Duration::from_secs(2), &mut |input| {
+        submitted.push(input);
+        JobId(1)
+    });
+    assert_eq!(
+        submitted,
+        [JobInput::Dropped {
+            path: a.clone(),
+            bytes: want
+        }]
+    );
+    assert_eq!(app.director.frame(Duration::from_secs(2)).n, 1);
+}
+
+#[test]
+fn off_the_cat_is_declined_and_a_drop_there_cancelled() {
+    let dir = ScratchDir::new("app-kitty-off");
+    let a = pdf(&dir, "a.pdf");
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let mut clock = FakeClock::new();
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drag(5, 5), drag(6, 5), drag(50, 20), drag(100, 20)],
+    );
+    assert_eq!(wire(&screen), [DECLINE, ACCEPT, DECLINE].concat());
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drop_on(100, 20), uri_list(&[&a])],
+    );
+    assert_eq!(
+        wire(&screen),
+        [DECLINE, ACCEPT, DECLINE, CANCELLED].concat(),
+        "no request, and the unasked-for list is ignored"
+    );
+    assert!(app.admitted.is_empty());
+    assert!(at_rest(&app, Duration::from_secs(5)));
+
+    // The widget takes drops over its cat; the one-line fallback nowhere.
+    let (mut app, mut screen) = started(32, 16, &config::Ui::default());
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drag(10, 5), drag(10, 15)],
+    );
+    assert_eq!(wire(&screen), [ACCEPT, DECLINE].concat());
+    let (mut app, mut screen) = started(20, 1, &config::Ui::default());
+    script(&mut app, &mut screen, &mut clock, vec![drag(0, 0)]);
+    assert_eq!(wire(&screen), DECLINE);
+}
+
+#[test]
+fn a_drop_the_terminal_ends_still_gets_its_completion() {
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let mut clock = FakeClock::new();
+    let refused = Input::Dnd(DndEvent::Error {
+        name: "EPERM".into(),
+        description: Some("the drag started in this window".into()),
+    });
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drag(50, 20), drop_on(50, 20), refused],
+    );
+    assert_eq!(wire(&screen), [ACCEPT, REQUEST, CANCELLED].concat());
+    assert_eq!(app.state.hint, Some(strings::DROP_REFUSED));
+    assert!(
+        app.debug_log
+            .iter()
+            .any(|l| l.contains("EPERM: the drag started in this window")),
+        "the description goes to the debug log"
+    );
+    assert!(at_rest(&app, Duration::from_secs(5)));
+    assert!(app.admitted.is_empty());
+}
+
+#[test]
+fn a_drop_with_nothing_to_take_is_cancelled() {
+    let dir = ScratchDir::new("app-kitty-none");
+    let txt = dir.join("notes.txt");
+    std::fs::write(&txt, b"text").unwrap();
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let mut clock = FakeClock::new();
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drag(50, 20), drop_on(50, 20), uri_list(&[&txt])],
+    );
+    assert_eq!(wire(&screen), [ACCEPT, REQUEST, CANCELLED].concat());
+    assert_eq!(app.state.hint, Some(strings::DROP_NOT_A_PDF));
+    assert!(at_rest(&app, Duration::from_secs(5)));
+}
+
+/// Unix only, as the size test above: NTFS allocates what `set_len` asks.
+#[cfg(unix)]
+#[test]
+fn a_drop_holds_at_most_512_mib() {
+    let dir = ScratchDir::new("app-kitty-hold");
+    let small = pdf(&dir, "small.pdf");
+    let big = pdf(&dir, "big.pdf");
+    std::fs::File::options()
+        .write(true)
+        .open(&big)
+        .unwrap()
+        .set_len(HOLD_LIMIT)
+        .unwrap();
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let mut clock = FakeClock::new();
+    // The small file first: the big one would take the drop past the limit.
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drag(50, 20), drop_on(50, 20), uri_list(&[&small, &big])],
+    );
+    assert_eq!(wire(&screen), [ACCEPT, REQUEST, DONE].concat());
+    assert_eq!(app.admitted.len(), 1);
+    assert_eq!(app.admitted[0].0.path, small);
+    assert_eq!(app.state.hint, Some(strings::DROP_HOLD_LIMIT));
 }

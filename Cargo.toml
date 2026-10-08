@@ -44,7 +44,12 @@ base64 = "0.22"
 percent-encoding = "2.3"
 
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "1.1.4", default-features = false, features = ["std", "stdio", "fs", "termios"] }
+# `event`: poll(2) for the kitty handshake's 300 ms window and the raw stdin
+# reader (T-31); code only, no new package.
+rustix = { version = "1.1.4", default-features = false, features = ["std", "stdio", "fs", "termios", "event"] }
+# SIGWINCH for the raw stdin reader on kitty (T-31). Already in the graph
+# through crossterm; no default features, so never `extended-siginfo` (cc).
+signal-hook = { version = "0.3.18", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
@@ -63,7 +68,7 @@ sha1 = "0.11"
 # tests/guard.rs opens a pty for the true case and the input flush (T-23a).
 # Dev-only: resolver 3 keeps `pty` out of the shipped graph (eng-r2-q11).
 [target.'cfg(unix)'.dev-dependencies]
-rustix = { version = "1.1.4", default-features = false, features = ["std", "fs", "termios", "pty"] }
+rustix = { version = "1.1.4", default-features = false, features = ["std", "fs", "termios", "event", "pty"] }
 
 # tests/guard.rs's ConPTY true case (ignored until a windows-latest run shows
 # ConPTY delivers output, D-058). Dev-only features of a package already in the

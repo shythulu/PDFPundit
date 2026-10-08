@@ -31,6 +31,15 @@ const PLATE_W: u16 = 30;
 /// The status line and the status bar.
 const LINE_Y: i32 = 14;
 const BAR_Y: i32 = 15;
+/// Where a kitty drag is told its drop is wanted (T-31): x, y, w, h. The
+/// plate's columns, from the cat's top down to the hint row (columns 1–30,
+/// rows 0–13).
+const DROP_ZONE: (u16, u16, u16, u16) = (
+    PLATE_AT.0 as u16,
+    CAT_AT.1 as u16,
+    PLATE_W,
+    (LINE_Y - CAT_AT.1) as u16,
+);
 const W: i32 = WIDGET_SIZE.0 as i32;
 
 /// The batch progress bar's width on the status line; it gives way to a
@@ -78,6 +87,10 @@ pub struct WidgetLayout;
 impl Layout for WidgetLayout {
     fn min_size(&self) -> (u16, u16) {
         WIDGET_SIZE
+    }
+
+    fn drop_zone(&self) -> Option<(u16, u16, u16, u16)> {
+        Some(DROP_ZONE)
     }
 
     /// Drawn under a 32 × 16 clip, so long counts or names cannot write past
@@ -353,6 +366,26 @@ mod tests {
     fn assert_golden(name: &str, vm: &ViewModel, cat: &CatFrame) {
         let c = draw(&WidgetLayout, WIDGET_SIZE, vm, cat);
         c.assert_matches(&goldens::load(name));
+    }
+
+    /// The drop zone (T-31) holds the drawn cat and its plate, above the
+    /// hint row.
+    #[test]
+    fn the_drop_zone_holds_the_cat_and_its_plate() {
+        let (zx, zy, zw, zh) = DROP_ZONE;
+        let (zx, zy, zw, zh) = (i32::from(zx), i32::from(zy), i32::from(zw), i32::from(zh));
+        let inside = |(x, y): (i32, i32), g: &cat::CellGrid| {
+            let (w, h) = (i32::from(g.cols), i32::from(g.rows));
+            x >= zx && y >= zy && x + w <= zx + zw && y + h <= zy + zh
+        };
+        let g = cat::render(&cat::Pose::default(), CAT_SCALE, theme(), 0.0);
+        assert!(inside(CAT_AT, &g), "the cat");
+        assert!(
+            inside(PLATE_AT, &cat::plate(PLATE_W, Some(0.0))),
+            "the plate"
+        );
+        assert_eq!(zy + zh, LINE_Y, "up to the hint row");
+        assert_eq!(WidgetLayout.drop_zone(), Some(DROP_ZONE));
     }
 
     /// The four mood states, from the view model of fixture app states.

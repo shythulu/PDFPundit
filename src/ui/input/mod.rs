@@ -8,9 +8,10 @@
 //! - Unix otherwise: crossterm's reader, with bracketed paste on (the terminal
 //!   setup in `term.rs` turns it on, and every exit path turns it off).
 //!
-//! Pastes are the only text that becomes paths on Unix: crossterm's
-//! `Event::Paste`, which exists only between bracketed-paste markers. Loose
-//! key events never do. On Windows, where crossterm reports no paste, the
+//! On Unix only two things become paths: a bracketed paste (crossterm's
+//! `Event::Paste`, or the raw splitter's, which likewise exist only between
+//! the markers) and, on kitty, an OSC 72 drop's `file://` list. Loose key
+//! events never do. On Windows, where crossterm reports no paste, the
 //! app runs keys through the typed-path collector (`collector.rs`, D-034).
 //! Every path, from any source, passes the drop gate (`gate.rs`).
 //!
@@ -24,7 +25,6 @@
 #[cfg(any(windows, test))]
 pub(crate) mod collector;
 pub(crate) mod gate;
-#[cfg(any(windows, test))]
 pub(crate) mod keys;
 pub(crate) mod osc72;
 pub(crate) mod paste;
@@ -48,10 +48,13 @@ pub enum Input {
     Paste(String),
     /// The terminal's new size, columns then rows.
     Resize(u16, u16),
-    /// kitty drag and drop (T-31).
-    // TODO(T-31): the OSC 72 splitter builds these.
-    #[allow(dead_code)]
+    /// kitty drag and drop (T-31): built on Unix only, by the raw splitter.
+    #[cfg_attr(not(unix), allow(dead_code))]
     Dnd(DndEvent),
+    /// A line for the debug log from the reader thread (T-31: the raw
+    /// reader runs without resize events).
+    #[cfg_attr(not(unix), allow(dead_code))]
+    Note(String),
     /// Time passes and nothing else happens: a scripted input's pause. The
     /// readers never send it; the loop ticks on its own.
     #[cfg_attr(not(test), allow(dead_code))]
@@ -66,15 +69,66 @@ impl InputSource {
     /// first frame and immediately after `term::flush_input`.
     pub fn spawn(_cfg: &config::Ui, handshake: HandshakeResult) -> Receiver<Input> {
         let (tx, rx) = mpsc::channel();
-        // TODO(T-31): when `handshake.kitty`, the raw-stdin splitter owns
-        // stdin instead. Until T-31 lands the handshake never finds kitty.
-        let _ = handshake.kitty;
-        // Detached: the thread blocks in `event::read` and ends with the
-        // process, or when the loop drops the receiver.
+        // Detached: the thread blocks reading and ends with the process, or
+        // when the loop drops the receiver.
+        #[cfg(unix)]
+        if handshake.kitty {
+            let _ = thread::Builder::new()
+                .name("input".into())
+                .spawn(move || raw_reader(&tx));
+            return rx;
+        }
+        let _ = handshake;
         let _ = thread::Builder::new()
             .name("input".into())
             .spawn(move || crossterm_reader(&tx));
         rx
+    }
+}
+
+/// How long a lone `ESC` waits for the rest of a sequence before it is the
+/// Esc key.
+#[cfg(unix)]
+const ESC_WAIT: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// kitty's branch (T-31): stdin read raw and split into OSC 72 events and
+/// keys, mouse reports and pastes; a SIGWINCH is a resize.
+#[cfg(unix)]
+fn raw_reader(tx: &Sender<Input>) {
+    use super::term::{RawStdin, Wake};
+    // The raw reader is the only input on kitty: if the SIGWINCH pipe cannot
+    // be set up, keys and drops still come, without resize events. Opening
+    // without the pipe does no I/O and cannot fail.
+    let mut stdin = match RawStdin::open(true) {
+        Ok(stdin) => stdin,
+        Err(e) => {
+            let note = format!("input: no resize events ({e}); keys and drops still work");
+            if tx.send(Input::Note(note)).is_err() {
+                return;
+            }
+            match RawStdin::open(false) {
+                Ok(stdin) => stdin,
+                // Unreachable today; never leave the app with no keys.
+                Err(_) => return crossterm_reader(tx),
+            }
+        }
+    };
+    let mut splitter = osc72::Splitter::new();
+    loop {
+        let inputs = match stdin.wait(ESC_WAIT) {
+            Ok(Wake::Bytes(b)) => splitter.feed(b),
+            Ok(Wake::Idle) => splitter.idle(),
+            Ok(Wake::Resize) => match crossterm::terminal::size() {
+                Ok((w, h)) => vec![Input::Resize(w, h)],
+                Err(_) => Vec::new(),
+            },
+            Ok(Wake::Closed) | Err(_) => return,
+        };
+        for input in inputs {
+            if tx.send(input).is_err() {
+                return;
+            }
+        }
     }
 }
 

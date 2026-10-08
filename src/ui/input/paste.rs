@@ -203,7 +203,7 @@ fn has_scheme(word: &str, scheme: &str) -> bool {
 /// The local path a `file:` URI names (RFC 8089): `file:///p`,
 /// `file://localhost/p` or `file:/p`. Any other host is refused: only this
 /// machine's files go in.
-fn from_file_uri(uri: &str, style: Style) -> Result<PathBuf, &'static str> {
+pub(crate) fn from_file_uri(uri: &str, style: Style) -> Result<PathBuf, &'static str> {
     let rest = &uri["file:".len()..];
     let path = match rest.strip_prefix("//") {
         Some(authority) => {

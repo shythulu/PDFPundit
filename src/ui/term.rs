@@ -1,6 +1,7 @@
 //! The terminal (T-23a): the guard, raw mode and the alternate screen, the
-//! colour probe, the Unix handshake slot, the input flush, the restore bytes
-//! the panic hook writes, and the one blit from a [`Canvas`] to the screen.
+//! colour probe, the Unix kitty handshake and raw stdin (T-31), the input
+//! flush, the restore bytes the panic hook writes, and the one blit from a
+//! [`Canvas`] to the screen.
 //!
 //! ratatui's types appear here and nowhere else (D-045: everything above
 //! draws into the framework-free canvas). D-004 is the user's open choice of
@@ -18,6 +19,7 @@ use ratatui::style::{Color, Modifier};
 
 use super::canvas::Canvas;
 use super::color::{ColorCaps, Rgb, Snap, xterm256};
+use super::input::osc72;
 use super::theme::Theme;
 
 /// The guard (D-043): stdin and stdout are both terminals. std's meaning:
@@ -57,7 +59,7 @@ fn color_caps(colorterm: Option<&str>, term: Option<&str>, windows: bool) -> Col
 
 /// kitty's drag-and-drop opt-out, sent on every exit path once `t=a` was sent
 /// (T-31).
-const KITTY_OPT_OUT: &[u8] = b"\x1b]72;t=A\x1b\\";
+const KITTY_OPT_OUT: &[u8] = osc72::OPT_OUT;
 
 /// The bytes that give the terminal back: attributes reset, kitty's opt-out
 /// when it was armed, bracketed paste off, the cursor shown, the alternate
@@ -79,6 +81,8 @@ pub fn restore_sequence(kitty_armed: bool) -> Vec<u8> {
 /// paste, for as long as it lives; dropping it gives the terminal back.
 pub struct TermGuard {
     restored: bool,
+    /// kitty drops were asked for: the opt-out goes with the rest.
+    kitty: bool,
 }
 
 impl TermGuard {
@@ -86,7 +90,10 @@ impl TermGuard {
     /// returns.
     pub fn enter() -> io::Result<TermGuard> {
         terminal::enable_raw_mode()?;
-        let mut guard = TermGuard { restored: false };
+        let mut guard = TermGuard {
+            restored: false,
+            kitty: false,
+        };
         let mut out = io::stdout();
         let entered = execute!(out, terminal::EnterAlternateScreen, cursor::Hide).and_then(|()| {
             // crossterm parses a paste with or without this; turning it on
@@ -104,13 +111,21 @@ impl TermGuard {
         }
     }
 
+    /// The handshake opted in to kitty drops: giving the terminal back opts
+    /// out.
+    pub fn kitty_armed(&mut self) {
+        self.kitty = true;
+    }
+
     /// Gives the terminal back; later calls do nothing.
     pub fn restore(&mut self) {
         if std::mem::replace(&mut self.restored, true) {
             return;
         }
         let mut out = io::stdout();
-        // TODO(T-31): send `KITTY_OPT_OUT` here when the handshake armed it.
+        if self.kitty {
+            let _ = out.write_all(KITTY_OPT_OUT).and_then(|()| out.flush());
+        }
         #[cfg(unix)]
         let _ = execute!(out, crossterm::event::DisableBracketedPaste);
         let _ = execute!(out, cursor::Show, terminal::LeaveAlternateScreen);
@@ -150,12 +165,146 @@ pub struct HandshakeResult {
     pub discarded: usize,
 }
 
-/// Step 3 of start-up, Unix only: the OSC 72 handshake (T-31). Until T-31
-/// lands it reads nothing and finds no kitty. Windows never runs one.
+/// How long the handshake reads (D-033).
+#[cfg(unix)]
+const HANDSHAKE_WINDOW: std::time::Duration = std::time::Duration::from_millis(300);
+
+/// Step 3 of start-up, Unix only: the OSC 72 handshake (T-31). Writes `t=q`
+/// then DA1 and reads stdin raw for at most 300 ms, or until the DA1 reply.
+/// A `t=q` reply before it is kitty: `t=a` is sent and the raw splitter will
+/// own stdin. Every other byte read is discarded and counted, on either
+/// branch (D-033 amended). The caller must have raw mode on.
+#[cfg(unix)]
 pub fn handshake() -> HandshakeResult {
-    // TODO(T-31): write `t=q` and DA1, read for at most 300 ms, discard and
-    // count every byte that is neither reply.
+    let mut out = io::stdout();
+    let asked = out
+        .write_all(&[osc72::QUERY, osc72::DA1].concat())
+        .and_then(|()| out.flush());
+    let mut h = osc72::Handshake::new();
+    let Ok(mut stdin) = asked.and_then(|()| RawStdin::open(false)) else {
+        return h.result();
+    };
+    let start = std::time::Instant::now();
+    while !h.done() {
+        let left = HANDSHAKE_WINDOW.saturating_sub(start.elapsed());
+        if left.is_zero() {
+            break;
+        }
+        match stdin.wait(left) {
+            Ok(Wake::Bytes(b)) => h.feed(b),
+            Ok(Wake::Idle | Wake::Resize) => {}
+            Ok(Wake::Closed) | Err(_) => break,
+        }
+    }
+    let result = h.result();
+    if result.kitty {
+        let _ = out.write_all(osc72::OPT_IN).and_then(|()| out.flush());
+    }
+    result
+}
+
+/// Windows never runs the handshake: kitty does not run there (D-033).
+#[cfg(not(unix))]
+pub fn handshake() -> HandshakeResult {
     HandshakeResult::default()
+}
+
+/// What [`RawStdin::wait`] saw.
+#[cfg(unix)]
+pub enum Wake<'a> {
+    /// Bytes read from stdin.
+    Bytes(&'a [u8]),
+    /// Nothing within the timeout.
+    Idle,
+    /// The window changed size (SIGWINCH).
+    Resize,
+    /// stdin hung up.
+    Closed,
+}
+
+/// stdin read raw (T-31): the handshake's window and, on kitty, the session
+/// reader, which also wants SIGWINCH. Nothing here parses.
+#[cfg(unix)]
+pub struct RawStdin {
+    /// The read end of the pipe signal-hook writes a byte to on SIGWINCH.
+    winch: Option<(std::os::unix::net::UnixStream, signal_hook::SigId)>,
+    buf: Vec<u8>,
+}
+
+#[cfg(unix)]
+impl RawStdin {
+    pub fn open(watch_resize: bool) -> io::Result<RawStdin> {
+        let winch = if watch_resize {
+            let (read, write) = std::os::unix::net::UnixStream::pair()?;
+            read.set_nonblocking(true)?;
+            let id = signal_hook::low_level::pipe::register(signal_hook::consts::SIGWINCH, write)?;
+            Some((read, id))
+        } else {
+            None
+        };
+        Ok(RawStdin {
+            winch,
+            buf: vec![0; 64 * 1024],
+        })
+    }
+
+    /// Waits up to `timeout` for input or a resize. Bytes come first; a
+    /// resize waits for the next call.
+    pub fn wait(&mut self, timeout: std::time::Duration) -> io::Result<Wake<'_>> {
+        use rustix::event::{PollFd, PollFlags, Timespec, poll};
+        use rustix::io::Errno;
+        let stdin = io::stdin();
+        let ts = Timespec {
+            tv_sec: i64::try_from(timeout.as_secs()).unwrap_or(i64::MAX),
+            tv_nsec: timeout.subsec_nanos() as _,
+        };
+        let (input, resized) = loop {
+            let mut fds = vec![PollFd::new(&stdin, PollFlags::IN)];
+            if let Some((pipe, _)) = &self.winch {
+                fds.push(PollFd::new(pipe, PollFlags::IN));
+            }
+            match poll(&mut fds, Some(&ts)) {
+                Ok(_) => {}
+                // A signal (SIGWINCH among them): poll again; the pipe says
+                // whether it was a resize.
+                Err(Errno::INTR) => continue,
+                Err(e) => return Err(e.into()),
+            }
+            break (
+                fds[0].revents(),
+                fds.get(1)
+                    .is_some_and(|f| f.revents().contains(PollFlags::IN)),
+            );
+        };
+        if input.contains(PollFlags::IN) {
+            return match rustix::io::read(&stdin, &mut self.buf[..]) {
+                Ok(0) => Ok(Wake::Closed),
+                Ok(n) => Ok(Wake::Bytes(&self.buf[..n])),
+                Err(Errno::INTR | Errno::AGAIN) => Ok(Wake::Bytes(&self.buf[..0])),
+                Err(e) => Err(e.into()),
+            };
+        }
+        if input.intersects(PollFlags::HUP | PollFlags::ERR | PollFlags::NVAL) {
+            return Ok(Wake::Closed);
+        }
+        if resized {
+            if let Some((pipe, _)) = &mut self.winch {
+                let mut sink = [0u8; 64];
+                while matches!(io::Read::read(pipe, &mut sink), Ok(n) if n > 0) {}
+            }
+            return Ok(Wake::Resize);
+        }
+        Ok(Wake::Idle)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for RawStdin {
+    fn drop(&mut self) {
+        if let Some((_, id)) = self.winch.take() {
+            signal_hook::low_level::unregister(id);
+        }
+    }
 }
 
 /// Step 5 of start-up: discards everything the terminal has queued for us,
