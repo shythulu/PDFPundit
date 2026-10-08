@@ -153,9 +153,10 @@ impl RepairPass for FontPrograms {
         for (t, d) in &decided {
             if let Decided::Decision(FontDecision::Unreproducible(req), _) = d {
                 let slots = t.slot_names();
-                match family_slots.iter_mut().find(|(f, _)| *f == req.family) {
+                let key = batch_key(t, &req.family);
+                match family_slots.iter_mut().find(|(f, _)| *f == key) {
                     Some((_, all)) => all.extend(slots),
-                    None => family_slots.push((req.family.clone(), slots)),
+                    None => family_slots.push((key, slots)),
                 }
             }
         }
@@ -900,13 +901,14 @@ fn answer(
             }
         }
         FontDecision::Unreproducible(mut req) => {
+            let key = batch_key(t, &req.family);
             let known = (ctx.notes.family_replies.iter())
-                .find(|(f, _)| *f == req.family)
+                .find(|(f, _)| *f == key)
                 .map(|(_, r)| r.clone());
             let reply = match known {
                 Some(reply) => reply,
                 None => {
-                    if let Some((_, slots)) = family_slots.iter().find(|(f, _)| *f == req.family) {
+                    if let Some((_, slots)) = family_slots.iter().find(|(f, _)| *f == key) {
                         req.slots = slots.clone();
                     }
                     let (page, slot) = req.slots.first().cloned().unzip();
@@ -933,9 +935,7 @@ fn answer(
                         });
                         reply
                     };
-                    ctx.notes
-                        .family_replies
-                        .push((req.family.clone(), reply.clone()));
+                    ctx.notes.family_replies.push((key, reply.clone()));
                     reply
                 }
             };
@@ -975,7 +975,7 @@ fn answer(
             }
         }
         FontDecision::TextOnly => {
-            let family = family_of(t);
+            let family = batch_key(t, &family_of(t));
             if !ctx.notes.family_replies.iter().any(|(f, _)| *f == family) {
                 let (page, slot) = t.slot_names().first().cloned().unzip();
                 ctx.notes.interactions.push(InteractionRecord {
@@ -1007,6 +1007,17 @@ fn family_of(t: &Target<'_>) -> String {
             .first()
             .map(|(_, s)| s.clone())
             .unwrap_or_default(),
+    }
+}
+
+/// What one `FontUnreproducible` answer is shared by: `family` for a font
+/// with a name, else the slot name and the font's object, so two nameless
+/// fonts that sit in slots of one name on different pages are asked about
+/// apart.
+fn batch_key(t: &Target<'_>, family: &str) -> String {
+    match t.base_font {
+        Some(_) => family.to_owned(),
+        None => format!("{family}@{} {}", t.top.0, t.top.1),
     }
 }
 

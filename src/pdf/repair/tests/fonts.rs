@@ -813,6 +813,64 @@ fn one_family_is_asked_once_and_every_slot_takes_the_answer() {
 }
 
 #[test]
+fn two_nameless_fonts_in_one_slot_name_are_asked_apart() {
+    // `two_fonts` with no /BaseFont and no /FontName anywhere: both fonts
+    // are only "F1", on different pages.
+    let nameless = {
+        let doc = Document::load_mem(&two_fonts()).unwrap();
+        let mut objects: BTreeMap<u32, Object> = (doc.objects.iter())
+            .map(|(&(n, _), o)| (n, o.clone()))
+            .collect();
+        for o in objects.values_mut() {
+            if let Object::Dictionary(d) = o {
+                d.remove(b"BaseFont");
+                d.remove(b"FontName");
+            }
+        }
+        let mut w = Writer::with_version("1.7");
+        for (n, o) in objects {
+            w.add(n, o);
+        }
+        w.trailer((1, 0), [7; 32], None);
+        w.finish().unwrap()
+    };
+    let input = analysed(corrupt(C7FontStreamDeleted, &nameless, 0));
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
+    let mut ask = Scripted::new(vec![
+        InteractionReply::Substitute(sparse_choice()),
+        InteractionReply::TextOnly,
+    ]);
+    let ran = run_pass(
+        &input,
+        C7FontStreamDeleted,
+        &sparse_db(),
+        &RepairOptions::default(),
+        &mut ask,
+        &[],
+    );
+    let slots: Vec<Vec<(u32, String)>> = (ask.asked.iter())
+        .map(|r| match r {
+            InteractionRequest::FontUnreproducible(u) => u.slots.clone(),
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        slots,
+        [vec![(0, "F1".to_owned())], vec![(1, "F1".to_owned())]]
+    );
+    let kinds: Vec<&FontResolutionKind> = (ran.notes.resolutions.iter())
+        .map(|(_, _, r)| &r.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            &FontResolutionKind::Substituted(sparse_choice()),
+            &FontResolutionKind::TextOnly
+        ]
+    );
+}
+
+#[test]
 fn a_policy_answers_without_asking() {
     let input = analysed(corrupt(C7FontStreamDeleted, &two_fonts(), 0));
     for (policy, reply) in [

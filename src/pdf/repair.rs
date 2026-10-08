@@ -196,7 +196,8 @@ pub(crate) struct PassNotes {
     /// How each damaged font slot was resolved: `(page index, slot, how)`.
     pub(crate) resolutions: Vec<(u32, String, FontResolution)>,
     /// `FontUnreproducible` answers by font family: asked once per family
-    /// per file (SE Q3).
+    /// per file (SE Q3). A font with no name is its own family
+    /// (`fonts::batch_key`).
     pub(crate) family_replies: Vec<(String, InteractionReply)>,
     /// A question was cancelled: the run stops after this pass.
     pub(crate) cancelled: bool,
