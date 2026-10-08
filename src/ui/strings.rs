@@ -5,7 +5,7 @@
 //! Seeded by T-02b with the mockup's fixed set. The UI tickets that draw
 //! strings append to [`ALL`]; nothing is ever removed from it.
 // The layouts (T-21 on) and the artefact test (T-14) read these.
-// TODO(T-14, T-21): remove this allow once both read the table.
+// TODO(T-14): remove this allow once the artefact test reads the table.
 #![allow(dead_code)]
 
 /// The seven themes, default first (UI D3).
@@ -32,6 +32,27 @@ pub const CHOMP_STEP_NAMES: [&str; 4] = ["plop", "nom", "gulp", "burp"];
 /// The two drop reactions: the chomp everywhere, plus the drag tracking in
 /// kitty.
 pub const REACTION_NAMES: [&str; 2] = ["chomp", "drag"];
+
+/// The one-line fallback's face (UI:191).
+pub const FACE: &str = "=^..^=";
+
+/// The app's name as the status bars spell it.
+pub const APP_NAME: &str = "PDFPuNDiT";
+
+/// The widget's status bar while idle: the binary has no network code (D-050).
+pub const OFFLINE: &str = "offline";
+
+/// The widget's call to make the tile bigger when a file needs a decision
+/// (decisions are never shown in the widget, UI D5).
+pub const ZOOM_ME: &str = "zoom me";
+
+/// The widget's status line when the batch is done.
+pub const BURP: &str = "burp.";
+
+/// The widget's status bar counts; `{n}` is the count.
+pub const N_PDFS: &str = "{n} pdfs";
+pub const N_QUEUED: &str = "{n} queued";
+pub const N_DONE: &str = "{n} done";
 
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
@@ -101,6 +122,14 @@ pub const ALL: &[&str] = &[
     "nom nom",
     "ears down",
     "CHOMP!",
+    // the widget and the one-line fallback (T-21)
+    APP_NAME,
+    OFFLINE,
+    ZOOM_ME,
+    BURP,
+    N_PDFS,
+    N_QUEUED,
+    N_DONE,
 ];
 
 #[cfg(test)]

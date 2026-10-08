@@ -46,6 +46,28 @@ pub struct Roles {
     pub border_stops: Vec<Rgb>,
 }
 
+/// The gradients the screens draw with, besides the border (generate.py's
+/// `mk_theme` keys of the same names).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Gradients {
+    /// Modal borders (font pick, theme chooser).
+    pub modal: Vec<Rgb>,
+    /// The per-file menu's border.
+    pub menu: Vec<Rgb>,
+    /// The current file's progress bar.
+    pub bar: Vec<Rgb>,
+    /// The batch progress bar (the widget's too).
+    pub bar2: Vec<Rgb>,
+    /// The recovery bars.
+    pub ok: Vec<Rgb>,
+    /// The VU meter.
+    pub vu: Vec<Rgb>,
+    /// Box separators.
+    pub sep: Vec<Rgb>,
+    /// The tagline and the quiet hints.
+    pub tag: Vec<Rgb>,
+}
+
 /// One theme.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Theme {
@@ -56,10 +78,19 @@ pub struct Theme {
     /// bright, in ANSI order (black, red, green, yellow, blue, magenta, cyan,
     /// white). DarkBerry's come from the palette's `ansiColors`.
     pub ansi: [Rgb; 16],
+    /// The sixteen role slots in the mockup's CGA order `KbgcrmywDBGCRMYW`,
+    /// the letters its inline colour markup names; see [`Theme::slot`].
+    pub slots: [Rgb; 16],
     pub roles: Roles,
+    pub gradients: Gradients,
     /// The logo gradient, top to bottom.
     pub logo_ramp: Vec<Rgb>,
 }
+
+/// generate.py's `KEYS`: the slot letters in [`Theme::slots`] order.
+pub const SLOT_KEYS: [char; 16] = [
+    'K', 'b', 'g', 'c', 'r', 'm', 'y', 'w', 'D', 'B', 'G', 'C', 'R', 'M', 'Y', 'W',
+];
 
 /// The default theme's name (D3).
 const DEFAULT: &str = "DarkBerry Blackwater";
@@ -105,6 +136,15 @@ impl Theme {
         &THEMES[0]
     }
 
+    /// The slot a markup letter names (`'K'` the background, `'M'` needs
+    /// input, …); `None` for any other character.
+    pub fn slot(&self, key: char) -> Option<Rgb> {
+        SLOT_KEYS
+            .iter()
+            .position(|&k| k == key)
+            .map(|i| self.slots[i])
+    }
+
     /// This theme as a terminal with `caps` can show it. True colour is the
     /// theme itself. 256 colours snap every role and gradient stop to the
     /// nearest of xterm's colours 16-255; 16 colours snap them to the nearest of
@@ -117,11 +157,14 @@ impl Theme {
             ColorCaps::Ansi16 => Snap::new(&self.ansi),
         };
         let s = |c: Rgb| snap.nearest(c);
+        let v = |stops: &[Rgb]| stops.iter().map(|&c| s(c)).collect::<Vec<_>>();
         let r = &self.roles;
+        let g = &self.gradients;
         Theme {
             name: self.name,
             dark: self.dark,
             ansi: self.ansi,
+            slots: self.slots.map(s),
             roles: Roles {
                 bg: s(r.bg),
                 lightbar: s(r.lightbar),
@@ -135,24 +178,51 @@ impl Theme {
                 needs_input: s(r.needs_input),
                 accent: s(r.accent),
                 info: s(r.info),
-                border_stops: r.border_stops.iter().map(|&c| s(c)).collect(),
+                border_stops: v(&r.border_stops),
             },
-            logo_ramp: self.logo_ramp.iter().map(|&c| s(c)).collect(),
+            gradients: Gradients {
+                modal: v(&g.modal),
+                menu: v(&g.menu),
+                bar: v(&g.bar),
+                bar2: v(&g.bar2),
+                ok: v(&g.ok),
+                vu: v(&g.vu),
+                sep: v(&g.sep),
+                tag: v(&g.tag),
+            },
+            logo_ramp: v(&self.logo_ramp),
         }
     }
 }
 
 /// generate.py's `mk_theme`: roles from the sixteen slots, the border defaulting
-/// to `[W, C, B, b, D]` and ANSI 0-15 to the slots through ANSI_PAIRS.
+/// to `[W, C, B, b, D]`, the other gradients to `mk_theme`'s defaults and ANSI
+/// 0-15 to the slots through ANSI_PAIRS.
 fn mk_theme(
     name: &'static str,
     dark: bool,
     slots: [Rgb; 16],
     logo_ramp: Vec<Rgb>,
-    border: Option<Vec<Rgb>>,
+    border: Option<(Vec<Rgb>, Gradients)>,
     ansi: Option<[Rgb; 16]>,
 ) -> Theme {
     let a = slots;
+    let (border, gradients) = match border {
+        Some((b, g)) => (b, g),
+        None => (
+            vec![a[W], a[C], a[B], a[B_LO], a[D]],
+            Gradients {
+                modal: vec![a[W], a[M], a[M_LO], a[B_LO]],
+                menu: vec![a[W], a[Y], a[Y_LO], a[D]],
+                bar: vec![a[B_LO], a[B], a[C]],
+                bar2: vec![a[M_LO], a[M], a[W]],
+                ok: vec![a[G_LO], a[G]],
+                vu: vec![a[R_LO], a[R], a[Y], a[G]],
+                sep: vec![a[K], a[D], a[B]],
+                tag: vec![a[D], a[B], a[M], a[W]],
+            },
+        ),
+    };
     let ansi = ansi.unwrap_or_else(|| {
         let mut out = [Rgb([0, 0, 0]); 16];
         for (i, (normal, bright)) in ANSI_PAIRS.into_iter().enumerate() {
@@ -165,6 +235,7 @@ fn mk_theme(
         name,
         dark,
         ansi,
+        slots,
         roles: Roles {
             bg: a[K],
             lightbar: a[B_LO],
@@ -178,8 +249,9 @@ fn mk_theme(
             needs_input: a[M],
             accent: a[M_LO],
             info: a[C_LO],
-            border_stops: border.unwrap_or_else(|| vec![a[W], a[C], a[B], a[B_LO], a[D]]),
+            border_stops: border,
         },
+        gradients,
         logo_ramp,
     }
 }
@@ -276,10 +348,18 @@ fn darkberry(name: &'static str, fl: &Flavour) -> Result<Theme, String> {
         jam,
         mix(jam, base, 0.5),
     ];
-    let border = ["petal", "berry", "jam", "overlay0", "surface2"]
-        .into_iter()
-        .map(c)
-        .collect::<Result<Vec<_>, _>>()?;
+    let stops = |names: &[&str]| names.iter().map(|&n| c(n)).collect::<Result<Vec<_>, _>>();
+    let border = stops(&["petal", "berry", "jam", "overlay0", "surface2"])?;
+    let gradients = Gradients {
+        modal: stops(&["text", "berry", "jam", "surface2"])?,
+        menu: stops(&["text", "honey", "apricot", "overlay0"])?,
+        bar: stops(&["surface2", "bilberry", "blueberry", "plum"])?,
+        bar2: stops(&["jam", "berry", "petal"])?,
+        ok: stops(&["surface2", "gooseberry"])?,
+        vu: stops(&["cranberry", "apricot", "honey", "gooseberry"])?,
+        sep: stops(&["base", "surface2", "overlay1"])?,
+        tag: stops(&["overlay0", "lavender", "berry", "text"])?,
+    };
     let mut ansi = [Rgb([0, 0, 0]); 16];
     for (i, colour) in ANSI_ORDER.into_iter().enumerate() {
         let pair = fl
@@ -294,7 +374,7 @@ fn darkberry(name: &'static str, fl: &Flavour) -> Result<Theme, String> {
         fl.dark,
         slots,
         logo,
-        Some(border),
+        Some((border, gradients)),
         Some(ansi),
     ))
 }
@@ -521,6 +601,82 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// generate.py's `db_theme` gradients and `KEYS` slots, per flavour.
+    #[test]
+    fn darkberry_gradients_and_slots_match_db_theme() {
+        for (key, t) in FLAVOURS.iter().zip(Theme::all()) {
+            let c = |n: &str| pc(key, n);
+            let v = |names: &[&str]| names.iter().map(|&n| c(n)).collect::<Vec<_>>();
+            let g = &t.gradients;
+            assert_eq!(g.modal, v(&["text", "berry", "jam", "surface2"]), "{key}");
+            assert_eq!(
+                g.menu,
+                v(&["text", "honey", "apricot", "overlay0"]),
+                "{key}"
+            );
+            assert_eq!(
+                g.bar,
+                v(&["surface2", "bilberry", "blueberry", "plum"]),
+                "{key}"
+            );
+            assert_eq!(g.bar2, v(&["jam", "berry", "petal"]), "{key}");
+            assert_eq!(g.ok, v(&["surface2", "gooseberry"]), "{key}");
+            assert_eq!(
+                g.vu,
+                v(&["cranberry", "apricot", "honey", "gooseberry"]),
+                "{key}"
+            );
+            assert_eq!(g.sep, v(&["base", "surface2", "overlay1"]), "{key}");
+            assert_eq!(
+                g.tag,
+                v(&["overlay0", "lavender", "berry", "text"]),
+                "{key}"
+            );
+            let r = &t.roles;
+            for (k, want) in [
+                ('K', r.bg),
+                ('b', r.lightbar),
+                ('W', r.heading),
+                ('w', r.body),
+                ('D', r.dim),
+                ('C', r.file),
+                ('Y', r.hotkey),
+                ('R', r.error),
+                ('G', r.ok),
+                ('M', r.needs_input),
+                ('m', r.accent),
+                ('c', r.info),
+                ('B', c("lavender")),
+                ('y', c("apricot")),
+                ('g', c("gooseberry")),
+                ('r', c("cranberry")),
+            ] {
+                assert_eq!(t.slot(k), Some(want), "{key} {k}");
+            }
+            assert_eq!(t.slot('x'), None);
+            assert_eq!(t.slot('_'), None);
+        }
+    }
+
+    /// The other three themes take `mk_theme`'s default gradients.
+    #[test]
+    fn literal_themes_take_the_default_gradients() {
+        for name in ["ACiD Classic", "Pastel Parlour", "Mono Ink"] {
+            let t = by_name(name);
+            let s = |k: char| t.slot(k).expect("slot");
+            let v = |keys: &str| keys.chars().map(s).collect::<Vec<_>>();
+            let g = &t.gradients;
+            assert_eq!(g.modal, v("WMmb"), "{name}");
+            assert_eq!(g.menu, v("WYyD"), "{name}");
+            assert_eq!(g.bar, v("bBC"), "{name}");
+            assert_eq!(g.bar2, v("mMW"), "{name}");
+            assert_eq!(g.ok, v("gG"), "{name}");
+            assert_eq!(g.vu, v("rRYG"), "{name}");
+            assert_eq!(g.sep, v("KDB"), "{name}");
+            assert_eq!(g.tag, v("DBMW"), "{name}");
         }
     }
 
@@ -781,7 +937,15 @@ mod tests {
             let d = t.downgrade(ColorCaps::Ansi256);
             assert_eq!(d, t.downgrade(ColorCaps::Ansi256), "{}: same twice", t.name);
             assert_eq!(d.ansi, t.ansi);
-            for c in colours(&d) {
+            let g = &d.gradients;
+            let stops = [
+                &g.modal, &g.menu, &g.bar, &g.bar2, &g.ok, &g.vu, &g.sep, &g.tag,
+            ];
+            let all = colours(&d)
+                .into_iter()
+                .chain(d.slots)
+                .chain(stops.into_iter().flatten().copied());
+            for c in all {
                 assert!(xterm.contains(&c), "{}: {c} is not an xterm colour", t.name);
             }
         }
