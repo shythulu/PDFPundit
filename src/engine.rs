@@ -651,13 +651,9 @@ pub struct SubstituteChoice {
 
 // ── fonts ────────────────────────────────────────────────────────────────
 
-/// The font database repair draws replacement fonts from. It holds only the
-/// hash that the report records until T-28 gives it the index and glyph maps;
-/// the bundled one's hash is already the hash of the bundled assets (T-29).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FontDb {
-    sha256: [u8; 32],
-}
+/// The font database repair draws replacement fonts from (T-28): its
+/// loading, hashing and lookups live in `pdf::fontdb`.
+pub(crate) use crate::pdf::fontdb::FontDb;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
 pub enum FontDbError {
@@ -667,37 +663,6 @@ pub enum FontDbError {
     MissingBlob(String),
     #[error("font blob {name} does not match its hash")]
     HashMismatch { name: String },
-}
-
-impl FontDb {
-    /// A database from an index and a blob lookup. No index format exists yet,
-    /// so every index is refused.
-    pub fn from_bytes<'b>(
-        _index: &[u8],
-        _blobs: &dyn Fn(&str) -> Option<&'b [u8]>,
-    ) -> Result<Self, FontDbError> {
-        Err(FontDbError::BadIndex("no font index format yet".into()))
-    }
-
-    /// The bundled database: its hash covers `assets/fontindex.json` and
-    /// every `.gmap` in index order (T-29); its templates are built on first
-    /// use by `pdf::fontdb::template::bundled`.
-    pub fn bundled() -> Arc<FontDb> {
-        Arc::new(FontDb {
-            sha256: crate::pdf::fontdb::template::bundled_sha256(),
-        })
-    }
-
-    /// No fonts; its hash is the SHA-256 of no bytes.
-    pub fn empty() -> FontDb {
-        FontDb {
-            sha256: Sha256::digest([]).into(),
-        }
-    }
-
-    pub fn sha256(&self) -> [u8; 32] {
-        self.sha256
-    }
 }
 
 #[cfg(test)]
