@@ -596,7 +596,7 @@ fn strip_subset_tag(name: &str) -> &str {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::pdf::fixtures::{GOLDEN_TEXT, corrupt, golden_pdf};
     use crate::pdf::model::CorruptionClass;
@@ -763,7 +763,7 @@ mod tests {
     // -----------------------------------------------------------------------
     // The blank-case constructions (goal-r2-fr2 §3).
 
-    const BLANK_CASES: [&str; 11] = [
+    pub(crate) const BLANK_CASES: [&str; 11] = [
         "",
         "1 1 1 rg 0 0 612 792 re f",
         "BT /F1 12 Tf 3 Tr 72 700 Td (Hidden) Tj ET",
@@ -791,7 +791,7 @@ mod tests {
 
     /// Eleven pages, one construction each, a non-embedded Helvetica and a
     /// 1×1 white image.
-    fn blank_cases_pdf() -> Vec<u8> {
+    pub(crate) fn blank_cases_pdf() -> Vec<u8> {
         const FONT: u32 = 3;
         const IMAGE: u32 = 4;
         let mut w = Writer::with_version("1.7");
