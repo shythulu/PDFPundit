@@ -72,7 +72,8 @@ pub(crate) enum DecodeError {
     #[error("{filter:?} data is corrupt at byte {at}")]
     Corrupt { filter: Filter, at: usize },
     /// `/DecodeParms` this decoder cannot apply (an unknown predictor, a
-    /// bit depth or colour count outside ISO 32000's ranges).
+    /// bit depth or colour count outside ISO 32000's ranges, or an entry
+    /// [`filters_of`] could not read: [`UNRESOLVED_PARMS`]).
     #[error("{0:?} has decode parameters it cannot apply")]
     BadParms(Filter),
     /// A filter we do not decode, or an image codec that is not last.
@@ -81,7 +82,8 @@ pub(crate) enum DecodeError {
 }
 
 /// One stage of a chain: a filter and its `/DecodeParms`. `decode_chain`
-/// takes either bare filters or what [`filters_of`] returns.
+/// takes either bare filters (the `&[Filter]` of the T-06 interface) or what
+/// [`filters_of`] returns, since predictors need the parameters.
 pub(crate) trait Stage {
     fn filter(&self) -> &Filter;
     fn parms(&self) -> Option<&Dictionary>;
@@ -142,52 +144,71 @@ impl Filter {
     }
 }
 
+/// The key of the stand-in dictionary [`filters_of`] gives a stage whose
+/// `/DecodeParms` entry is neither a dictionary nor null: an indirect
+/// reference it cannot resolve, or damage. The value is the entry as written.
+/// [`decode_chain`] refuses a Flate or LZW stage carrying it with
+/// `BadParms`, so predicted bytes are never passed off as decoded ones.
+pub(crate) const UNRESOLVED_PARMS: &[u8] = b"PDFPunditUnresolvedParms";
+
 /// The stream's filter chain, in decoding order, each with its
 /// `/DecodeParms` entry. Reads `/Filter` and `/DecodeParms`, or an inline
 /// image's `/F` and `/DP` when `/Filter` is absent (a stream's `/F` is a file
-/// specification, never a name or array of names). A parameters dictionary
-/// given with several filters goes to the first one that reads parameters.
-/// A `/Filter` this cannot read (an indirect reference) gives one
-/// `Unknown` stage, so the stream is never mistaken for unfiltered.
+/// specification, never a name or array of names). A null `/Filter`, or a
+/// null element of a `/Filter` array, counts as absent (ISO 32000-1 7.3.9).
+/// A parameters dictionary given with several filters goes to the first one
+/// that reads parameters. A `/Filter` this cannot read (an indirect
+/// reference) gives one `Unknown` stage, so the stream is never mistaken for
+/// unfiltered; a `/DecodeParms` entry it cannot read gives the
+/// [`UNRESOLVED_PARMS`] stand-in. Callers holding the object table resolve
+/// both before calling this.
 pub(crate) fn filters_of(dict: &Dictionary) -> Vec<(Filter, Option<Dictionary>)> {
     let (filter, parms) = match dict.get(b"Filter") {
-        Ok(f) => (f, dict.get(b"DecodeParms").ok()),
-        Err(_) => match dict.get(b"F") {
+        Ok(Object::Null) | Err(_) => match dict.get(b"F") {
             Ok(f @ (Object::Name(_) | Object::Array(_))) => (f, dict.get(b"DP").ok()),
             _ => return Vec::new(),
         },
+        Ok(f) => (f, dict.get(b"DecodeParms").ok()),
     };
     let one = |o: &Object| match o {
         Object::Name(n) => Filter::from_name(n),
         other => Filter::Unknown(format!("<{}>", other.enum_variant())),
     };
-    let filters: Vec<Filter> = match filter {
-        Object::Array(items) => items.iter().map(one).collect(),
-        other => vec![one(other)],
-    };
-    let mut parms: Vec<Option<Dictionary>> = match parms {
-        Some(Object::Array(items)) => items
-            .iter()
-            .map(|o| o.as_dict().ok().cloned())
-            .chain(std::iter::repeat(None))
-            .take(filters.len())
-            .collect(),
-        Some(Object::Dictionary(d)) => {
-            let mut v = vec![None; filters.len()];
-            let target = if filters.len() == 1 {
-                Some(0)
-            } else {
-                filters.iter().position(Filter::takes_parms)
-            };
-            if let Some(i) = target {
-                v[i] = Some(d.clone());
-            }
-            v
+    let parm = |o: &Object| match o {
+        Object::Null => None,
+        Object::Dictionary(d) => Some(d.clone()),
+        other => {
+            let mut d = Dictionary::new();
+            d.set(UNRESOLVED_PARMS, other.clone());
+            Some(d)
         }
-        _ => vec![None; filters.len()],
     };
-    parms.truncate(filters.len());
-    filters.into_iter().zip(parms).collect()
+    let items = match filter {
+        Object::Array(items) => items.as_slice(),
+        other => std::slice::from_ref(other),
+    };
+    let per_item: Vec<Option<Dictionary>> = match parms {
+        Some(Object::Array(ps)) => (0..items.len()).map(|i| ps.get(i).and_then(parm)).collect(),
+        _ => vec![None; items.len()],
+    };
+    let mut stages: Vec<(Filter, Option<Dictionary>)> = items
+        .iter()
+        .zip(per_item)
+        .filter(|(o, _)| !matches!(o, Object::Null))
+        .map(|(o, p)| (one(o), p))
+        .collect();
+    // One entry that is not an array: a dictionary, or one we cannot read.
+    if let Some(p) = parms.filter(|p| !matches!(p, Object::Array(_) | Object::Null)) {
+        let target = if stages.len() == 1 {
+            Some(0)
+        } else {
+            stages.iter().position(|(f, _)| f.takes_parms())
+        };
+        if let Some(i) = target {
+            stages[i].1 = parm(p);
+        }
+    }
+    stages
 }
 
 /// Decodes `raw` through `chain`, left to right. Flate goes through
@@ -207,16 +228,18 @@ pub(crate) fn decode_chain<S: Stage>(
         let filter = stage.filter();
         data = match filter {
             Filter::Flate => {
+                let parms = parms_of(stage)?;
                 let r = inflate(&data, cap);
                 match r.status {
-                    InflateStatus::Done => unpredict(r.out, stage.parms(), filter)?,
+                    InflateStatus::Done => unpredict(r.out, parms, filter)?,
                     InflateStatus::CapHit => return Err(DecodeError::CapHit),
                     status => return Err(DecodeError::Inflate(status)),
                 }
             }
             Filter::Lzw => {
-                let early = int_parm(stage.parms(), b"EarlyChange", 1) != 0;
-                unpredict(lzw(&data, early, cap)?, stage.parms(), filter)?
+                let parms = parms_of(stage)?;
+                let early = int_parm(parms, b"EarlyChange", 1) != 0;
+                unpredict(lzw(&data, early, cap)?, parms, filter)?
             }
             Filter::Ascii85 => ascii85(&data, cap)?,
             Filter::AsciiHex => ascii_hex(&data, cap)?,
@@ -228,6 +251,14 @@ pub(crate) fn decode_chain<S: Stage>(
         };
     }
     Ok(data)
+}
+
+/// The stage's parameters, refusing the [`UNRESOLVED_PARMS`] stand-in.
+fn parms_of<S: Stage>(stage: &S) -> Result<Option<&Dictionary>, DecodeError> {
+    match stage.parms() {
+        Some(d) if d.has(UNRESOLVED_PARMS) => Err(DecodeError::BadParms(stage.filter().clone())),
+        p => Ok(p),
+    }
 }
 
 fn int_parm(parms: Option<&Dictionary>, key: &[u8], default: i64) -> i64 {
@@ -434,16 +465,17 @@ fn lzw(data: &[u8], early: bool, cap: usize) -> Result<Vec<u8>, DecodeError> {
     Ok(out)
 }
 
-/// Undoes `/Predictor` (ISO 32000-1 7.4.4.4): 1 none, 2 TIFF, 10–15 PNG
-/// (each row says its own type). A final short row is decoded as far as it
-/// goes.
+/// Undoes `/Predictor` (ISO 32000-1 7.4.4.4): 1 (or less, as pdf.js reads
+/// it) none, 2 TIFF, 10–15 PNG (each row says its own type). A final short
+/// row is decoded as far as it goes. `/Columns` is untrusted and may be
+/// huge: nothing here allocates by the row length.
 fn unpredict(
     data: Vec<u8>,
     parms: Option<&Dictionary>,
     filter: &Filter,
 ) -> Result<Vec<u8>, DecodeError> {
     let predictor = int_parm(parms, b"Predictor", 1);
-    if predictor == 1 {
+    if predictor <= 1 {
         return Ok(data);
     }
     let bad = || DecodeError::BadParms(filter.clone());
@@ -468,7 +500,9 @@ fn unpredict(
 }
 
 fn png(data: &[u8], row: usize, bpp: usize, filter: &Filter) -> Result<Vec<u8>, DecodeError> {
-    let mut out = Vec::with_capacity(data.len() / (row + 1) * row + row);
+    // PNG-predicted output is never longer than its input; `row` comes from
+    // `/Columns` and must not size an allocation.
+    let mut out = Vec::with_capacity(data.len());
     let mut prev_start: Option<usize> = None;
     for (r, chunk) in data.chunks(row + 1).enumerate() {
         let start = out.len();

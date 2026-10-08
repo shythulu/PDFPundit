@@ -23,7 +23,10 @@ pub(crate) enum InflateStatus {
     Failed { at: usize },
     /// The input ran out before the stream ended (truncated).
     NeedsMoreInput,
-    /// The output reached the cap before the stream ended.
+    /// The output reached the cap before the stream ended. Not one of the
+    /// four statuses the T-06 interface names: the cap has to be reported,
+    /// and folding it into `Failed` or `NeedsMoreInput` would misstate why
+    /// decoding stopped.
     CapHit,
 }
 
@@ -41,7 +44,11 @@ const RAW: u32 = TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
 
 /// Inflates `raw` as a zlib stream into at most `cap` bytes. When the zlib
 /// header itself is rejected, it retries once as raw deflate (some producers
-/// omit the header) and keeps that result only if it reaches `Done`.
+/// omit the header) and keeps that result only if it reaches `Done`. A raw
+/// retry that ends `NeedsMoreInput`, `Failed` or `CapHit` is dropped on
+/// purpose, even with output: bytes that are not zlib often decode a little
+/// as raw deflate by chance, and a C9 salvage must not keep such a prefix.
+/// The caller then sees the header failure, `Failed { at <= 2 }`.
 pub(crate) fn inflate(raw: &[u8], cap: usize) -> InflateResult {
     let first = run(raw, cap, ZLIB);
     if header_rejected(&first) {

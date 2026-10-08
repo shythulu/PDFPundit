@@ -169,6 +169,12 @@ fn tiff_predict(data: &[u8], row: usize, colors: usize, bpc: usize, columns: usi
 
 /// PDF LZW with `/EarlyChange` `early`; emits a clear code when the table fills.
 fn lzw(data: &[u8], early: u32) -> Vec<u8> {
+    lzw_with(data, early, true)
+}
+
+/// PDF LZW; with `clear` false a full table is kept (no new entries, 12-bit
+/// codes) until the end of the data, as a decoder must accept.
+fn lzw_with(data: &[u8], early: u32, clear: bool) -> Vec<u8> {
     fn width(next: u32, early: u32) -> u32 {
         match next + early {
             0..512 => 9,
@@ -205,14 +211,16 @@ fn lzw(data: &[u8], early: u32) -> Vec<u8> {
             table[&w]
         };
         emit(code, width(dec_next, early), &mut out);
-        if !first {
+        if !first && dec_next < 4096 {
             dec_next += 1;
         }
         first = false;
-        table.insert(wc, enc_next);
-        enc_next += 1;
+        if enc_next < 4096 {
+            table.insert(wc, enc_next);
+            enc_next += 1;
+        }
         w = vec![c];
-        if enc_next == 4096 - early {
+        if clear && enc_next == 4096 - early {
             emit(256, width(dec_next, early), &mut out);
             table.clear();
             enc_next = 258;
@@ -227,7 +235,7 @@ fn lzw(data: &[u8], early: u32) -> Vec<u8> {
             table[&w]
         };
         emit(code, width(dec_next, early), &mut out);
-        if !first {
+        if !first && dec_next < 4096 {
             dec_next += 1;
         }
     }
@@ -293,7 +301,7 @@ fn filters_of_reads_names_arrays_and_abbreviations() {
         ("Filter", name(b"LZWDecode")),
         ("DecodeParms", Object::Dictionary(parms.clone())),
     ]);
-    assert_eq!(filters_of(&d), vec![(Filter::Lzw, Some(parms))]);
+    assert_eq!(filters_of(&d), vec![(Filter::Lzw, Some(parms.clone()))]);
 
     // Inline-image keys.
     let d = dict(vec![("F", name(b"AHx"))]);
@@ -305,6 +313,108 @@ fn filters_of_reads_names_arrays_and_abbreviations() {
     assert_eq!(
         filters_of(&d),
         vec![(Filter::Unknown("<Reference>".into()), None)]
+    );
+
+    // A null /Filter, or a null array element, is absent; parameters stay
+    // with their filters.
+    let d = dict(vec![("Filter", Object::Null)]);
+    assert_eq!(filters_of(&d), vec![]);
+    let d = dict(vec![
+        (
+            "Filter",
+            Object::Array(vec![name(b"A85"), Object::Null, name(b"Fl")]),
+        ),
+        (
+            "DecodeParms",
+            Object::Array(vec![
+                Object::Null,
+                Object::Null,
+                Object::Dictionary(parms.clone()),
+            ]),
+        ),
+    ]);
+    assert_eq!(
+        filters_of(&d),
+        vec![
+            (Filter::Ascii85, None),
+            (Filter::Flate, Some(parms.clone()))
+        ]
+    );
+}
+
+#[test]
+fn unreadable_decode_parms_are_marked_and_refused() {
+    let data = noise(11, 30, 26);
+    let predicted = png_predict(&data, 3, 1, &[2]);
+    let mut stand_in = Dictionary::new();
+    stand_in.set(UNRESOLVED_PARMS, Object::Reference((5, 0)));
+    // `/DecodeParms 5 0 R` on one filter.
+    let d = dict(vec![
+        ("Filter", name(b"FlateDecode")),
+        ("DecodeParms", Object::Reference((5, 0))),
+    ]);
+    let chain = filters_of(&d);
+    assert_eq!(chain, vec![(Filter::Flate, Some(stand_in.clone()))]);
+    assert_eq!(
+        decode_chain(&zlib(&predicted), &chain, DEFAULT_CAP),
+        Err(DecodeError::BadParms(Filter::Flate))
+    );
+    // `[null 7 0 R]` on `[/A85 /LZW]`.
+    let d = dict(vec![
+        (
+            "Filter",
+            Object::Array(vec![name(b"ASCII85Decode"), name(b"LZWDecode")]),
+        ),
+        (
+            "DecodeParms",
+            Object::Array(vec![Object::Null, Object::Reference((7, 0))]),
+        ),
+    ]);
+    let chain = filters_of(&d);
+    stand_in.set(UNRESOLVED_PARMS, Object::Reference((7, 0)));
+    assert_eq!(
+        chain,
+        vec![(Filter::Ascii85, None), (Filter::Lzw, Some(stand_in))]
+    );
+    assert_eq!(
+        decode_chain(&ascii85(&lzw(&predicted, 1)), &chain, DEFAULT_CAP),
+        Err(DecodeError::BadParms(Filter::Lzw))
+    );
+    // Resolved by the caller, the same stream decodes.
+    let parms = dict(vec![
+        ("Predictor", Object::Integer(12)),
+        ("Columns", Object::Integer(3)),
+    ]);
+    let d = dict(vec![
+        ("Filter", name(b"FlateDecode")),
+        ("DecodeParms", Object::Dictionary(parms)),
+    ]);
+    assert_eq!(
+        decode_chain(&zlib(&predicted), &filters_of(&d), DEFAULT_CAP),
+        Ok(data)
+    );
+}
+
+#[test]
+fn one_parms_dictionary_goes_to_the_filter_that_reads_it() {
+    let data = noise(12, 60, 26);
+    let predicted = png_predict(&data, 3, 1, &[1, 2, 4, 3]);
+    let parms = dict(vec![
+        ("Predictor", Object::Integer(12)),
+        ("Columns", Object::Integer(3)),
+    ]);
+    let d = dict(vec![
+        ("Filter", Object::Array(vec![name(b"A85"), name(b"Fl")])),
+        ("DecodeParms", Object::Dictionary(parms.clone())),
+    ]);
+    let chain = filters_of(&d);
+    assert_eq!(
+        chain,
+        vec![(Filter::Ascii85, None), (Filter::Flate, Some(parms))]
+    );
+    assert_eq!(
+        decode_chain(&ascii85(&zlib(&predicted)), &chain, DEFAULT_CAP),
+        Ok(data)
     );
 }
 
@@ -390,6 +500,22 @@ fn lzw_decodes_the_iso_example_and_round_trips() {
         let chain = [(Filter::Lzw, Some(parms))];
         assert_eq!(
             decode_chain(&lzw(&data, early), &chain, DEFAULT_CAP),
+            Ok(data.clone()),
+            "EarlyChange {early}"
+        );
+    }
+}
+
+#[test]
+fn lzw_keeps_decoding_with_a_full_table() {
+    // No clear code: past 4096 codes the table stops growing at 12 bits.
+    let data: Vec<u8> = noise(8, 60_000, 20);
+    for early in [1, 0] {
+        let full = lzw_with(&data, early, false);
+        assert_ne!(full, lzw(&data, early), "the encoder never cleared");
+        let parms = dict(vec![("EarlyChange", Object::Integer(i64::from(early)))]);
+        assert_eq!(
+            decode_chain(&full, &[(Filter::Lzw, Some(parms))], DEFAULT_CAP),
             Ok(data.clone()),
             "EarlyChange {early}"
         );
@@ -490,6 +616,63 @@ fn bad_predictor_parameters_are_refused() {
             at: 0
         })
     );
+}
+
+#[test]
+fn huge_columns_never_size_an_allocation() {
+    // Rows far longer than the data: one short row, decoded as far as it
+    // goes, with nothing reserved by the row length.
+    let data = noise(13, 320, 26); // whole 64-byte pixels at 32 × 16 bits
+    let max = (usize::MAX / 512) as i64;
+    for (colors, bpc, columns) in [(1i64, 8i64, 1i64 << 55), (32, 16, max), (1, 8, max)] {
+        let parms = |predictor: i64| {
+            dict(vec![
+                ("Predictor", Object::Integer(predictor)),
+                ("Colors", Object::Integer(colors)),
+                ("BitsPerComponent", Object::Integer(bpc)),
+                ("Columns", Object::Integer(columns)),
+            ])
+        };
+        let mut png = vec![0u8];
+        png.extend_from_slice(&data);
+        assert_eq!(
+            decode_chain(
+                &zlib(&png),
+                &[(Filter::Flate, Some(parms(12)))],
+                DEFAULT_CAP
+            ),
+            Ok(data.clone()),
+            "PNG colors {colors} bpc {bpc}"
+        );
+        let (c, b) = (colors as usize, bpc as usize);
+        let cols = data.len() * 8 / (c * b);
+        let tiff = tiff_predict(&data, data.len(), c, b, cols);
+        assert_eq!(
+            decode_chain(
+                &lzw(&tiff, 1),
+                &[(Filter::Lzw, Some(parms(2)))],
+                DEFAULT_CAP
+            ),
+            Ok(data.clone()),
+            "TIFF colors {colors} bpc {bpc}"
+        );
+    }
+}
+
+#[test]
+fn a_predictor_of_one_or_less_is_none() {
+    let data = noise(14, 50, 26);
+    for p in [1, 0, -3] {
+        let parms = dict(vec![
+            ("Predictor", Object::Integer(p)),
+            ("Columns", Object::Integer(7)),
+        ]);
+        assert_eq!(
+            decode_chain(&zlib(&data), &[(Filter::Flate, Some(parms))], DEFAULT_CAP),
+            Ok(data.clone()),
+            "Predictor {p}"
+        );
+    }
 }
 
 #[test]
@@ -874,6 +1057,20 @@ fn an_inline_image_is_one_bi_op() {
     let ops: Vec<Op<'_>> = content_ops(&src).collect();
     assert_eq!(names(&ops), ["BI", "Q"]);
 
+    // `/L` gives the length of filtered data, which here holds ` EI `.
+    for key in ["L", "Length"] {
+        let src = format!("BI /W 2 /H 1 /BPC 8 /CS /G /F /Fl /{key} 6 ID a EI b EI Q");
+        let ops: Vec<Op<'_>> = content_ops(src.as_bytes()).collect();
+        assert_eq!(names(&ops), ["BI", "Q"], "/{key}");
+    }
+    // An image mask is 1 bit per pixel with no /CS or /BPC: 32 × 1 is 4
+    // bytes, here ` EI `.
+    for key in ["IM", "ImageMask"] {
+        let src = format!("BI /W 32 /H 1 /{key} true ID  EI \nEI Q");
+        let ops: Vec<Op<'_>> = content_ops(src.as_bytes()).collect();
+        assert_eq!(names(&ops), ["BI", "Q"], "/{key}");
+    }
+
     // No `EI`: the image runs to the end.
     let ops: Vec<Op<'_>> = content_ops(b"q BI /W 9 ID abc Q").collect();
     assert_eq!(names(&ops), ["q", "BI"]);
@@ -957,5 +1154,37 @@ fn ten_thousand_fuzzed_slices_terminate() {
         ] {
             let _ = decode_chain(&slice, &[f], 1 << 16);
         }
+        // Valid Flate and LZW bodies under random predictor parameters,
+        // including huge and out-of-range ones.
+        let pick = |rng: &mut Rng, xs: &[i64]| xs[rng.below(xs.len())];
+        let parms = dict(vec![
+            (
+                "Predictor",
+                Object::Integer(pick(&mut rng, &[-1, 0, 1, 2, 3, 10, 12, 15, 16])),
+            ),
+            (
+                "Colors",
+                Object::Integer(pick(&mut rng, &[0, 1, 3, 4, 32, 33, i64::MAX])),
+            ),
+            (
+                "BitsPerComponent",
+                Object::Integer(pick(&mut rng, &[1, 2, 3, 4, 8, 16, 32])),
+            ),
+            (
+                "Columns",
+                Object::Integer(match rng.below(4) {
+                    0 => rng.below(64) as i64,
+                    1 => (rng.next() >> 1) as i64,
+                    2 => 1i64 << rng.below(63),
+                    _ => i64::MAX,
+                }),
+            ),
+        ]);
+        let _ = decode_chain(
+            &zlib(&slice),
+            &[(Filter::Flate, Some(parms.clone()))],
+            1 << 16,
+        );
+        let _ = decode_chain(&lzw(&slice, 1), &[(Filter::Lzw, Some(parms))], 1 << 16);
     }
 }
