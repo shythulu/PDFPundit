@@ -1,0 +1,553 @@
+//! The loop's tests (T-23a): a scripted run on a test backend, the pre-frame
+//! drop, the widget's resize request, the queue rows from job events, the
+//! run record, the theme chooser and the panic hook's wiring.
+
+use std::collections::BTreeSet;
+use std::panic;
+use std::sync::mpsc;
+
+use crossterm::event::{KeyEventState, MouseButton, MouseEvent, MouseEventKind};
+
+use super::*;
+use crate::engine::{AnalysisStateUse, InteractionRequest, LogLevel};
+use crate::jobs::{FakeEngine, JobInput, QueueEntry};
+use crate::library::RecentStatus;
+use crate::panic_guard::{self, SharedWriter};
+use crate::place::ScratchDir;
+use crate::ui::goldens;
+use crate::ui::term::TestScreen;
+
+/// Time moves one tick per event; the wall clock reads 11:38 in minute
+/// `unix / 60`, and counts how often it is read.
+struct FakeClock {
+    t: Duration,
+    unix: u64,
+    reads: usize,
+}
+
+impl FakeClock {
+    fn new() -> FakeClock {
+        FakeClock {
+            t: Duration::ZERO,
+            unix: 1_790_000_000,
+            reads: 0,
+        }
+    }
+}
+
+impl Clock for FakeClock {
+    fn elapsed(&mut self) -> Duration {
+        self.t += TICK;
+        self.t
+    }
+
+    fn unix_secs(&mut self) -> u64 {
+        self.unix
+    }
+
+    fn local_hm(&mut self, _unix: u64) -> (u8, u8) {
+        self.reads += 1;
+        (11, 38)
+    }
+}
+
+fn key(c: char) -> Input {
+    code(KeyCode::Char(c))
+}
+
+fn code(code: KeyCode) -> Input {
+    Input::Key(KeyEvent {
+        code,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        state: KeyEventState::NONE,
+    })
+}
+
+/// An app on a `w × h` test screen with the first frame drawn and the input
+/// armed: start-up steps 4 and 5.
+fn started(w: u16, h: u16, ui: &config::Ui) -> (App, TestScreen) {
+    let mut screen = TestScreen::test(w, h, ColorCaps::TrueColor);
+    let mut app = App::new(ui, ColorCaps::TrueColor, PathBuf::from("config.toml"));
+    let (w, h) = screen.size().unwrap();
+    app.resize(w, h);
+    app.refresh(Duration::ZERO);
+    app.render(&mut screen, Duration::ZERO).unwrap();
+    app.arm();
+    (app, screen)
+}
+
+/// Runs the loop over `script` with no runner and no store.
+fn script(app: &mut App, screen: &mut TestScreen, clock: &mut FakeClock, events: Vec<Input>) {
+    let mut events = events.into_iter().map(AppEvent::Input);
+    event_loop::<FakeEngine>(app, screen, &mut || events.next(), clock, None, None).unwrap();
+}
+
+fn ticks(n: usize) -> Vec<Input> {
+    vec![Input::Tick; n]
+}
+
+#[test]
+fn a_scripted_run_of_ten_ticks() {
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let mut clock = FakeClock::new();
+    let rows = screen.rows();
+    assert!(rows[37].contains(strings::APP_NAME), "{}", rows[37]);
+    assert!(rows[37].contains("112×38"), "{}", rows[37]);
+
+    // Three ticks, `H`, two ticks: the full layout's hint row says "not yet".
+    let mut first = ticks(3);
+    first.push(key('H'));
+    first.extend(ticks(2));
+    script(&mut app, &mut screen, &mut clock, first);
+    assert_eq!(app.state.clock, Some((11, 38)));
+    let rows = screen.rows();
+    assert!(rows[35].contains(strings::NOT_YET), "{}", rows[35]);
+    assert!(rows[37].contains("11:38"), "{}", rows[37]);
+
+    // A shrink to the widget, Enter, three ticks: the widget is drawn and
+    // Enter asked the terminal to grow, once.
+    let mut second = vec![Input::Resize(32, 16), code(KeyCode::Enter)];
+    second.extend(ticks(3));
+    script(&mut app, &mut screen, &mut clock, second);
+    assert_eq!(app.state.term_size, (32, 16));
+    assert_eq!(screen.raw(), GROW_TO_FULL);
+    let rows = screen.rows();
+    assert!(
+        rows[15].starts_with(&format!(" {}", strings::APP_NAME)),
+        "{}",
+        rows[15]
+    );
+    assert!(
+        rows[0].chars().skip(32).all(|c| c == ' '),
+        "nothing past the tile: {}",
+        rows[0]
+    );
+
+    // Two more ticks, `q`, and an event that is never reached.
+    let mut last = ticks(2);
+    last.extend([key('q'), key('H')]);
+    script(&mut app, &mut screen, &mut clock, last);
+    assert!(app.quit);
+    // Ten ticks, `H`, the resize, Enter and `q`: fourteen events.
+    assert_eq!(clock.t, TICK * 14, "the event after q was never taken");
+    assert_eq!(clock.reads, 1, "the wall clock is read once a minute");
+    assert_eq!(app.state.hint, None, "the key after q never ran");
+}
+
+#[test]
+fn inputs_before_the_first_frame_are_dropped_and_counted() {
+    let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
+    app.resize(112, 38);
+    app.on_input(Input::Paste("/tmp/a.pdf".into()));
+    app.on_input(key('q'));
+    app.on_input(key('H'));
+    assert_eq!(app.pre_frame_dropped, 3);
+    assert!(!app.quit && app.state.hint.is_none(), "nothing was handled");
+    app.arm();
+    assert!(app.debug_log.iter().any(|l| l.contains("dropped 3 inputs")));
+    app.on_input(Input::Paste("/tmp/a.pdf".into()));
+    app.on_input(key('H'));
+    assert_eq!(app.pre_frame_dropped, 3, "armed: nothing more is dropped");
+    assert_eq!(app.state.hint, Some(strings::NOT_YET));
+}
+
+#[test]
+fn the_handshake_slot_reads_nothing_until_t31() {
+    // `shell` logs the slot's count; until T-31 there is no window to count.
+    let h = term::handshake();
+    assert_eq!((h.kitty, h.discarded), (false, 0));
+}
+
+fn needs_you_request() -> InteractionRequest {
+    let batch = AppState::mockup_batch();
+    match &batch.batch.entries[2].state {
+        EntryState::WaitingOnUser(r) => r.clone(),
+        other => panic!("frame 03's thesis waits on the user, not {other:?}"),
+    }
+}
+
+fn ask(app: &mut App, id: u64) {
+    let (reply, _) = mpsc::sync_channel(1);
+    let ev = JobEvent::NeedsInteraction {
+        request: needs_you_request(),
+        reply,
+    };
+    app.on_job(JobId(id), ev, 0, None);
+    app.refresh(Duration::ZERO);
+}
+
+fn queue(app: &mut App, n: u64) {
+    for id in 1..=n {
+        let name = format!("f{id}.pdf");
+        app.state
+            .batch
+            .entries
+            .push(QueueEntry::queued(JobId(id), name, None, 10));
+    }
+}
+
+#[test]
+fn the_widget_asks_to_grow_once_when_a_file_first_needs_you() {
+    let (mut app, _) = started(32, 16, &config::Ui::default());
+    queue(&mut app, 2);
+    ask(&mut app, 1);
+    assert_eq!(app.out, GROW_TO_FULL);
+    ask(&mut app, 2);
+    assert_eq!(app.out, GROW_TO_FULL, "still needs you: no second request");
+
+    // Answered, then asked again: a new request.
+    app.state.batch.entries[0].state = EntryState::Done;
+    app.state.batch.entries[1].state = EntryState::Done;
+    app.refresh(Duration::ZERO);
+    ask(&mut app, 1);
+    assert_eq!(app.out, [GROW_TO_FULL, GROW_TO_FULL].concat());
+
+    let quiet = config::Ui {
+        request_resize: false,
+        ..config::Ui::default()
+    };
+    let (mut app, _) = started(32, 16, &quiet);
+    queue(&mut app, 1);
+    ask(&mut app, 1);
+    app.on_input(code(KeyCode::Enter));
+    assert!(app.out.is_empty(), "request_resize is off");
+
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    queue(&mut app, 1);
+    ask(&mut app, 1);
+    app.on_input(code(KeyCode::Enter));
+    assert!(
+        app.out.is_empty(),
+        "the full layout already shows the question"
+    );
+}
+
+#[test]
+fn job_events_fill_the_queue_rows() {
+    let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
+    queue(&mut app, 2);
+    let started = |kind| JobEvent::Started {
+        kind,
+        name: "f1.pdf".into(),
+        file: None,
+    };
+    let one = JobId(1);
+    app.on_job(one, started(JobKind::Analyze), 5, None);
+    assert_eq!(app.state.batch.current, Some(0));
+    app.on_job(
+        one,
+        JobEvent::Phase {
+            name: "carving",
+            index: 1,
+            total: 3,
+        },
+        5,
+        None,
+    );
+    app.on_job(
+        one,
+        JobEvent::Progress {
+            done: 7,
+            total: Some(9),
+        },
+        5,
+        None,
+    );
+    assert_eq!(
+        app.state.batch.entries[0].state,
+        EntryState::Analyzing {
+            phase: Some("carving"),
+            done: 7,
+            total: Some(9)
+        }
+    );
+    app.on_job(
+        one,
+        JobEvent::Log(LogLevel::Warn, "odd xref".into()),
+        5,
+        None,
+    );
+    assert!(app.debug_log.iter().any(|l| l.contains("odd xref")));
+
+    let thesis = AppState::mockup_result().batch.entries[2].clone();
+    let finding = thesis.findings[0].clone();
+    app.on_job(one, JobEvent::Finding(finding.clone()), 5, None);
+    assert_eq!(app.state.batch.entries[0].findings, [finding]);
+
+    ask(&mut app, 1);
+    assert!(matches!(
+        app.state.batch.entries[0].state,
+        EntryState::WaitingOnUser(_)
+    ));
+    app.on_job(one, JobEvent::Parked, 5, None);
+    assert_eq!(app.state.batch.current, None);
+    app.on_job(one, JobEvent::Resumed, 5, None);
+    assert!(matches!(
+        app.state.batch.entries[0].state,
+        EntryState::Repairing { .. }
+    ));
+    let run = thesis.run.clone().unwrap();
+    app.on_job(one, JobEvent::RepairDone(Box::new(run.clone())), 5, None);
+    assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
+    assert_eq!(app.state.batch.entries[0].run, Some(run));
+
+    let two = JobId(2);
+    app.on_job(two, started(JobKind::Analyze), 5, None);
+    assert_eq!(app.state.batch.current, Some(1));
+    app.on_job(
+        two,
+        JobEvent::Failed {
+            error: "boom".into(),
+            panicked: true,
+        },
+        5,
+        None,
+    );
+    assert_eq!(
+        app.state.batch.entries[1].state,
+        EntryState::Failed {
+            error: "boom".into(),
+            panicked: true
+        }
+    );
+    assert_eq!(app.state.batch.current, None);
+    // An event for a job with no row changes nothing.
+    let before = app.state.clone();
+    app.on_job(JobId(9), JobEvent::Cancelled, 5, None);
+    assert_eq!(app.state, before);
+}
+
+#[test]
+fn a_finished_repair_is_recorded_and_the_history_read_again() {
+    let dir = ScratchDir::new("app-history");
+    let mut store = JsonStore::open_at(dir.join("history")).unwrap();
+    let mut app = App::new(
+        &config::Ui::default(),
+        ColorCaps::TrueColor,
+        PathBuf::from("/cfg/config.toml"),
+    );
+    let mut thesis = AppState::mockup_result().batch.entries[2].clone();
+    let run = thesis.run.take().unwrap();
+    thesis.state = EntryState::Queued;
+    thesis.job = JobId(1);
+    app.state.batch.entries.push(thesis);
+
+    let repair = JobEvent::Started {
+        kind: JobKind::Repair {
+            passes: None,
+            state: Default::default(),
+        },
+        name: "thesis_ar.pdf".into(),
+        file: None,
+    };
+    app.on_job(JobId(1), repair, 100, Some(&mut store));
+    app.on_job(
+        JobId(1),
+        JobEvent::RepairDone(Box::new(run.clone())),
+        160,
+        Some(&mut store),
+    );
+
+    assert_eq!(app.state.history, store.summary());
+    assert_eq!((app.state.history.files, app.state.history.runs), (1, 1));
+    assert_eq!(app.state.history.recent[0].name, "thesis_ar.pdf");
+    assert_eq!(app.state.history.recent[0].status, RecentStatus::Repaired);
+    let runs = store.runs_for(&run.report.input_sha256).unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].started_at, 100, "when the repair started");
+    assert_eq!(runs[0].config_path, PathBuf::from("/cfg/config.toml"));
+    assert_eq!(runs[0].report, run.report);
+    assert_eq!(runs[0].analysis_state, AnalysisStateUse::Reused);
+}
+
+#[test]
+fn the_loop_drives_the_runner_to_a_finished_row() {
+    let dir = ScratchDir::new("app-runner");
+    let input = dir.join("a.pdf");
+    std::fs::write(&input, b"%PDF-1.7\n%%EOF\n").unwrap();
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let (tx, rx) = mpsc::channel();
+    let mut runner = JobRunner::new(Arc::new(FakeEngine::new()), tx, RunnerOptions::default());
+    let id = runner.submit(JobInput::File(input.clone()));
+    app.state
+        .batch
+        .entries
+        .push(QueueEntry::queued(id, "a.pdf".into(), Some(input), 15));
+
+    let mut finished = false;
+    let mut next = || {
+        if finished {
+            return None;
+        }
+        let ev = rx.recv_timeout(Duration::from_secs(20)).ok()?;
+        finished = matches!(
+            ev,
+            AppEvent::Job(_, JobEvent::RepairDone(_) | JobEvent::Failed { .. })
+        );
+        Some(ev)
+    };
+    let mut clock = FakeClock::new();
+    event_loop(
+        &mut app,
+        &mut screen,
+        &mut next,
+        &mut clock,
+        Some(&mut runner),
+        None,
+    )
+    .unwrap();
+    assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
+    assert!(app.state.batch.entries[0].run.is_some());
+    assert!(runner.shutdown(Duration::from_secs(5)));
+}
+
+#[test]
+fn keys_quit_open_the_chooser_and_move_the_cursor() {
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    let first = app.theme.name;
+    app.on_input(key('T'));
+    assert_eq!(app.state.screen, Screen::Themes { selected: 0 });
+    app.on_input(code(KeyCode::Down));
+    assert_eq!(app.state.screen, Screen::Themes { selected: 1 });
+    assert_eq!(app.theme.name, Theme::all()[1].name, "tried on the spot");
+    app.on_input(code(KeyCode::Esc));
+    assert_eq!(app.state.screen, Screen::Main);
+    assert_eq!(app.theme.name, first, "Esc goes back");
+    app.on_input(key('T'));
+    app.on_input(code(KeyCode::Down));
+    app.on_input(code(KeyCode::Down));
+    app.on_input(key('q'));
+    assert!(!app.quit, "q is not a chooser key");
+    app.on_input(code(KeyCode::Up));
+    app.on_input(code(KeyCode::Enter));
+    assert_eq!(app.theme.name, Theme::all()[1].name, "Enter keeps it");
+    assert_eq!(app.state.screen, Screen::Main);
+
+    for (k, hint) in [('S', Some(strings::NOT_YET)), ('?', Some(strings::NOT_YET))] {
+        app.on_input(key(k));
+        assert_eq!(app.state.hint, hint);
+    }
+    app.on_input(key('b'));
+    assert_eq!(
+        app.state.hint,
+        Some(strings::NOT_YET),
+        "browse waits on T-37"
+    );
+    app.on_input(code(KeyCode::Left));
+    assert_eq!(app.state.hint, None, "a one-off hint lasts one key");
+
+    queue(&mut app, 3);
+    app.on_input(code(KeyCode::Down));
+    app.on_input(code(KeyCode::Down));
+    app.on_input(code(KeyCode::Down));
+    assert_eq!(app.state.selected, Some(2));
+    app.on_input(code(KeyCode::Up));
+    assert_eq!(app.state.selected, Some(1));
+    let click = Input::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 1,
+        row: 1,
+        modifiers: KeyModifiers::NONE,
+    });
+    app.on_input(click);
+    assert!(!app.quit);
+
+    let mut ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+    ctrl_c.kind = KeyEventKind::Press;
+    app.on_input(Input::Key(ctrl_c));
+    assert!(app.quit);
+}
+
+#[test]
+fn a_ui_thread_panic_writes_the_restore_sequence_once() {
+    let _serial = panic_guard::test_lock();
+    let original = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let writer = SharedWriter::default();
+    // What `shell` installs, with the fake writer for the terminal.
+    panic_guard::install(
+        thread::current().id(),
+        term::restore_sequence(false),
+        Box::new(writer.clone()),
+    );
+    for _ in 0..2 {
+        assert!(panic::catch_unwind(|| panic!("ui boom")).is_err());
+    }
+    panic_guard::uninstall();
+    panic::set_hook(original);
+
+    let want = term::restore_sequence(false);
+    assert_eq!(writer.bytes(), want);
+    for part in [&b"\x1b[?1049l"[..], b"\x1b[?25h"] {
+        assert_eq!(
+            want.windows(part.len()).filter(|w| *w == part).count(),
+            1,
+            "{part:?}"
+        );
+    }
+    if cfg!(unix) {
+        assert!(want.windows(8).any(|w| w == b"\x1b[?2004l"));
+    }
+}
+
+#[test]
+fn the_runner_options_follow_the_config() {
+    let mut config = Config::default();
+    config.repair.salvage_work = 123;
+    config.general.output_dir = OutputDir::Dir(PathBuf::from("/out"));
+    let opts = runner_options(&config);
+    assert_eq!(opts.analyze.salvage_budget.work, 123);
+    assert_eq!(opts.repair.analyze.salvage_budget.work, 123);
+    assert_eq!(opts.output_dir, Some(PathBuf::from("/out")));
+    let defaults = RunnerOptions::default();
+    assert_eq!(opts.analyze.threads, defaults.analyze.threads);
+    assert_eq!(opts.parked_cap, defaults.parked_cap);
+    assert_eq!(runner_options(&Config::default()).output_dir, None);
+}
+
+#[test]
+fn every_layout_kind_draws() {
+    let mut seen = BTreeSet::new();
+    for (w, h) in [(112, 38), (32, 16), (20, 1)] {
+        let (app, screen) = started(w, h, &config::Ui::default());
+        seen.insert(format!("{:?}", app.kind));
+        assert!(screen.rows().iter().any(|r| r.trim() != ""), "{w}×{h}");
+    }
+    assert_eq!(seen.len(), 3);
+}
+
+#[test]
+fn the_theme_chooser_is_drawn_over_the_full_layout() {
+    let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
+    app.state = AppState::mockup_idle();
+    let (w, h) = app.state.term_size;
+    app.resize(w, h);
+    app.refresh(Duration::ZERO);
+    app.arm();
+    let frame = |app: &App| app.draw(&app.shown_at(Duration::ZERO));
+    frame(&app).assert_matches(&goldens::load("01-idle"));
+    app.on_input(key('T'));
+    app.refresh(Duration::ZERO);
+    frame(&app).assert_matches(&goldens::load("06-theme-chooser"));
+
+    // The widget has no room for it: `T` opens nothing there, and a shrink
+    // closes an open chooser as Esc would.
+    app.on_input(code(KeyCode::Down));
+    assert_ne!(app.theme_index, app.theme_before);
+    app.on_input(Input::Resize(32, 16));
+    assert_eq!(app.state.screen, Screen::Main);
+    assert_eq!(app.theme_index, app.theme_before);
+    app.on_input(key('T'));
+    assert_eq!(app.state.screen, Screen::Main);
+}
+
+#[test]
+fn browse_is_inert_in_the_one_line_fallback() {
+    let (mut app, _) = started(20, 1, &config::Ui::default());
+    app.on_input(key('b'));
+    assert_eq!(app.state.hint, None);
+    let (mut app, _) = started(32, 16, &config::Ui::default());
+    app.on_input(key('b'));
+    assert_eq!(app.state.hint, Some(strings::NOT_YET));
+}

@@ -21,10 +21,10 @@ pub(crate) mod ui;
 
 use std::process::ExitCode;
 
-/// Starts PDFPundit. Placeholder: T-23a gives it the terminal shell (refuse a
-/// non-terminal, then the cat). Arguments are never read.
+/// Starts PDFPundit: refuses a non-terminal stdin or stdout with exit code 2,
+/// otherwise draws the cat and runs until quit. Arguments are never read.
 pub fn run() -> ExitCode {
-    ExitCode::SUCCESS
+    ui::app::run()
 }
 
 #[cfg(test)]

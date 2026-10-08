@@ -385,6 +385,14 @@ pub const N_MORE: &str = "… {n} more";
 pub const LOC_OBJ: &str = "obj {n} {n}";
 pub const LOC_PAGE: &str = "p.{n}";
 
+/// The guard's one line (D-043), on stderr when stdin or stdout is not a
+/// terminal.
+pub const NOT_A_TERMINAL: &str = "PDFPundit runs in a terminal; drop PDFs on the cat.";
+
+/// The one line on stderr when the terminal cannot be set up or used; `{e}`
+/// is the system's reason.
+pub const TERMINAL_FAILED: &str = "PDFPundit could not use the terminal: {e}";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -590,6 +598,9 @@ pub const ALL: &[&str] = &[
     "Copy report",
     "Remove from queue",
     N_MORE,
+    // the shell (T-23a): the failure line without the system's reason
+    NOT_A_TERMINAL,
+    "PDFPundit could not use the terminal:",
 ];
 
 #[cfg(test)]

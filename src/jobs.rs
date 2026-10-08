@@ -6,8 +6,9 @@
 //! `AppEvent::Job(id, event)` (TD §3), and the UI hands every job event back to
 //! [`JobRunner::on_job_event`] so the runner can move jobs along.
 #![allow(clippy::disallowed_types)]
-// The shell (T-23a) is the runner's only caller, and it has not landed.
-// TODO(T-23a): remove this allow once the shell drives the runner.
+// The loop (T-23a) drives the runner, but nothing submits a job until the drop
+// gate (T-23b) does, so most of the queue types are still unbuilt outside tests.
+// TODO(T-23b): remove this allow once the drop gate submits jobs.
 #![allow(dead_code)]
 
 use std::cell::RefCell;
