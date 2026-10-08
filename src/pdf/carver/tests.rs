@@ -394,6 +394,22 @@ fn a_scanned_extent_never_holds_a_foreign_header() {
 }
 
 #[test]
+fn an_exact_declared_length_is_trusted_over_a_header() {
+    // Rung (a) is exempt from the foreign-header check (module doc, rule 3):
+    // a `/Length` landing exactly on object 2's EOL + `endstream` swallows
+    // object 2, which becomes dead stream data. This pins the choice.
+    let tail = b"stream\nAAA\nendobj\n2 0 obj\n<< /Length 3 >>\nstream\nBBB\nendstream\nendobj";
+    let n = memmem::find(tail, b"\nendstream").expect("endstream") - b"stream\n".len();
+    let buf = [format!("1 0 obj << /Length {n} >> ").as_bytes(), &tail[..]].concat();
+    let r = carved(&buf);
+    assert_eq!(ids(&r), [(1, 0)]);
+    let (data, source) = stream(&r.objects[0]);
+    assert_eq!(source, LengthSource::Declared);
+    assert!(buf[data].ends_with(b"stream\nBBB"));
+    assert!(r.objects[0].notes.is_empty(), "{:?}", r.objects[0].notes);
+}
+
+#[test]
 fn every_eol_after_stream_is_accepted() {
     let golden = golden_streams();
     for style in [
@@ -552,10 +568,17 @@ fn the_walk_back_stops_at_24_bytes() {
     // before `obj`.
     let fits = b"000000000000000000001 0 obj 1 endobj";
     assert_eq!(ids(&carved(fits)), [(1, 0)]);
-    // One digit more and the number cannot be assembled in 24 bytes.
-    let r = carved(b"0000000000000000000001 0 obj 1 endobj");
+    // One digit more and the number cannot be assembled in 24 bytes; the
+    // note still says where the header starts.
+    let r = carved(b"x 0000000000000000000001 0 obj 1 endobj");
     assert!(r.objects.is_empty());
-    assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 1 }]);
+    assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 2 }]);
+    // A generation that long: the header starts at its number.
+    let r = carved(b"x 7 0000000000000000000000001 obj 1 endobj");
+    assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 2 }]);
+    // ... or at the generation's first digit when no number stands before it.
+    let r = carved(b"x 0000000000000000000000001 obj 1 endobj");
+    assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 2 }]);
 }
 
 #[test]
@@ -676,6 +699,77 @@ fn cancelling_mid_carve_on_64_mib_returns_at_the_next_poll() {
     };
     assert_eq!(carve(&buf, &cancel).map(|_| ()), Err(Cancelled));
     assert_eq!(polls.get(), 1);
+}
+
+#[test]
+fn structure_reads_stay_linear_and_poll_cancel() {
+    // Each `trailer(` opens a string that never ends and each `startxref%` a
+    // comment with no EOL: unbounded, every read would run to EOF and the
+    // pass would be quadratic (minutes at this size). Each read stops at the
+    // next landmark instead.
+    for unit in [&b"trailer("[..], b"startxref%"] {
+        let n = 200_000;
+        let buf = unit.repeat(n);
+        let r = carved(&buf);
+        assert_eq!(r.trailer_spans.len() + r.startxref.len(), n);
+        assert!(r.trailer_spans.iter().all(|s| s.end - s.start == 7));
+        assert!(r.startxref.iter().all(|&(_, v)| v.is_none()));
+
+        // No headers, so phase B never ticks: phase A ticks once per
+        // landmark and the structure pass once more per landmark. A cancel
+        // raised after phase A's polls is seen in the structure pass.
+        let phase_a = (n as u64).div_ceil(POLL_EVERY);
+        let polls = Cell::new(0u64);
+        let cancel = || {
+            polls.set(polls.get() + 1);
+            polls.get() > phase_a
+        };
+        assert_eq!(carve(&buf, &cancel).map(|_| ()), Err(Cancelled));
+        assert_eq!(polls.get(), phase_a + 1);
+    }
+}
+
+#[test]
+fn classification_decodes_a_bounded_prefix_within_the_budget() {
+    let content = b"BT /F1 12 Tf 72 712 Td (Hi) Tj ET\n".repeat(10_000);
+    assert!(content.len() > CLASSIFY_CAP);
+    let flate = miniz_oxide::deflate::compress_to_vec_zlib(&content, 6);
+    let mut dict = Dictionary::new();
+    dict.set("Filter", Object::Name(b"FlateDecode".to_vec()));
+    // A long content stream classifies on its first CLASSIFY_CAP bytes.
+    let mut c = Classifier::new(content.len());
+    assert_eq!(c.kind(&dict, &flate), ObjectKind::ContentStream);
+    assert_eq!(c.prefix(&dict, &flate).len(), CLASSIFY_CAP);
+    // ... and so does a chain, a stage at a time.
+    let mut hex_dict = dict.clone();
+    hex_dict.set(
+        "Filter",
+        Object::Array(vec![
+            Object::Name(b"ASCIIHexDecode".to_vec()),
+            Object::Name(b"FlateDecode".to_vec()),
+        ]),
+    );
+    let hex: Vec<u8> = flate
+        .iter()
+        .flat_map(|b| format!("{b:02x}").into_bytes())
+        .collect();
+    assert_eq!(
+        Classifier::new(content.len()).kind(&hex_dict, &hex),
+        ObjectKind::ContentStream
+    );
+
+    // A small file buys CLASSIFY_CAP bytes of decoding in all: the first
+    // stream spends it, the next is classified by its dictionary alone.
+    let mut c = Classifier::new(1);
+    assert_eq!(c.prefix(&dict, &flate).len(), CLASSIFY_CAP);
+    assert!(c.prefix(&dict, &flate).is_empty());
+    assert_eq!(c.kind(&dict, &flate), ObjectKind::Other(String::new()));
+    // Unfiltered data costs nothing and is still cut to the prefix.
+    assert_eq!(
+        c.kind(&Dictionary::new(), &content),
+        ObjectKind::ContentStream
+    );
+    assert_eq!(c.prefix(&Dictionary::new(), &content).len(), CLASSIFY_CAP);
 }
 
 // ---- memory ----

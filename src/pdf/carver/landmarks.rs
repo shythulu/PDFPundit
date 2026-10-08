@@ -150,6 +150,15 @@ fn header(buf: &[u8], p: usize) -> Option<Hit> {
     // The digit run reaches the window's edge and goes on past it: the
     // number cannot be assembled in 24 bytes, so it is out of range.
     let cut = |start: usize| start == lo && start > 0 && buf[start - 1].is_ascii_digit();
+    // Where a cut run really starts, for the note. Each walk stays inside
+    // the digits in front of this `obj`, so over the whole scan it is linear.
+    let run_start = |end: usize| {
+        end - buf[..end]
+            .iter()
+            .rev()
+            .take_while(|b| b.is_ascii_digit())
+            .count()
+    };
     if p == lo || !is_ws(buf[p - 1]) {
         return None;
     }
@@ -159,7 +168,18 @@ fn header(buf: &[u8], p: usize) -> Option<Hit> {
         return None;
     }
     if cut(gen_start) {
-        return Some(Hit::BadHeader(lo));
+        // The header starts at `num`, if one stands in front of `gen`.
+        let gen_start = run_start(gen_start);
+        let num_start = match gen_start.checked_sub(1) {
+            Some(ws) if is_ws(buf[ws]) => run_start(ws),
+            _ => gen_start,
+        };
+        let at = if num_start + 1 < gen_start {
+            num_start
+        } else {
+            gen_start
+        };
+        return Some(Hit::BadHeader(at));
     }
     if gen_start == lo || !is_ws(buf[gen_start - 1]) {
         return None;
@@ -170,7 +190,7 @@ fn header(buf: &[u8], p: usize) -> Option<Hit> {
         return None;
     }
     if cut(num_start) {
-        return Some(Hit::BadHeader(lo));
+        return Some(Hit::BadHeader(run_start(num_start)));
     }
     if num_start > 0 && !is_ws(buf[num_start - 1]) {
         return None;

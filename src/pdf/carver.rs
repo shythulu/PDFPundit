@@ -16,10 +16,15 @@
 //!    and the next header that is framed as EOL + `endstream` + optional
 //!    whitespace + `endobj` (two or more: nothing, carry on); (c) and (d)
 //!    belong to T-07; (e) the last `endstream` before the next header; (f)
-//!    the end of the file ([`LengthSource::TruncatedAtEof`]). The scanned rungs
-//!    never look past the next header, so their extent holds no foreign
-//!    header (qpdf's check). Rung (a) is trusted as it stands: an exact fit
-//!    is how a stream whose data holds `1 0 obj` keeps its data.
+//!    the end of the file, or the next header when there is one
+//!    ([`LengthSource::TruncatedAtEof`] either way; [`CarveNote::NoEndstream`]
+//!    marks the second). The scanned rungs never look past the next header,
+//!    so their extent holds no foreign header (qpdf's check). Rung (a) is
+//!    exempt from that check: an exact fit is how a stream whose data holds
+//!    `\n1 0 obj\n` at a line start keeps its data (the keyword-in-stream
+//!    acceptance criterion), and the price is that a `/Length` landing
+//!    exactly on a later object's `endstream` swallows the objects between
+//!    (pinned by `an_exact_declared_length_is_trusted_over_a_header`).
 //! 4. **EOL after `stream`**: LF, CRLF, a bare CR (with
 //!    [`CarveNote::BareCrAfterStream`], D-030) or a space and then one of those.
 //! 5. A missing `endobj` ends the object at the next header or EOF.
@@ -51,8 +56,13 @@ pub(crate) const MAX_LANDMARKS: usize = 1_000_000;
 pub(crate) const MAX_OBJECTS: usize = 1_000_000;
 /// `cancel` is polled once per this many landmarks.
 const POLL_EVERY: u64 = 256;
-/// Bytes of a typeless stream decoded to classify it by content.
-const CLASSIFY_CAP: usize = 1 << 20;
+/// Bytes of a typeless stream classified by content: its decoded prefix.
+/// The content grammar settles well within this.
+const CLASSIFY_CAP: usize = 64 << 10;
+/// Classification decodes at most this many bytes per byte of input over the
+/// whole carve (and never less than [`CLASSIFY_CAP`]), so a file of small
+/// deflate bombs cannot make the carve's work outgrow the file.
+const CLASSIFY_BUDGET_PER_BYTE: usize = 16;
 
 /// The `%PDF-` header, wherever it is (junk may come before it).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -296,7 +306,7 @@ fn carve_with(buf: &[u8], cancel: &dyn Fn() -> bool, caps: Caps) -> Result<Carve
         report.notes.push(CarveNote::CapHit(Cap::Landmarks));
     }
     let dead = assemble(buf, &lm, caps.objects, &mut poll, &mut report)?;
-    structure(buf, &lm, &dead, &mut report);
+    structure(buf, &lm, &dead, &mut poll, &mut report)?;
     Ok(report)
 }
 
@@ -326,6 +336,7 @@ fn assemble(
 ) -> Result<Vec<Range<usize>>, Cancelled> {
     let mut dead = Vec::new();
     let mut cursor = 0;
+    let mut classify = Classifier::new(buf.len());
     for (i, h) in lm.headers.iter().enumerate() {
         poll.tick()?;
         if h.at < cursor {
@@ -339,7 +350,7 @@ fn assemble(
             .headers
             .get(i + 1)
             .map_or(buf.len(), |n| n.at.max(h.obj_end));
-        let obj = carve_object(buf, lm, h, next, &mut report.stats.rungs);
+        let obj = carve_object(buf, lm, h, next, &mut classify, &mut report.stats.rungs);
         if let Body::Stream { data, .. } = &obj.body {
             dead.push(data.start as usize..data.end as usize);
         }
@@ -356,6 +367,7 @@ fn carve_object(
     lm: &Landmarks,
     h: &landmarks::Header,
     next: usize,
+    classify: &mut Classifier,
     rungs: &mut RungCounts,
 ) -> CarvedObject {
     let window = &buf[..next];
@@ -377,7 +389,7 @@ fn carve_object(
         };
         let ext = extent(buf, lm, &dict, lx.pos, &mut notes, rungs);
         let end = close(buf, lm, ext.resume, &mut notes);
-        let kind = stream_kind(&dict, &buf[ext.data.clone()]);
+        let kind = classify.kind(&dict, &buf[ext.data.clone()]);
         let body = Body::Stream {
             dict,
             data: span(ext.data),
@@ -504,7 +516,9 @@ fn extent(
     }
 
     // (f) No `endstream` at all: the data runs to EOF, or up to the next
-    // header, never past it.
+    // header, never past it. Both are `TruncatedAtEof`; only the
+    // `NoEndstream` note tells a cut at the next header from a file that
+    // ended inside the stream.
     rungs.eof += 1;
     let end = if region_end == buf.len() {
         region_end
@@ -599,35 +613,81 @@ fn dict_kind(d: &Dictionary) -> ObjectKind {
     }
 }
 
-/// A stream's kind: from its dictionary when that decides it (T-06's
-/// [`streams::classify`]), else from the first [`CLASSIFY_CAP`] bytes of its
-/// decoded data (TD §4.2 step 5: a typeless stream is classified by content).
-fn stream_kind(dict: &Dictionary, raw: &[u8]) -> ObjectKind {
-    let class = match streams::classify(dict, &[]) {
-        StreamClass::Other => streams::classify(dict, &decoded_prefix(dict, raw)),
-        class => class,
-    };
-    match class {
-        StreamClass::Content => ObjectKind::ContentStream,
-        StreamClass::Image { .. } => ObjectKind::Image,
-        StreamClass::Form => ObjectKind::Form,
-        StreamClass::FontFile => ObjectKind::FontFile,
-        StreamClass::CMap if name(dict, b"Type") != Some(b"CMap") => ObjectKind::ToUnicode,
-        StreamClass::ObjStm => ObjectKind::ObjStm,
-        StreamClass::XRef => ObjectKind::XRefStream,
-        StreamClass::CMap | StreamClass::Metadata | StreamClass::Other => named(dict),
-    }
+/// Classifies streams, holding what is left of the carve's decode budget.
+struct Classifier {
+    left: usize,
 }
 
-/// What classification reads: the raw bytes when unfiltered; for Flate
-/// alone, whatever inflates before the cap or the first error (so a C9
-/// stream still classifies); otherwise the whole chain, or nothing.
-fn decoded_prefix<'a>(dict: &Dictionary, raw: &'a [u8]) -> Cow<'a, [u8]> {
-    let chain = streams::filters_of(dict);
-    match chain.as_slice() {
-        [] => Cow::Borrowed(raw),
-        [(Filter::Flate, _)] => Cow::Owned(streams::inflate(raw, CLASSIFY_CAP).out),
-        _ => Cow::Owned(streams::decode_chain(raw, &chain, CLASSIFY_CAP).unwrap_or_default()),
+impl Classifier {
+    fn new(file_len: usize) -> Self {
+        Self {
+            left: file_len
+                .saturating_mul(CLASSIFY_BUDGET_PER_BYTE)
+                .max(CLASSIFY_CAP),
+        }
+    }
+
+    /// A stream's kind: from its dictionary when that decides it (T-06's
+    /// [`streams::classify`]), else from the first [`CLASSIFY_CAP`] bytes of
+    /// its decoded data (TD §4.2 step 5: a typeless stream is classified by
+    /// content). Once the budget is spent, typeless streams are classified
+    /// on an empty prefix, that is by their dictionary alone.
+    fn kind(&mut self, dict: &Dictionary, raw: &[u8]) -> ObjectKind {
+        let class = match streams::classify(dict, &[]) {
+            StreamClass::Other => streams::classify(dict, &self.prefix(dict, raw)),
+            class => class,
+        };
+        match class {
+            StreamClass::Content => ObjectKind::ContentStream,
+            StreamClass::Image { .. } => ObjectKind::Image,
+            StreamClass::Form => ObjectKind::Form,
+            StreamClass::FontFile => ObjectKind::FontFile,
+            StreamClass::CMap if name(dict, b"Type") != Some(b"CMap") => ObjectKind::ToUnicode,
+            StreamClass::ObjStm => ObjectKind::ObjStm,
+            StreamClass::XRef => ObjectKind::XRefStream,
+            StreamClass::CMap | StreamClass::Metadata | StreamClass::Other => named(dict),
+        }
+    }
+
+    /// What classification reads: at most [`CLASSIFY_CAP`] bytes, the raw
+    /// bytes when unfiltered. A chain is decoded a stage at a time; a final
+    /// Flate stage keeps whatever inflates before the cap or the first error
+    /// (so a C9 stream, or a long one, still classifies), and any other stage
+    /// that fails leaves nothing. A stage before the last may grow to the
+    /// size of its input. Every stage's output, or its cap when it fails, is
+    /// charged to the budget.
+    fn prefix<'a>(&mut self, dict: &Dictionary, raw: &'a [u8]) -> Cow<'a, [u8]> {
+        let chain = streams::filters_of(dict);
+        if chain.is_empty() {
+            return Cow::Borrowed(&raw[..raw.len().min(CLASSIFY_CAP)]);
+        }
+        let mut data = Cow::Borrowed(raw);
+        for (i, stage) in chain.iter().enumerate() {
+            let last = i + 1 == chain.len();
+            let wanted = if last {
+                CLASSIFY_CAP
+            } else {
+                CLASSIFY_CAP.max(data.len())
+            };
+            let cap = wanted.min(self.left);
+            if cap == 0 {
+                return Cow::Owned(Vec::new());
+            }
+            let out = if last && stage.0 == Filter::Flate {
+                streams::inflate(&data, cap).out
+            } else {
+                match streams::decode_chain(&data, std::slice::from_ref(stage), cap) {
+                    Ok(out) => out,
+                    Err(_) => {
+                        self.left -= cap;
+                        return Cow::Owned(Vec::new());
+                    }
+                }
+            };
+            self.left -= out.len().min(self.left);
+            data = Cow::Owned(out);
+        }
+        data
     }
 }
 
@@ -645,65 +705,83 @@ fn name<'d>(d: &'d Dictionary, key: &[u8]) -> Option<&'d [u8]> {
 
 /// The file-structure landmarks outside stream data (`dead`), for diagnosis:
 /// xref and trailer spans, `startxref` values, `%%EOF` markers, and a note
-/// for each out-of-range header.
-fn structure(buf: &[u8], lm: &Landmarks, dead: &[Range<usize>], report: &mut CarveReport) {
-    let live = |at: &&usize| {
-        let i = dead.partition_point(|r| r.start <= **at);
-        i == 0 || **at >= dead[i - 1].end
+/// for each out-of-range header. Each value is read only up to the next
+/// structural landmark ([`region_end`]), so the windows are disjoint and the
+/// pass is linear however the keywords are packed; `poll` ticks once per
+/// landmark visited.
+fn structure(
+    buf: &[u8],
+    lm: &Landmarks,
+    dead: &[Range<usize>],
+    poll: &mut Poll<'_>,
+    report: &mut CarveReport,
+) -> Result<(), Cancelled> {
+    let live = |at: usize| {
+        let i = dead.partition_point(|r| r.start <= at);
+        i == 0 || at >= dead[i - 1].end
     };
-    report.notes.extend(
-        lm.bad_headers
-            .iter()
-            .filter(live)
-            .map(|&at| CarveNote::HeaderOutOfRange { at: at as u64 }),
-    );
-    report.eof_markers = lm.eofs.iter().filter(live).map(|&at| at as u64).collect();
-    report.startxref = lm
-        .startxrefs
-        .iter()
-        .filter(live)
-        .map(|&at| {
-            let value = match Lexer::new(buf, at + b"startxref".len()).next() {
+    for &at in &lm.bad_headers {
+        poll.tick()?;
+        if live(at) {
+            report
+                .notes
+                .push(CarveNote::HeaderOutOfRange { at: at as u64 });
+        }
+    }
+    for &at in &lm.eofs {
+        poll.tick()?;
+        if live(at) {
+            report.eof_markers.push(at as u64);
+        }
+    }
+    for &at in &lm.startxrefs {
+        poll.tick()?;
+        if live(at) {
+            let window = &buf[..region_end(buf, lm, at)];
+            let value = match Lexer::new(window, at + b"startxref".len()).next() {
                 Tok::Int(n) => u64::try_from(n).ok(),
                 _ => None,
             };
-            (at as u64, value)
-        })
-        .collect();
-    report.trailer_spans = lm
-        .trailers
-        .iter()
-        .filter(live)
-        .map(|&at| {
+            report.startxref.push((at as u64, value));
+        }
+    }
+    for &at in &lm.trailers {
+        poll.tick()?;
+        if live(at) {
             let from = at + b"trailer".len();
-            let end = match lexer::parse_value(buf, from, 0) {
+            let window = &buf[..region_end(buf, lm, at)];
+            let end = match lexer::parse_value(window, from, 0) {
                 Ok(p) if matches!(p.value, Object::Dictionary(_)) => p.end,
                 _ => from,
             };
-            span(at..end)
-        })
-        .collect();
-    let first_after = |list: &[usize], at: usize| {
+            report.trailer_spans.push(span(at..end));
+        }
+    }
+    for &at in &lm.xrefs {
+        poll.tick()?;
+        if live(at) {
+            report.xref_spans.push(span(at..region_end(buf, lm, at)));
+        }
+    }
+    Ok(())
+}
+
+/// Where the next structural landmark after the one at `at` starts: a
+/// `trailer`, `startxref`, `xref`, `%%EOF` or header; EOF when there is none.
+fn region_end(buf: &[u8], lm: &Landmarks, at: usize) -> usize {
+    let first_after = |list: &[usize]| {
         let i = list.partition_point(|&x| x <= at);
         list.get(i).copied()
     };
-    report.xref_spans = lm
-        .xrefs
-        .iter()
-        .filter(live)
-        .map(|&at| {
-            let end = [
-                first_after(&lm.trailers, at),
-                first_after(&lm.startxrefs, at),
-                first_after(&lm.eofs, at),
-                first_after(&lm.xrefs, at),
-                next_header(lm, at + 1),
-            ]
-            .into_iter()
-            .flatten()
-            .min()
-            .unwrap_or(buf.len());
-            span(at..end)
-        })
-        .collect();
+    [
+        first_after(&lm.trailers),
+        first_after(&lm.startxrefs),
+        first_after(&lm.eofs),
+        first_after(&lm.xrefs),
+        next_header(lm, at + 1),
+    ]
+    .into_iter()
+    .flatten()
+    .min()
+    .unwrap_or(buf.len())
 }
