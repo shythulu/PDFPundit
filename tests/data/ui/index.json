@@ -1,0 +1,803 @@
+{
+ "generator": "nimbalyst-local/mockups/pdfpundit-ansi-bbs/generate.py",
+ "pinned_commit": "9439a30",
+ "generate_py_sha256": "44f95eaa914f283571aa184f49eec3f2bc5abd27555251cc4112708404ef186a",
+ "palette_sha256": "ead94d9988bac402828c0298cb54e64f4eae2ffd0da794e34fb7ce514d2ed230",
+ "theme": "DarkBerry Blackwater",
+ "scales": [
+  0.93,
+  0.465,
+  0.68,
+  0.52
+ ],
+ "frames": [
+  {
+   "name": "01-idle",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-1-file-enters",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-2-ears-up",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-3-turns",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-4-looks-up",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-5-tracks-it",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-6-jaw-drops",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-7-wider",
+   "kind": "canvas"
+  },
+  {
+   "name": "02-drag-8-ready-to-eat",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-1-plop",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-2-looks-up",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-3-jaw-drops",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-4-chomp",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-5-nom",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-6-nom-nom",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-7-gulp",
+   "kind": "canvas"
+  },
+  {
+   "name": "02b-chomp-8-burp",
+   "kind": "canvas"
+  },
+  {
+   "name": "03-batch",
+   "kind": "canvas"
+  },
+  {
+   "name": "04-font-pick",
+   "kind": "canvas"
+  },
+  {
+   "name": "05-result",
+   "kind": "canvas"
+  },
+  {
+   "name": "06-theme-chooser",
+   "kind": "canvas"
+  },
+  {
+   "name": "07-widget-idle",
+   "kind": "canvas"
+  },
+  {
+   "name": "07-widget-working",
+   "kind": "canvas"
+  },
+  {
+   "name": "07-widget-needs-you",
+   "kind": "canvas"
+  },
+  {
+   "name": "07-widget-done",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-1-file-enters",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-2-ears-up",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-3-turns",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-4-looks-up",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-5-tracks-it",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-6-jaw-drops",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-7-wider",
+   "kind": "canvas"
+  },
+  {
+   "name": "08-widget-drop-8-ready-to-eat",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-1-plop",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-2-looks-up",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-3-jaw-drops",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-4-chomp",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-5-nom",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-6-nom-nom",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-7-gulp",
+   "kind": "canvas"
+  },
+  {
+   "name": "08b-widget-chomp-8-burp",
+   "kind": "canvas"
+  },
+  {
+   "name": "cat-0.93-closed",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-open",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-happy",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-widget-idle",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-widget-working",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-widget-needs",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-widget-done",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-drag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-chomp-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wdrag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.93-wchomp-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-closed",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-open",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-happy",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-widget-idle",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-widget-working",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-widget-needs",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-widget-done",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-drag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-chomp-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wdrag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.465-wchomp-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-closed",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-open",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-happy",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-widget-idle",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-widget-working",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-widget-needs",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-widget-done",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-drag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-chomp-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wdrag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.68-wchomp-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-closed",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-open",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-happy",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-widget-idle",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-widget-working",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-widget-needs",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-widget-done",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-drag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-chomp-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wdrag-8",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-1",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-2",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-3",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-4",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-5",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-6",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-7",
+   "kind": "cat"
+  },
+  {
+   "name": "cat-0.52-wchomp-8",
+   "kind": "cat"
+  }
+ ]
+}

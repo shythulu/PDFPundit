@@ -7,6 +7,8 @@ pub(crate) mod canvas;
 pub(crate) mod cat;
 pub(crate) mod color;
 pub(crate) mod director;
+#[cfg(test)]
+pub(crate) mod goldens;
 pub(crate) mod input;
 pub(crate) mod layout;
 pub(crate) mod state;
