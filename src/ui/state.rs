@@ -216,7 +216,7 @@ pub(crate) mod fixtures {
                     e
                 })
                 .collect();
-            let mut partial = entry(6, "invoice_scan.pdf", INVOICE_BYTES);
+            let mut partial = entry(7, "invoice_scan.pdf", INVOICE_BYTES);
             partial.state = EntryState::Done;
             partial.run = Some(run(
                 &partial,

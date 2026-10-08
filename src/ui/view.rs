@@ -118,8 +118,11 @@ pub struct QueueRow {
     pub kind: RowKind,
     /// "repaired", "queued", "needs input", …
     pub label: &'static str,
-    /// "3 fixed", "C9 salvage", "decrypt first", …
+    /// "3 fixed", "2 fonts", "C9 salvage", "decrypt first", …
     pub detail: Option<String>,
+    /// The result view's shorter form of `detail` (frame 05): the same, except
+    /// that a clean file drops "nothing to fix" and reads just "clean".
+    pub short_detail: Option<String>,
     /// The cursor is on this row.
     pub selected: bool,
 }
@@ -334,26 +337,49 @@ pub fn view(app: &AppState) -> ViewModel {
 }
 
 /// How a finished repair shows in LAST CALLERS and the history store
-/// (`FileEntry::status`). A file with an analysis but no run is
-/// `RecentStatus::Pending`, which the caller sets without a run.
+/// (`FileEntry::status`), from its `RunRecord`'s report and status.
 ///
-/// Failed or encrypted is `Failed`; then any partial pass, a partial outcome,
-/// or a pass skipped is `Partial` (not everything was fixed); otherwise
-/// (every pass `Fixed`, status `Ok`, including no pass at all) `Repaired`.
+/// Failed or encrypted is `Failed`; then a partial outcome or any partial
+/// pass is `Partial`; otherwise `Repaired`. A skipped pass is neutral: the
+/// engine skips a pass that has nothing to do (`Skipped("no orphaned
+/// font")`), and the outcome status says whether the file came out partial.
+/// For a file with no run, see [`recent_status_of`].
 pub fn recent_status(report: &RepairReport, status: &OutcomeStatus) -> RecentStatus {
     let encrypted = report
         .findings_before
         .iter()
         .any(|f| f.class == FindingKind::Encrypted);
-    let all_fixed = report
+    let partial_pass = report
         .passes
         .iter()
-        .all(|p| p.outcome == PassOutcome::Fixed);
+        .any(|p| matches!(p.outcome, PassOutcome::Partial(_)));
     match status {
         OutcomeStatus::Failed(_) => RecentStatus::Failed,
         _ if encrypted => RecentStatus::Failed,
-        OutcomeStatus::Ok if all_fixed => RecentStatus::Repaired,
-        OutcomeStatus::Ok | OutcomeStatus::Partial(_) => RecentStatus::Partial,
+        OutcomeStatus::Partial(_) => RecentStatus::Partial,
+        OutcomeStatus::Ok if partial_pass => RecentStatus::Partial,
+        OutcomeStatus::Ok => RecentStatus::Repaired,
+    }
+}
+
+/// The whole `RecentStatus` table for one queue entry, so the loop and the
+/// history writer share one mapping:
+///
+/// - a finished repair: [`recent_status`] of its report and status;
+/// - a failed job, or an encrypted file with no run: `Failed`;
+/// - an analysis but no run yet (repair queued, running or parked, or the
+///   batch was left before it ran): `Pending`;
+/// - nothing analysed yet: `None`, there is nothing to record.
+pub fn recent_status_of(e: &QueueEntry) -> Option<RecentStatus> {
+    if let Some(run) = &e.run {
+        return Some(recent_status(&run.report, &run.status));
+    }
+    let analysed = e.meta.is_some() || e.state == EntryState::Done;
+    match &e.state {
+        EntryState::Failed { .. } => Some(RecentStatus::Failed),
+        _ if analysed && encrypted(e) => Some(RecentStatus::Failed),
+        _ if analysed => Some(RecentStatus::Pending),
+        _ => None,
     }
 }
 
@@ -367,7 +393,8 @@ impl RecentStatus {
         }
     }
 
-    /// The idle golden draws the pending glyph in body text, not dim.
+    /// The idle golden draws the pending glyph in body text, not dim as the
+    /// plan's T-20 text says; the golden is the authority.
     pub fn role(self) -> Role {
         match self {
             RecentStatus::Repaired => Role::Ok,
@@ -409,16 +436,14 @@ fn class_of(e: &QueueEntry) -> Class {
         | EntryState::Exporting { .. } => Class::Working,
         EntryState::WaitingOnUser(_) => Class::NeedsInput,
         EntryState::Failed { .. } | EntryState::Cancelled => Class::Failed,
-        EntryState::Done => match &e.run {
-            // Analysed; the repair has not started.
-            None if !encrypted(e) => Class::Queued,
-            None => Class::Failed,
-            Some(run) => match recent_status(&run.report, &run.status) {
-                RecentStatus::Repaired => Class::Ok,
-                RecentStatus::Partial => Class::Partial,
-                RecentStatus::Failed => Class::Failed,
-                RecentStatus::Pending => Class::Queued,
-            },
+        EntryState::Done => match recent_status_of(e) {
+            Some(RecentStatus::Repaired) => Class::Ok,
+            Some(RecentStatus::Partial) => Class::Partial,
+            Some(RecentStatus::Failed) => Class::Failed,
+            // Analysed, repair not started: the runner queues the repair with
+            // the analysis (GG §1), so this never lasts and the file counts
+            // as still to do.
+            Some(RecentStatus::Pending) | None => Class::Queued,
         },
     }
 }
@@ -519,13 +544,25 @@ fn current(app: &AppState) -> Option<Current> {
 
 fn queue_row(e: &QueueEntry, selected: bool) -> QueueRow {
     let (kind, label, detail) = row_status(e);
+    let short_detail = if label == "clean" {
+        None
+    } else {
+        detail.clone()
+    };
     QueueRow {
         name: e.name.clone(),
         kind,
         label,
         detail,
+        short_detail,
         selected,
     }
+}
+
+/// `n font` or `n fonts`.
+fn fonts(n: usize) -> String {
+    let unit = if n == 1 { "font" } else { "fonts" };
+    format!("{n} {unit}")
 }
 
 fn row_status(e: &QueueEntry) -> (RowKind, &'static str, Option<String>) {
@@ -556,12 +593,7 @@ fn row_status(e: &QueueEntry) -> (RowKind, &'static str, Option<String>) {
                     .count(),
             }
             .max(1);
-            let fonts = if n == 1 { "font" } else { "fonts" };
-            (
-                RowKind::NeedsInput,
-                "needs input",
-                Some(format!("{n} {fonts}")),
-            )
+            (RowKind::NeedsInput, "needs input", Some(fonts(n)))
         }
         EntryState::Failed { error, .. } => (RowKind::Failed, "failed", Some(error.clone())),
         EntryState::Cancelled => (RowKind::Failed, "cancelled", None),
@@ -576,9 +608,19 @@ fn row_status(e: &QueueEntry) -> (RowKind, &'static str, Option<String>) {
                         .iter()
                         .filter(|p| p.outcome == PassOutcome::Fixed)
                         .count();
+                    // Frame 05: a repair that resolved fonts names them
+                    // ("repaired · 2 fonts"), any other names its passes.
+                    let resolved = e
+                        .font_resolutions
+                        .iter()
+                        .filter(|s| s.resolution.is_some())
+                        .count();
                     match recent_status(&run.report, status) {
                         RecentStatus::Repaired if fixed == 0 => {
                             (RowKind::Ok, "clean", Some("nothing to fix".into()))
+                        }
+                        RecentStatus::Repaired if resolved > 0 => {
+                            (RowKind::Ok, "repaired", Some(fonts(resolved)))
                         }
                         RecentStatus::Repaired => {
                             (RowKind::Ok, "repaired", Some(format!("{fixed} fixed")))
@@ -599,8 +641,8 @@ fn partial_reason(run: &crate::jobs::RepairRun) -> Option<String> {
     };
     from_status.or_else(|| {
         run.report.passes.iter().find_map(|p| match &p.outcome {
-            PassOutcome::Partial(why) | PassOutcome::Skipped(why) => Some(why.clone()),
-            PassOutcome::Fixed => None,
+            PassOutcome::Partial(why) => Some(why.clone()),
+            PassOutcome::Fixed | PassOutcome::Skipped(_) => None,
         })
     })
 }
@@ -622,7 +664,13 @@ fn level_of(f: &Finding) -> Level {
 }
 
 fn finding_rows(e: &QueueEntry) -> Vec<FindingRow> {
-    let after = e.run.as_ref().map(|r| &r.report.findings_after);
+    // Only a repair that produced an output was re-diagnosed; a failed one
+    // has an empty `findings_after` that must not read as everything fixed.
+    let after = e
+        .run
+        .as_ref()
+        .filter(|r| !matches!(r.status, OutcomeStatus::Failed(_)))
+        .map(|r| &r.report.findings_after);
     e.findings
         .iter()
         .map(|f| {
@@ -694,6 +742,27 @@ mod tests {
             Some(d) => format!("{} · {d}", r.label),
             None => r.label.to_string(),
         }
+    }
+
+    /// `label · short_detail`, as the result view prints a queue row.
+    fn short_text(r: &QueueRow) -> String {
+        match &r.short_detail {
+            Some(d) => format!("{} · {d}", r.label),
+            None => r.label.to_string(),
+        }
+    }
+
+    /// The characters of `golden`'s row `y` from column `x0` up to `x1`,
+    /// trailing blanks trimmed.
+    fn golden_text(golden: &crate::ui::goldens::Golden, x0: u16, x1: u16, y: u16) -> String {
+        use crate::ui::goldens::GoldenCell;
+        let s: String = (x0..x1)
+            .map(|x| match golden.cell(x, y) {
+                GoldenCell::Text { ch, .. } => ch,
+                _ => '?',
+            })
+            .collect();
+        s.trim_end().to_string()
     }
 
     #[test]
@@ -875,7 +944,7 @@ mod tests {
         let want = [
             ('√', "repaired · 3 fixed", false),
             ('√', "clean · nothing to fix", false),
-            ('√', "repaired · 3 fixed", true),
+            ('√', "repaired · 2 fonts", true),
             ('√', "repaired · 1 fixed", false),
             ('~', "partial · 88% salvaged", false),
             ('☼', "repairing", false),
@@ -886,18 +955,18 @@ mod tests {
             .map(|&(g, t, s)| (g, t.to_string(), s))
             .collect();
         assert_eq!(rows, want);
-        // The result view's short forms drop the detail of these three.
-        let labels: Vec<&str> = vm.queue_rows.iter().map(|r| r.label).collect();
+        // The result view's short form drops only the clean file's detail.
+        let short: Vec<String> = vm.queue_rows.iter().map(short_text).collect();
         assert_eq!(
-            labels,
+            short,
             [
-                "repaired",
+                "repaired · 3 fixed",
                 "clean",
-                "repaired",
-                "repaired",
-                "partial",
+                "repaired · 2 fonts",
+                "repaired · 1 fixed",
+                "partial · 88% salvaged",
                 "repairing",
-                "encrypted"
+                "encrypted · decrypt first",
             ]
         );
 
@@ -1155,13 +1224,26 @@ mod tests {
         let partial = OutcomeStatus::Partial(vec!["88% salvaged".into()]);
         let failed = OutcomeStatus::Failed("no candidate passed".into());
         let p = || P("ambiguous: 2 candidate repairs".into());
-        let s = || Skipped("not asked for".into());
+        let s = || Skipped("no orphaned font".into());
         let table: Vec<(&str, Vec<PassOutcome>, bool, &OutcomeStatus, RecentStatus)> = vec![
             ("all fixed, ok", vec![Fixed, Fixed], false, &ok, Repaired),
             ("clean, ok", vec![], false, &ok, Repaired),
             ("a partial pass", vec![Fixed, p()], false, &ok, Partial),
             ("partial outcome", vec![Fixed], false, &partial, Partial),
-            ("a skipped pass", vec![Fixed, s()], false, &ok, Partial),
+            (
+                "a skipped pass is neutral",
+                vec![Fixed, s()],
+                false,
+                &ok,
+                Repaired,
+            ),
+            (
+                "skipped, partial outcome",
+                vec![s()],
+                false,
+                &partial,
+                Partial,
+            ),
             ("failed", vec![], false, &failed, Failed),
             ("failed beats partial", vec![p()], false, &failed, Failed),
             ("encrypted", vec![], true, &failed, Failed),
@@ -1171,6 +1253,75 @@ mod tests {
         for (what, passes, encrypted, status, want) in table {
             let report = report_with(&passes, encrypted);
             assert_eq!(recent_status(&report, status), want, "{what}");
+        }
+    }
+
+    /// The table's per-entry rows: a run maps through `recent_status`, an
+    /// analysis with no run is `Pending`, nothing analysed records nothing.
+    #[test]
+    fn recent_status_of_an_entry() {
+        let analysed = |state: EntryState| {
+            let mut e = with_state(1, state);
+            e.meta = AppState::mockup_batch().batch.entries[2].meta.clone();
+            e
+        };
+        let mut locked = analysed(EntryState::Done);
+        locked.findings = AppState::mockup_batch().batch.entries[6].findings.clone();
+        let table: Vec<(&str, QueueEntry, Option<RecentStatus>)> = vec![
+            ("queued", with_state(1, EntryState::Queued), None),
+            (
+                "analysing",
+                with_state(
+                    1,
+                    EntryState::Analyzing {
+                        phase: None,
+                        done: 0,
+                        total: None,
+                    },
+                ),
+                None,
+            ),
+            (
+                "analysis only",
+                analysed(EntryState::Done),
+                Some(RecentStatus::Pending),
+            ),
+            (
+                "analysed, repairing",
+                analysed(repairing(10)),
+                Some(RecentStatus::Pending),
+            ),
+            ("parked", parked(1), Some(RecentStatus::Pending)),
+            ("encrypted, no run", locked, Some(RecentStatus::Failed)),
+            (
+                "job failed",
+                with_state(
+                    1,
+                    EntryState::Failed {
+                        error: "boom".into(),
+                        panicked: false,
+                    },
+                ),
+                Some(RecentStatus::Failed),
+            ),
+            (
+                "repaired",
+                finished(1, OutcomeStatus::Ok),
+                Some(RecentStatus::Repaired),
+            ),
+            (
+                "partial",
+                finished(1, OutcomeStatus::Partial(vec!["half".into()])),
+                Some(RecentStatus::Partial),
+            ),
+            (
+                "failed run",
+                finished(1, OutcomeStatus::Failed("no".into())),
+                Some(RecentStatus::Failed),
+            ),
+        ];
+        for (what, e, want) in table {
+            assert_eq!(recent_status_of(&e), want, "{what}");
         }
     }
 
@@ -1270,17 +1421,7 @@ mod tests {
 
     #[test]
     fn queue_text_matches_the_batch_golden() {
-        use crate::ui::goldens::{self, GoldenCell};
-        let golden = goldens::load("03-batch");
-        let text = |x0: u16, x1: u16, y: u16| -> String {
-            let s: String = (x0..x1)
-                .map(|x| match golden.cell(x, y) {
-                    GoldenCell::Text { ch, .. } => ch,
-                    _ => '?',
-                })
-                .collect();
-            s.trim_end().to_string()
-        };
+        let golden = crate::ui::goldens::load("03-batch");
         // Name from column 6, `label · detail` from column 28, inside the box.
         for (i, row) in view(&AppState::mockup_batch())
             .queue_rows
@@ -1288,8 +1429,27 @@ mod tests {
             .enumerate()
         {
             let y = 4 + u16::try_from(i).expect("seven rows");
-            assert_eq!(text(6, 27, y), row.name, "row {i}");
-            assert_eq!(text(28, 64, y), row_text(row), "row {i}");
+            assert_eq!(golden_text(&golden, 6, 27, y), row.name, "row {i}");
+            assert_eq!(golden_text(&golden, 28, 64, y), row_text(row), "row {i}");
+        }
+    }
+
+    #[test]
+    fn queue_text_matches_the_result_golden() {
+        let golden = crate::ui::goldens::load("05-result");
+        let vm = view(&AppState::mockup_result());
+        // Name from column 6, `label · short_detail` from column 27. The FiLE
+        // menu covers rows 7 on from column 17, so only the first eleven
+        // characters of their names show.
+        for (i, row) in vm.queue_rows.iter().enumerate() {
+            let y = 4 + u16::try_from(i).expect("seven rows");
+            if y < 7 {
+                assert_eq!(golden_text(&golden, 6, 26, y), row.name, "row {i}");
+                assert_eq!(golden_text(&golden, 27, 49, y), short_text(row), "row {i}");
+            } else {
+                let prefix: String = row.name.chars().take(11).collect();
+                assert_eq!(golden_text(&golden, 6, 17, y), prefix, "row {i}");
+            }
         }
     }
 
@@ -1357,6 +1517,27 @@ mod tests {
             .map(|f| f.fixed)
             .collect();
         assert_eq!(fixed, [Some(true), Some(true), Some(false), None]);
+    }
+
+    #[test]
+    fn a_failed_repair_fixes_nothing() {
+        // payroll_locked.pdf: its run failed and wrote nothing to re-diagnose.
+        let mut app = AppState::mockup_result();
+        app.selected = Some(6);
+        let rows = view(&app).selected_findings;
+        let fixed: Vec<(Level, Option<bool>)> = rows.iter().map(|f| (f.level, f.fixed)).collect();
+        assert_eq!(fixed, [(Level::Error, None)]);
+
+        // Any failed run, whatever it found.
+        let mut app = AppState::mockup_result();
+        let thesis = &mut app.batch.entries[2];
+        thesis.run.as_mut().expect("a run").status = OutcomeStatus::Failed("no".into());
+        assert!(
+            view(&app)
+                .selected_findings
+                .iter()
+                .all(|f| f.fixed.is_none())
+        );
     }
 
     // ── c9_line ──────────────────────────────────────────────────────────
