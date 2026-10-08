@@ -769,7 +769,7 @@ fn first(
 
 /// The Flate stage's input: `raw` through the filters before the first
 /// `/FlateDecode`, with their parameters.
-fn flate_input(dict: &Dictionary, raw: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn flate_input(dict: &Dictionary, raw: &[u8]) -> Option<Vec<u8>> {
     let chain = filters_of(dict);
     let flate_at = chain.iter().position(|(f, _)| *f == Filter::Flate)?;
     decode_chain(raw, &chain[..flate_at], DEFAULT_CAP).ok()
