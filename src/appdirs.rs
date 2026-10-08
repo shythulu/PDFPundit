@@ -11,15 +11,15 @@
 //! - Windows: `FOLDERID_RoamingAppData\shythulu\PDFPundit\{config,data}`,
 //!   `FOLDERID_LocalAppData\shythulu\PDFPundit\cache`, `FOLDERID_Documents`.
 //!
-//! The environment variables read are the ones plan §3.1 names: `HOME` and the
-//! three `XDG_*_HOME` (through `std::env::home_dir` and [`xdg_dirs`]). They only
-//! locate the config and history, never change engine output.
+//! The environment variables read are the ones plan §3.1 names: `HOME` (or
+//! `USERPROFILE`) and the three `XDG_*_HOME`, through [`home`] and `xdg_dirs`.
+//! They only locate the config and history, never change engine output.
 // The shell (T-23b) is the caller; until it lands only the tests use this.
 // TODO(T-23b): remove this allow once the shell resolves the dirs.
 #![allow(dead_code)]
 
 use std::path::PathBuf;
-#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+#[cfg(all(unix, any(test, not(target_os = "macos"))))]
 use std::{ffi::OsString, path::Path};
 
 /// Where PDFPundit keeps its files. `documents_dir` is the user's Documents
@@ -75,9 +75,9 @@ impl AppDirs {
     }
 }
 
-/// The home directory, if it is absolute.
-#[cfg(unix)]
-fn home() -> Option<PathBuf> {
+/// The home directory (`HOME`, or `USERPROFILE` on Windows), if it is
+/// absolute. The one place outside the known-folder calls that reads it.
+pub(crate) fn home() -> Option<PathBuf> {
     std::env::home_dir().filter(|h| h.is_absolute())
 }
 
@@ -94,7 +94,7 @@ fn macos_dirs(home: &std::path::Path) -> AppDirs {
 
 /// The XDG layout. `env` reads a variable and `read` a file, so the tests can
 /// supply both.
-#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+#[cfg(all(unix, any(test, not(target_os = "macos"))))]
 fn xdg_dirs(
     home: &Path,
     env: &dyn Fn(&str) -> Option<OsString>,
@@ -119,7 +119,7 @@ fn xdg_dirs(
 }
 
 /// `XDG_<name>_DIR` from the bytes of a `user-dirs.dirs` file.
-#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+#[cfg(all(unix, any(test, not(target_os = "macos"))))]
 fn user_dir(home: &Path, text: &[u8], name: &str) -> Option<PathBuf> {
     let key = format!("XDG_{name}_DIR");
     // The file is sourced by a shell, so the last assignment wins.
@@ -147,7 +147,7 @@ fn user_dir(home: &Path, text: &[u8], name: &str) -> Option<PathBuf> {
     }
 }
 
-#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+#[cfg(all(unix, any(test, not(target_os = "macos"))))]
 fn split_once(line: &[u8], at: u8) -> Option<(&[u8], &[u8])> {
     let i = line.iter().position(|&b| b == at)?;
     Some((&line[..i], &line[i + 1..]))
@@ -155,7 +155,7 @@ fn split_once(line: &[u8], at: u8) -> Option<(&[u8], &[u8])> {
 
 /// Shell double-quote escapes: a backslash before `"`, `\\`, `$` or `` ` ``
 /// stands for that byte; any other backslash is kept.
-#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+#[cfg(all(unix, any(test, not(target_os = "macos"))))]
 fn unescape(quoted: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(quoted.len());
     let mut bytes = quoted.iter().copied().peekable();
@@ -171,18 +171,11 @@ fn unescape(quoted: &[u8]) -> Vec<u8> {
     out
 }
 
-/// The bytes as a path: as they are on Unix, as UTF-8 elsewhere.
-#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+/// The bytes as a path, as they are.
+#[cfg(all(unix, any(test, not(target_os = "macos"))))]
 fn path_from_bytes(bytes: Vec<u8>) -> Option<PathBuf> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStringExt;
-        Some(PathBuf::from(OsString::from_vec(bytes)))
-    }
-    #[cfg(not(unix))]
-    {
-        String::from_utf8(bytes).ok().map(PathBuf::from)
-    }
+    use std::os::unix::ffi::OsStringExt;
+    Some(PathBuf::from(OsString::from_vec(bytes)))
 }
 
 #[cfg(any(test, windows))]
@@ -226,125 +219,138 @@ fn known_folder(id: &windows_sys::core::GUID) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::{Path, PathBuf};
+
     use super::*;
 
-    fn env(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<OsString> {
-        move |k| {
-            pairs
-                .iter()
-                .find(|(name, _)| *name == k)
-                .map(|(_, v)| OsString::from(*v))
+    /// The XDG layout is only used on Unix outside macOS, and its inputs are
+    /// Unix paths (`/cfg` has no drive, so it is not absolute on Windows).
+    #[cfg(unix)]
+    mod xdg {
+        use std::ffi::OsString;
+        use std::path::{Path, PathBuf};
+
+        use super::super::{user_dir, xdg_dirs};
+
+        fn env(
+            pairs: &'static [(&'static str, &'static str)],
+        ) -> impl Fn(&str) -> Option<OsString> {
+            move |k| {
+                pairs
+                    .iter()
+                    .find(|(name, _)| *name == k)
+                    .map(|(_, v)| OsString::from(*v))
+            }
         }
-    }
 
-    fn no_file(_: &Path) -> Option<Vec<u8>> {
-        None
-    }
+        fn no_file(_: &Path) -> Option<Vec<u8>> {
+            None
+        }
 
-    #[test]
-    fn xdg_defaults_under_home() {
-        let d = xdg_dirs(Path::new("/home/ana"), &env(&[]), &no_file);
-        assert_eq!(d.config_dir, PathBuf::from("/home/ana/.config/pdfpundit"));
-        assert_eq!(
-            d.data_dir,
-            PathBuf::from("/home/ana/.local/share/pdfpundit")
-        );
-        assert_eq!(d.cache_dir, PathBuf::from("/home/ana/.cache/pdfpundit"));
-        assert_eq!(d.documents_dir, None);
-    }
+        #[test]
+        fn xdg_defaults_under_home() {
+            let d = xdg_dirs(Path::new("/home/ana"), &env(&[]), &no_file);
+            assert_eq!(d.config_dir, PathBuf::from("/home/ana/.config/pdfpundit"));
+            assert_eq!(
+                d.data_dir,
+                PathBuf::from("/home/ana/.local/share/pdfpundit")
+            );
+            assert_eq!(d.cache_dir, PathBuf::from("/home/ana/.cache/pdfpundit"));
+            assert_eq!(d.documents_dir, None);
+        }
 
-    #[test]
-    fn xdg_absolute_config_home_is_honoured() {
-        let e = env(&[
-            ("XDG_CONFIG_HOME", "/cfg"),
-            ("XDG_DATA_HOME", "/data"),
-            ("XDG_CACHE_HOME", "/cache"),
-        ]);
-        let d = xdg_dirs(Path::new("/home/ana"), &e, &no_file);
-        assert_eq!(d.config_dir, PathBuf::from("/cfg/pdfpundit"));
-        assert_eq!(d.data_dir, PathBuf::from("/data/pdfpundit"));
-        assert_eq!(d.cache_dir, PathBuf::from("/cache/pdfpundit"));
-    }
+        #[test]
+        fn xdg_absolute_config_home_is_honoured() {
+            let e = env(&[
+                ("XDG_CONFIG_HOME", "/cfg"),
+                ("XDG_DATA_HOME", "/data"),
+                ("XDG_CACHE_HOME", "/cache"),
+            ]);
+            let d = xdg_dirs(Path::new("/home/ana"), &e, &no_file);
+            assert_eq!(d.config_dir, PathBuf::from("/cfg/pdfpundit"));
+            assert_eq!(d.data_dir, PathBuf::from("/data/pdfpundit"));
+            assert_eq!(d.cache_dir, PathBuf::from("/cache/pdfpundit"));
+        }
 
-    #[test]
-    fn xdg_relative_or_empty_cache_home_is_ignored() {
-        let d = xdg_dirs(
-            Path::new("/home/ana"),
-            &env(&[("XDG_CACHE_HOME", "rel/cache"), ("XDG_DATA_HOME", "")]),
-            &no_file,
-        );
-        assert_eq!(d.cache_dir, PathBuf::from("/home/ana/.cache/pdfpundit"));
-        assert_eq!(
-            d.data_dir,
-            PathBuf::from("/home/ana/.local/share/pdfpundit")
-        );
-    }
+        #[test]
+        fn xdg_relative_or_empty_cache_home_is_ignored() {
+            let d = xdg_dirs(
+                Path::new("/home/ana"),
+                &env(&[("XDG_CACHE_HOME", "rel/cache"), ("XDG_DATA_HOME", "")]),
+                &no_file,
+            );
+            assert_eq!(d.cache_dir, PathBuf::from("/home/ana/.cache/pdfpundit"));
+            assert_eq!(
+                d.data_dir,
+                PathBuf::from("/home/ana/.local/share/pdfpundit")
+            );
+        }
 
-    #[test]
-    fn xdg_documents_dir_comes_from_the_fixture_user_dirs_file() {
-        let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/appdirs");
-        let e = move |k: &str| (k == "XDG_CONFIG_HOME").then(|| OsString::from(fixture));
-        let read = |p: &Path| std::fs::read(p).ok();
-        let d = xdg_dirs(Path::new("/home/ana"), &e, &read);
-        assert_eq!(
-            d.documents_dir,
-            Some(PathBuf::from("/home/ana/Case Papers"))
-        );
-        assert_eq!(d.config_dir, Path::new(fixture).join("pdfpundit"));
-    }
+        #[test]
+        fn xdg_documents_dir_comes_from_the_fixture_user_dirs_file() {
+            let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/appdirs");
+            let e = move |k: &str| (k == "XDG_CONFIG_HOME").then(|| OsString::from(fixture));
+            let read = |p: &Path| std::fs::read(p).ok();
+            let d = xdg_dirs(Path::new("/home/ana"), &e, &read);
+            assert_eq!(
+                d.documents_dir,
+                Some(PathBuf::from("/home/ana/Case Papers"))
+            );
+            assert_eq!(d.config_dir, Path::new(fixture).join("pdfpundit"));
+        }
 
-    #[test]
-    fn xdg_user_dirs_file_defaults_to_dot_config() {
-        let read = |p: &Path| {
-            (p == Path::new("/home/ana/.config/user-dirs.dirs"))
-                .then(|| b"XDG_DOCUMENTS_DIR=\"$HOME/Docs\"\n".to_vec())
-        };
-        let d = xdg_dirs(Path::new("/home/ana"), &env(&[]), &read);
-        assert_eq!(d.documents_dir, Some(PathBuf::from("/home/ana/Docs")));
-    }
+        #[test]
+        fn xdg_user_dirs_file_defaults_to_dot_config() {
+            let read = |p: &Path| {
+                (p == Path::new("/home/ana/.config/user-dirs.dirs"))
+                    .then(|| b"XDG_DOCUMENTS_DIR=\"$HOME/Docs\"\n".to_vec())
+            };
+            let d = xdg_dirs(Path::new("/home/ana"), &env(&[]), &read);
+            assert_eq!(d.documents_dir, Some(PathBuf::from("/home/ana/Docs")));
+        }
 
-    #[test]
-    fn user_dirs_lines() {
-        let h = Path::new("/h");
-        let text = b"# written by xdg-user-dirs-update\n\
+        #[test]
+        fn user_dirs_lines() {
+            let h = Path::new("/h");
+            let text = b"# written by xdg-user-dirs-update\n\
             XDG_DESKTOP_DIR=\"$HOME/Desktop\"\n\
             XDG_DOCUMENTS_DIR=\"$HOME/Docs \\\"x\\\" \\$y \\\\z\"\n";
-        assert_eq!(
-            user_dir(h, text, "DOCUMENTS"),
-            Some(PathBuf::from("/h/Docs \"x\" $y \\z"))
-        );
-        assert_eq!(user_dir(h, text, "MUSIC"), None);
-        let one = |line: &[u8]| user_dir(h, line, "DOCUMENTS");
-        assert_eq!(
-            one(b"XDG_DOCUMENTS_DIR=\"/abs/d\""),
-            Some(PathBuf::from("/abs/d"))
-        );
-        // `$HOME/` alone means the directory is disabled.
-        assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"$HOME/\""), None);
-        assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"$HOME\""), None);
-        assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"rel/d\""), None);
-        // A shell reads `\$HOME/x` as the relative path `$HOME/x`.
-        assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"\\$HOME/x\""), None);
-        assert_eq!(one(b"XDG_DOCUMENTS_DIR=$HOME/unquoted"), None);
-        assert_eq!(one(b"#XDG_DOCUMENTS_DIR=\"$HOME/c\""), None);
-        // The file is sourced by a shell, so the last assignment wins.
-        assert_eq!(
-            one(b"XDG_DOCUMENTS_DIR=\"$HOME/a\"\r\n  XDG_DOCUMENTS_DIR = \"$HOME/b\"  \n"),
-            Some(PathBuf::from("/h/b"))
-        );
-    }
+            assert_eq!(
+                user_dir(h, text, "DOCUMENTS"),
+                Some(PathBuf::from("/h/Docs \"x\" $y \\z"))
+            );
+            assert_eq!(user_dir(h, text, "MUSIC"), None);
+            let one = |line: &[u8]| user_dir(h, line, "DOCUMENTS");
+            assert_eq!(
+                one(b"XDG_DOCUMENTS_DIR=\"/abs/d\""),
+                Some(PathBuf::from("/abs/d"))
+            );
+            // `$HOME/` alone means the directory is disabled.
+            assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"$HOME/\""), None);
+            assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"$HOME\""), None);
+            assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"rel/d\""), None);
+            // A shell reads `\$HOME/x` as the relative path `$HOME/x`.
+            assert_eq!(one(b"XDG_DOCUMENTS_DIR=\"\\$HOME/x\""), None);
+            assert_eq!(one(b"XDG_DOCUMENTS_DIR=$HOME/unquoted"), None);
+            assert_eq!(one(b"#XDG_DOCUMENTS_DIR=\"$HOME/c\""), None);
+            // The file is sourced by a shell, so the last assignment wins.
+            assert_eq!(
+                one(b"XDG_DOCUMENTS_DIR=\"$HOME/a\"\r\n  XDG_DOCUMENTS_DIR = \"$HOME/b\"  \n"),
+                Some(PathBuf::from("/h/b"))
+            );
+        }
 
-    #[cfg(unix)]
-    #[test]
-    fn user_dirs_keeps_non_utf8_bytes() {
-        use std::os::unix::ffi::OsStrExt;
-        let d = user_dir(
-            Path::new("/h"),
-            b"XDG_DOCUMENTS_DIR=\"$HOME/Pap\xffiers\"\n",
-            "DOCUMENTS",
-        )
-        .expect("a path");
-        assert_eq!(d.as_os_str().as_bytes(), b"/h/Pap\xffiers");
+        #[test]
+        fn user_dirs_keeps_non_utf8_bytes() {
+            use std::os::unix::ffi::OsStrExt;
+            let d = user_dir(
+                Path::new("/h"),
+                b"XDG_DOCUMENTS_DIR=\"$HOME/Pap\xffiers\"\n",
+                "DOCUMENTS",
+            )
+            .expect("a path");
+            assert_eq!(d.as_os_str().as_bytes(), b"/h/Pap\xffiers");
+        }
     }
 
     #[test]

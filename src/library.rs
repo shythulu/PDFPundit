@@ -141,14 +141,18 @@ pub trait HistoryStore {
     /// Adds the file, or replaces its entry and keeps its runs.
     fn upsert_file(&mut self, file: FileEntry) -> io::Result<()>;
     /// Appends a run to the file `run.input_sha256` names and sets that file's
-    /// status. `NotFound` if the file was never upserted.
+    /// status. `NotFound` if the file was never upserted (or was deleted);
+    /// `InvalidData` if its record was damaged, in which case the record has
+    /// been set aside and nothing was written: upsert the file again and
+    /// retry to keep the run.
     fn record_run(&mut self, run: RunRecord, status: RecentStatus) -> io::Result<()>;
     /// Files whose name or path contains `filter` (case-insensitive; `""`
     /// matches all), newest first.
     fn list_files(&self, filter: &str) -> Vec<FileSummary>;
     /// The file's runs in the order they were recorded; empty if unknown.
     fn runs_for(&self, sha256: &[u8; 32]) -> io::Result<Vec<RunRecord>>;
-    /// Removes the file and its runs; `false` if it was not there.
+    /// Removes the file and its runs, including any damaged copy set aside;
+    /// `false` if there was nothing to remove.
     fn delete_file(&mut self, sha256: &[u8; 32]) -> io::Result<bool>;
     /// Totals and the five newest files, for the idle screen.
     fn summary(&self) -> HistorySummary;
@@ -166,6 +170,14 @@ const INDEX: &str = "index.json";
 const FILES: &str = "files";
 const TMP_SUFFIX: &str = ".tmp";
 const CORRUPT_SUFFIX: &str = ".corrupt";
+
+/// What [`JsonStore::load_record`] found.
+enum Loaded {
+    Record(FileRecord),
+    Missing,
+    /// The record was damaged and has just been moved aside.
+    SetAside,
+}
 
 /// What reading `files/<sha256>.json` found.
 enum OnDisk {
@@ -210,14 +222,18 @@ impl JsonStore {
     }
 
     /// Re-reads every record in `files/` and rewrites `index.json`. A corrupt
-    /// record is moved aside; one that cannot be read is kept out of the
-    /// index and tried again on the next open.
+    /// record is moved aside; one that cannot be read, or a corrupt one that
+    /// cannot be moved, is kept out of the index and tried again on the next
+    /// open, so one bad file never makes the store unusable.
     fn rebuild_index(&mut self, hashes: &BTreeSet<[u8; 32]>) -> io::Result<()> {
         let mut index = Vec::with_capacity(hashes.len());
         for sha in hashes {
             match self.read_record(sha) {
                 Ok(OnDisk::Record { record, len }) => index.push(record.summary(len)),
-                Ok(OnDisk::Corrupt) => self.move_aside(sha)?,
+                Ok(OnDisk::Corrupt) => {
+                    // Left in place it is retried on the next open.
+                    let _ = self.move_aside(sha);
+                }
                 Ok(OnDisk::Missing) | Err(_) => {}
             }
         }
@@ -229,6 +245,13 @@ impl JsonStore {
 
     fn record_path(&self, sha256: &[u8; 32]) -> PathBuf {
         self.root.join(FILES).join(format!("{}.json", hex(sha256)))
+    }
+
+    /// Where [`Self::move_aside`] puts a damaged record.
+    fn corrupt_path(&self, sha256: &[u8; 32]) -> PathBuf {
+        let mut path = self.record_path(sha256).into_os_string();
+        path.push(CORRUPT_SUFFIX);
+        PathBuf::from(path)
     }
 
     fn read_record(&self, sha256: &[u8; 32]) -> io::Result<OnDisk> {
@@ -246,19 +269,19 @@ impl JsonStore {
         })
     }
 
-    /// The record, with a corrupt one moved aside and treated as absent, so
-    /// the next write for that hash starts it afresh.
-    fn load_record(&mut self, sha256: &[u8; 32]) -> io::Result<Option<FileRecord>> {
+    /// The record, with a corrupt one moved aside and dropped from the index,
+    /// so the next upsert for that hash starts it afresh.
+    fn load_record(&mut self, sha256: &[u8; 32]) -> io::Result<Loaded> {
         match self.read_record(sha256)? {
-            OnDisk::Record { record, .. } => Ok(Some(record)),
-            OnDisk::Missing => Ok(None),
+            OnDisk::Record { record, .. } => Ok(Loaded::Record(record)),
+            OnDisk::Missing => Ok(Loaded::Missing),
             OnDisk::Corrupt => {
                 self.move_aside(sha256)?;
                 if let Ok(i) = self.index.binary_search_by_key(sha256, |f| f.sha256) {
                     self.index.remove(i);
                     self.write_index()?;
                 }
-                Ok(None)
+                Ok(Loaded::SetAside)
             }
         }
     }
@@ -266,10 +289,7 @@ impl JsonStore {
     /// Renames `<hex>.json` to `<hex>.json.corrupt`, outside the record name
     /// pattern, replacing an earlier one for the same hash.
     fn move_aside(&self, sha256: &[u8; 32]) -> io::Result<()> {
-        let from = self.record_path(sha256);
-        let mut to = from.as_os_str().to_owned();
-        to.push(CORRUPT_SUFFIX);
-        fs::rename(&from, PathBuf::from(to))?;
+        fs::rename(self.record_path(sha256), self.corrupt_path(sha256))?;
         sync_dir(&self.root.join(FILES));
         Ok(())
     }
@@ -321,19 +341,29 @@ fn index_matches(index: &[FileSummary], files: &Path, on_disk: &BTreeSet<[u8; 32
 
 impl HistoryStore for JsonStore {
     fn upsert_file(&mut self, file: FileEntry) -> io::Result<()> {
-        let runs = self
-            .load_record(&file.sha256)?
-            .map(|r| r.runs)
-            .unwrap_or_default();
+        let runs = match self.load_record(&file.sha256)? {
+            Loaded::Record(record) => record.runs,
+            Loaded::Missing | Loaded::SetAside => Vec::new(),
+        };
         self.write_record(&FileRecord { meta: file, runs })
     }
 
     fn record_run(&mut self, run: RunRecord, status: RecentStatus) -> io::Result<()> {
-        let Some(mut record) = self.load_record(&run.input_sha256)? else {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "no such file in the history",
-            ));
+        let mut record = match self.load_record(&run.input_sha256)? {
+            Loaded::Record(record) => record,
+            Loaded::Missing => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "no such file in the history",
+                ));
+            }
+            Loaded::SetAside => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "the history record for this file was damaged and has been set \
+                     aside; add the file again to record this run",
+                ));
+            }
         };
         record.meta.status = status;
         record.runs.push(run);
@@ -372,11 +402,15 @@ impl HistoryStore for JsonStore {
     }
 
     fn delete_file(&mut self, sha256: &[u8; 32]) -> io::Result<bool> {
-        let removed = match fs::remove_file(self.record_path(sha256)) {
-            Ok(()) => true,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => false,
-            Err(e) => return Err(e),
-        };
+        // The damaged copy holds the same paths and names, so it goes too.
+        let mut removed = false;
+        for path in [self.record_path(sha256), self.corrupt_path(sha256)] {
+            match fs::remove_file(path) {
+                Ok(()) => removed = true,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
+            }
+        }
         let before = self.index.len();
         self.index.retain(|f| &f.sha256 != sha256);
         if removed || self.index.len() != before {
@@ -987,6 +1021,20 @@ mod tests {
             .unwrap();
         assert_eq!(store.summary().runs, 1);
 
+        // A run for a damaged record says so rather than "not found", and
+        // goes through once the file is upserted again.
+        fs::write(&record, b"{").unwrap();
+        let err = store
+            .record_run(run(1, 45, default_report()), RecentStatus::Partial)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("set aside"), "{err}");
+        assert_eq!(store.summary().files, 1);
+        store.upsert_file(entry(1, "a.pdf", 30)).unwrap();
+        store
+            .record_run(run(1, 45, default_report()), RecentStatus::Partial)
+            .unwrap();
+
         // On open: the record is left out of the index and moved aside, so
         // later opens trust the index again.
         fs::write(&record, &bytes[..10]).unwrap();
@@ -1004,6 +1052,55 @@ mod tests {
         ));
         store.upsert_file(entry(1, "a.pdf", 50)).unwrap();
         assert_eq!(store.summary().files, 2);
+
+        // Deleting the file removes the damaged copy as well.
+        assert!(store.delete_file(&sha(1)).unwrap());
+        assert!(!record.exists());
+        assert!(!dir.0.join(FILES).join(&corrupt).exists());
+        assert_eq!(
+            names_in(&dir.0.join(FILES)),
+            [format!("{}.json", hex(&sha(2)))]
+        );
+        // A damaged copy alone still counts as something removed.
+        fs::write(store.corrupt_path(&sha(1)), b"{").unwrap();
+        assert!(store.delete_file(&sha(1)).unwrap());
+        assert!(!store.delete_file(&sha(1)).unwrap());
+        assert_eq!(
+            names_in(&dir.0.join(FILES)),
+            [format!("{}.json", hex(&sha(2)))]
+        );
+    }
+
+    /// A corrupt record that cannot be moved aside is left out of the index
+    /// rather than failing the open.
+    #[cfg(unix)]
+    #[test]
+    fn a_corrupt_record_that_cannot_be_moved_does_not_stop_the_open() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new("stuck");
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        store.upsert_file(entry(1, "a.pdf", 10)).unwrap();
+        store.upsert_file(entry(2, "b.pdf", 11)).unwrap();
+        let record = store.record_path(&sha(1));
+        drop(store);
+        fs::write(&record, b"{").unwrap();
+        let files = dir.0.join(FILES);
+        fs::set_permissions(&files, fs::Permissions::from_mode(0o555)).unwrap();
+        let opened = JsonStore::open_at(&dir.0);
+        let moved = !record.exists();
+        fs::set_permissions(&files, fs::Permissions::from_mode(0o755)).unwrap();
+        let store = opened.unwrap();
+        let rows = store.list_files("");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].sha256, sha(2));
+        // Unless the directory permissions did not bind (a root user), the
+        // record is still in place and the next open tries again.
+        if !moved {
+            drop(store);
+            let store = JsonStore::open_at(&dir.0).unwrap();
+            assert_eq!(store.list_files("").len(), 1);
+            assert!(!record.exists());
+        }
     }
 
     #[test]

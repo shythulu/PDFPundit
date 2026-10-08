@@ -46,8 +46,9 @@ pub struct General {
 pub enum OutputDir {
     /// Beside the input (`output_dir = ""`, the default).
     Beside,
-    /// This directory, always absolute: a relative value is resolved against
-    /// the home directory, with a warning.
+    /// This directory, always absolute: `~` or a leading `~/` is the home
+    /// directory, and any other relative value is resolved against the home
+    /// directory, with a warning.
     Dir(PathBuf),
 }
 
@@ -208,7 +209,7 @@ impl Config {
     /// (or would have read), for the run record (eng-r2-q10).
     pub fn load(dirs: &AppDirs) -> (Config, Vec<Warning>, PathBuf) {
         let path = dirs.config_dir.join(CONFIG_FILE);
-        let home = std::env::home_dir();
+        let home = crate::appdirs::home();
         let (config, warnings) = load_file(&path, home.as_deref());
         (config, warnings, path)
     }
@@ -517,10 +518,26 @@ fn bad(w: &mut Vec<Warning>, key: String, expected: &'static str) {
     w.push(Warning::BadValue { key, expected });
 }
 
-/// `""` is beside the input; a relative path is resolved against `home`.
+/// `""` is beside the input; `~` or a leading `~/` is the home directory, as
+/// a shell would read it; any other relative path is resolved against `home`
+/// with a warning.
 fn output_dir(dir: &str, home: Option<&Path>, w: &mut Vec<Warning>) -> OutputDir {
     if dir.is_empty() {
         return OutputDir::Beside;
+    }
+    let under_home = (dir == "~").then_some("").or_else(|| {
+        dir.strip_prefix("~/")
+            .or_else(|| dir.strip_prefix("~\\").filter(|_| cfg!(windows)))
+    });
+    if let Some(rest) = under_home {
+        return match home {
+            Some(home) if rest.is_empty() => OutputDir::Dir(home.to_path_buf()),
+            Some(home) => OutputDir::Dir(home.join(rest)),
+            None => {
+                bad(w, "general.output_dir".into(), "an absolute path or \"\"");
+                OutputDir::Beside
+            }
+        };
     }
     let given = PathBuf::from(dir);
     if given.is_absolute() {
@@ -812,6 +829,32 @@ request_resize = true
             }]
         );
         let (config, warnings) = parse("[general]\noutput_dir = \"cases/out\"\n", None);
+        assert_eq!(config.general.output_dir, OutputDir::Beside);
+        assert!(matches!(warnings[..], [Warning::BadValue { .. }]));
+    }
+
+    #[test]
+    fn a_leading_tilde_is_the_home_directory() {
+        let (config, warnings) = parse("[general]\noutput_dir = \"~/cases\"\n", home());
+        assert_eq!(warnings, []);
+        assert_eq!(
+            config.general.output_dir,
+            OutputDir::Dir(Path::new("/home/ana").join("cases"))
+        );
+        let (config, warnings) = parse("[general]\noutput_dir = \"~\"\n", home());
+        assert_eq!(warnings, []);
+        assert_eq!(
+            config.general.output_dir,
+            OutputDir::Dir(PathBuf::from("/home/ana"))
+        );
+        // `~user` is not expanded: it is an ordinary relative name.
+        let (config, warnings) = parse("[general]\noutput_dir = \"~ana/x\"\n", home());
+        assert_eq!(
+            config.general.output_dir,
+            OutputDir::Dir(Path::new("/home/ana").join("~ana/x"))
+        );
+        assert!(matches!(warnings[..], [Warning::RelativeOutputDir { .. }]));
+        let (config, warnings) = parse("[general]\noutput_dir = \"~/cases\"\n", None);
         assert_eq!(config.general.output_dir, OutputDir::Beside);
         assert!(matches!(warnings[..], [Warning::BadValue { .. }]));
     }
