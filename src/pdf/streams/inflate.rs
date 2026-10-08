@@ -44,21 +44,28 @@ const RAW: u32 = TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
 
 /// Inflates `raw` as a zlib stream into at most `cap` bytes. When the zlib
 /// header itself is rejected, it retries once as raw deflate (some producers
-/// omit the header) and keeps that result only if it reaches `Done`. A raw
-/// retry that ends `NeedsMoreInput`, `Failed` or `CapHit` is dropped on
-/// purpose, even with output: bytes that are not zlib often decode a little
-/// as raw deflate by chance, and a C9 salvage must not keep such a prefix.
-/// The caller then sees the header failure, `Failed { at <= 2 }`.
+/// omit the header) and keeps that result only if it reaches `Done` within
+/// [`RAW_END_SLACK`] bytes of the input's end. A raw retry that ends
+/// `NeedsMoreInput`, `Failed` or `CapHit`, or `Done` with more input left,
+/// is dropped on purpose, even with output: bytes that are not zlib often
+/// decode a little as raw deflate by chance (a zlib stream whose CMF byte
+/// became `03` reads as an empty fixed block), and a C9 salvage must not
+/// keep such a prefix. The caller then sees the header failure,
+/// `Failed { at <= 2 }`.
 pub(crate) fn inflate(raw: &[u8], cap: usize) -> InflateResult {
     let first = run(raw, cap, ZLIB);
     if header_rejected(&first) {
         let retry = run(raw, cap, RAW);
-        if retry.status == InflateStatus::Done {
+        if retry.status == InflateStatus::Done && retry.consumed + RAW_END_SLACK >= raw.len() {
             return retry;
         }
     }
     first
 }
+
+/// The input a raw-deflate `Done` may leave unread (T-07's probe-end slack:
+/// an end-of-line before `endstream`).
+pub(crate) const RAW_END_SLACK: usize = 2;
 
 /// The zlib header (its first two bytes) did not parse: nothing was decoded
 /// and the failure is inside the header.
@@ -272,6 +279,33 @@ mod tests {
         assert_eq!(r.status, InflateStatus::Done);
         assert_eq!(r.out, data);
         assert_eq!(r.consumed, raw.len());
+    }
+
+    /// A raw retry that ends early is not a decode: `78 9C` damaged to
+    /// `03 9C` reads as raw deflate's empty final fixed block after two
+    /// bytes. A raw stream with an end-of-line after it still decodes.
+    #[test]
+    fn a_raw_retry_that_stops_early_is_dropped() {
+        let data = sample(3_000);
+        let mut z = zlib(&data);
+        assert_eq!(z[..2], [0x78, 0x9C]);
+        z[0] = 0x03;
+        let r = inflate(&z, 1 << 20);
+        assert!(
+            matches!(r.status, InflateStatus::Failed { at: 0..=2 }),
+            "{r:?}"
+        );
+        assert!(r.out.is_empty());
+        let mut raw = miniz_oxide::deflate::compress_to_vec(&data, 6);
+        raw.extend_from_slice(b"\r\n");
+        let r = inflate(&raw, 1 << 20);
+        assert_eq!(r.status, InflateStatus::Done);
+        assert_eq!(r.out, data);
+        raw.push(b'%');
+        assert!(matches!(
+            inflate(&raw, 1 << 20).status,
+            InflateStatus::Failed { at: 0..=2 }
+        ));
     }
 
     #[test]

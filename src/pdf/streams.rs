@@ -10,7 +10,7 @@ use lopdf::{Dictionary, Object, StringFormat};
 
 use crate::pdf::lexer::{Lexer, MAX_DEPTH, MAX_ELEMENTS, Tok};
 
-pub(crate) use inflate::{InflateStatus, inflate};
+pub(crate) use inflate::{InflateStatus, RAW_END_SLACK, inflate};
 
 /// The inflate ceiling `decode_chain` callers pass by default: 256 MiB.
 pub(crate) const DEFAULT_CAP: usize = 256 << 20;
@@ -253,6 +253,34 @@ pub(crate) fn decode_chain<S: Stage>(
     Ok(data)
 }
 
+/// The Flate stage's `/Predictor` step on its own: what [`decode_chain`] does
+/// to a Flate stage's inflated bytes. The C9 salvage (T-08) keeps its
+/// partial and repaired outputs in this domain.
+pub(crate) fn unpredict_flate(
+    data: Vec<u8>,
+    parms: Option<&Dictionary>,
+) -> Result<Vec<u8>, DecodeError> {
+    if parms.is_some_and(|d| d.has(UNRESOLVED_PARMS)) {
+        return Err(DecodeError::BadParms(Filter::Flate));
+    }
+    unpredict(data, parms, &Filter::Flate)
+}
+
+/// [`unpredict_flate`] for unverified salvage output, which may hold garbage
+/// rows: PNG rows are undone up to the first row whose filter type is above
+/// 4, and that row and everything after it are dropped. Returns the bytes
+/// undone and, when it stopped early, the offset in `data` of the row it
+/// stopped at. Parameters it cannot apply are still an error.
+pub(crate) fn unpredict_flate_lenient(
+    data: Vec<u8>,
+    parms: Option<&Dictionary>,
+) -> Result<(Vec<u8>, Option<usize>), DecodeError> {
+    if parms.is_some_and(|d| d.has(UNRESOLVED_PARMS)) {
+        return Err(DecodeError::BadParms(Filter::Flate));
+    }
+    unpredict_rows(data, parms, &Filter::Flate)
+}
+
 /// The stage's parameters, refusing the [`UNRESOLVED_PARMS`] stand-in.
 fn parms_of<S: Stage>(stage: &S) -> Result<Option<&Dictionary>, DecodeError> {
     match stage.parms() {
@@ -474,9 +502,22 @@ fn unpredict(
     parms: Option<&Dictionary>,
     filter: &Filter,
 ) -> Result<Vec<u8>, DecodeError> {
+    match unpredict_rows(data, parms, filter)? {
+        (out, None) => Ok(out),
+        (_, Some(at)) => Err(corrupt(filter.clone(), at)),
+    }
+}
+
+/// [`unpredict`], reporting a PNG row with an invalid filter type as the
+/// offset it starts at (the rows before it undone) instead of failing.
+fn unpredict_rows(
+    data: Vec<u8>,
+    parms: Option<&Dictionary>,
+    filter: &Filter,
+) -> Result<(Vec<u8>, Option<usize>), DecodeError> {
     let predictor = int_parm(parms, b"Predictor", 1);
     if predictor <= 1 {
-        return Ok(data);
+        return Ok((data, None));
     }
     let bad = || DecodeError::BadParms(filter.clone());
     let colors = int_parm(parms, b"Colors", 1);
@@ -493,13 +534,15 @@ fn unpredict(
         .map(|bits| bits.div_ceil(8))
         .ok_or_else(bad)?;
     match predictor {
-        2 => Ok(tiff(data, row, colors, bpc, columns)),
-        10..=15 => png(&data, row, (colors * bpc).div_ceil(8), filter),
+        2 => Ok((tiff(data, row, colors, bpc, columns), None)),
+        10..=15 => Ok(png(&data, row, (colors * bpc).div_ceil(8))),
         _ => Err(bad()),
     }
 }
 
-fn png(data: &[u8], row: usize, bpp: usize, filter: &Filter) -> Result<Vec<u8>, DecodeError> {
+/// Undoes PNG predictors row by row. A row whose filter type is above 4
+/// stops it: the rows before it are returned with that row's offset.
+fn png(data: &[u8], row: usize, bpp: usize) -> (Vec<u8>, Option<usize>) {
     // PNG-predicted output is never longer than its input; `row` comes from
     // `/Columns` and must not size an allocation.
     let mut out = Vec::with_capacity(data.len());
@@ -520,7 +563,10 @@ fn png(data: &[u8], row: usize, bpp: usize, filter: &Filter) -> Result<Vec<u8>, 
                 2 => b,
                 3 => ((u16::from(a) + u16::from(b)) / 2) as u8,
                 4 => paeth(a, b, c),
-                _ => return Err(corrupt(filter.clone(), r * (row + 1))),
+                _ => {
+                    out.truncate(start);
+                    return (out, Some(r * (row + 1)));
+                }
             };
             out.push(x.wrapping_add(pred));
         }
@@ -529,7 +575,7 @@ fn png(data: &[u8], row: usize, bpp: usize, filter: &Filter) -> Result<Vec<u8>, 
             break;
         }
     }
-    Ok(out)
+    (out, None)
 }
 
 fn paeth(a: u8, b: u8, c: u8) -> u8 {
