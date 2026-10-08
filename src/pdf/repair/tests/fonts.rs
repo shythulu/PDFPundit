@@ -1,0 +1,927 @@
+//! T-30 acceptance: the C7 and C8 passes, template assembly and the font
+//! questions, with the two-font test database (the test font, and the same
+//! program with a shuffled `.gmap`) and a 50-word English list, as in T-28.
+
+use std::collections::BTreeMap;
+
+use lopdf::{Document, LoadOptions};
+
+use super::*;
+use crate::bench::metrics::Lang;
+use crate::engine::{
+    AnalysisResult, AnalyzeStats, CarveSummary, FontResolutionKind, Interact, InteractionReply,
+    InteractionRequest, InteractionSource, PageSize, RepairReport, StateHandle, SubstituteChoice,
+    UnreproduciblePolicy,
+};
+use crate::pdf::emit::{EmitCtx, Substitution, emit_doc, emit_template_assemble};
+use crate::pdf::fixtures::TEST_FONT;
+use crate::pdf::fontdb::build::{IndexEntry, build_from_ttf};
+use crate::pdf::fontdb::dict::FrequencyList;
+use crate::pdf::fontdb::gmap::{self, GmapRecord, GmapTable};
+use crate::pdf::model::{FileMeta, InteractionKind};
+use crate::pdf::text::{ExtractOptions, extract_text};
+
+use CorruptionClass::{C7FontStreamDeleted, C8FontResourcesDeleted};
+
+// ── the database and the word list ───────────────────────────────────────
+
+const RIGHT: &str = "NotoSans-Regular";
+const SHUFFLED: &str = "Shuffled-Regular";
+const SPARSE: &str = "Sparse-Regular";
+
+/// T-28's 50-word English list.
+const ENGLISH: &str = "the 50\nof 49\nand 48\nto 47\na 46\nin 45\nis 44\nit 43\nyou 42\n\
+that 41\nhe 40\nwas 39\nfor 38\non 37\nare 36\nwith 35\nas 34\nhis 33\nthey 32\nbe 31\n\
+at 30\none 29\nhave 28\nthis 27\nfrom 26\nor 25\nhad 24\nby 23\nword 22\nbut 21\n\
+what 20\nsome 19\nwe 18\ncan 17\nout 16\nother 15\nwere 14\nall 13\nthere 12\n\
+when 11\npage 10\ngolden 9\npdfpundit 8\nquick 7\nbrown 6\nfox 5\njumps 4\nover 3\n\
+lazy 2\ndog 1\n";
+
+fn english() -> FrequencyList {
+    FrequencyList::from_bytes(Lang::En, ENGLISH.as_bytes()).unwrap()
+}
+
+fn hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// The test font's `.gmap` with every record's code point moved seven
+/// records on: the same glyphs, read as the wrong characters.
+fn shuffled_gmap(right: &[u8]) -> Vec<u8> {
+    let records = GmapTable::new(right).unwrap().records().to_vec();
+    let n = records.len();
+    let out = (0..n)
+        .map(|i| {
+            let r = records[i];
+            GmapRecord::new(
+                r.gid(),
+                records[(i + 7) % n].unicode(),
+                r.width(),
+                r.source(),
+            )
+        })
+        .collect();
+    gmap::encode(out)
+}
+
+/// The test font's `.gmap` with only its digits: a font that reproduces
+/// almost none of the golden's text.
+fn sparse_gmap(right: &[u8]) -> Vec<u8> {
+    let records = GmapTable::new(right).unwrap().records().to_vec();
+    gmap::encode(
+        records
+            .into_iter()
+            .filter(|r| r.unicode().is_ascii_digit())
+            .collect(),
+    )
+}
+
+/// A database of the fonts `ids` names, built from the test font.
+fn db_of(ids: &[&str]) -> FontDb {
+    let (right, right_gmap) = build_from_ttf(TEST_FONT).unwrap();
+    let blobs: Vec<(&str, IndexEntry, Vec<u8>)> = ids
+        .iter()
+        .map(|&id| {
+            let gmap = match id {
+                RIGHT => right_gmap.clone(),
+                SHUFFLED => shuffled_gmap(&right_gmap),
+                SPARSE => sparse_gmap(&right_gmap),
+                other => panic!("no test font {other}"),
+            };
+            let mut entry = right.clone();
+            entry.id = id.to_owned();
+            entry.family = id.trim_end_matches("-Regular").to_owned();
+            entry.gmap_sha256 = hex(&gmap);
+            (id, entry, gmap)
+        })
+        .collect();
+    let index = serde_json::to_vec(&blobs.iter().map(|b| &b.1).collect::<Vec<_>>()).unwrap();
+    let blob = |name: &str| -> Option<&[u8]> {
+        let (id, ext) = name.rsplit_once('.')?;
+        let (_, _, gmap) = blobs.iter().find(|b| b.0 == id)?;
+        match ext {
+            "ttf" => Some(TEST_FONT),
+            "gmap" => Some(gmap),
+            _ => None,
+        }
+    };
+    FontDb::from_bytes(&index, &blob).expect("test db loads")
+}
+
+/// The two-font test database.
+fn test_db() -> FontDb {
+    db_of(&[RIGHT, SHUFFLED])
+}
+
+// ── fixtures ─────────────────────────────────────────────────────────────
+
+/// The golden's font name, and a `CIDFont+F1` of the same length.
+const GOLDEN_NAME: &[u8] = b"AAAAAA+NotoSans-Regular";
+const PRINT_NAME: &[u8] = b"CIDFont+F1             ";
+
+/// `pdf` with every `GOLDEN_NAME` turned into a `CIDFont+F1` name, padded
+/// with spaces so that no offset moves.
+fn renamed(pdf: &[u8]) -> Vec<u8> {
+    assert_eq!(GOLDEN_NAME.len(), PRINT_NAME.len());
+    let mut out = pdf.to_vec();
+    let mut at = 0;
+    while let Some(i) = out[at..]
+        .windows(GOLDEN_NAME.len())
+        .position(|w| w == GOLDEN_NAME)
+    {
+        out[at + i..at + i + PRINT_NAME.len()].copy_from_slice(PRINT_NAME);
+        at += i + PRINT_NAME.len();
+    }
+    out
+}
+
+/// The golden with a second copy of its font (objects 15 to 19) on page 2:
+/// two fonts of one family.
+fn two_fonts() -> Vec<u8> {
+    let doc = Document::load_mem(&golden_pdf()).unwrap();
+    let mut objects: BTreeMap<u32, Object> = doc
+        .objects
+        .iter()
+        .map(|(&(n, _), o)| (n, o.clone()))
+        .collect();
+    fn shift(v: &mut Object) {
+        match v {
+            Object::Reference((n, _)) if (5..=9).contains(n) => *n += 10,
+            Object::Array(a) => a.iter_mut().for_each(shift),
+            Object::Dictionary(d) => d.iter_mut().for_each(|(_, o)| shift(o)),
+            Object::Stream(s) => s.dict.iter_mut().for_each(|(_, o)| shift(o)),
+            _ => {}
+        }
+    }
+    for n in 5..=9 {
+        let mut copy = objects[&n].clone();
+        shift(&mut copy);
+        objects.insert(n + 10, copy);
+    }
+    let page2 = objects.get_mut(&4).unwrap().as_dict_mut().unwrap();
+    let resources = page2.get_mut(b"Resources").unwrap().as_dict_mut().unwrap();
+    let fonts = resources.get_mut(b"Font").unwrap().as_dict_mut().unwrap();
+    fonts.set("F1", Object::Reference((15, 0)));
+    let mut w = Writer::with_version("1.7");
+    for (n, o) in objects {
+        w.add(n, o);
+    }
+    w.trailer((1, 0), [7; 32], None);
+    w.finish().unwrap()
+}
+
+fn c7() -> Input {
+    let input = analysed(corrupt(C7FontStreamDeleted, &golden_pdf(), 0));
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
+    input
+}
+
+fn c8() -> Input {
+    let input = analysed(corrupt(C8FontResourcesDeleted, &golden_pdf(), 0));
+    assert_eq!(input.classes(), [C8FontResourcesDeleted]);
+    input
+}
+
+/// The golden's text, page by page, as T-36 extracts it.
+fn golden_text() -> Vec<String> {
+    GOLDEN_TEXT.iter().map(|lines| lines.concat()).collect()
+}
+
+/// `pdf`'s text, page by page; `?` for an unmapped glyph.
+fn text_of(pdf: &[u8]) -> Vec<String> {
+    extract_text(pdf, &ExtractOptions::default())
+        .unwrap()
+        .iter()
+        .map(|p| {
+            p.glyphs
+                .iter()
+                .map(|g| g.text.clone().unwrap_or_else(|| "?".to_owned()))
+                .collect()
+        })
+        .collect()
+}
+
+fn load_strict(pdf: &[u8]) -> Document {
+    let opts = LoadOptions {
+        strict: true,
+        max_decompressed_size: Some(64 << 20),
+        ..LoadOptions::default()
+    };
+    Document::load_mem_with_options(pdf, opts).expect("strict reload")
+}
+
+// ── running one pass ─────────────────────────────────────────────────────
+
+/// An `Interact` that answers from a script and keeps every question.
+struct Scripted {
+    replies: Vec<InteractionReply>,
+    asked: Vec<InteractionRequest>,
+}
+
+impl Scripted {
+    fn new(replies: Vec<InteractionReply>) -> Self {
+        Scripted {
+            replies,
+            asked: Vec::new(),
+        }
+    }
+}
+
+impl Interact for Scripted {
+    fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+        self.asked.push(req);
+        assert!(!self.replies.is_empty(), "asked more than scripted");
+        Ok(self.replies.remove(0))
+    }
+}
+
+/// What one font pass did in a `TemplateAssemble` candidate, and the file
+/// written after it.
+struct Ran {
+    report: PassReport,
+    notes: PassNotes,
+    output: Vec<u8>,
+}
+
+fn run_pass(
+    input: &Input,
+    class: CorruptionClass,
+    fonts: &FontDb,
+    opts: &RepairOptions,
+    ask: &mut dyn Interact,
+    dicts: &[&dyn WordList],
+) -> Ran {
+    let remap = plan_ids(&input.carve, &input.graph);
+    let tree = rebuild_page_tree(&input.carve, &input.graph, &remap, opts.default_page_size);
+    let mut doc = RebuildDoc::new(remap.clone());
+    let findings: Vec<Finding> = (input.findings.iter())
+        .filter(|f| f.class == FindingKind::Corruption(class))
+        .cloned()
+        .collect();
+    let mut sink = NullProgress;
+    let mut ctx = RepairCtx {
+        bytes: &input.bytes,
+        carve: &input.carve,
+        graph: &input.graph,
+        remap: &remap,
+        page_tree: &tree,
+        doc: &mut doc,
+        salvage: &input.salvage,
+        toolpath: Toolpath::TemplateAssemble,
+        opts,
+        fonts,
+        dicts,
+        ask,
+        sink: &mut sink,
+        notes: PassNotes::default(),
+    };
+    let pass = super::super::pass_for(class).expect("a font pass");
+    let report = pass.repair(&mut ctx, &findings);
+    let notes = std::mem::take(&mut ctx.notes);
+    let mut sink = NullProgress;
+    let mut emit = EmitCtx {
+        bytes: &input.bytes,
+        input_sha256: Sha256::digest(&input.bytes).into(),
+        salvage: &input.salvage,
+        sink: &mut sink,
+        notes: Default::default(),
+    };
+    let output = emit_doc(doc, &input.carve, &input.graph, &tree, &mut emit).expect("emits");
+    Ran {
+        report,
+        notes,
+        output,
+    }
+}
+
+fn run_db(input: &Input, fonts: &FontDb, opts: &RepairOptions) -> (Generated, Recorder) {
+    let plan = plan(&input.findings, &input.carve, &input.graph, opts);
+    let mut sink = Recorder::default();
+    let g = generate_and_validate(&input.view(), &plan, opts, fonts, &mut UseBest, &mut sink)
+        .expect("never cancelled");
+    (g, sink)
+}
+
+/// Options under which the scorer never auto-accepts: every slot asks.
+fn always_ask() -> RepairOptions {
+    RepairOptions {
+        auto_accept_confidence: Ratio { num: 2, den: 1 },
+        ..RepairOptions::default()
+    }
+}
+
+fn provenance(notes: &PassNotes) -> Vec<String> {
+    notes
+        .resolutions
+        .iter()
+        .flat_map(|(_, _, r)| r.provenance.iter().cloned())
+        .collect()
+}
+
+fn actions(report: &PassReport) -> Vec<&str> {
+    report.actions.iter().map(|a| a.what.as_str()).collect()
+}
+
+// ── C7 ───────────────────────────────────────────────────────────────────
+
+#[test]
+fn c7_under_use_best_is_substituted_and_reads_as_the_golden() {
+    let input = c7();
+    let db = test_db();
+    let opts = RepairOptions::default();
+    let (g, _) = run_db(&input, &db, &opts);
+
+    assert_eq!(g.chosen, Some(Toolpath::TemplateAssemble));
+    let tooled: Vec<Toolpath> = g.candidates.iter().map(|c| c.toolpath).collect();
+    assert_eq!(tooled, [Toolpath::TemplateAssemble, Toolpath::Resave]);
+    let v = &chosen(&g).verification;
+    assert!(v.v0.all_pass(), "{v:?}");
+    assert_eq!(v.v2.unmapped_glyph.num, 0, "{v:?}");
+    let output = g.output.clone().unwrap();
+    assert_eq!(text_of(&output), golden_text());
+    assert!(!classes_in(&output).contains(&C7FontStreamDeleted));
+
+    // The report lists the substitution and the database it came from.
+    let analysis = AnalysisResult {
+        meta: FileMeta {
+            version: Some("1.7".to_owned()),
+            pages: 2,
+            title: None,
+            page_sizes: Vec::new(),
+        },
+        findings: input.findings.clone(),
+        carve: CarveSummary::default(),
+        font_slots: Vec::new(),
+        stats: AnalyzeStats::default(),
+        input_sha256: Sha256::digest(&input.bytes).into(),
+        state: StateHandle::default(),
+    };
+    let mut report = RepairReport::default_for(&analysis, &opts, &db);
+    g.record(&mut report);
+    assert_eq!(report.font_db_sha256, db.sha256());
+    let c7 = report
+        .passes
+        .iter()
+        .find(|p| p.class == C7FontStreamDeleted)
+        .unwrap();
+    assert_eq!(c7.outcome, PassOutcome::Fixed);
+    assert_eq!(
+        actions(c7),
+        [format!("font program substituted: {RIGHT}").as_str()]
+    );
+    assert_eq!(c7.actions[0].object, (7, 0), "the descriptor");
+    // The /ToUnicode dictionary pinned the font: no question was asked.
+    assert!(report.interactions.is_empty());
+    assert!(g.resolutions.iter().all(|(_, _, r)| matches!(
+        &r.kind,
+        FontResolutionKind::Picked { font_id, .. } if font_id == RIGHT
+    )));
+}
+
+#[test]
+fn the_resave_candidate_keeps_the_font_and_says_so() {
+    let input = c7();
+    let (g, _) =
+        super::seam::with_broken_assembly(|| run_db(&input, &test_db(), &RepairOptions::default()));
+    // Template assembly fails V0, so Resave is the fallback.
+    assert_eq!(g.chosen, Some(Toolpath::Resave));
+    let assembled = &g.candidates[0];
+    assert_eq!(assembled.toolpath, Toolpath::TemplateAssemble);
+    assert!(!assembled.verification.v0.all_pass());
+    assert!(chosen(&g).verification.v0.all_pass());
+    assert!(
+        matches!(&pass(&g, C7FontStreamDeleted).outcome,
+            PassOutcome::Partial(why) if why.contains("keeps the font as found")),
+        "{:?}",
+        g.passes
+    );
+    assert!(g.partial_reasons.iter().any(|r| r.starts_with("C7")));
+}
+
+#[test]
+fn c8_beats_resave_on_v2() {
+    let input = c8();
+    let (g, _) = run_db(&input, &test_db(), &RepairOptions::default());
+    assert_eq!(g.chosen, Some(Toolpath::TemplateAssemble));
+    let [assembled, resaved] = &g.candidates[..] else {
+        panic!("{:?}", g.candidates)
+    };
+    assert!(assembled.verification.v0.all_pass());
+    assert!(resaved.verification.v0.all_pass());
+    assert_eq!(assembled.verification.v2.unmapped_glyph.num, 0);
+    assert!(resaved.verification.v2.unmapped_glyph.num > 0);
+    assert_eq!(text_of(g.output.as_ref().unwrap()), golden_text());
+}
+
+// ── C8 ───────────────────────────────────────────────────────────────────
+
+#[test]
+fn c8_with_its_real_base_font_takes_the_name_path() {
+    let input = c8();
+    let english = english();
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut Scripted::new(Vec::new()),
+        &[&english],
+    );
+    assert_eq!(ran.report.outcome, PassOutcome::Fixed);
+    let what = actions(&ran.report);
+    assert_eq!(what.len(), 1);
+    assert!(what[0].starts_with(&format!(
+        "font program substituted: {RIGHT}; /ToUnicode rebuilt"
+    )));
+    let lines = provenance(&ran.notes);
+    assert!(lines.iter().any(|l| l.starts_with("name:")), "{lines:?}");
+    assert!(
+        !lines.iter().any(|l| l.starts_with("inference:")),
+        "{lines:?}"
+    );
+    assert_eq!(text_of(&ran.output), golden_text());
+    load_strict(&ran.output);
+}
+
+#[test]
+fn c8_with_a_cidfont_name_goes_to_inference() {
+    let input = analysed(renamed(&corrupt(C8FontResourcesDeleted, &golden_pdf(), 0)));
+    assert_eq!(input.classes(), [C8FontResourcesDeleted]);
+    let english = english();
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut UseBest,
+        &[&english],
+    );
+    let lines = provenance(&ran.notes);
+    assert!(!lines.iter().any(|l| l.starts_with("name:")), "{lines:?}");
+    assert!(
+        lines.iter().any(|l| l.starts_with("inference:")),
+        "{lines:?}"
+    );
+    assert!(
+        actions(&ran.report)[0].starts_with(&format!("font program substituted: {RIGHT}")),
+        "{:?}",
+        ran.report
+    );
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
+// ── the questions ────────────────────────────────────────────────────────
+
+/// The C7 fixture's pass under `opts` and `replies`.
+fn c7_with(
+    fonts: &FontDb,
+    opts: &RepairOptions,
+    replies: Vec<InteractionReply>,
+) -> (Ran, Scripted) {
+    let mut ask = Scripted::new(replies);
+    let ran = run_pass(&c7(), C7FontStreamDeleted, fonts, opts, &mut ask, &[]);
+    (ran, ask)
+}
+
+fn record(notes: &PassNotes) -> &InteractionRecord {
+    assert_eq!(notes.interactions.len(), 1, "{:?}", notes.interactions);
+    &notes.interactions[0]
+}
+
+#[test]
+fn font_pick_replies_give_the_documented_outcomes() {
+    let db = test_db();
+    let opts = always_ask();
+    let cases = [
+        (
+            InteractionReply::Pick(SHUFFLED.to_owned()),
+            SHUFFLED,
+            PassOutcome::Fixed,
+            InteractionSource::User,
+        ),
+        (
+            InteractionReply::UseBest,
+            RIGHT,
+            PassOutcome::Fixed,
+            InteractionSource::UseBest,
+        ),
+        (
+            InteractionReply::Skip,
+            RIGHT,
+            PassOutcome::Partial("font substituted without confirmation".to_owned()),
+            InteractionSource::User,
+        ),
+    ];
+    for (reply, font, outcome, source) in cases {
+        let (ran, ask) = c7_with(&db, &opts, vec![reply.clone()]);
+        let [InteractionRequest::FontPick(req)] = &ask.asked[..] else {
+            panic!("{:?}", ask.asked)
+        };
+        assert_eq!((req.page, req.slot.as_str()), (0, "F1"));
+        assert_eq!(req.candidates[0].font_id, RIGHT, "the best first");
+        assert_eq!(ran.report.outcome, outcome, "{reply:?}");
+        assert_eq!(
+            actions(&ran.report),
+            [format!("font program substituted: {font}").as_str()]
+        );
+        let rec = record(&ran.notes);
+        assert_eq!(rec.request.kind, InteractionKind::FontPick);
+        assert_eq!(rec.request.candidates, [RIGHT, SHUFFLED]);
+        assert_eq!((rec.reply.clone(), rec.source), (reply, source));
+        // The /ToUnicode text survives whichever font draws it.
+        assert_eq!(text_of(&ran.output), golden_text());
+    }
+}
+
+/// The sparse database: no font maps the golden's text, so every slot is
+/// unreproducible.
+fn sparse_db() -> FontDb {
+    db_of(&[SPARSE])
+}
+
+fn sparse_choice() -> SubstituteChoice {
+    SubstituteChoice {
+        font_id: SPARSE.to_owned(),
+        label: "Sparse".to_owned(),
+    }
+}
+
+#[test]
+fn font_unreproducible_replies_give_the_documented_outcomes() {
+    let db = sparse_db();
+    let opts = RepairOptions::default();
+
+    let (ran, ask) = c7_with(
+        &db,
+        &opts,
+        vec![InteractionReply::Substitute(sparse_choice())],
+    );
+    let [InteractionRequest::FontUnreproducible(req)] = &ask.asked[..] else {
+        panic!("{:?}", ask.asked)
+    };
+    assert_eq!(req.options, [sparse_choice()]);
+    assert!(
+        matches!(&ran.report.outcome, PassOutcome::Partial(why) if why.starts_with("generic font substituted"))
+    );
+    assert_eq!(
+        actions(&ran.report),
+        [format!("font program substituted: {SPARSE}").as_str()]
+    );
+    let rec = record(&ran.notes);
+    assert_eq!(rec.request.kind, InteractionKind::FontUnreproducible);
+    assert_eq!(rec.reply, InteractionReply::Substitute(sparse_choice()));
+    assert_eq!(rec.source, InteractionSource::User);
+    assert_eq!(text_of(&ran.output), golden_text());
+
+    let (ran, _) = c7_with(&db, &opts, vec![InteractionReply::TextOnly]);
+    assert_eq!(
+        ran.report.outcome,
+        PassOutcome::Partial("text only: no reproducible font".to_owned())
+    );
+    assert!(actions(&ran.report)[0].starts_with("text only: no reproducible font"));
+    let rec = record(&ran.notes);
+    assert_eq!(
+        (rec.reply.clone(), rec.source),
+        (InteractionReply::TextOnly, InteractionSource::User)
+    );
+    assert!(
+        ran.notes
+            .resolutions
+            .iter()
+            .all(|(_, _, r)| r.kind == FontResolutionKind::TextOnly)
+    );
+    // The font is kept as found, and its /ToUnicode text with it.
+    assert!(classes_in(&ran.output).contains(&C7FontStreamDeleted));
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
+#[test]
+fn one_family_is_asked_once_and_every_slot_takes_the_answer() {
+    let input = analysed(corrupt(C7FontStreamDeleted, &two_fonts(), 0));
+    let c7: Vec<&Finding> = (input.findings.iter())
+        .filter(|f| f.class == FindingKind::Corruption(C7FontStreamDeleted))
+        .collect();
+    assert_eq!(c7.len(), 2, "two damaged fonts");
+    let mut ask = Scripted::new(vec![InteractionReply::Substitute(sparse_choice())]);
+    let ran = run_pass(
+        &input,
+        C7FontStreamDeleted,
+        &sparse_db(),
+        &RepairOptions::default(),
+        &mut ask,
+        &[],
+    );
+    let [InteractionRequest::FontUnreproducible(req)] = &ask.asked[..] else {
+        panic!("{:?}", ask.asked)
+    };
+    assert_eq!(req.family, "NotoSans-Regular");
+    assert_eq!(req.slots, [(0, "F1".to_owned()), (1, "F1".to_owned())]);
+    assert_eq!(ran.notes.interactions.len(), 1);
+    let slots: Vec<(u32, &str)> = (ran.notes.resolutions.iter())
+        .map(|(p, s, _)| (*p, s.as_str()))
+        .collect();
+    assert_eq!(slots, [(0, "F1"), (1, "F1")]);
+    assert!(
+        ran.notes
+            .resolutions
+            .iter()
+            .all(|(_, _, r)| r.kind == FontResolutionKind::Substituted(sparse_choice()))
+    );
+    assert_eq!(ran.report.actions.len(), 2);
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
+#[test]
+fn a_policy_answers_without_asking() {
+    let input = analysed(corrupt(C7FontStreamDeleted, &two_fonts(), 0));
+    for (policy, reply) in [
+        (
+            UnreproduciblePolicy::SubstituteGeneric,
+            InteractionReply::Substitute(sparse_choice()),
+        ),
+        (UnreproduciblePolicy::TextOnly, InteractionReply::TextOnly),
+    ] {
+        let opts = RepairOptions {
+            unreproducible: policy,
+            ..RepairOptions::default()
+        };
+        let mut ask = Scripted::new(Vec::new());
+        let ran = run_pass(
+            &input,
+            C7FontStreamDeleted,
+            &sparse_db(),
+            &opts,
+            &mut ask,
+            &[],
+        );
+        assert!(ask.asked.is_empty(), "{policy:?}");
+        let rec = record(&ran.notes);
+        assert_eq!(rec.source, InteractionSource::Policy, "{policy:?}");
+        assert_eq!(rec.reply, reply, "{policy:?}");
+        assert_eq!(rec.request.kind, InteractionKind::FontUnreproducible);
+        assert_eq!(ran.notes.resolutions.len(), 2);
+    }
+}
+
+#[test]
+fn every_question_reaches_the_report() {
+    let input = c7();
+    let opts = always_ask();
+    let plan = plan(&input.findings, &input.carve, &input.graph, &opts);
+    let mut ask = Scripted::new(vec![InteractionReply::UseBest]);
+    let g = generate_and_validate(
+        &input.view(),
+        &plan,
+        &opts,
+        &test_db(),
+        &mut ask,
+        &mut NullProgress,
+    )
+    .unwrap();
+    // Asked once: in the TemplateAssemble candidate only.
+    assert_eq!(ask.asked.len(), 1);
+    assert_eq!(g.interactions.len(), 1);
+    let mut report = RepairReport::default_for(
+        &AnalysisResult {
+            meta: FileMeta {
+                version: None,
+                pages: 2,
+                title: None,
+                page_sizes: Vec::new(),
+            },
+            findings: Vec::new(),
+            carve: CarveSummary::default(),
+            font_slots: Vec::new(),
+            stats: AnalyzeStats::default(),
+            input_sha256: [0; 32],
+            state: StateHandle::default(),
+        },
+        &opts,
+        &test_db(),
+    );
+    g.record(&mut report);
+    assert_eq!(report.interactions, g.interactions);
+}
+
+// ── template assembly ────────────────────────────────────────────────────
+
+/// The `/ToUnicode` of the font page `page`'s `/F1` names in `doc`, decoded.
+fn tounicode_of(doc: &Document, page: u32) -> Vec<u8> {
+    let page_id = doc.get_pages()[&(page + 1)];
+    let page = doc.get_dictionary(page_id).unwrap();
+    let resources = page.get(b"Resources").unwrap().as_dict().unwrap();
+    let fonts = resources.get(b"Font").unwrap().as_dict().unwrap();
+    let font = doc
+        .get_dictionary(fonts.get(b"F1").unwrap().as_reference().unwrap())
+        .unwrap();
+    let cmap = doc
+        .get_object(font.get(b"ToUnicode").unwrap().as_reference().unwrap())
+        .unwrap()
+        .as_stream()
+        .unwrap();
+    cmap.decompressed_content().unwrap()
+}
+
+/// Every block of a `/ToUnicode` CMap: its entry count and the codes it
+/// maps.
+fn blocks(cmap: &[u8]) -> Vec<(usize, Vec<u16>)> {
+    let text = String::from_utf8_lossy(cmap);
+    let mut out = Vec::new();
+    let mut lines = text.lines();
+    let code = |s: &str| u16::from_str_radix(s.trim_matches(['<', '>']), 16).unwrap();
+    while let Some(line) = lines.next() {
+        let Some((n, kind)) = line.split_once(' ') else {
+            continue;
+        };
+        if kind != "beginbfchar" && kind != "beginbfrange" {
+            continue;
+        }
+        let n: usize = n.parse().unwrap();
+        let mut codes = Vec::new();
+        for _ in 0..n {
+            let parts: Vec<&str> = lines.next().unwrap().split(' ').collect();
+            if kind == "beginbfchar" {
+                codes.push(code(parts[0]));
+            } else {
+                codes.extend(code(parts[0])..=code(parts[1]));
+            }
+        }
+        out.push((n, codes));
+    }
+    out
+}
+
+#[test]
+fn assembled_tounicode_covers_exactly_the_used_codes_in_small_blocks() {
+    let input = c7();
+    let db = test_db();
+    let remap = plan_ids(&input.carve, &input.graph);
+    let tree = rebuild_page_tree(&input.carve, &input.graph, &remap, PageSize::A4);
+    // 250 codes: singletons and runs, more than two blocks of each.
+    let used: BTreeMap<u16, char> = (0u16..250)
+        .map(|c| {
+            let ch = if c % 3 == 0 { 'a' } else { 'A' };
+            (
+                c * 2,
+                char::from_u32(u32::from(ch) + u32::from(c % 20)).unwrap(),
+            )
+        })
+        .chain((600u16..900).map(|c| (c, char::from_u32(0x400 + u32::from(c - 600)).unwrap())))
+        .collect();
+    let subs = [
+        Substitution {
+            page: 0,
+            slot: "F1".to_owned(),
+            font_id: RIGHT.to_owned(),
+            used_codes: used.clone(),
+        },
+        Substitution {
+            page: 1,
+            slot: "F1".to_owned(),
+            font_id: RIGHT.to_owned(),
+            used_codes: used.clone(),
+        },
+    ];
+    let emit = |subs: &[Substitution]| {
+        let mut sink = NullProgress;
+        let mut ctx = EmitCtx {
+            bytes: &input.bytes,
+            input_sha256: Sha256::digest(&input.bytes).into(),
+            salvage: &input.salvage,
+            sink: &mut sink,
+            notes: Default::default(),
+        };
+        emit_template_assemble(
+            &input.carve,
+            &input.graph,
+            &remap,
+            &tree,
+            subs,
+            &db,
+            &mut ctx,
+        )
+        .unwrap()
+    };
+    let out = emit(&subs);
+    assert_eq!(out, emit(&subs), "byte-identical on two runs");
+
+    let doc = load_strict(&out);
+    for page in 0..2 {
+        let cmap = tounicode_of(&doc, page);
+        let blocks = blocks(&cmap);
+        assert!(blocks.len() >= 4, "{}", blocks.len());
+        assert!(blocks.iter().all(|(n, _)| *n <= 100));
+        let mut codes: Vec<u16> = blocks.into_iter().flat_map(|(_, c)| c).collect();
+        codes.sort_unstable();
+        assert_eq!(codes, used.keys().copied().collect::<Vec<_>>());
+    }
+    // One subtree serves both slots; the damaged font is gone.
+    let fonts: Vec<_> = doc
+        .objects
+        .values()
+        .filter_map(|o| o.as_dict().ok())
+        .filter(|d| d.get(b"Subtype").ok().and_then(|s| s.as_name().ok()) == Some(b"Type0"))
+        .collect();
+    assert_eq!(fonts.len(), 1);
+    assert!(!classes_in(&out).contains(&C7FontStreamDeleted));
+    // It renders in hayro.
+    let pdf = hayro::hayro_syntax::Pdf::new(out.clone()).expect("hayro loads it");
+    assert_eq!(pdf.pages().len(), 2);
+    assert!(extract_text(&out, &ExtractOptions::default()).is_ok());
+}
+
+#[test]
+fn assembled_output_is_deterministic_and_carries_no_ui_string() {
+    let input = c8();
+    let db = test_db();
+    let first = run_db(&input, &db, &RepairOptions::default()).0;
+    let second = run_db(&input, &db, &RepairOptions::default()).0;
+    assert_eq!(first.output, second.output);
+    assert_eq!(first.passes, second.passes);
+
+    // The artefact deny-list (T-14's scan): no UI string, as a whole word.
+    let output = first.output.unwrap();
+    let mut texts = vec![String::from_utf8_lossy(&output).into_owned()];
+    for p in &first.passes {
+        texts.extend(p.actions.iter().map(|a| a.what.clone()));
+        if let PassOutcome::Partial(why) | PassOutcome::Skipped(why) = &p.outcome {
+            texts.push(why.clone());
+        }
+    }
+    texts.extend(first.partial_reasons.iter().cloned());
+    let c7 = run_db(&c7(), &db, &RepairOptions::default()).0;
+    texts.push(String::from_utf8_lossy(&c7.output.unwrap()).into_owned());
+    for text in &texts {
+        for s in crate::ui::strings::ALL {
+            assert!(!has_word(text, s), "{s:?} in an artefact");
+        }
+    }
+}
+
+/// `needle` occurs in `hay` with no letter or digit on either side.
+fn has_word(hay: &str, needle: &str) -> bool {
+    let mut from = 0;
+    while let Some(i) = hay[from..].find(needle) {
+        let at = from + i;
+        let before = hay[..at].chars().next_back();
+        let after = hay[at + needle.len()..].chars().next();
+        if !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric) {
+            return true;
+        }
+        from = at + needle.len().max(1);
+    }
+    false
+}
+
+#[test]
+fn a_bundled_font_draws_the_text_its_tounicode_says() {
+    // The bundled Noto Sans numbers its glyphs unlike the test subset, so
+    // the slot's codes are mapped to its glyphs (a /CIDToGIDMap stream).
+    let input = c7();
+    let db = FontDb::bundled();
+    let (g, _) = run_db(&input, &db, &RepairOptions::default());
+    assert_eq!(g.chosen, Some(Toolpath::TemplateAssemble));
+    let output = g.output.unwrap();
+    assert_eq!(text_of(&output), golden_text());
+    let doc = load_strict(&output);
+    let mapped = doc.objects.values().any(|o| {
+        o.as_dict()
+            .ok()
+            .and_then(|d| d.get(b"CIDToGIDMap").ok())
+            .is_some_and(|m| m.as_reference().is_ok())
+    });
+    assert!(mapped);
+}
+
+#[test]
+fn a_font_this_version_cannot_substitute_is_kept_and_partial() {
+    // Identity-V: two-byte codes, but vertical; never substituted.
+    let pdf = corrupt(C7FontStreamDeleted, &golden_pdf(), 0);
+    let at = pdf
+        .windows(10)
+        .position(|w| w == b"Identity-H")
+        .expect("the golden's encoding");
+    let mut pdf = pdf;
+    pdf[at + 9] = b'V';
+    let input = analysed(pdf);
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
+    let mut ask = Scripted::new(Vec::new());
+    let ran = run_pass(
+        &input,
+        C7FontStreamDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut ask,
+        &[],
+    );
+    assert!(ask.asked.is_empty());
+    let PassOutcome::Partial(why) = &ran.report.outcome else {
+        panic!("{:?}", ran.report)
+    };
+    assert!(why.contains("/Type0 Identity-H fonts only"), "{why}");
+    assert!(ran.notes.interactions.is_empty());
+    assert!(classes_in(&ran.output).contains(&C7FontStreamDeleted));
+}

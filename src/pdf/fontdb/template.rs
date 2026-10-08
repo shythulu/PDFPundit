@@ -5,7 +5,8 @@
 //! /Identity`, a `/W` array from the font's `.gmap`, the full, non-subset
 //! program as `/FontFile2`, and a `/ToUnicode` over every glyph the `.gmap`
 //! names. Template assembly (T-30) harvests that subtree from object
-//! [`TYPE0_FONT`] down.
+//! [`TYPE0_FONT`] down ([`harvest`]), with a `/ToUnicode` over only the codes
+//! an output uses.
 //!
 //! Templates are never files (D-021): [`build`] makes one in memory through
 //! [`crate::pdf::write`], and [`bundled`] builds each bundled font's template
@@ -23,6 +24,7 @@ use std::sync::OnceLock;
 use lopdf::{Dictionary, Object};
 use sha2::{Digest, Sha256};
 
+use super::FontDb;
 use super::build::{BuildError, build_from_ttf, build_tounicode};
 use super::gmap::{GmapError, GmapTable, Source};
 use crate::pdf::write::{EmitError, Writer};
@@ -174,10 +176,16 @@ fn widths(gmap: &GmapTable) -> Object {
     for record in gmap.records() {
         by_gid.entry(record.gid()).or_insert(record.width());
     }
+    w_array(&by_gid)
+}
+
+/// `/W` for `widths` (CID → width): one `c [w1 w2 …]` entry per run of
+/// consecutive CIDs.
+fn w_array(widths: &BTreeMap<u16, u16>) -> Object {
     let mut out = Vec::new();
     let mut run: Vec<Object> = Vec::new();
     let mut next = None;
-    for (&gid, &width) in &by_gid {
+    for (&gid, &width) in widths {
         if next != Some(u32::from(gid)) {
             if !run.is_empty() {
                 out.push(Object::Array(std::mem::take(&mut run)));
@@ -271,6 +279,155 @@ fn flate_dict(mut entries: Vec<(&str, Object)>) -> Dictionary {
 /// zlib at level 6: the same bytes on every platform and run.
 fn flate(bytes: &[u8]) -> Vec<u8> {
     miniz_oxide::deflate::compress_to_vec_zlib(bytes, 6)
+}
+
+// ── the harvest (T-30) ───────────────────────────────────────────────────
+
+/// The `/CIDToGIDMap` stream a [`Harvest`] adds when the output's codes are
+/// not the font's own glyph ids.
+const CID_TO_GID: u32 = 10;
+
+/// The objects of the subtree template assembly copies, in write order.
+const SUBTREE: [u32; 4] = [TYPE0_FONT, CIDFONT, DESCRIPTOR, FONTFILE2];
+
+/// One template's font subtree, ready to be numbered into an output (T-30,
+/// D-027): the `/Type0` `Identity-H` font, its `CIDFontType2`, the
+/// descriptor and the `/FontFile2` program as the template has them, and a
+/// `/ToUnicode` over only the codes the output shows (TD §18.3).
+///
+/// When some code's character is not what the font's own glyph of that id
+/// draws (the codes were another program's glyph ids, as a `/ToUnicode`
+/// that survived says), the `CIDFontType2` also gets a `/CIDToGIDMap`
+/// stream sending each code to the font's glyph for its character (glyph 0
+/// where the font has none) and a `/W` over those codes, so the output draws
+/// the characters its text says. Otherwise `/CIDToGIDMap` stays `/Identity`
+/// and `/W` is the template's.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Harvest {
+    /// `(template number, object)`, the `/Type0` font first; references
+    /// between them still carry template numbers.
+    objects: Vec<(u32, Object)>,
+}
+
+impl Harvest {
+    /// How many objects [`Self::numbered`] gives.
+    pub(crate) fn len(&self) -> usize {
+        self.objects.len()
+    }
+
+    /// The objects numbered from `first` on, in order, with their
+    /// references rewritten to match: the `/Type0` font is `first`.
+    pub(crate) fn numbered(&self, first: u32) -> Vec<(u32, Object)> {
+        let number = |t: u32| -> Option<u32> {
+            let at = self.objects.iter().position(|&(n, _)| n == t)?;
+            first.checked_add(u32::try_from(at).ok()?)
+        };
+        self.objects
+            .iter()
+            .filter_map(|(t, object)| {
+                let mut object = object.clone();
+                renumber(&mut object, &number);
+                Some((number(*t)?, object))
+            })
+            .collect()
+    }
+}
+
+/// Every reference in `v` to a template number `number` knows, renumbered.
+fn renumber(v: &mut Object, number: &dyn Fn(u32) -> Option<u32>) {
+    match v {
+        Object::Reference((n, g)) => {
+            if let Some(m) = number(*n) {
+                *n = m;
+                *g = 0;
+            }
+        }
+        Object::Array(items) => items.iter_mut().for_each(|o| renumber(o, number)),
+        Object::Dictionary(d) => d.iter_mut().for_each(|(_, o)| renumber(o, number)),
+        Object::Stream(s) => s.dict.iter_mut().for_each(|(_, o)| renumber(o, number)),
+        _ => {}
+    }
+}
+
+/// Why a template's subtree could not be harvested.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub(crate) enum HarvestError {
+    #[error("no font {0} in the font database")]
+    Unknown(String),
+    #[error(transparent)]
+    Template(#[from] TemplateError),
+    #[error("the template does not load: {0}")]
+    Load(String),
+    #[error("the template has no object {0}")]
+    Missing(u32),
+}
+
+/// The subtree of database font `id`'s template ([`FontDb::template`],
+/// built once and kept) for an output showing `used`.
+pub(crate) fn harvest_from(
+    fonts: &FontDb,
+    id: &str,
+    used: &BTreeMap<u16, char>,
+) -> Result<Harvest, HarvestError> {
+    let unknown = || HarvestError::Unknown(id.to_owned());
+    let template = fonts.template(id).ok_or_else(unknown)??;
+    let gmap = fonts.gmap(id).ok_or_else(unknown)?;
+    harvest(template, &gmap, used)
+}
+
+/// The font subtree of `template` (built by [`build`] from the font whose
+/// `.gmap` is `gmap`) for an output showing `used` (code → character).
+pub(crate) fn harvest(
+    template: &[u8],
+    gmap: &GmapTable,
+    used: &BTreeMap<u16, char>,
+) -> Result<Harvest, HarvestError> {
+    let doc = lopdf::Document::load_mem(template).map_err(|e| HarvestError::Load(e.to_string()))?;
+    let mut objects = Vec::with_capacity(SUBTREE.len() + 2);
+    for n in SUBTREE {
+        let object = doc
+            .objects
+            .get(&(n, 0))
+            .ok_or(HarvestError::Missing(n))?
+            .clone();
+        objects.push((n, object));
+    }
+    objects.push((
+        TOUNICODE,
+        Object::Stream(lopdf::Stream::new(
+            flate_dict(vec![]),
+            flate(&build_tounicode(used)),
+        )),
+    ));
+
+    let own = used
+        .iter()
+        .all(|(&code, &c)| gmap.records_of(code).iter().any(|r| r.unicode() == c));
+    if !own {
+        let gid_of = cmap_gids(gmap);
+        let glyphs: BTreeMap<u16, u16> = used
+            .iter()
+            .map(|(&code, c)| (code, gid_of.get(c).copied().unwrap_or(0)))
+            .collect();
+        let last = glyphs.keys().next_back().map_or(0, |&c| usize::from(c));
+        let mut map = vec![0u8; 2 * (last + 1)];
+        let mut widths = BTreeMap::new();
+        for (&code, &gid) in &glyphs {
+            let at = 2 * usize::from(code);
+            map[at..at + 2].copy_from_slice(&gid.to_be_bytes());
+            widths.insert(code, gmap.width(gid).unwrap_or(0));
+        }
+        if let Some((_, Object::Dictionary(cid))) = objects.iter_mut().find(|(n, _)| *n == CIDFONT)
+        {
+            cid.set("CIDToGIDMap", r(CID_TO_GID));
+            cid.set("W", w_array(&widths));
+        }
+        objects.push((
+            CID_TO_GID,
+            Object::Stream(lopdf::Stream::new(flate_dict(vec![]), flate(&map))),
+        ));
+    }
+    Ok(Harvest { objects })
 }
 
 // ── the bundled fonts ────────────────────────────────────────────────────

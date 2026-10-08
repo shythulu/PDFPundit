@@ -7,8 +7,14 @@
 //!
 //! **Building a candidate.** `Resave` is the T-10 rebuild (renumbering, the
 //! flat page tree) emitted by T-12a, with the passes run on the
-//! [`RebuildDoc`] in between. `TemplateAssemble` is skipped with a log until
-//! T-30 builds it. A candidate whose emit fails is logged and not verified.
+//! [`RebuildDoc`] in between. `TemplateAssemble` (T-30) is the same rebuild
+//! with the C7 and C8 passes substituting database fonts for the damaged
+//! ones ([`crate::pdf::emit`], "Template assembly"); in `Resave` those passes
+//! keep the fonts as found. A `TemplateAssemble` with no C7 or C8 pass to
+//! run would equal `Resave`, so it is skipped with a log. Only
+//! `TemplateAssemble` asks the font questions, so each is asked once per
+//! run; [`Generated::interactions`] keeps them all, whichever candidate is
+//! chosen. A candidate whose emit fails is logged and not verified.
 //! A stream is written from its salvage only when the C9 pass swapped it in;
 //! with no C9 pass every stream is copied exactly as carved.
 //!
@@ -64,6 +70,10 @@
 //!   is left as it was, the pass is `Partial` and the slot gets a
 //!   `FontPick` escalation (unless diagnose found no candidate at all: the
 //!   plan escalated that one already).
+//! - **C7, C8** (T-30): see [`fonts`]. A damaged `/Type0` `Identity-H` font
+//!   gets a database font, picked from its surviving `/ToUnicode`, its
+//!   `/BaseFont` name or inference, asking `FontPick` or
+//!   `FontUnreproducible` when the policy says to.
 //!
 //! A [`RepairAction`] names an object by its declared id in the input; an
 //! orphan, which has none, by the number the rebuild gave it; a finding
@@ -92,6 +102,7 @@
 // T-14 is the first caller outside the tests.
 #![cfg_attr(not(test), allow(dead_code))]
 
+mod fonts;
 #[cfg(test)]
 mod tests;
 
@@ -101,13 +112,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use lopdf::{Dictionary, Object};
 
 use crate::engine::{
-    ByteEdit, C9Summary, Cancelled, CandidateReport, Escalation, EscalationKind, FontDb, Interact,
-    LogLevel, PassOutcome, PassReport, Progress, RepairAction, RepairOptions, RepairPlan,
-    RepairReport, Toolpath,
+    ByteEdit, C9Summary, Cancelled, CandidateReport, Escalation, EscalationKind, FontDb,
+    FontResolution, Interact, InteractionRecord, InteractionReply, LogLevel, PassOutcome,
+    PassReport, Progress, RepairAction, RepairOptions, RepairPlan, RepairReport, Toolpath,
 };
 use crate::pdf::carver::{Body, CarveReport, Orphan, carve};
 use crate::pdf::diagnose::{OUTSIDE_STREAM, orphan_fonts};
 use crate::pdf::emit::{EmitCtx, EmitNotes, RebuildDoc, emit_doc};
+use crate::pdf::fontdb::dict::Dictionary as WordList;
 use crate::pdf::graph::{ObjectGraph, winning_copies};
 use crate::pdf::lexer;
 use crate::pdf::meta::info_object;
@@ -124,7 +136,7 @@ use crate::pdf::verify::{Plausibility, Retention, Verification, baseline, verify
 
 use CorruptionClass::{
     C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped,
-    C6FontMapLost, C9ZlibTampered, C10Truncated,
+    C6FontMapLost, C7FontStreamDeleted, C8FontResourcesDeleted, C9ZlibTampered, C10Truncated,
 };
 
 /// How a [`RepairAction`] names the whole file.
@@ -151,10 +163,17 @@ pub(crate) struct RepairCtx<'a> {
     pub(crate) page_tree: &'a PageTreePlan,
     pub(crate) doc: &'a mut RebuildDoc,
     pub(crate) salvage: &'a SalvageIndex,
-    // Read by the font passes (T-30).
-    #[allow(dead_code)]
+    /// The candidate being built: the C7 and C8 passes substitute fonts only
+    /// in `TemplateAssemble`.
+    pub(crate) toolpath: Toolpath,
+    pub(crate) opts: &'a RepairOptions,
     pub(crate) fonts: &'a FontDb,
-    #[allow(dead_code)]
+    /// The general word lists the C8 pass scores inference against; none
+    /// ships (D-011), so repair passes none and the scorer uses the empty
+    /// dictionary.
+    pub(crate) dicts: &'a [&'a dyn WordList],
+    /// Where the font passes ask (D-020). They record every question and
+    /// its answer in [`PassNotes::interactions`], policy answers included.
     pub(crate) ask: &'a mut dyn Interact,
     pub(crate) sink: &'a mut dyn Progress,
     /// What the passes report beside their [`PassReport`]s.
@@ -173,6 +192,16 @@ pub(crate) struct PassNotes {
     /// The input locations a `Partial` pass left partial, by class (module
     /// docs). A class with none listed excuses all of its findings.
     pub(crate) partial: Vec<(CorruptionClass, Location)>,
+    /// Every font question asked and its answer, and every answer a policy
+    /// gave without asking, in order (D-020, D-073).
+    pub(crate) interactions: Vec<InteractionRecord>,
+    /// How each damaged font slot was resolved: `(page index, slot, how)`.
+    pub(crate) resolutions: Vec<(u32, String, FontResolution)>,
+    /// `FontUnreproducible` answers by font family: asked once per family
+    /// per file (SE Q3).
+    pub(crate) family_replies: Vec<(String, InteractionReply)>,
+    /// A question was cancelled: the run stops after this pass.
+    pub(crate) cancelled: bool,
 }
 
 impl RepairCtx<'_> {
@@ -192,7 +221,7 @@ impl RepairCtx<'_> {
 }
 
 /// The passes this version has.
-const PASSES: [&dyn RepairPass; 8] = [
+const PASSES: [&dyn RepairPass; 10] = [
     &ReEmitted(C1Header),
     &ReEmitted(C2XrefMissing),
     &ReEmitted(C3TrailerDamaged),
@@ -201,7 +230,12 @@ const PASSES: [&dyn RepairPass; 8] = [
     &Orphans,
     &PageTree,
     &Relink,
+    &fonts::FontPrograms(C7FontStreamDeleted),
+    &fonts::FontPrograms(C8FontResourcesDeleted),
 ];
+
+/// The classes whose passes substitute fonts in `TemplateAssemble`.
+const FONT_CLASSES: [CorruptionClass; 2] = [C7FontStreamDeleted, C8FontResourcesDeleted];
 
 /// `class`'s pass, when this version has one.
 fn pass_for(class: CorruptionClass) -> Option<&'static dyn RepairPass> {
@@ -1004,6 +1038,12 @@ pub(crate) struct Generated {
     /// The C9 pass's counts and survivors, of the same candidate.
     pub(crate) c9_summary: C9Summary,
     pub(crate) c9_survivors: Vec<(ObjId, Vec<Vec<ByteEdit>>)>,
+    /// Every font question and answer of every candidate built, in order
+    /// (only `TemplateAssemble` asks).
+    pub(crate) interactions: Vec<InteractionRecord>,
+    /// How each damaged font slot was resolved, of the same candidate as
+    /// [`Self::passes`].
+    pub(crate) resolutions: Vec<(u32, String, FontResolution)>,
 }
 
 impl Generated {
@@ -1016,6 +1056,7 @@ impl Generated {
         report.partial_reasons = self.partial_reasons.clone();
         report.c9_summary = self.c9_summary;
         report.c9_survivors = self.c9_survivors.clone();
+        report.interactions = self.interactions.clone();
         self.notes.record(report);
     }
 }
@@ -1056,16 +1097,23 @@ pub(crate) fn generate_and_validate(
     let base = baseline(input.bytes, input.carve);
 
     let total = u32::try_from(plan.candidates.len()).unwrap_or(u32::MAX);
+    // Template assembly substitutes fonts and nothing else.
+    let assembles = schedule
+        .iter()
+        .any(|(c, s)| FONT_CLASSES.contains(c) && matches!(s, Scheduled::Run(..)));
     let mut built: Vec<Built> = Vec::new();
+    let mut interactions = Vec::new();
     for (i, &toolpath) in plan.candidates.iter().enumerate() {
         if sink.cancelled() {
             return Err(Cancelled);
         }
         sink.phase("repairing", u32::try_from(i).unwrap_or(u32::MAX), total);
-        if toolpath == Toolpath::TemplateAssemble {
+        if toolpath == Toolpath::TemplateAssemble && !assembles {
             sink.log(
                 LogLevel::Info,
-                "the TemplateAssemble toolpath is not built in this version; skipped".to_owned(),
+                "the TemplateAssemble toolpath has no font program to substitute here, so it \
+                 would equal Resave; skipped"
+                    .to_owned(),
             );
             continue;
         }
@@ -1078,13 +1126,17 @@ pub(crate) fn generate_and_validate(
             page_tree: &tree,
             doc: &mut doc,
             salvage: input.salvage,
+            toolpath,
+            opts,
             fonts,
+            dicts: &[],
             ask: &mut *ask,
             sink: &mut *sink,
             notes: PassNotes::default(),
         };
         let passes = run_passes(&schedule, &mut ctx)?;
         let pass_notes = std::mem::take(&mut ctx.notes);
+        interactions.extend(pass_notes.interactions.iter().cloned());
         let (targeted, partial) = targets(&passes, &schedule, &pass_notes, doc.remap());
         let mut emit = EmitCtx {
             bytes: input.bytes,
@@ -1101,6 +1153,8 @@ pub(crate) fn generate_and_validate(
                 continue;
             }
         };
+        #[cfg(test)]
+        let output = tests::seam::broken(toolpath, output);
         let notes = emit.notes;
         if sink.cancelled() {
             return Err(Cancelled);
@@ -1125,7 +1179,9 @@ pub(crate) fn generate_and_validate(
             notes,
         });
     }
-    Ok(choose(built))
+    let mut generated = choose(built);
+    generated.interactions = interactions;
+    Ok(generated)
 }
 
 /// The best of `built`, as the run's result (module docs).
@@ -1186,6 +1242,8 @@ fn choose(built: Vec<Built>) -> Generated {
         partial_reasons,
         c9_summary: b.pass_notes.c9_summary,
         c9_survivors: b.pass_notes.c9_survivors,
+        interactions: Vec::new(),
+        resolutions: b.pass_notes.resolutions,
     }
 }
 
@@ -1257,6 +1315,9 @@ fn run_passes(
                 actions: Vec::new(),
             },
         });
+        if ctx.notes.cancelled {
+            return Err(Cancelled);
+        }
     }
     Ok(reports)
 }

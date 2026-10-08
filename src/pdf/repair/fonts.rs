@@ -1,0 +1,907 @@
+//! The C7 and C8 passes (T-30; TD §5.3, §5.4, §17.4; RR changes #2/#3; SE
+//! Q3; D-020, D-027).
+//!
+//! A damaged font is found by its descriptor (diagnose's C7 or C8 finding);
+//! the font the pages name is the descriptor's font, or that font's `/Type0`
+//! parent. Every `(page, slot)` whose `/Resources /Font` names it is one of
+//! its slots, and the codes it shows are read from each page's content
+//! (T-09's `page_content`, T-06's `content_ops`): one [`CodeRun`] per show
+//! operator, a token break at each `TJ` offset beyond −250/1000 em.
+//!
+//! **Only `TemplateAssemble` substitutes.** In the `Resave` candidate both
+//! passes keep the font as found and report `Partial`, so `Resave` stays the
+//! structure-preserving comparison and asks nothing.
+//!
+//! **What is substituted.** A `/Type0` `Identity-H` font: its two-byte codes
+//! are what the harvested `CIDFontType2` reads. A simple font (one-byte
+//! codes) or another `/Encoding` is left as found and the pass is `Partial`.
+//!
+//! **C7** (the program is lost, `/ToUnicode` survives): each code is decoded
+//! through the `/ToUnicode` alone (T-27c's first rung) to its true text; that
+//! text is the per-document dictionary T-28's [`infer`] scores with, and the
+//! codes' characters are the `/ToUnicode` the output gets (a code whose text
+//! is several characters keeps its first). **C8** (the `/ToUnicode` is lost
+//! too): the database is tried by name first ([`by_name`]); a `CIDFont+Fn`
+//! name never matches, and the slot goes to [`infer`] over every database
+//! font with the general word lists. The characters are then the chosen
+//! font's reading of the codes.
+//!
+//! **Decisions** ([`resolve`], D-009's interim clamp):
+//! - `AutoAccept(c)`: substitute `c.font_id`, `Fixed`;
+//! - `Ask`: `FontPick` is asked. `Pick(id)` substitutes `id`; `UseBest` the
+//!   top candidate; `Skip` the top candidate, `Partial("font substituted
+//!   without confirmation")` (TD §5.3); `Substitute(choice)` substitutes the
+//!   choice; `TextOnly` as below;
+//! - `Unreproducible`: `FontUnreproducible` is asked once per font family per
+//!   pass, listing every slot of the family, and the answer holds for every
+//!   font of that family (an answer given in the C7 pass holds in C8 too).
+//!   Under `UnreproduciblePolicy::SubstituteGeneric` nothing is asked: the
+//!   first option (the best coverage) is the answer, recorded with source
+//!   `Policy`. `Substitute(choice)` or `Pick(id)` substitutes that font and is
+//!   `Partial`: not every glyph is reproduced. `UseBest` takes the policy
+//!   default, the first option (text only when there is none). `Skip` leaves
+//!   the font as found;
+//! - `TextOnly` (asked, or `UnreproduciblePolicy::TextOnly`, recorded with
+//!   source `Policy`): the font is left as found, its `/ToUnicode` text stays
+//!   extractable, `Partial("text only: no reproducible font")`.
+//!
+//! Every question and answer is recorded in [`PassNotes::interactions`]:
+//! source `UseBest` for a `UseBest` reply, else `User`. Request ids are 0:
+//! the facade numbers the questions it shows. A substitution is the action
+//! `font program substituted: <font_id>` on the descriptor; every slot of
+//! the font gets a [`FontResolution`] whose provenance says how it was
+//! decided (`name:` for the name path, `inference:` when [`infer`] ran).
+//! A font left as found keeps its finding, excused as `Partial`.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use lopdf::{Dictionary, Object, Stream};
+
+use super::{RepairCtx, RepairPass, font_dict};
+use crate::bench::metrics::Lang;
+use crate::engine::{
+    FontResolution, FontResolutionKind, FontSlot, InteractionRecord, InteractionReply,
+    InteractionRequest, InteractionSource, InteractionSummary, LogLevel, PassOutcome, PassReport,
+    RepairAction, SubstituteChoice, ToUnicodeState, Toolpath, UnreproduciblePolicy,
+};
+use crate::pdf::carver::Body;
+use crate::pdf::fontdb::FontDb;
+use crate::pdf::fontdb::build::IndexEntry;
+use crate::pdf::fontdb::decode::decode_codes;
+use crate::pdf::fontdb::dict::{Dictionary as WordList, FrequencyList};
+use crate::pdf::fontdb::score::{CodeRun, FontDecision, infer, resolve};
+use crate::pdf::fontdb::template::harvest_from;
+use crate::pdf::model::{CorruptionClass, Finding, InteractionKind, Location, ObjId, Ratio};
+use crate::pdf::rebuild::Held;
+use crate::pdf::streams::salvage::CarveSource;
+use crate::pdf::streams::{DEFAULT_CAP, content_ops};
+
+/// A `TJ` offset beyond this (thousandths of an em, moving right) starts a
+/// new token.
+const TJ_BREAK: f32 = -250.0;
+
+/// The C7 or C8 pass (module docs).
+pub(super) struct FontPrograms(pub(super) CorruptionClass);
+
+impl RepairPass for FontPrograms {
+    fn class(&self) -> CorruptionClass {
+        self.0
+    }
+
+    fn repair(&self, ctx: &mut RepairCtx<'_>, findings: &[Finding]) -> PassReport {
+        if ctx.toolpath != Toolpath::TemplateAssemble {
+            let what = if self.0 == CorruptionClass::C8FontResourcesDeleted {
+                "the font program and its /ToUnicode"
+            } else {
+                "the font program"
+            };
+            return PassReport {
+                class: self.0,
+                outcome: PassOutcome::Partial(format!(
+                    "{what} stay damaged: the Resave toolpath keeps the font as found"
+                )),
+                actions: Vec::new(),
+            };
+        }
+        let c8 = self.0 == CorruptionClass::C8FontResourcesDeleted;
+        let targets = targets(ctx, findings, c8);
+        let mut actions = Vec::new();
+        let mut partial = Vec::new();
+        // A descriptor no font names: nothing to substitute.
+        for f in findings {
+            let Location::Object { id, .. } = f.location else {
+                continue;
+            };
+            if targets
+                .iter()
+                .any(|t| t.descriptor == id || t.finding.location == f.location)
+            {
+                continue;
+            }
+            let why = "not substituted: no font dictionary names this descriptor".to_owned();
+            actions.push(RepairAction {
+                object: id,
+                what: why.clone(),
+                grade: None,
+            });
+            partial.push(why);
+            ctx.notes.partial.push((self.0, f.location));
+        }
+
+        // Every decision first, so that a family's question lists all of its
+        // slots.
+        let decided: Vec<(Target<'_>, Decided)> = targets
+            .into_iter()
+            .map(|t| {
+                let d = decide(ctx, &t, c8);
+                (t, d)
+            })
+            .collect();
+        let mut family_slots: Vec<(String, Vec<(u32, String)>)> = Vec::new();
+        for (t, d) in &decided {
+            if let Decided::Decision(FontDecision::Unreproducible(req), _) = d {
+                let slots = t.slot_names();
+                match family_slots.iter_mut().find(|(f, _)| *f == req.family) {
+                    Some((_, all)) => all.extend(slots),
+                    None => family_slots.push((req.family.clone(), slots)),
+                }
+            }
+        }
+
+        for (t, d) in decided {
+            if ctx.notes.cancelled {
+                break;
+            }
+            let (choice, provenance) = match d {
+                Decided::Unsupported(why) => (Choice::Leave(why), Vec::new()),
+                Decided::Named(entry, provenance) => (
+                    Choice::Font {
+                        id: entry,
+                        why: None,
+                        kind: None,
+                    },
+                    provenance,
+                ),
+                Decided::Decision(decision, provenance) => {
+                    (answer(ctx, &t, decision, &family_slots), provenance)
+                }
+            };
+            for line in &provenance {
+                let msg = format!("{} {} obj: {line}", t.descriptor.0, t.descriptor.1);
+                ctx.sink.log(LogLevel::Info, msg);
+            }
+            let (what, why, kind) = apply(ctx, &t, choice, c8);
+            actions.push(RepairAction {
+                object: t.descriptor,
+                what,
+                grade: None,
+            });
+            if let Some(why) = why {
+                partial.push(why);
+                ctx.notes.partial.push((self.0, t.finding.location));
+            }
+            for (page, slot) in t.slot_names() {
+                ctx.notes.resolutions.push((
+                    page,
+                    slot,
+                    FontResolution {
+                        kind: kind.clone(),
+                        provenance: provenance.clone(),
+                    },
+                ));
+            }
+        }
+        PassReport {
+            class: self.0,
+            outcome: if partial.is_empty() {
+                PassOutcome::Fixed
+            } else {
+                PassOutcome::Partial(partial.join("; "))
+            },
+            actions,
+        }
+    }
+}
+
+// ── the fonts and what they show ─────────────────────────────────────────
+
+/// One damaged font and the slots that show text through it.
+struct Target<'f> {
+    finding: &'f Finding,
+    descriptor: ObjId,
+    /// The font the pages name: the `/Type0` parent, or the font itself.
+    top: ObjId,
+    /// `/BaseFont` (else the descriptor's `/FontName`), without the slash.
+    base_font: Option<String>,
+    subtype: Option<String>,
+    /// A `/Type0` `Identity-H` font: two-byte codes.
+    identity_h: bool,
+    /// The `/ToUnicode` CMap, decoded (C7).
+    tounicode: Option<Vec<u8>>,
+    /// `(page index, slot)`, in page order.
+    slots: Vec<(u32, Vec<u8>)>,
+    runs: Vec<CodeRun>,
+}
+
+impl Target<'_> {
+    fn slot_names(&self) -> Vec<(u32, String)> {
+        let names = self.slots.iter();
+        names
+            .map(|(p, s)| (*p, String::from_utf8_lossy(s).into_owned()))
+            .collect()
+    }
+
+    fn codes(&self) -> BTreeSet<u16> {
+        self.runs
+            .iter()
+            .flat_map(|r| r.codes.iter().copied())
+            .collect()
+    }
+}
+
+/// The fonts `findings` (descriptors) belong to, once each, in finding order.
+fn targets<'f>(ctx: &RepairCtx<'_>, findings: &'f [Finding], c8: bool) -> Vec<Target<'f>> {
+    let mut out: Vec<Target<'f>> = Vec::new();
+    for f in findings {
+        let Location::Object { id: descriptor, .. } = f.location else {
+            continue;
+        };
+        let user = ctx
+            .graph
+            .referrers(descriptor)
+            .iter()
+            .find(|e| e.path.0.len() == 1 && e.path.first_key() == Some(&b"FontDescriptor"[..]))
+            .map(|e| e.from);
+        let Some(user) = user else {
+            continue;
+        };
+        let top = ctx
+            .graph
+            .referrers(user)
+            .iter()
+            .find(|e| e.path.first_key() == Some(&b"DescendantFonts"[..]))
+            .map_or(user, |e| e.from);
+        if out.iter().any(|t| t.top == top) {
+            continue;
+        }
+        let Some(dict) = font_dict(ctx, top) else {
+            continue;
+        };
+        let name = |d: &Dictionary, key: &[u8]| {
+            d.get(key)
+                .ok()
+                .and_then(|v| v.as_name().ok())
+                .map(|n| String::from_utf8_lossy(n).into_owned())
+        };
+        let base_font = name(dict, b"BaseFont").or_else(|| {
+            let d = font_dict(ctx, descriptor)?;
+            name(d, b"FontName")
+        });
+        let subtype = name(dict, b"Subtype");
+        let identity_h = subtype.as_deref() == Some("Type0")
+            && name(dict, b"Encoding").as_deref() == Some("Identity-H");
+        let tounicode = if c8 {
+            None
+        } else {
+            match dict.get(b"ToUnicode") {
+                Ok(Object::Reference(id)) => decoded(ctx, *id),
+                _ => None,
+            }
+        };
+        let slots = slots_of(ctx, top);
+        let runs = runs_of(ctx, top, &slots, identity_h);
+        out.push(Target {
+            finding: f,
+            descriptor,
+            top,
+            base_font,
+            subtype,
+            identity_h,
+            tounicode,
+            slots,
+            runs,
+        });
+    }
+    out
+}
+
+/// Stream `id`'s data through its filters (the C9 salvage when it has one).
+fn decoded(ctx: &RepairCtx<'_>, id: ObjId) -> Option<Vec<u8>> {
+    let source = CarveSource::new(ctx.carve, ctx.bytes);
+    let bytes = ctx.salvage.decoded(&source, id, DEFAULT_CAP).ok()?;
+    Some(bytes.into_owned())
+}
+
+/// The dictionary `v` is, or the carved dictionary it refers to.
+fn dict_of(ctx: &RepairCtx<'_>, v: &Object) -> Option<Dictionary> {
+    match v {
+        Object::Dictionary(d) => Some(d.clone()),
+        Object::Reference(id) => match ctx.remap.target(*id)? {
+            Held::Object(at) => match &ctx.carve.objects.get(at)?.body {
+                Body::Dict(d) | Body::Stream { dict: d, .. } => Some(d.clone()),
+                _ => None,
+            },
+            Held::Orphan(_) => None,
+        },
+        _ => None,
+    }
+}
+
+/// The slots of `resources` (a resources dictionary or a reference to one)
+/// whose `/Font` entry names `font`.
+fn slots_naming(ctx: &RepairCtx<'_>, resources: &Object, font: ObjId) -> Vec<Vec<u8>> {
+    let target = ctx.remap.target(font);
+    let Some(fonts) = dict_of(ctx, resources).and_then(|r| dict_of(ctx, r.get(b"Font").ok()?))
+    else {
+        return Vec::new();
+    };
+    fonts
+        .iter()
+        .filter(|(_, v)| matches!(v, Object::Reference(id) if ctx.remap.target(*id) == target))
+        .map(|(k, _)| k.clone())
+        .collect()
+}
+
+/// Every `(page index, slot)` of the output's pages whose resources name
+/// `font`, in page order.
+fn slots_of(ctx: &RepairCtx<'_>, font: ObjId) -> Vec<(u32, Vec<u8>)> {
+    let mut out = Vec::new();
+    for (index, page) in ctx.page_tree.pages.iter().enumerate() {
+        let Some(resources) = &page.resources else {
+            continue;
+        };
+        let index = u32::try_from(index).unwrap_or(u32::MAX);
+        out.extend(
+            slots_naming(ctx, resources, font)
+                .into_iter()
+                .map(|s| (index, s)),
+        );
+    }
+    out
+}
+
+/// The input id of the page at `index` of the flat tree.
+fn page_input_id(ctx: &RepairCtx<'_>, index: u32) -> Option<ObjId> {
+    let page = ctx.page_tree.pages.get(usize::try_from(index).ok()?)?;
+    let numbered = ctx.remap.objects();
+    let i = numbered.binary_search_by_key(&page.id, |&(n, _)| n).ok()?;
+    match numbered[i].1 {
+        Held::Object(at) => Some(ctx.carve.objects.get(at)?.declared_id),
+        Held::Orphan(_) => None,
+    }
+}
+
+/// The codes the pages of `slots` show through `font`: one run per show
+/// operator, in content order (module docs).
+fn runs_of(
+    ctx: &RepairCtx<'_>,
+    font: ObjId,
+    slots: &[(u32, Vec<u8>)],
+    two_byte: bool,
+) -> Vec<CodeRun> {
+    let source = CarveSource::new(ctx.carve, ctx.bytes);
+    let decode = |id: ObjId| ctx.salvage.decoded(&source, id, DEFAULT_CAP).ok();
+    let pages: BTreeSet<u32> = slots.iter().map(|(p, _)| *p).collect();
+    let mut runs = Vec::new();
+    for index in pages {
+        let Some(page) = page_input_id(ctx, index) else {
+            continue;
+        };
+        for piece in ctx.graph.page_content(ctx.carve, page, decode) {
+            let Some(bytes) = decode(piece.stream) else {
+                continue;
+            };
+            let resources = Object::Dictionary(piece.resources.dict.clone());
+            let ours = slots_naming(ctx, &resources, font);
+            let mut on = false;
+            for op in content_ops(&bytes) {
+                let mut run = CodeRun {
+                    codes: Vec::new(),
+                    breaks: Vec::new(),
+                };
+                match (op.op, op.operands.last()) {
+                    (b"Tf", _) => {
+                        if let [.., Object::Name(s), _] = op.operands.as_slice() {
+                            on = ours.contains(s);
+                        }
+                        continue;
+                    }
+                    (b"Tj" | b"'" | b"\"", Some(Object::String(t, _))) if on => {
+                        push_codes(&mut run.codes, t, two_byte);
+                    }
+                    (b"TJ", Some(Object::Array(items))) if on => {
+                        for item in items {
+                            let offset = match item {
+                                Object::String(t, _) => {
+                                    push_codes(&mut run.codes, t, two_byte);
+                                    continue;
+                                }
+                                Object::Integer(n) => *n as f32,
+                                Object::Real(r) => *r,
+                                _ => continue,
+                            };
+                            if offset < TJ_BREAK && !run.codes.is_empty() {
+                                run.breaks.push(run.codes.len());
+                            }
+                        }
+                    }
+                    _ => continue,
+                }
+                if !run.codes.is_empty() {
+                    runs.push(run);
+                }
+            }
+        }
+    }
+    runs
+}
+
+/// The codes of string `t`: big-endian pairs (a trailing odd byte dropped),
+/// or single bytes.
+fn push_codes(out: &mut Vec<u16>, t: &[u8], two_byte: bool) {
+    if two_byte {
+        out.extend(t.as_chunks::<2>().0.iter().map(|&p| u16::from_be_bytes(p)));
+    } else {
+        out.extend(t.iter().map(|&b| u16::from(b)));
+    }
+}
+
+// ── deciding ─────────────────────────────────────────────────────────────
+
+/// What a font's resolution came to before anyone is asked.
+enum Decided {
+    /// The font cannot be substituted in this version: why.
+    Unsupported(String),
+    /// C8's name path matched this database font.
+    Named(String, Vec<String>),
+    /// T-28's policy, and its provenance.
+    Decision(FontDecision, Vec<String>),
+}
+
+fn decide(ctx: &RepairCtx<'_>, t: &Target<'_>, c8: bool) -> Decided {
+    if !t.identity_h {
+        let (subtype, codes) = match t.subtype.as_deref() {
+            Some("Type0") => ("/Type0", "another /Encoding's"),
+            Some(other) => (other, "one-byte"),
+            None => ("untyped", "one-byte"),
+        };
+        return Decided::Unsupported(format!(
+            "not substituted: this version substitutes /Type0 Identity-H fonts only, and this \
+             is a {subtype} font with {codes} codes"
+        ));
+    }
+    if t.slots.is_empty() {
+        return Decided::Unsupported(
+            "not substituted: no page shows text through this font".to_owned(),
+        );
+    }
+    if c8 && let Some((entry, how)) = t.base_font.as_deref().and_then(|n| by_name(ctx.fonts, n)) {
+        let provenance = vec![format!(
+            "name: /BaseFont {} matches {} by its {how}",
+            t.base_font.as_deref().unwrap_or_default(),
+            entry.id
+        )];
+        return Decided::Named(entry.id.clone(), provenance);
+    }
+
+    let (first_page, first_slot) = t.slot_names().swap_remove(0);
+    let codes = t.codes();
+    let slot = FontSlot {
+        page: first_page,
+        slot: first_slot,
+        base_font: t.base_font.clone(),
+        subtype: t.subtype.clone(),
+        embedded: true,
+        tounicode: if c8 {
+            ToUnicodeState::Missing
+        } else {
+            ToUnicodeState::Present
+        },
+        glyph_count: u32::try_from(codes.len()).unwrap_or(u32::MAX),
+        resolution: None,
+    };
+    let gmaps = ctx.fonts.gmaps();
+    let lookup = |id: &str| gmaps.iter().find(|(i, _)| *i == id).map(|(_, g)| g);
+    let entries = ctx.fonts.entries();
+    let text = (!c8).then(|| true_text(t));
+    let per_doc = text
+        .as_ref()
+        .map(|(_, words)| FrequencyList::from_text(Lang::Unknown, words));
+    let (cands, trace) = infer(
+        &t.runs,
+        &entries,
+        &lookup,
+        ctx.dicts,
+        per_doc.as_ref().map(|d| d as &dyn WordList),
+    );
+    // C7: what the slot's text needs; C8: what the top candidate reads.
+    let needed: Vec<u32> = match &text {
+        Some((used, _)) => used.values().map(|&c| u32::from(c)).collect(),
+        None => cands
+            .first()
+            .and_then(|c| lookup(&c.font_id))
+            .map(|g| {
+                codes
+                    .iter()
+                    .filter_map(|&c| g.unicode(c))
+                    .map(u32::from)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    };
+    let (decision, provenance) =
+        resolve(&cands, &trace, ctx.opts, &slot, &needed, &t.runs, ctx.fonts);
+    Decided::Decision(decision, provenance)
+}
+
+/// C7: each code's character through the `/ToUnicode` alone, and the
+/// slot's text with a space at every token break.
+fn true_text(t: &Target<'_>) -> (BTreeMap<u16, char>, String) {
+    let Some(cmap) = &t.tounicode else {
+        return (BTreeMap::new(), String::new());
+    };
+    // Only the first rung of the ladder: the dictionary holds nothing else.
+    let mut font = Dictionary::new();
+    font.set("Subtype", Object::Name(b"Type0".to_vec()));
+    font.set("Encoding", Object::Name(b"Identity-H".to_vec()));
+    font.set(
+        "ToUnicode",
+        Object::Stream(Stream::new(Dictionary::new(), cmap.clone())),
+    );
+    let mut used = BTreeMap::new();
+    let mut words = String::new();
+    for run in &t.runs {
+        let decoded = decode_codes(&font, &run.codes);
+        for (i, (code, d)) in run.codes.iter().zip(&decoded).enumerate() {
+            if run.breaks.contains(&i) {
+                words.push(' ');
+            }
+            if let Some(c) = d.text.chars().next() {
+                used.entry(*code).or_insert(c);
+            }
+            words.push_str(&d.text);
+        }
+        words.push(' ');
+    }
+    (used, words)
+}
+
+/// The database font `/BaseFont` `name` names (RR change #3): the subset
+/// tag dropped, an entry whose id or PostScript name equals it, else one
+/// that lists it as an alias, else one whose family equals it or its part
+/// before the first `-` or `,`, all ignoring case and spaces. A
+/// `CIDFont+Fn` name matches nothing. With `how`, what matched.
+fn by_name<'f>(fonts: &'f FontDb, name: &str) -> Option<(&'f IndexEntry, &'static str)> {
+    let name = strip_subset(name.strip_prefix('/').unwrap_or(name));
+    if name.starts_with("CIDFont+") {
+        return None;
+    }
+    let key = |s: &str| -> String {
+        s.chars()
+            .filter(|c| !c.is_whitespace())
+            .flat_map(char::to_lowercase)
+            .collect()
+    };
+    let want = key(name);
+    let family = key(name.split(['-', ',']).next().unwrap_or(name));
+    let entries = fonts.entries();
+    let find = |test: &dyn Fn(&IndexEntry) -> bool| entries.iter().copied().find(|e| test(e));
+    find(&|e| key(&e.id) == want || key(&e.postscript_name) == want)
+        .map(|e| (e, "PostScript name"))
+        .or_else(|| {
+            find(&|e| e.base_font_aliases.iter().any(|a| key(a) == want)).map(|e| (e, "alias"))
+        })
+        .or_else(|| {
+            find(&|e| key(&e.family) == want || key(&e.family) == family).map(|e| (e, "family"))
+        })
+}
+
+/// `ABCDEF+Name` → `Name`.
+fn strip_subset(name: &str) -> &str {
+    match name.split_once('+') {
+        Some((tag, rest)) if tag.len() == 6 && tag.bytes().all(|b| b.is_ascii_uppercase()) => rest,
+        _ => name,
+    }
+}
+
+// ── asking ───────────────────────────────────────────────────────────────
+
+/// What becomes of one font.
+enum Choice {
+    /// Substitute database font `id`; `why` makes the pass `Partial`; `kind`
+    /// overrides the resolution `Picked` would be.
+    Font {
+        id: String,
+        why: Option<String>,
+        kind: Option<FontResolutionKind>,
+    },
+    /// Keep the font as found; its `/ToUnicode` text stays.
+    TextOnly,
+    /// Keep the font as found, for this reason.
+    Leave(String),
+}
+
+/// The choice `decision` comes to, asking when it must (module docs).
+fn answer(
+    ctx: &mut RepairCtx<'_>,
+    t: &Target<'_>,
+    decision: FontDecision,
+    family_slots: &[(String, Vec<(u32, String)>)],
+) -> Choice {
+    match decision {
+        FontDecision::AutoAccept(c) => Choice::Font {
+            kind: Some(picked(&c.font_id, c.confidence)),
+            id: c.font_id,
+            why: None,
+        },
+        FontDecision::Ask(req) => {
+            let summary = InteractionSummary {
+                kind: InteractionKind::FontPick,
+                page: Some(req.page),
+                slot: Some(req.slot.clone()),
+                candidates: req.candidates.iter().map(|c| c.font_id.clone()).collect(),
+            };
+            let top = req
+                .candidates
+                .first()
+                .map(|c| (c.font_id.clone(), c.confidence));
+            let confidence_of = |id: &str| {
+                req.candidates
+                    .iter()
+                    .find(|c| c.font_id == id)
+                    .map_or(ZERO, |c| c.confidence)
+            };
+            let Some(reply) = ask(ctx, InteractionRequest::FontPick(req.clone()), summary) else {
+                return Choice::Leave("not substituted: the question was cancelled".to_owned());
+            };
+            let best = |why: Option<String>| match &top {
+                Some((id, confidence)) => Choice::Font {
+                    id: id.clone(),
+                    why,
+                    kind: Some(picked(id, *confidence)),
+                },
+                None => Choice::Leave("not substituted: no candidate font".to_owned()),
+            };
+            match reply {
+                InteractionReply::Pick(id) if ctx.fonts.entry(&id).is_some() => Choice::Font {
+                    kind: Some(picked(&id, confidence_of(&id))),
+                    id,
+                    why: None,
+                },
+                InteractionReply::Pick(id) => best(Some(format!(
+                    "the picked font {id} is not in the font database; the best candidate \
+                     was substituted"
+                ))),
+                InteractionReply::UseBest => best(None),
+                InteractionReply::Skip => {
+                    best(Some("font substituted without confirmation".to_owned()))
+                }
+                InteractionReply::Substitute(choice) => Choice::Font {
+                    id: choice.font_id.clone(),
+                    why: None,
+                    kind: Some(FontResolutionKind::Substituted(choice)),
+                },
+                InteractionReply::TextOnly => Choice::TextOnly,
+            }
+        }
+        FontDecision::Unreproducible(mut req) => {
+            let known = (ctx.notes.family_replies.iter())
+                .find(|(f, _)| *f == req.family)
+                .map(|(_, r)| r.clone());
+            let reply = match known {
+                Some(reply) => reply,
+                None => {
+                    if let Some((_, slots)) = family_slots.iter().find(|(f, _)| *f == req.family) {
+                        req.slots = slots.clone();
+                    }
+                    let (page, slot) = req.slots.first().cloned().unzip();
+                    let summary = InteractionSummary {
+                        kind: InteractionKind::FontUnreproducible,
+                        page,
+                        slot,
+                        candidates: req.options.iter().map(|o| o.font_id.clone()).collect(),
+                    };
+                    let reply = if ctx.opts.unreproducible == UnreproduciblePolicy::Ask {
+                        let request = InteractionRequest::FontUnreproducible(req.clone());
+                        let Some(reply) = ask(ctx, request, summary) else {
+                            return Choice::Leave(
+                                "not substituted: the question was cancelled".to_owned(),
+                            );
+                        };
+                        reply
+                    } else {
+                        let reply = generic(&req.options);
+                        ctx.notes.interactions.push(InteractionRecord {
+                            request: summary,
+                            reply: reply.clone(),
+                            source: InteractionSource::Policy,
+                        });
+                        reply
+                    };
+                    ctx.notes
+                        .family_replies
+                        .push((req.family.clone(), reply.clone()));
+                    reply
+                }
+            };
+            let reply = match reply {
+                InteractionReply::UseBest => generic(&req.options),
+                other => other,
+            };
+            let why = || {
+                Some(
+                    "generic font substituted: no database font maps every character of the \
+                     slot"
+                        .to_owned(),
+                )
+            };
+            match reply {
+                InteractionReply::Substitute(choice) => Choice::Font {
+                    id: choice.font_id.clone(),
+                    why: why(),
+                    kind: Some(FontResolutionKind::Substituted(choice)),
+                },
+                InteractionReply::Pick(id) => Choice::Font {
+                    kind: Some(FontResolutionKind::Substituted(SubstituteChoice {
+                        label: ctx
+                            .fonts
+                            .entry(&id)
+                            .map_or_else(|| id.clone(), |e| e.family.clone()),
+                        font_id: id.clone(),
+                    })),
+                    id,
+                    why: why(),
+                },
+                InteractionReply::Skip => Choice::Leave(format!(
+                    "font left as found: the question for {} was skipped",
+                    req.family
+                )),
+                InteractionReply::TextOnly | InteractionReply::UseBest => Choice::TextOnly,
+            }
+        }
+        FontDecision::TextOnly => {
+            let family = family_of(t);
+            if !ctx.notes.family_replies.iter().any(|(f, _)| *f == family) {
+                let (page, slot) = t.slot_names().first().cloned().unzip();
+                ctx.notes.interactions.push(InteractionRecord {
+                    request: InteractionSummary {
+                        kind: InteractionKind::FontUnreproducible,
+                        page,
+                        slot,
+                        candidates: Vec::new(),
+                    },
+                    reply: InteractionReply::TextOnly,
+                    source: InteractionSource::Policy,
+                });
+                ctx.notes
+                    .family_replies
+                    .push((family, InteractionReply::TextOnly));
+            }
+            Choice::TextOnly
+        }
+    }
+}
+
+/// The family T-28 names in an [`UnreproducibleRequest`](crate::engine::UnreproducibleRequest):
+/// `/BaseFont` without its subset tag, else the first slot's name.
+fn family_of(t: &Target<'_>) -> String {
+    match &t.base_font {
+        Some(name) => strip_subset(name).to_owned(),
+        None => t
+            .slot_names()
+            .first()
+            .map(|(_, s)| s.clone())
+            .unwrap_or_default(),
+    }
+}
+
+/// The policy's answer to `FontUnreproducible`: the first option, else text
+/// only.
+fn generic(options: &[SubstituteChoice]) -> InteractionReply {
+    options.first().map_or(InteractionReply::TextOnly, |o| {
+        InteractionReply::Substitute(o.clone())
+    })
+}
+
+/// Asks `request`, records the answer, and gives it; `None` (and the run
+/// marked cancelled) when the question was cancelled.
+fn ask(
+    ctx: &mut RepairCtx<'_>,
+    request: InteractionRequest,
+    summary: InteractionSummary,
+) -> Option<InteractionReply> {
+    match ctx.ask.ask(request) {
+        Ok(reply) => {
+            let source = if reply == InteractionReply::UseBest {
+                InteractionSource::UseBest
+            } else {
+                InteractionSource::User
+            };
+            ctx.notes.interactions.push(InteractionRecord {
+                request: summary,
+                reply: reply.clone(),
+                source,
+            });
+            Some(reply)
+        }
+        Err(_) => {
+            ctx.notes.cancelled = true;
+            None
+        }
+    }
+}
+
+const ZERO: Ratio = Ratio { num: 0, den: 1 };
+const ONE: Ratio = Ratio { num: 1, den: 1 };
+
+fn picked(id: &str, confidence: Ratio) -> FontResolutionKind {
+    FontResolutionKind::Picked {
+        font_id: id.to_owned(),
+        confidence,
+    }
+}
+
+// ── applying ─────────────────────────────────────────────────────────────
+
+/// Carries `choice` out on `ctx.doc`: the action's text, the `Partial`
+/// reason if any, and the resolution.
+fn apply(
+    ctx: &mut RepairCtx<'_>,
+    t: &Target<'_>,
+    choice: Choice,
+    c8: bool,
+) -> (String, Option<String>, FontResolutionKind) {
+    let pages = || {
+        let names: Vec<String> = t
+            .slot_names()
+            .iter()
+            .map(|(p, s)| format!("page {} /{s}", p + 1))
+            .collect();
+        names.join(", ")
+    };
+    match choice {
+        Choice::Font { id, why, kind } => {
+            let used = if c8 {
+                read_through(ctx.fonts, &id, &t.codes())
+            } else {
+                true_text(t).0
+            };
+            match harvest_from(ctx.fonts, &id, &used) {
+                Ok(font) => {
+                    ctx.doc.substitute(t.slots.clone(), font);
+                    let mut what = format!("font program substituted: {id}");
+                    if c8 {
+                        what.push_str(&format!("; /ToUnicode rebuilt over {} codes", used.len()));
+                    }
+                    let kind = kind.unwrap_or_else(|| picked(&id, ONE));
+                    (what, why, kind)
+                }
+                Err(e) => {
+                    let why = format!("not substituted: font {id} could not be harvested: {e}");
+                    (why.clone(), Some(why), FontResolutionKind::Skipped)
+                }
+            }
+        }
+        Choice::TextOnly => (
+            format!(
+                "text only: no reproducible font; {} keep their /ToUnicode text",
+                pages()
+            ),
+            Some("text only: no reproducible font".to_owned()),
+            FontResolutionKind::TextOnly,
+        ),
+        Choice::Leave(why) => (why.clone(), Some(why), FontResolutionKind::Skipped),
+    }
+}
+
+/// C8: each code's character through font `id`'s `.gmap` (the code is the
+/// glyph id); a code the `.gmap` does not map is left out.
+fn read_through(fonts: &FontDb, id: &str, codes: &BTreeSet<u16>) -> BTreeMap<u16, char> {
+    let Some(gmap) = fonts.gmap(id) else {
+        return BTreeMap::new();
+    };
+    codes
+        .iter()
+        .filter_map(|&c| Some((c, gmap.unicode(c)?)))
+        .collect()
+}
