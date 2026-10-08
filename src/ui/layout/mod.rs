@@ -34,6 +34,12 @@ pub trait Layout {
     fn accepts_input(&self) -> bool {
         true
     }
+
+    /// The cells over the cat, where a kitty drag is told its drop is
+    /// wanted (T-31): x, y, width, height. `None` takes no drops.
+    fn drop_zone(&self) -> Option<(u16, u16, u16, u16)> {
+        None
+    }
 }
 
 /// The `[ui] layout` setting: pick by size, or pin one.

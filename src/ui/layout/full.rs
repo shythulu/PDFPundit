@@ -129,6 +129,12 @@ impl Layout for FullLayout {
         FULL_SIZE
     }
 
+    /// The cat and its plate, between the side panels: columns 27–84, rows
+    /// 8–33.
+    fn drop_zone(&self) -> Option<(u16, u16, u16, u16)> {
+        Some((27, 8, 58, 26))
+    }
+
     /// Drawn under a 112 × 38 clip, so nothing lands past the frame on a
     /// larger canvas.
     fn draw(&self, c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {

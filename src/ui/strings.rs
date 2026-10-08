@@ -412,6 +412,25 @@ pub const DROP_BIG: &str = "big one: a pdf above 512 MiB is held in memory while
 /// The one-line fallback takes no drops (D-064).
 pub const TOO_SMALL_TO_EAT: &str = "too small to eat: make me at least 32×16";
 
+// kitty drops (T-31, OSC 72): the hint row's word when a drop ends without
+// files. The terminal's own description of an error goes to the debug log.
+
+/// A drop with no files in it (no `text/uri-list`), or a URI that is not a
+/// `file://` one.
+pub const DROP_NOT_FILES: &str = "only files go in: drag a pdf from your file manager";
+/// `EPERM`: the terminal would not hand the drop over (a drag that started
+/// in this window gets it).
+pub const DROP_REFUSED: &str = "the terminal kept that drop: drag it in from outside this window";
+/// `ENOENT`: the file went away before it could be read.
+pub const DROP_GONE: &str = "that file was gone before I could eat it";
+/// `EMFILE`, `ENOMEM`, or a file list over the 1 MiB cap.
+pub const DROP_TOO_MANY: &str = "too much in one drop: drop fewer files";
+/// Any other error, or data that came through damaged.
+pub const DROP_FAILED: &str = "that drop didn't come through: try again";
+/// A drop's files are read into memory before it completes (D-039), at
+/// most 512 MiB of them.
+pub const DROP_HOLD_LIMIT: &str = "a drop holds 512 MiB at most: paste a bigger pdf's path";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -628,6 +647,13 @@ pub const ALL: &[&str] = &[
     DROP_TOO_BIG,
     DROP_BIG,
     TOO_SMALL_TO_EAT,
+    // kitty drops (T-31)
+    DROP_NOT_FILES,
+    DROP_REFUSED,
+    DROP_GONE,
+    DROP_TOO_MANY,
+    DROP_FAILED,
+    DROP_HOLD_LIMIT,
 ];
 
 #[cfg(test)]

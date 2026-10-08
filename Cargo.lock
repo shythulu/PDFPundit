@@ -1335,6 +1335,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2 0.11.0",
+ "signal-hook",
  "similar",
  "skrifa 0.46.2",
  "thiserror 2.0.18",

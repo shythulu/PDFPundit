@@ -11,7 +11,8 @@
 //! does not have, so they open a pty (rustix's `pty` feature, a dev-only
 //! dependency). On Windows the true case runs on a ConPTY and is ignored until
 //! a run shows ConPTY delivers output on windows-latest (actions/runner#3168,
-//! D-058); the flush there has no runtime test yet.
+//! D-058); the flush there has no runtime test yet. The pty tests also play
+//! kitty (T-31): its handshake answers, a drag and a drop, end to end.
 //! The guard times its child, so the time types are allowed here.
 #![allow(clippy::disallowed_types)]
 
@@ -390,6 +391,91 @@ mod pty {
         s.wait_for(FRAME_MARK, Duration::from_secs(20));
         s.alive_after(Duration::from_millis(500));
         assert_eq!(s.quit(), Some(0));
+    }
+
+    // ── kitty (T-31): a fake kitty on the master ────────────────────────
+
+    /// The handshake's query and DA1, as the child writes them.
+    const QUERY: &[u8] = b"\x1b]72;t=q\x1b\\\x1b[c";
+    /// kitty's answers to both, queued before the child starts: the
+    /// handshake reads them in its window, so no timing is involved.
+    const KITTY_REPLIES: &[u8] = b"\x1b]72;t=q\x1b\\\x1b[?62;22;52c";
+    const OPT_IN: &[u8] = b"\x1b]72;t=a;text/uri-list\x1b\\";
+    const OPT_OUT: &[u8] = b"\x1b]72;t=A\x1b\\";
+    const ACCEPT: &[u8] = b"\x1b]72;t=m:o=1;text/uri-list\x1b\\";
+    const REQUEST: &[u8] = b"\x1b]72;t=r:x=1\x1b\\";
+    const DONE: &[u8] = b"\x1b]72;t=r:o=1\x1b\\";
+
+    /// `path` as a `file://` URI, every byte but `[A-Za-z0-9/._-]` escaped.
+    fn file_uri(path: &std::path::Path) -> String {
+        let mut uri = String::from("file://");
+        for &b in path.to_str().expect("a UTF-8 scratch path").as_bytes() {
+            if b.is_ascii_alphanumeric() || b"/._-".contains(&b) {
+                uri.push(char::from(b));
+            } else {
+                uri.push_str(&format!("%{b:02X}"));
+            }
+        }
+        uri
+    }
+
+    /// End to end on kitty's branch: the handshake opts in, stale input in
+    /// the window is never delivered, the raw reader answers a move over the
+    /// cat, a drop is requested, read and completed, a typed `q` still
+    /// quits, and the exit opts out.
+    #[test]
+    fn a_kitty_terminal_gets_drops_end_to_end() {
+        use base64::Engine;
+        let dir = Scratch::new("pty-kitty");
+        let pdf = dir.path().join("dropped file.pdf");
+        std::fs::write(&pdf, b"%PDF-1.7\n%%EOF\n").expect("the pdf");
+        let mut s = start(112, 38, &[KITTY_REPLIES, STALE].concat(), None);
+        s.wait_for(OPT_IN, Duration::from_secs(20));
+        s.wait_for(FRAME_MARK, Duration::from_secs(20));
+        s.alive_after(Duration::from_millis(500));
+
+        // The move is repeated until the armed reader answers it: one sent
+        // before the input is armed is flushed.
+        let over_cat = b"\x1b]72;t=m:x=50:y=20:X=500:Y=400:o=3;text/uri-list text/plain\x1b\\";
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !contains(&s.output(), ACCEPT) {
+            assert!(Instant::now() < deadline, "no t=m answer: {:?}", s.text());
+            s.master.write_all(over_cat).expect("move");
+            thread::sleep(Duration::from_millis(100));
+        }
+        s.master
+            .write_all(b"\x1b]72;t=M:x=50:y=20:X=500:Y=400:o=3;text/uri-list text/plain\x1b\\")
+            .expect("drop");
+        s.wait_for(REQUEST, Duration::from_secs(10));
+        let list = format!("{}\r\n", file_uri(&pdf));
+        let encoded = base64::engine::general_purpose::STANDARD_NO_PAD.encode(list);
+        let data = format!("\x1b]72;t=r:x=1:m=1;{encoded}\x1b\\\x1b]72;m=0;\x1b\\");
+        s.master.write_all(data.as_bytes()).expect("data");
+        s.wait_for(DONE, Duration::from_secs(10));
+
+        assert_eq!(s.quit(), Some(0));
+        let out = s.output();
+        let at = |needle: &[u8]| out.windows(needle.len()).position(|w| w == needle);
+        assert!(at(QUERY).expect("the query") < at(OPT_IN).expect("opted in"));
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !contains(&s.output(), OPT_OUT) {
+            assert!(Instant::now() < deadline, "no opt-out: {:?}", s.text());
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    /// A terminal that answers DA1 and not the query is never opted in, and
+    /// the crossterm reader still takes keys.
+    #[test]
+    fn a_terminal_without_osc_72_is_never_opted_in() {
+        let mut s = start(112, 38, &[b"\x1b[?62;22c".as_slice(), STALE].concat(), None);
+        s.wait_for(FRAME_MARK, Duration::from_secs(20));
+        s.alive_after(Duration::from_millis(500));
+        assert_eq!(s.quit(), Some(0));
+        let out = s.output();
+        assert!(contains(&out, QUERY), "the query was sent");
+        assert!(!contains(&out, b"\x1b]72;t=a"), "never opted in");
+        assert!(!contains(&out, OPT_OUT));
     }
 }
 

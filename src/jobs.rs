@@ -6,10 +6,11 @@
 //! `AppEvent::Job(id, event)` (TD §3), and the UI hands every job event back to
 //! [`JobRunner::on_job_event`] so the runner can move jobs along.
 #![allow(clippy::disallowed_types)]
-// The loop (T-23a) drives the runner and the drop gate (T-23b) submits jobs,
-// but replies and cancellation (no key sends them yet), export (T-32b) and
-// memory inputs from OSC 72 drops (T-31) are still built only by tests.
-// TODO(T-31, T-32b): remove this allow once they are wired.
+// The loop (T-23a) drives the runner, and the drop gate (T-23b) and kitty
+// drops (T-31, `JobInput::Dropped`) submit jobs, but replies and cancellation
+// (no key sends them yet), export (T-32b) and path-less `JobInput::Memory`
+// inputs are still built only by tests.
+// TODO(T-32b): remove this allow once they are wired.
 #![allow(dead_code)]
 
 use std::cell::RefCell;
@@ -327,11 +328,14 @@ pub enum Placed {
 // ── the runner (T-15) ────────────────────────────────────────────────────
 
 /// What a dropped file gives the runner: a path, or bytes with no durable path
-/// (a macOS file promise read into memory, D-039).
+/// (a macOS file promise read into memory, D-039), or both: a kitty drop's
+/// file, read while the drop was active (T-31), whose bytes are the input and
+/// whose path is where the output goes beside, when it is still there.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JobInput {
     File(PathBuf),
     Memory { name: String, bytes: Vec<u8> },
+    Dropped { path: PathBuf, bytes: Vec<u8> },
 }
 
 /// How the runner runs its jobs.
@@ -520,15 +524,18 @@ impl<E: Engine + 'static> JobRunner<E> {
     pub fn submit(&mut self, input: JobInput) -> JobId {
         let id = JobId(self.next_id);
         self.next_id += 1;
+        let name_of = |path: &Path| {
+            path.file_name().map_or_else(
+                || path.display().to_string(),
+                |n| n.to_string_lossy().into_owned(),
+            )
+        };
         let (name, path, bytes) = match input {
-            JobInput::File(path) => {
-                let name = path.file_name().map_or_else(
-                    || path.display().to_string(),
-                    |n| n.to_string_lossy().into_owned(),
-                );
-                (name, Some(path), None)
-            }
+            JobInput::File(path) => (name_of(&path), Some(path), None),
             JobInput::Memory { name, bytes } => (name, None, Some(Arc::new(bytes))),
+            JobInput::Dropped { path, bytes } => {
+                (name_of(&path), Some(path), Some(Arc::new(bytes)))
+            }
         };
         if let Some(path) = &path {
             lock(&self.inputs).insert(path);

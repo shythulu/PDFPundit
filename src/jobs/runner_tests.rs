@@ -1034,6 +1034,26 @@ fn a_promised_input_without_output_dir_fails_with_the_fixed_message() {
     assert_eq!(h.count_of(id, |s| *s == Seen::AnalyzeDone), 1);
 }
 
+/// A kitty drop's file (T-31): read while the drop was active, so the job
+/// works on those bytes even after the file is gone, and its output goes
+/// beside the path it was dropped from.
+#[test]
+fn a_dropped_input_works_on_its_bytes_and_lands_beside_its_path() {
+    let dir = ScratchDir::new("jobs-dropped");
+    let path = dir.join("d.pdf");
+    let mut h = Harness::new(FakeEngine::new(), opts());
+    let id = h.runner().submit(JobInput::Dropped {
+        path: path.clone(),
+        bytes: b"dropped".to_vec(),
+    });
+    h.pump_until("done", |h| h.finished(id));
+    let run = h.done(id).expect("repaired");
+    let out = dir.join("d.repaired.pdf");
+    assert_eq!(run.output_path, Some(out.clone()));
+    assert_eq!(fs::read(&out).expect("out"), b"dropped");
+    assert!(!path.exists(), "the original is never written");
+}
+
 #[test]
 fn shutdown_stops_every_worker() {
     let dir = ScratchDir::new("jobs-shutdown");

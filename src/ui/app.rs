@@ -6,8 +6,9 @@
 //!    never looked at;
 //! 2. raw mode, the alternate screen and the colour probe; a failure exits
 //!    non-zero with one line (a Git Bash pty passes step 1 and can fail here);
-//! 3. on Unix the kitty handshake slot (T-31; nothing until then), whose
-//!    discarded byte count goes to the debug log;
+//! 3. on Unix the kitty handshake (T-31), whose discarded byte count goes to
+//!    the debug log; on kitty, drops are asked for and every exit path,
+//!    the panic hook's included, opts out again;
 //! 4. the first frame;
 //! 5. the pending terminal input flushed, then the input source armed.
 //!
@@ -20,6 +21,12 @@
 //! lets in make the cat chomp and go to the runner, which analyses then
 //! repairs each one. The one-line fallback takes no drops (D-064): it refuses
 //! them with a hint and asks the terminal to grow.
+//!
+//! kitty drops (T-31): the cat watches a drag over the window, and the
+//! terminal is told the drop is wanted only over the cat ([`Layout::drop_zone`]).
+//! A drop's files pass the same gate, and each one it lets in is read into
+//! memory before the drop completes, since a macOS file promise is gone after
+//! that (D-039): at most [`HOLD_LIMIT`] bytes a drop.
 //!
 //! The loop owns the [`AppState`], the [`Director`], the runner and the history
 //! store. It hands every job event to the runner first and then to the state,
@@ -43,12 +50,13 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use super::canvas::Canvas;
 use super::color::ColorCaps;
-use super::director::{CatEvent, CatFrame, Director, Mood, Stage};
+use super::director::{CatEvent, CatFrame, CellPos, Director, Mood, Stage};
 #[cfg(windows)]
 use super::input::collector::{Collector, Flush};
 use super::input::gate::{Admitted, gate};
+use super::input::osc72::{DndAction, DndSession, HOLD_LIMIT};
 use super::input::paste::{PathCandidate, paths_from_paste};
-use super::input::{Input, InputSource};
+use super::input::{DndEvent, Input, InputSource};
 use super::layout::full::{self, FullLayout};
 use super::layout::modals::{ModalKey, ThemeAction, ThemeChooser};
 use super::layout::widget::{OneLine, WidgetLayout};
@@ -120,8 +128,17 @@ fn shell() -> io::Result<()> {
         Box::new(term::PanicWriter),
     );
 
-    // (3) The handshake slot.
+    // (3) The handshake. Once kitty drops are asked for, every way out opts
+    // out again, the panic hook's included.
     let handshake = term::handshake();
+    if handshake.kitty {
+        guard.kitty_armed();
+        panic_guard::install(
+            thread::current().id(),
+            term::restore_sequence(true),
+            Box::new(term::PanicWriter),
+        );
+    }
 
     let mut app = App::new(&config.ui, caps, config_path);
     app.warn_above = runner_options(&config).analyze.max_file_bytes;
@@ -360,8 +377,11 @@ pub(crate) struct App {
     pre_frame_dropped: usize,
     /// Files above this size are let in with a warning (512 MiB).
     warn_above: u64,
-    /// Files the drop gate let in, for [`App::submit_drops`].
-    admitted: Vec<Admitted>,
+    /// Files the drop gate let in, for [`App::submit_drops`]; a kitty drop's
+    /// with their bytes, read while the drop was active (D-039).
+    admitted: Vec<(Admitted, Option<Vec<u8>>)>,
+    /// The kitty drag-and-drop protocol (T-31).
+    dnd: DndSession,
     /// Path candidates the one-line fallback refused (D-064).
     refused_too_small: usize,
     /// Windows: typed keys, until they are known to be keys or a path.
@@ -404,6 +424,7 @@ impl App {
             pre_frame_dropped: 0,
             warn_above: AnalyzeOptions::default().max_file_bytes,
             admitted: Vec::new(),
+            dnd: DndSession::default(),
             refused_too_small: 0,
             #[cfg(windows)]
             collector: Collector::default(),
@@ -466,7 +487,7 @@ impl App {
             Input::Paste(text) => self.pasted(&text),
             Input::Tick => self.tick(now),
             Input::Mouse(_) => {}
-            Input::Dnd(d) => match d {},
+            Input::Dnd(d) => self.on_dnd(d, now),
         }
     }
 
@@ -550,7 +571,7 @@ impl App {
                             a.bytes >> 20
                         ));
                     }
-                    self.admitted.push(a);
+                    self.admitted.push((a, None));
                 }
                 Err(why) => {
                     self.log(format!("drop refused: {}: {why}", c.raw));
@@ -578,8 +599,14 @@ impl App {
         let admitted = std::mem::take(&mut self.admitted);
         self.director
             .on(CatEvent::Dropped { n: admitted.len() }, now);
-        for a in admitted {
-            let id = submit(JobInput::File(a.path.clone()));
+        for (a, bytes) in admitted {
+            let id = submit(match bytes {
+                Some(bytes) => JobInput::Dropped {
+                    path: a.path.clone(),
+                    bytes,
+                },
+                None => JobInput::File(a.path.clone()),
+            });
             let name = a.path.file_name().map_or_else(
                 || a.path.display().to_string(),
                 |n| n.to_string_lossy().into_owned(),
@@ -589,6 +616,70 @@ impl App {
                 .entries
                 .push(QueueEntry::queued(id, name, Some(a.path), a.bytes));
         }
+    }
+
+    /// A kitty drag-and-drop event: the session's replies go out, the cat
+    /// watches the drag, and a drop's files are taken before it completes.
+    fn on_dnd(&mut self, ev: DndEvent, now: Duration) {
+        let zone = layout(self.kind).drop_zone();
+        let main = self.state.screen == Screen::Main;
+        let over_cat = |c: CellPos| {
+            main && zone
+                .is_some_and(|(x, y, w, h)| (x..x + w).contains(&c.x) && (y..y + h).contains(&c.y))
+        };
+        for action in self.dnd.on(ev, &over_cat) {
+            match action {
+                DndAction::Reply(bytes) => self.out.extend_from_slice(&bytes),
+                DndAction::Cat(ev) => self.director.on(ev, now),
+                DndAction::Files(candidates) => {
+                    let took = self.take_drop(candidates);
+                    if let Some(done) = self.dnd.finish(took) {
+                        self.out.extend_from_slice(&done);
+                    }
+                    if took == 0 {
+                        self.director.on(CatEvent::DragAt(None), now);
+                    }
+                }
+                DndAction::Ended { hint, log } => {
+                    self.log(log);
+                    if hint.is_some() {
+                        self.state.hint = hint;
+                    }
+                }
+            }
+        }
+    }
+
+    /// A kitty drop's candidates through the gate, then each file it lets in
+    /// read into memory, at most [`HOLD_LIMIT`] bytes for the drop. How many
+    /// were taken.
+    fn take_drop(&mut self, candidates: Vec<PathCandidate>) -> usize {
+        let before = self.admitted.len();
+        self.dropped(candidates);
+        let gated: Vec<_> = self.admitted.drain(before..).collect();
+        let mut held = 0u64;
+        let mut refusal = None;
+        for (a, _) in gated {
+            let read = if held + a.bytes > HOLD_LIMIT {
+                Err(strings::DROP_HOLD_LIMIT)
+            } else {
+                read_at_most(&a.path, HOLD_LIMIT - held)
+            };
+            match read {
+                Ok(bytes) => {
+                    held += bytes.len() as u64;
+                    self.admitted.push((a, Some(bytes)));
+                }
+                Err(why) => {
+                    self.log(format!("drop refused: {}: {why}", a.path.display()));
+                    refusal.get_or_insert(why);
+                }
+            }
+        }
+        if refusal.is_some() {
+            self.state.hint = refusal;
+        }
+        self.admitted.len() - before
     }
 
     fn on_key(&mut self, k: KeyEvent) {
@@ -914,6 +1005,19 @@ fn modal_status(c: &mut Canvas, vm: &ViewModel, state: &str, theme: &Theme) {
     }
     let (w, h) = FULL_SIZE;
     lightbar::status_bar(c, i32::from(h) - 1, i32::from(w), &parts, &right, theme);
+}
+
+/// The whole of `path`, if it is at most `limit` bytes.
+fn read_at_most(path: &std::path::Path, limit: u64) -> Result<Vec<u8>, &'static str> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|f| f.take(limit.saturating_add(1)).read_to_end(&mut bytes))
+        .map_err(|_| strings::DROP_UNREADABLE)?;
+    if bytes.len() as u64 > limit {
+        return Err(strings::DROP_HOLD_LIMIT);
+    }
+    Ok(bytes)
 }
 
 fn layout(kind: LayoutKind) -> &'static dyn Layout {

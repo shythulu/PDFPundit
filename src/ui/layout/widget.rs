@@ -80,6 +80,11 @@ impl Layout for WidgetLayout {
         WIDGET_SIZE
     }
 
+    /// The cat and its plate: columns 1–30, rows 0–13.
+    fn drop_zone(&self) -> Option<(u16, u16, u16, u16)> {
+        Some((1, 0, 30, 14))
+    }
+
     /// Drawn under a 32 × 16 clip, so long counts or names cannot write past
     /// the tile on a larger canvas.
     fn draw(&self, c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
