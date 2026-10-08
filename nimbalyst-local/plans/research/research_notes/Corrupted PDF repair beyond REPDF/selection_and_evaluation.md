@@ -259,7 +259,7 @@ REPDF reports word recall against OCR of the rendered pages, so PDFPundit's numb
 - **Exact decoded-pixel hashes are brittle for images.** A TemplateAssemble path that re-encodes (e.g., DCT → Flate, colour-space normalization) produces a visually identical but hash-different image. A hash match should count as "exact"; otherwise fall back to SSIM or pHash similarity.
 
 ### Gaps
-- REPDF names the OCR engine only as an "OCR API". Whether its word matching is order-aware (a bag of words or an alignment) is not stated in the excerpts read, so exact replication needs the paper's full text or code (`github.com/dfrc-korea/REPDF`, which contains `corrupted/` and `original/` directories).
+- ~~REPDF names the OCR engine only as an "OCR API".~~ Resolved 2026-10-04: REPDF §5.3 names "the OCR engine of the Google Cloud Document AI API", applied to the original and repaired PDF files. The processor version and request options are not stated. Whether its word matching is order-aware (a bag of words or an alignment) is still not stated, and the dataset repository (`github.com/dfrc-korea/REPDF`) holds only a README and the `corrupted/` and `original/` files, no evaluation code. See [outlined_text_and_ocr.md §4](outlined_text_and_ocr.md).
 - No benchmark was found that evaluates PDF repair (as opposed to parsing) with a text-plus-visual metric pair. The pairing proposed here is a synthesis.
 
 ### What PDFPundit should do
@@ -270,7 +270,7 @@ REPDF reports word recall against OCR of the rendered pages, so PDFPundit's numb
    - `bag_f1` — multiset intersection, order-free. `order_penalty = bag_f1 − lcs_f1`.
    - `char_f1` or `CER` — mandatory for zh, secondary for all other languages.
    - `page_count_match` and per-page `lcs_f1`, averaged.
-2. **REPDF-comparable metric.** In the corpus harness only (external tool, no FFI in the product), render pristine and repaired pages, OCR both (e.g., Tesseract CLI), and compute `ocr_word_recall = matched/len_orig`. Report it next to REPDF's Table 2 and Table 5 numbers per class × creation method × language. This is the only defensible comparison to the paper's baselines.
+2. **REPDF-comparable metric.** In the corpus harness only (external tool, no FFI in the product), OCR pristine and repaired files with Google Cloud Document AI, the engine REPDF used (pinned processor version, PDFs sent directly, native parsing off), with local PaddleOCR as the CI proxy, and compute `ocr_word_recall = matched/len_orig`. See [outlined_text_and_ocr.md §4](outlined_text_and_ocr.md). Report it next to REPDF's Table 2 and Table 5 numbers per class × creation method × language. This is the only defensible comparison to the paper's baselines.
 3. **Visual-vs-text consistency check:** flag a file when `text_layer_lcs_f1 − ocr_lcs_f1 > γ`. Learn γ on the tuning split. This catches correct-ToUnicode-but-wrong-glyph outputs, the "local discrepancy" Kuchta et al. say whole-page comparison misses.
 4. **olmOCR-style unit facts per fixture and per corpus document.** Generate them automatically from the pristine file:
    - k sampled sentences must be present;
