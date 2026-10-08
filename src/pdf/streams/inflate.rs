@@ -105,6 +105,75 @@ fn run(raw: &[u8], cap: usize, flags: u32) -> InflateResult {
     }
 }
 
+/// Where a deflate stream at the start of `raw` ends, found without keeping
+/// its output: the carver's inflate probe (T-07, TD §14.3 rung d).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Probe {
+    pub status: InflateStatus,
+    /// Input consumed; for `Done`, the stream's exact length.
+    pub consumed: usize,
+    /// Output decoded (and thrown away).
+    pub produced: usize,
+}
+
+/// The probe's output ring. A power of two at least the 32 KiB deflate
+/// window, as miniz_oxide requires of a wrapping buffer.
+const RING: usize = 64 << 10;
+
+/// [`inflate`]'s outcome for `raw` with the same raw-deflate retry, but
+/// decoding into a fixed 64 KiB ring, so its memory does not grow with the
+/// stream. Decoding stops with `CapHit` once more than `cap` bytes have come
+/// out (counted a ring's worth at a time).
+///
+/// The first 64 KiB of output are decoded with the non-wrapping flag, as
+/// `inflate` does, so a distance reaching before the start of the data
+/// fails here too (miniz_oxide checks that only for a non-wrapping
+/// buffer). Past 64 KiB no distance (at most 32 KiB) can, and the buffer
+/// becomes a ring.
+pub(crate) fn probe(raw: &[u8], cap: usize) -> Probe {
+    let first = probe_run(raw, cap, TINFL_FLAG_PARSE_ZLIB_HEADER);
+    let header_rejected = matches!(first.status, InflateStatus::Failed { at } if at <= 2);
+    if header_rejected && first.produced == 0 {
+        let retry = probe_run(raw, cap, 0);
+        if retry.status == InflateStatus::Done {
+            return retry;
+        }
+    }
+    first
+}
+
+fn probe_run(raw: &[u8], cap: usize, flags: u32) -> Probe {
+    let mut r = Box::<DecompressorOxide>::default();
+    let mut ring = vec![0u8; RING];
+    let (mut in_pos, mut out_pos, mut produced) = (0usize, 0usize, 0usize);
+    let status = loop {
+        let flags = if produced < RING {
+            flags | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF
+        } else {
+            flags
+        };
+        let (st, used, wrote) = decompress(&mut r, &raw[in_pos..], &mut ring, out_pos, flags);
+        in_pos += used;
+        produced += wrote;
+        out_pos = (out_pos + wrote) & (RING - 1);
+        break match st {
+            TINFLStatus::HasMoreOutput if produced >= cap => InflateStatus::CapHit,
+            TINFLStatus::HasMoreOutput => continue,
+            TINFLStatus::Done => InflateStatus::Done,
+            TINFLStatus::Adler32Mismatch => InflateStatus::AdlerMismatch,
+            TINFLStatus::FailedCannotMakeProgress | TINFLStatus::NeedsMoreInput => {
+                InflateStatus::NeedsMoreInput
+            }
+            _ => InflateStatus::Failed { at: in_pos },
+        };
+    };
+    Probe {
+        status,
+        consumed: in_pos,
+        produced,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,6 +341,48 @@ mod tests {
         assert_eq!(r.status, InflateStatus::Done);
         assert_eq!(r.out, data);
         assert_eq!(r.consumed, raw.len());
+    }
+
+    #[test]
+    fn the_probe_agrees_with_inflate_on_status_and_length() {
+        // Past the 64 KiB ring, so it wraps.
+        let data = sample(150_000);
+        let z = zlib(&data);
+        let mut cases: Vec<Vec<u8>> = vec![z.clone(), z[..z.len() / 2].to_vec()];
+        let mut tail = z.clone();
+        tail.extend_from_slice(b"\nendstream\nendobj\n");
+        cases.push(tail);
+        let mut adler = z.clone();
+        let last = adler.len() - 1;
+        adler[last] ^= 1;
+        cases.push(adler);
+        cases.push(miniz_oxide::deflate::compress_to_vec(&data, 6));
+        cases.push(b"not deflate at all".to_vec());
+        // Single-byte flips all along the stream, early ones included: a
+        // distance reaching before the data must fail in both.
+        for i in (0..z.len()).step_by(293) {
+            for mask in [0x01u8, 0x10, 0x80] {
+                let mut m = z.clone();
+                m[i] ^= mask;
+                cases.push(m);
+            }
+        }
+        for (i, c) in cases.iter().enumerate() {
+            let p = probe(c, usize::MAX);
+            let r = inflate(c, 1 << 30);
+            assert_eq!((p.status, p.consumed), (r.status, r.consumed), "case {i}");
+            assert_eq!(p.produced, r.out.len(), "case {i}");
+        }
+        assert_eq!(probe(&z, usize::MAX).produced, data.len());
+    }
+
+    #[test]
+    fn the_probe_stops_at_its_cap() {
+        let z = zlib(&vec![0u8; 1 << 22]);
+        let p = probe(&z, 1 << 20);
+        assert_eq!(p.status, InflateStatus::CapHit);
+        assert!(p.produced >= 1 << 20 && p.produced < (1 << 20) + RING);
+        assert_eq!(probe(&z, 1 << 23).status, InflateStatus::Done);
     }
 
     #[test]

@@ -1,6 +1,8 @@
 //! T-05 acceptance: the carve of the goldens, the structural corruptors and
 //! the adversarial builders, the header and extent rules on hand-written
-//! bytes, the caps, cancellation and a fuzz run.
+//! bytes, the caps, cancellation and a fuzz run. T-07's are in `carver_b`.
+
+mod carver_b;
 
 use std::cell::Cell;
 
@@ -316,8 +318,11 @@ fn wrong_lengths_fall_to_the_unique_endstream() {
             assert_eq!(source, LengthSource::Declared);
             assert_eq!(rungs.declared, 5);
             assert_eq!(rungs.unique_endstream, 0);
+        } else if kind == LengthKind::Indirect {
+            // Rung (c), in pass 2 (`carver_b`).
+            assert_eq!(source, LengthSource::DeclaredIndirect((13, 0)));
+            assert_eq!(rungs.deferred_length, 1);
         } else {
-            // (c) is T-07's: an indirect length scans for now too.
             assert_eq!(source, LengthSource::ScannedEndstream, "{kind:?}");
             assert_eq!(rungs.declared, 4, "{kind:?}");
             assert_eq!(rungs.unique_endstream, 1, "{kind:?}");
@@ -551,6 +556,16 @@ fn header_shapes() {
     }
 }
 
+/// The report's notes but the gap sweep's: an ignored header leaves its
+/// object's bytes to the sweep, which reports them as an unexplained span.
+fn header_notes(r: &CarveReport) -> Vec<CarveNote> {
+    r.notes
+        .iter()
+        .copied()
+        .filter(|n| !matches!(n, CarveNote::UnexplainedSpan { .. }))
+        .collect()
+}
+
 #[test]
 fn header_numbers_out_of_range_are_ignored_with_a_note() {
     let r = carved(b"4294967295 65535 obj 1 endobj");
@@ -558,7 +573,17 @@ fn header_numbers_out_of_range_are_ignored_with_a_note() {
     for src in [&b"4294967296 0 obj 1 endobj"[..], b"1 65536 obj 1 endobj"] {
         let r = carved(src);
         assert!(r.objects.is_empty());
-        assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 0 }]);
+        let whole = ByteSpan {
+            start: 0,
+            end: src.len() as u64,
+        };
+        assert_eq!(
+            r.notes,
+            [
+                CarveNote::HeaderOutOfRange { at: 0 },
+                CarveNote::UnexplainedSpan { span: whole }
+            ]
+        );
     }
 }
 
@@ -572,13 +597,13 @@ fn the_walk_back_stops_at_24_bytes() {
     // note still says where the header starts.
     let r = carved(b"x 0000000000000000000001 0 obj 1 endobj");
     assert!(r.objects.is_empty());
-    assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 2 }]);
+    assert_eq!(header_notes(&r), [CarveNote::HeaderOutOfRange { at: 2 }]);
     // A generation that long: the header starts at its number.
     let r = carved(b"x 7 0000000000000000000000001 obj 1 endobj");
-    assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 2 }]);
+    assert_eq!(header_notes(&r), [CarveNote::HeaderOutOfRange { at: 2 }]);
     // ... or at the generation's first digit when no number stands before it.
     let r = carved(b"x 0000000000000000000000001 obj 1 endobj");
-    assert_eq!(r.notes, [CarveNote::HeaderOutOfRange { at: 2 }]);
+    assert_eq!(header_notes(&r), [CarveNote::HeaderOutOfRange { at: 2 }]);
 }
 
 #[test]
@@ -826,6 +851,9 @@ fn ten_thousand_fuzzed_buffers_never_panic() {
         fixtures::with_eol_style(EolStyle::Cr),
         fixtures::with_no_endobj(),
         fixtures::with_truncated_later_duplicate(),
+        fixtures::with_recursive_objstm(),
+        fixtures::with_bad_objstm_offsets(),
+        fixtures::with_objstm_and_plain_copy(fixtures::CopyOrder::ObjStmFirst),
     ];
     sources.push((0..4096).map(|_| rng.next() as u8).collect());
     const SPICE: [&[u8]; 16] = [
@@ -863,7 +891,7 @@ fn ten_thousand_fuzzed_buffers_never_panic() {
         let r = carved(&buf);
         let n = buf.len() as u64;
         let mut prev_end = 0;
-        for o in &r.objects {
+        for o in r.objects.iter().filter(|o| o.origin == Origin::TopLevel) {
             assert!(o.span.start >= prev_end, "case {case}: objects overlap");
             assert!(o.span.start < o.span.end && o.span.end <= n, "case {case}");
             if let Body::Stream { data, .. } = &o.body {
@@ -874,6 +902,10 @@ fn ten_thousand_fuzzed_buffers_never_panic() {
                 );
             }
             prev_end = o.span.end;
+        }
+        for o in &r.orphans {
+            let s = o.span();
+            assert!(s.start < s.end && s.end <= n, "case {case}");
         }
         for s in r.xref_spans.iter().chain(&r.trailer_spans) {
             assert!(s.start <= s.end && s.end <= n, "case {case}");
