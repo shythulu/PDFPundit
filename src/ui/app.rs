@@ -15,6 +15,12 @@
 //! terminal's queue is flushed, and an input that somehow reaches an unarmed
 //! app is dropped and counted.
 //!
+//! Drops (T-23b): a paste (on Windows, a burst of typed keys, D-034) is split
+//! into path candidates, each candidate passes the drop gate, and the files it
+//! lets in make the cat chomp and go to the runner, which analyses then
+//! repairs each one. The one-line fallback takes no drops (D-064): it refuses
+//! them with a hint and asks the terminal to grow.
+//!
 //! The loop owns the [`AppState`], the [`Director`], the runner and the history
 //! store. It hands every job event to the runner first and then to the state,
 //! records each finished repair in the store and refills the history summary
@@ -38,6 +44,10 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use super::canvas::Canvas;
 use super::color::ColorCaps;
 use super::director::{CatEvent, CatFrame, Director, Mood, Stage};
+#[cfg(windows)]
+use super::input::collector::{Collector, Flush};
+use super::input::gate::{Admitted, gate};
+use super::input::paste::{PathCandidate, paths_from_paste};
 use super::input::{Input, InputSource};
 use super::layout::full::{self, FullLayout};
 use super::layout::modals::{ModalKey, ThemeAction, ThemeChooser};
@@ -52,7 +62,9 @@ use super::widgets::lightbar;
 use crate::appdirs::AppDirs;
 use crate::config::{self, Config, OutputDir};
 use crate::engine::{AnalyzeOptions, Engine, Pdfpundit, RepairOptions};
-use crate::jobs::{AppEvent, EntryState, JobEvent, JobId, JobKind, JobRunner, RunnerOptions};
+use crate::jobs::{
+    AppEvent, EntryState, JobEvent, JobId, JobInput, JobKind, JobRunner, QueueEntry, RunnerOptions,
+};
 use crate::library::{FileEntry, HistoryStore, JsonStore, RunRecord};
 use crate::panic_guard;
 
@@ -66,6 +78,8 @@ const NOT_A_TERMINAL_EXIT: u8 = 2;
 const TERMINAL_EXIT: u8 = 1;
 /// `CSI 8;38;112 t`: asks the terminal to grow to the full layout's size.
 const GROW_TO_FULL: &[u8] = b"\x1b[8;38;112t";
+/// `CSI 8;16;32 t`: asks the terminal to grow to the widget's size (D-064).
+const GROW_TO_WIDGET: &[u8] = b"\x1b[8;16;32t";
 /// Lines the debug log keeps.
 const LOG_LINES: usize = 256;
 
@@ -110,6 +124,7 @@ fn shell() -> io::Result<()> {
     let handshake = term::handshake();
 
     let mut app = App::new(&config.ui, caps, config_path);
+    app.warn_above = runner_options(&config).analyze.max_file_bytes;
     app.log(format!(
         "handshake: kitty {}, {} bytes discarded",
         handshake.kitty, handshake.discarded
@@ -279,7 +294,7 @@ fn event_loop<E: Engine + 'static>(
         }
         let urgent = match ev {
             AppEvent::Input(input) => {
-                app.on_input(input);
+                app.on_input(input, now);
                 true
             }
             AppEvent::Job(id, ev) => {
@@ -289,8 +304,14 @@ fn event_loop<E: Engine + 'static>(
                 app.on_job(id, ev, unix, store.as_deref_mut());
                 false
             }
-            AppEvent::Tick => false,
+            AppEvent::Tick => {
+                app.tick(now);
+                false
+            }
         };
+        if let Some(r) = runner.as_deref_mut() {
+            app.submit_drops(now, &mut |input| r.submit(input));
+        }
         app.refresh(now);
         if app.quit {
             break;
@@ -337,6 +358,15 @@ pub(crate) struct App {
     /// Set at step 5; inputs before it are dropped and counted.
     armed: bool,
     pre_frame_dropped: usize,
+    /// Files above this size are let in with a warning (512 MiB).
+    warn_above: u64,
+    /// Files the drop gate let in, for [`App::submit_drops`].
+    admitted: Vec<Admitted>,
+    /// Path candidates the one-line fallback refused (D-064).
+    refused_too_small: usize,
+    /// Windows: typed keys, until they are known to be keys or a path.
+    #[cfg(windows)]
+    collector: Collector,
     vm: ViewModel,
     mood: Mood,
     needs_you: bool,
@@ -372,6 +402,11 @@ impl App {
             config_path,
             armed: false,
             pre_frame_dropped: 0,
+            warn_above: AnalyzeOptions::default().max_file_bytes,
+            admitted: Vec::new(),
+            refused_too_small: 0,
+            #[cfg(windows)]
+            collector: Collector::default(),
             mood: vm.mood,
             vm,
             state,
@@ -419,17 +454,140 @@ impl App {
         });
     }
 
-    pub(crate) fn on_input(&mut self, input: Input) {
+    /// One input at `now` (the loop's clock since start-up).
+    pub(crate) fn on_input(&mut self, input: Input, now: Duration) {
         if !self.armed {
             self.pre_frame_dropped += 1;
             return;
         }
         match input {
-            Input::Key(k) => self.on_key(k),
+            Input::Key(k) => self.typed(k, now),
             Input::Resize(w, h) => self.resize(w, h),
-            // TODO(T-23b): pastes go through the paste parser and the drop gate.
-            Input::Paste(_) | Input::Mouse(_) | Input::Tick => {}
+            Input::Paste(text) => self.pasted(&text),
+            Input::Tick => self.tick(now),
+            Input::Mouse(_) => {}
             Input::Dnd(d) => match d {},
+        }
+    }
+
+    /// Time passes: on Windows a typed burst that has gone quiet is flushed.
+    pub(crate) fn tick(&mut self, _now: Duration) {
+        #[cfg(windows)]
+        if let Some(f) = self.collector.idle(_now) {
+            self.collected(f);
+        }
+    }
+
+    /// A key. On Windows the main screen's keys go through the collector
+    /// first; on Unix a key is only ever a key.
+    fn typed(&mut self, k: KeyEvent, _now: Duration) {
+        if k.kind == KeyEventKind::Release {
+            return;
+        }
+        #[cfg(windows)]
+        if self.state.screen == Screen::Main {
+            for f in self.collector.key(k, _now) {
+                self.collected(f);
+            }
+            return;
+        }
+        self.on_key(k);
+    }
+
+    #[cfg(windows)]
+    fn collected(&mut self, f: Flush) {
+        match f {
+            Flush::Key(k) => self.on_key(k),
+            Flush::Text(text) => self.pasted(&text),
+        }
+    }
+
+    /// Pasted text: its paths go to the drop gate.
+    fn pasted(&mut self, text: &str) {
+        self.dropped(paths_from_paste(text));
+    }
+
+    /// Path candidates from any source (a paste, the collector, an OSC 72
+    /// drop, the picker). Where the layout takes no input they are all
+    /// refused (D-064); otherwise each passes the gate or is refused, and the
+    /// hint row says why (the first refusal, else the size warning).
+    pub(crate) fn dropped(&mut self, candidates: Vec<PathCandidate>) {
+        if candidates.is_empty() {
+            return;
+        }
+        if !layout(self.kind).accepts_input() {
+            self.refused_too_small += candidates.len();
+            self.log(format!(
+                "drop: {} refused, the one-line layout takes no drops",
+                candidates.len()
+            ));
+            self.state.hint = Some(strings::TOO_SMALL_TO_EAT);
+            if self.request_resize {
+                self.out.extend_from_slice(GROW_TO_WIDGET);
+            }
+            return;
+        }
+        let mut refusal = None;
+        let mut warning = None;
+        for c in candidates {
+            let verdict = match (c.path, c.reason) {
+                (Some(path), _) => gate(&path, self.warn_above),
+                (None, why) => Err(why.unwrap_or(strings::DROP_GARBLED)),
+            };
+            match verdict {
+                Ok(a) => {
+                    self.log(format!(
+                        "drop: {} ({} bytes), %PDF- in the first KiB: {}",
+                        a.path.display(),
+                        a.bytes,
+                        a.drop_sniff
+                    ));
+                    if a.big {
+                        warning = Some(strings::DROP_BIG);
+                        self.log(format!(
+                            "drop: {} is {} MiB and is held in memory while it is worked on",
+                            a.path.display(),
+                            a.bytes >> 20
+                        ));
+                    }
+                    self.admitted.push(a);
+                }
+                Err(why) => {
+                    self.log(format!("drop refused: {}: {why}", c.raw));
+                    refusal.get_or_insert(why);
+                }
+            }
+        }
+        if let Some(hint) = refusal.or(warning) {
+            self.state.hint = Some(hint);
+        }
+    }
+
+    /// The files the gate let in since the last call: the cat chomps them
+    /// (`Dropped{n}`), then each is submitted, in order, and gets its queue
+    /// row. The runner analyses each one, then repairs it with the analysis
+    /// state (GG §1).
+    pub(crate) fn submit_drops(
+        &mut self,
+        now: Duration,
+        submit: &mut dyn FnMut(JobInput) -> JobId,
+    ) {
+        if self.admitted.is_empty() {
+            return;
+        }
+        let admitted = std::mem::take(&mut self.admitted);
+        self.director
+            .on(CatEvent::Dropped { n: admitted.len() }, now);
+        for a in admitted {
+            let id = submit(JobInput::File(a.path.clone()));
+            let name = a.path.file_name().map_or_else(
+                || a.path.display().to_string(),
+                |n| n.to_string_lossy().into_owned(),
+            );
+            self.state
+                .batch
+                .entries
+                .push(QueueEntry::queued(id, name, Some(a.path), a.bytes));
         }
     }
 

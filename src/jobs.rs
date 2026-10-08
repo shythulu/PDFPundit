@@ -6,9 +6,10 @@
 //! `AppEvent::Job(id, event)` (TD §3), and the UI hands every job event back to
 //! [`JobRunner::on_job_event`] so the runner can move jobs along.
 #![allow(clippy::disallowed_types)]
-// The loop (T-23a) drives the runner, but nothing submits a job until the drop
-// gate (T-23b) does, so most of the queue types are still unbuilt outside tests.
-// TODO(T-23b): remove this allow once the drop gate submits jobs.
+// The loop (T-23a) drives the runner and the drop gate (T-23b) submits jobs,
+// but replies and cancellation (no key sends them yet), export (T-32b) and
+// memory inputs from OSC 72 drops (T-31) are still built only by tests.
+// TODO(T-31, T-32b): remove this allow once they are wired.
 #![allow(dead_code)]
 
 use std::cell::RefCell;
