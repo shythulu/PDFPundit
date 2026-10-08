@@ -246,10 +246,10 @@ fn adler32_is_the_zlib_trailer() {
 fn the_input_trace_maps_every_input_byte() {
     let data = sample(3_000, 4);
     let z = zlib(&data);
-    let t = InputTrace::of(&z, Mode::Zlib);
-    assert_eq!(t.out_after.len(), z.len());
-    assert!(t.out_after.windows(2).all(|w| w[0] <= w[1]));
-    assert_eq!(*t.out_after.last().unwrap(), data.len());
+    let t = InputTrace::of(&z, Mode::Zlib, true);
+    assert_eq!(t.out_after().len(), z.len());
+    assert!(t.out_after().windows(2).all(|w| w[0] <= w[1]));
+    assert_eq!(*t.out_after().last().unwrap(), data.len());
 }
 
 // ── the ladder on the C9 golden ──────────────────────────────────────────
@@ -295,14 +295,15 @@ fn golden_content_streams_are_repaired_exact() {
 }
 
 /// The 9.6 KB embedded font with Adler-only damage early in the stream is
-/// out of reach under `work` without a localizer (T-08b's job).
+/// out of reach under `work` with no localizer registered (T-08b's
+/// localizer and its tests are in `ttf`).
 #[test]
 fn font_stream_is_checksum_mismatch_under_work() {
     let golden = golden_pdf();
     let (_, raw) = stream_of(&golden, FONT_FILE);
     assert_eq!(inflate(&raw, DEFAULT_CAP).out, TEST_FONT);
     let (damaged, _) = damage(&raw, raw.len() / 4, 1, is_adler);
-    let s = salvage_inflate(&damaged, &under_work());
+    let s = salvage_with(&damaged, &under_work(), &[]);
     let Salvage::ChecksumMismatch { data } = &s else {
         panic!("{s:?}");
     };
@@ -368,10 +369,12 @@ impl Localizer for Fixed {
     fn window(&self, _: &[u8], _: &InputTrace) -> Option<Window> {
         Some(Window {
             ranges: self.0.clone(),
+            check: None,
+            widen: false,
         })
     }
-    fn early_reject(&self, _: &[u8]) -> Option<bool> {
-        Some(false)
+    fn early_reject(&self, _: &Check, _: &[u8], _: usize) -> Option<bool> {
+        unreachable!("a window with no check asks nothing")
     }
 }
 
@@ -735,41 +738,86 @@ fn same_output_edits_keep_data_but_not_edits_across_budgets() {
     assert_eq!(edits, &vec![(1, 0x1D, 0x01)], "a different edit");
 }
 
-/// A localizer's `early_reject` stops candidates; refusing every one leaves
-/// the stream unrepaired and costs less W than the plain search.
+/// A check that refuses every candidate leaves the first pass with no
+/// accept; the search then widens with no check (the window, then the rest
+/// of the ladder's own), the repair carries `adler_rerun`, and it costs more
+/// W than the plain search.
 #[test]
-fn early_reject_refuses_candidates() {
+fn a_check_refusing_everything_is_rerun_under_adler() {
     struct No;
     impl Localizer for No {
         fn window(&self, _: &[u8], _: &InputTrace) -> Option<Window> {
             Some(Window {
                 ranges: std::iter::once(2..300).collect(),
+                check: Some(Check {
+                    at_out: 1,
+                    from: 0,
+                    memo: Arc::new(()),
+                }),
+                widen: false,
             })
         }
-        fn early_reject(&self, _: &[u8]) -> Option<bool> {
+        fn early_reject(&self, _: &Check, _: &[u8], _: usize) -> Option<bool> {
             Some(true)
         }
     }
     let data = sample(400, 10);
     let z = zlib(&data);
     let (m, _) = damage(&z, 150, 1, is_adler);
-    let s = salvage_with(&m, &under_work(), &[&No]);
-    assert!(matches!(s, Salvage::ChecksumMismatch { .. }), "{s:?}");
-    let s = salvage_with(
+    let refused = salvage_with(&m, &under_work(), &[&No]);
+    let plain = salvage_with(
         &m,
         &under_work(),
         &[&Fixed(std::iter::once(2..300).collect())],
     );
-    assert!(
-        matches!(
-            s,
-            Salvage::Repaired {
-                grade: Grade::Exact,
-                ..
-            }
-        ),
-        "{s:?}"
+    let (
+        Salvage::Repaired {
+            data: d1,
+            edits: e1,
+            grade: Grade::Exact,
+            work: w1,
+            adler_rerun: true,
+            ..
+        },
+        Salvage::Repaired {
+            data: d2,
+            edits: e2,
+            grade: Grade::Exact,
+            work: w2,
+            adler_rerun: false,
+            ..
+        },
+    ) = (&refused, &plain)
+    else {
+        panic!("{refused:?} / {plain:?}");
+    };
+    assert_eq!((d1, e1), (d2, e2));
+    assert_eq!(d1, &data);
+    assert!(w1 > w2, "{w1} > {w2}");
+}
+
+/// The widened window: the localized positions at or past `from` first,
+/// then the ladder's own window without the localized positions, each piece
+/// from its top down.
+#[test]
+fn the_widened_window_skips_what_was_judged_by_the_adler_alone() {
+    let own = std::iter::once(2..100).collect::<Vec<_>>();
+    assert_eq!(
+        widened(&[40..60, 10..20], 15, &own),
+        [40..60, 15..20, 60..100, 20..40, 2..10]
     );
+    assert_eq!(
+        widened(&[40..60, 10..20], usize::MAX, &own),
+        [60..100, 20..40, 2..10]
+    );
+    assert_eq!(widened(&own, 0, &own), own);
+    assert_eq!(widened(&own, usize::MAX, &own), []);
+    // The deep error window extends the phase-1 one, and so do the widened.
+    let [w0, w1] = own_windows(Damage::Error { k: 5_000 }, 6_000);
+    let localized = std::iter::once(4_990..5_000).collect::<Vec<_>>();
+    let (a, b) = (widened(&localized, 0, &w0), widened(&localized, 0, &w1));
+    assert_eq!(a[..], b[..a.len()]);
+    assert_eq!(b.len(), a.len() + 1);
 }
 
 // ── salvage_all ──────────────────────────────────────────────────────────
