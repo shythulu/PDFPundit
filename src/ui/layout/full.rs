@@ -24,6 +24,12 @@
 //! MENU draws `H history`, `S setup` and `? help` because the golden does, but
 //! v1 has no screen behind them (D-048, flagged for the user): [`menu_key`]
 //! answers those keys with the "not yet" hint and opens nothing.
+//!
+//! The per-file menu (frame 05, D-048) opens with Enter over the queue row
+//! the cursor is on; [`file_menu_key`] is its keyboard model. Its one live
+//! item is `Export → Markdown` (DA:472, T-32b), which `e` also reaches
+//! straight from the batch and result views; the others answer with the "not
+//! yet" hint until their tickets land.
 #![cfg_attr(not(test), allow(dead_code))]
 
 use super::{FULL_SIZE, Layout};
@@ -916,6 +922,86 @@ fn title_room(w: i32, title: &str, note: &str) -> usize {
     usize::try_from(w)
         .unwrap_or(0)
         .saturating_sub(used + note + 1)
+}
+
+/// A key while the per-file menu is open.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuKey {
+    Up,
+    Down,
+    Enter,
+    Esc,
+    Char(char),
+}
+
+/// What the per-file menu asks the loop to do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileAction {
+    /// Export queue row `n` to Markdown (D-048: only ever on request).
+    Export(usize),
+}
+
+/// The queue row the per-file menu and `e` act on: the cursor's, else the
+/// runner's current file, else the first. `None` with an empty queue.
+pub fn menu_target(app: &AppState) -> Option<usize> {
+    let n = app.batch.entries.len();
+    if n == 0 {
+        return None;
+    }
+    Some(
+        app.selected
+            .filter(|&i| i < n)
+            .or(app.batch.current.filter(|&i| i < n))
+            .unwrap_or(0),
+    )
+}
+
+/// Opens the per-file menu over [`menu_target`]'s row, the cursor on its
+/// first item; the row becomes the selected one, so the view shows the file
+/// the menu acts on. False with an empty queue.
+pub fn open_file_menu(app: &mut AppState) -> bool {
+    let Some(target) = menu_target(app) else {
+        return false;
+    };
+    app.selected = Some(target);
+    app.file_menu = Some(menu_item(0));
+    true
+}
+
+/// A key while the per-file menu is open. Up and down move over the items
+/// (never onto the separator), Enter or an item's own key chooses it, Esc
+/// closes. Choosing closes the menu: `Export → Markdown` asks the loop to
+/// export the row; the other items set the "not yet" hint.
+pub fn file_menu_key(app: &mut AppState, key: MenuKey) -> Option<FileAction> {
+    let items = &strings::FILE_MENU_ITEMS;
+    let sel = menu_item(app.file_menu?);
+    let chosen = match key {
+        MenuKey::Esc => {
+            app.file_menu = None;
+            return None;
+        }
+        MenuKey::Up => {
+            let up = (0..sel).rev().find(|&i| items[i].is_some()).unwrap_or(sel);
+            app.file_menu = Some(up);
+            return None;
+        }
+        MenuKey::Down => {
+            let down = (sel + 1..items.len())
+                .find(|&i| items[i].is_some())
+                .unwrap_or(sel);
+            app.file_menu = Some(down);
+            return None;
+        }
+        MenuKey::Enter => items[sel],
+        MenuKey::Char(c) => items.iter().flatten().copied().find(|&(_, k)| k == c),
+    };
+    let (label, _) = chosen?;
+    app.file_menu = None;
+    if label == strings::EXPORT_MARKDOWN {
+        return menu_target(app).map(FileAction::Export);
+    }
+    app.hint = Some(strings::NOT_YET);
+    None
 }
 
 /// What a MENU key does on the main screen when it has no screen in v1

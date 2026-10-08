@@ -1,18 +1,24 @@
-//! Deny-list scan of every artefact for UI copy (T-14). Uses
-//! `crate::engine::*` only, with these exceptions: the deny-list
-//! `crate::ui::strings::ALL`, the inputs from `crate::pdf::fixtures`
-//! (goal-r2-q11, goal point 3: no cat in artefacts), the fixture list in
-//! the sibling `tests` module, and lopdf to decode the repaired PDF.
+//! Deny-list scan of every artefact for UI copy (T-14, T-32b). An artefact
+//! (the repaired PDF, the report, the exported Markdown) must never carry
+//! the cat: no face, pose, reaction, theme name or UI line (goal-r2-q11,
+//! goal point 3). Uses `crate::engine::*` only, with these exceptions: the
+//! deny-list `crate::ui::strings::ALL`, the inputs from
+//! `crate::pdf::fixtures`, the fixture list in the sibling `tests` module,
+//! lopdf to decode the repaired PDF, and the Markdown export
+//! (`crate::pdf::export`, feature `export`), which sits beside the facade
+//! rather than behind it.
 //!
 //! Every artefact the facade produces for the fixtures is scanned: the
-//! repaired PDF, the serialised report and its fixed lines. The repaired
-//! PDF is scanned twice: as raw bytes, and decoded. The decoded form is
-//! every stream's content after its filters (object streams are already
-//! expanded by lopdf's load) and every string's bytes and its text-string
-//! decoding (UTF-16BE, UTF-8 or PDFDocEncoding), so copy hidden in a Flate
-//! stream, a hex string or a UTF-16 `/Title` is caught. A stream whose
-//! filters lopdf cannot undo is scanned raw only. The Markdown export joins
-//! the scan when it lands (T-32b).
+//! repaired PDF, the serialised report and its fixed lines, and the Markdown
+//! the export writes from the repair. The repaired PDF is scanned twice: as
+//! raw bytes, and decoded. The decoded form is every stream's content after
+//! its filters (object streams are already expanded by lopdf's load) and
+//! every string's bytes and its text-string decoding (UTF-16BE, UTF-8 or
+//! PDFDocEncoding), so copy hidden in a Flate stream, a hex string or a
+//! UTF-16 `/Title` is caught. A stream whose filters lopdf cannot undo is
+//! scanned raw only. The Markdown of the export's own fixtures (outline-only
+//! and Type 3 pages, and a layout with every block and note kind) is scanned
+//! as well.
 //!
 //! **Matching.** An entry hits where its text appears whole: not inside a
 //! longer word ("nom" does not hit "nominal"; letters, digits and `_` make
@@ -20,7 +26,8 @@
 //! `{…}` placeholder for one or more characters on one line. An entry that
 //! is only placeholders and punctuation (`{n}%`) names no copy of its own and
 //! is not scanned: it would hit every percentage a report states. Matching
-//! is case-sensitive, on raw bytes.
+//! is case-sensitive, on raw bytes: the golden's own text says "PDFPundit",
+//! which is the document's, not the status bar's "PDFPuNDiT".
 
 use lopdf::{Document, Object, decode_text_string};
 
@@ -130,6 +137,11 @@ fn hits(artefact: &[u8]) -> Vec<(&'static str, usize)> {
         .collect()
 }
 
+/// Every deny-list entry `text` holds.
+fn entries(text: &str) -> Vec<&'static str> {
+    hits(text.as_bytes()).into_iter().map(|(e, _)| e).collect()
+}
+
 /// Every artefact of `bytes`'s repair, by name.
 fn artefacts(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     let analysis = analyze(bytes, &AnalyzeOptions::default(), &mut NullProgress).unwrap();
@@ -155,11 +167,32 @@ fn artefacts(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
             out.report.lines().join("\n").into_bytes(),
         ),
     ];
+    #[cfg(feature = "export")]
+    v.push((
+        "the Markdown export",
+        export_of(bytes, &analysis, &out).into_bytes(),
+    ));
     if let Some(o) = out.output {
         v.push(("the repaired PDF, decoded", decoded(&o)));
         v.push(("the repaired PDF", o));
     }
     v
+}
+
+/// The Markdown the export writes from `out`, as the export job builds it:
+/// from the repaired PDF, or the input when there is none, with the
+/// analysis's findings and the repair's images.
+#[cfg(feature = "export")]
+fn export_of(input: &[u8], analysis: &AnalysisResult, out: &RepairOutcome) -> String {
+    use crate::pdf::export::layouts;
+    use crate::pdf::export::markdown::{MarkdownOptions, to_markdown};
+    let pdf = out.output.as_deref().unwrap_or(input);
+    let pages = layouts(pdf, &analysis.findings, &out.images).expect("the export reads the pages");
+    let opts = MarkdownOptions {
+        page_separators: true,
+        image_dir_name: (!out.images.is_empty()).then(|| "fixture.0123abcd.images".to_owned()),
+    };
+    to_markdown(&pages, &opts)
 }
 
 /// Cap on one stream's decoded size: the fixtures are small.
@@ -223,8 +256,21 @@ fn the_scan_finds_what_it_must_and_nothing_inside_words() {
     assert!((planted("resolving thesis.pdf").iter()).any(|(e, _)| *e == "resolving {file}"));
     assert!(planted("Mono Ink").iter().any(|(e, _)| *e == "Mono Ink"));
     assert!(planted("‼").iter().any(|(e, _)| *e == "‼"));
+    assert_eq!(entries("the cat says chomp."), ["chomp"]);
+    assert!(entries("we open the file").contains(&"open"));
+    assert!(
+        entries("·∙· burp. 3 pdfs queued for repair ·∙·")
+            .contains(&"·∙· burp. {n} pdfs queued for repair ·∙·")
+    );
+    // Case counts: the document's name is not the status bar's.
+    assert!(entries("PDFPuNDiT v0.1").contains(&"PDFPuNDiT"));
+    assert!(!entries("PDFPundit golden page one.").contains(&"PDFPuNDiT"));
     // Inside a word, or a bare number with no copy: no hit.
     assert_eq!(planted("nominal xpdfs openly"), []);
+    assert_eq!(
+        entries("nominal values, reopened files"),
+        Vec::<&str>::new()
+    );
     assert_eq!(planted("88% kept"), []);
 }
 
@@ -286,7 +332,114 @@ fn no_artefact_carries_ui_copy() {
             assert!(found.is_empty(), "{name} of {input}: {found:?}");
         }
     }
-    // Every input has a report and its lines; all but the two goldens an
-    // output, scanned raw and decoded.
-    assert_eq!(scanned, 4 * inputs.len() - 4);
+    // Every input has a report, its lines and (with the export) its
+    // Markdown; all but the two goldens an output, scanned raw and decoded.
+    let per_input = if cfg!(feature = "export") { 5 } else { 4 };
+    assert_eq!(scanned, per_input * inputs.len() - 4);
+}
+
+/// The export's own fixtures and layouts, which the facade's fixtures do not
+/// reach (module docs).
+#[cfg(feature = "export")]
+mod markdown {
+    use super::entries;
+    use crate::pdf::export::layout::{Block, LayoutNote, Line, PageLayout, Run};
+    use crate::pdf::export::layouts;
+    use crate::pdf::export::markdown::{MarkdownOptions, to_markdown};
+    use crate::pdf::fixtures::{
+        TINY_JPEG, golden_pdf, golden_pdf_signed, outline_only_page, type3_only_page,
+    };
+
+    /// The Markdown of every fixture the export reads, plus every note and
+    /// block kind the emitter writes.
+    fn fixture_exports() -> Vec<(String, String)> {
+        let opts = MarkdownOptions {
+            page_separators: true,
+            image_dir_name: Some("fixture.0123abcd.images".to_owned()),
+        };
+        let images = vec![("p1-1.jpg".to_owned(), TINY_JPEG.to_vec())];
+        let mut out: Vec<(String, String)> = [
+            ("golden", golden_pdf()),
+            ("golden signed", golden_pdf_signed()),
+            ("outline only", outline_only_page()),
+            ("type3 only", type3_only_page()),
+        ]
+        .into_iter()
+        .map(|(name, pdf)| {
+            let pages = layouts(&pdf, &[], &images).expect("the fixture loads");
+            (name.to_owned(), to_markdown(&pages, &opts))
+        })
+        .collect();
+        let plain = |text: &str| Run {
+            text: text.to_owned(),
+            bold: false,
+            italic: false,
+            mono: false,
+            link: None,
+        };
+        let every_kind = PageLayout {
+            index: 0,
+            width_pt: 612,
+            height_pt: 792,
+            blocks: vec![
+                Block::Heading {
+                    level: 1,
+                    runs: vec![plain("Title")],
+                },
+                Block::Paragraph(vec![Line(vec![plain("Body.")])]),
+                Block::List {
+                    ordered: true,
+                    items: vec![vec![Line(vec![plain("item")])]],
+                },
+                Block::Table {
+                    rows: vec![vec!["a".into(), "b".into(), "c".into()]],
+                    header: false,
+                },
+                Block::Image {
+                    name: "p1-1.jpg".into(),
+                    sha256: [0; 32],
+                    len: 1,
+                },
+                Block::Rule,
+            ],
+            notes: vec![
+                LayoutNote::OutlinedText {
+                    paths: 9,
+                    contours: 412,
+                },
+                LayoutNote::Type3Text,
+                LayoutNote::ImageOnly,
+                LayoutNote::Unmapped { glyphs: 1 },
+                LayoutNote::Unmapped { glyphs: 2 },
+            ],
+        };
+        out.push(("every kind".to_owned(), to_markdown(&[every_kind], &opts)));
+        out.push((
+            "no images".to_owned(),
+            to_markdown(
+                &[PageLayout {
+                    index: 0,
+                    width_pt: 1,
+                    height_pt: 1,
+                    blocks: vec![Block::Image {
+                        name: "p1-1.jpg".into(),
+                        sha256: [0; 32],
+                        len: 1,
+                    }],
+                    notes: Vec::new(),
+                }],
+                &MarkdownOptions::default(),
+            ),
+        ));
+        out
+    }
+
+    #[test]
+    fn the_fixtures_markdown_carries_no_ui_copy() {
+        let exports = fixture_exports();
+        assert!(exports.iter().all(|(_, md)| !md.is_empty()));
+        for (name, md) in &exports {
+            assert_eq!(entries(md), Vec::<&str>::new(), "{name}:\n{md}");
+        }
+    }
 }

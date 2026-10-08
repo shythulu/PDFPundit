@@ -373,6 +373,9 @@ pub const FILE_MENU_ITEMS: [Option<(&str, char)>; 8] = [
     Some(("Remove from queue", 'x')),
 ];
 pub const EXPORT_MARKDOWN: &str = "Export → Markdown";
+/// The hint row's word when an export cannot run: the file left the queue
+/// before it started (T-32b).
+pub const EXPORT_UNAVAILABLE: &str = "can't export that file: drop it again";
 
 /// The last row of a findings or fonts list that has more entries than rows:
 /// how many are not shown (`{n}`).
@@ -654,6 +657,7 @@ pub const ALL: &[&str] = &[
     "Open repaired PDF",
     "Reveal in folder",
     EXPORT_MARKDOWN,
+    EXPORT_UNAVAILABLE,
     "Re-diagnose",
     "Repair options…",
     "Copy report",
