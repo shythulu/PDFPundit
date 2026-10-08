@@ -845,6 +845,67 @@ fn every_question_reaches_the_report() {
     assert_eq!(report.interactions, g.interactions);
 }
 
+/// `bytes` analysed, planned and repaired through the engine facade.
+fn through_engine(
+    bytes: &[u8],
+    fonts: &FontDb,
+    opts: &RepairOptions,
+    ask: &mut dyn Interact,
+) -> crate::engine::RepairOutcome {
+    let analysis =
+        crate::engine::analyze(bytes, &opts.analyze, &mut NullProgress).expect("never cancelled");
+    let plan = crate::engine::plan(&analysis, opts);
+    crate::engine::repair(bytes, &analysis, &plan, opts, fonts, ask, &mut NullProgress)
+        .expect("never cancelled")
+}
+
+#[test]
+fn a_policy_answer_reaches_the_engine_report() {
+    let bytes = corrupt(C7FontStreamDeleted, &two_fonts(), 0);
+    let opts = RepairOptions {
+        unreproducible: UnreproduciblePolicy::SubstituteGeneric,
+        ..RepairOptions::default()
+    };
+    let mut ask = Scripted::new(Vec::new());
+    let out = through_engine(&bytes, &sparse_db(), &opts, &mut ask);
+    assert!(ask.asked.is_empty());
+    let [rec] = &out.report.interactions[..] else {
+        panic!("{:?}", out.report.interactions)
+    };
+    assert_eq!(rec.source, InteractionSource::Policy);
+    assert_eq!(rec.reply, InteractionReply::Substitute(sparse_choice()));
+    assert_eq!(rec.request.kind, InteractionKind::FontUnreproducible);
+}
+
+#[test]
+fn an_asked_question_reaches_the_engine_report_once_and_replays() {
+    let bytes = corrupt(C7FontStreamDeleted, &golden_pdf(), 0);
+    let opts = always_ask();
+    let mut ask = Scripted::new(vec![InteractionReply::UseBest]);
+    let first = through_engine(&bytes, &test_db(), &opts, &mut ask);
+    assert_eq!(ask.asked.len(), 1);
+    let InteractionRequest::FontPick(req) = &ask.asked[0] else {
+        panic!("{:?}", ask.asked)
+    };
+    assert_eq!(req.id, crate::engine::InteractionRequestId(1));
+    let [rec] = &first.report.interactions[..] else {
+        panic!("{:?}", first.report.interactions)
+    };
+    assert_eq!(rec.source, InteractionSource::UseBest);
+    assert_eq!(rec.request.kind, InteractionKind::FontPick);
+
+    // Replaying the asked replies gives the same file and report.
+    let replies = (first.report.interactions.iter())
+        .filter(|r| r.source != InteractionSource::Policy)
+        .map(|r| r.reply.clone())
+        .collect();
+    let mut again = Scripted::new(replies);
+    let second = through_engine(&bytes, &test_db(), &opts, &mut again);
+    assert!(again.replies.is_empty());
+    assert_eq!(first.output, second.output);
+    assert_eq!(first.report, second.report);
+}
+
 // ── template assembly ────────────────────────────────────────────────────
 
 /// The `/ToUnicode` of the font page `page`'s `/F1` names in `doc`, decoded.

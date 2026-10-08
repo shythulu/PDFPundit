@@ -230,14 +230,34 @@ fn each_class_with_a_pass_repairs_end_to_end_and_reloads_strictly() {
 }
 
 #[test]
-fn a_class_without_a_pass_is_skipped_and_said_so() {
-    let bytes = corrupt(C7FontStreamDeleted, &golden_pdf(), 0);
+fn a_class_left_out_of_passes_is_skipped_and_said_so() {
+    // Every class has a pass since T-30, so C7 runs by default...
+    let bytes = corrupt(C1Header, &corrupt(C7FontStreamDeleted, &golden_pdf(), 0), 0);
     let analysis = analysed(&bytes);
+    assert_eq!(classes(&analysis.findings), [C1Header, C7FontStreamDeleted]);
+    let c7 = |out: &RepairOutcome| {
+        (out.report.passes.iter())
+            .find(|p| p.class == C7FontStreamDeleted)
+            .expect("a C7 report")
+            .clone()
+    };
     let out = repaired(&bytes, &analysis);
-    let pass = (out.report.passes.iter())
-        .find(|p| p.class == C7FontStreamDeleted)
-        .expect("a C7 report");
+    let pass = c7(&out);
+    assert!(!matches!(pass.outcome, PassOutcome::Skipped(_)), "{pass:?}");
+    // ...and is skipped, with a log line, when the options leave it out.
+    let opts = RepairOptions {
+        passes: Some(vec![C1Header]),
+        ..RepairOptions::default()
+    };
+    let mut sink = Counter::default();
+    let out = repaired_with(&bytes, &analysis, &opts, &mut UseBest, &mut sink);
+    let pass = c7(&out);
     assert!(matches!(pass.outcome, PassOutcome::Skipped(_)), "{pass:?}");
+    assert!(
+        (sink.logs.iter()).any(|(_, m)| m.starts_with("C7") && m.ends_with("skipped")),
+        "{:?}",
+        sink.logs
+    );
 }
 
 #[test]
@@ -471,14 +491,16 @@ fn the_recorded_settings_and_replies_replay_to_the_same_output_and_report() {
     let analysis = analyze(&bytes, &opts.analyze, &mut NullProgress).unwrap();
     let first = repaired_with(&bytes, &analysis, &opts, &mut UseBest, &mut NullProgress);
     assert_eq!(first.report.settings, SettingsSnapshot::of(&opts));
-    // No pass asks in this version, so the replies half of the replay is
-    // vacuous until T-30 adds an asking pass; this fails then, as a prompt
-    // to give the fixture a question. Numbering and recording are tested
-    // beside the recorder in `pipeline`.
+    // This fixture has no damaged font, so nothing is asked; the font
+    // questions' replay is tested in `pdf::repair::tests::fonts`.
     assert!(first.report.interactions.is_empty());
 
     let replay = options_from(&first.report.settings);
-    let mut script = Scripted::new(first.report.interactions.iter().map(|r| r.reply.clone()));
+    let mut script = Scripted::new(
+        (first.report.interactions.iter())
+            .filter(|r| r.source != InteractionSource::Policy)
+            .map(|r| r.reply.clone()),
+    );
     let again = analyze(&bytes, &replay.analyze, &mut NullProgress).unwrap();
     let second = repaired_with(&bytes, &again, &replay, &mut script, &mut NullProgress);
     assert!(
