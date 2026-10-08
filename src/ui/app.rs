@@ -491,14 +491,17 @@ impl App {
         }
     }
 
-    /// A key. On Windows the main screen's keys go through the collector
-    /// first; on Unix a key is only ever a key.
+    /// A key. On Windows the main screen's and the picker's keys go through
+    /// the collector first; on Unix a key is only ever a key. In the picker,
+    /// a path dropped as a burst of keys is a drop like a paste there (fed
+    /// through the gate, the picks left alone), not a run of picker keys that
+    /// would pick, toggle and move as it went.
     fn typed(&mut self, k: KeyEvent, _now: Duration) {
         if k.kind == KeyEventKind::Release {
             return;
         }
         #[cfg(windows)]
-        if self.state.screen == Screen::Main {
+        if matches!(self.state.screen, Screen::Main | Screen::Browse(_)) {
             for f in self.collector.key(k, _now) {
                 self.collected(f);
             }

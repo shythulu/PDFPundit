@@ -189,8 +189,9 @@ const FULL_BOX: (i32, i32, i32, i32) = (8, 2, 96, 34);
 /// Rows of the box that are not the list: the top edge, the folder, a
 /// separator, then a separator, the button, the keys and the bottom edge.
 const CHROME_ROWS: i32 = 7;
-/// The size column, drawn only where the box is at least this wide inside.
+/// The size column's width, the longest `fs::size_label` (`1023.9 GiB`).
 const SIZE_W: i32 = 10;
+/// The narrowest inside of the box that has the size column.
 const SIZES_FROM: i32 = 40;
 
 /// Draws the picker for `kind`: over the full layout (stepped back behind
@@ -321,7 +322,8 @@ fn list(c: &mut Canvas, s: &BrowseState, b: &Boxed, rows: i32, theme: &Theme) {
         let fg = if on { r.heading } else { r.file };
         c.text(name_x, ry, &fit(&e.display(), name_w), fg, None);
         if sizes {
-            let size = format!("{:>w$}", fs::size_label(e.size), w = room_of(SIZE_W));
+            let w = room_of(SIZE_W);
+            let size = format!("{:>w$}", fit(&fs::size_label(e.size), w));
             c.text(b.x + b.w - 2 - SIZE_W, ry, &size, r.dim, None);
         }
     }

@@ -679,6 +679,49 @@ fn the_picker_closes_on_esc_and_on_a_shrink_to_one_line() {
     assert_eq!(app.state.screen, Screen::Main);
 }
 
+/// A path pasted while the picker is open is a drop: it goes through the
+/// gate and the picker stays as it was, its picks untouched.
+#[test]
+fn a_paste_in_the_picker_is_a_drop_and_leaves_the_picks_alone() {
+    let dir = browse_fixture("app-browse-paste");
+    let mut app = browsing_in(dir.path(), 112, 38);
+    send(&mut app, key('b'));
+    send(&mut app, paste_of(&[&dir.join("a.pdf")]));
+    assert_eq!(app.admitted.len(), 1);
+    let Screen::Browse(picker) = &app.state.screen else {
+        panic!("the picker stays open");
+    };
+    assert!(picker.selected.is_empty());
+    assert_eq!((picker.cursor, picker.hidden), (0, false));
+}
+
+/// Windows: a path dropped as a burst of keys while the picker is open goes
+/// through the collector like on the main screen, so its `a`s, spaces and
+/// `.`s are never read as picker keys.
+#[cfg(windows)]
+#[test]
+fn a_typed_burst_in_the_picker_is_a_drop_on_windows() {
+    let dir = browse_fixture("app-browse-burst");
+    let dropped = pdf(&dir, "a b.pdf");
+    let mut app = browsing_in(dir.path(), 112, 38);
+    send(&mut app, key('b'));
+    let text = format!("\"{}\"", dropped.display());
+    for (i, c) in text.chars().enumerate() {
+        app.on_input(
+            key(c),
+            Duration::from_secs(10) + Duration::from_millis(i as u64),
+        );
+    }
+    app.tick(Duration::from_secs(20));
+    assert_eq!(app.admitted.len(), 1);
+    assert_eq!(app.admitted[0].path, dropped);
+    let Screen::Browse(picker) = &app.state.screen else {
+        panic!("the picker stays open");
+    };
+    assert!(picker.selected.is_empty(), "no `a` picked anything");
+    assert_eq!((picker.cursor, picker.hidden), (0, false));
+}
+
 /// A sample picker over the mockup's names, independent of any disk.
 fn sample_picker() -> BrowseState {
     use crate::ui::fs::Entry;
