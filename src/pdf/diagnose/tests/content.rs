@@ -291,6 +291,147 @@ fn resources_that_name_no_dictionary_are_not_c6() {
     assert!(of_class(&found, C6FontMapLost).is_empty(), "{found:#?}");
 }
 
+/// A one-page file whose `/Pages` node 2 maps `/F1` in inline inherited
+/// `/Resources`, and whose page names `parent` as its `/Parent`.
+fn inline_inherited(parent: u32) -> Vec<u8> {
+    classic(
+        &[
+            obj(1, CATALOG),
+            obj(
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 \
+                 /Resources << /Font << /F1 5 0 R >> >> >>",
+            ),
+            obj(
+                3,
+                &format!(
+                    "<< /Type /Page /Parent {parent} 0 R /MediaBox [0 0 612 792] \
+                     /Contents 4 0 R >>"
+                ),
+            ),
+            obj(4, &stream_body("", "BT /F1 12 Tf (Hi) Tj ET")),
+            obj(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+        ],
+        "",
+    )
+}
+
+#[test]
+fn inherited_resources_on_a_headerless_pages_node_are_c5_and_not_c6() {
+    let buf = inline_inherited(2);
+    assert_eq!(findings(&buf), vec![], "clean");
+    let found = findings(&strip_header(&buf, 2));
+    assert_eq!(
+        structural(&found),
+        BTreeSet::from([C5ObjectTagStripped]),
+        "{found:#?}"
+    );
+    assert!(
+        of_class(&found, C6FontMapLost).is_empty(),
+        "the node's resources still map the slot: {found:#?}"
+    );
+}
+
+#[test]
+fn a_page_whose_parent_names_nothing_is_not_c6() {
+    // The catalog's tree reaches the page under a node that maps the slot,
+    // but the page's `/Parent` names no object: the resources in force are
+    // unknown, so the slot is not called lost.
+    let found = findings(&inline_inherited(9));
+    assert!(of_class(&found, C6FontMapLost).is_empty(), "{found:#?}");
+}
+
+#[test]
+fn a_slot_mapped_to_null_or_to_no_object_at_all_is_c6() {
+    for value in ["null", "8 0 R"] {
+        let buf = classic(
+            &[
+                obj(1, CATALOG),
+                obj(2, &pages(&[3], 1)),
+                obj(
+                    3,
+                    &page_with(2, &format!("<< /Font << /F1 {value} >> >>"), 4),
+                ),
+                obj(4, &stream_body("", "BT /F1 12 Tf (Hi) Tj ET")),
+            ],
+            "",
+        );
+        let found = findings(&buf);
+        let c6 = of_class(&found, C6FontMapLost);
+        assert_eq!(c6.len(), 1, "{value}: {found:#?}");
+        assert!(texts(c6[0]).contains(&"slots: F1"), "{value}");
+        assert_eq!(
+            c6[0].repair,
+            Repairability::Interactive(InteractionKind::FontPick),
+            "{value}"
+        );
+    }
+}
+
+#[test]
+fn a_form_two_pages_draw_is_read_through_on_both() {
+    // Pages 3 and 6 both draw form 5 (under a name that needs escaping),
+    // which draws form 7, whose slot nothing maps: each page has its C6,
+    // so the second page still reaches form 7 through form 5.
+    let page = |contents: u32| page_with(2, "<< /XObject << /X#201 5 0 R >> >>", contents);
+    let buf = classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3, 6], 2)),
+            obj(3, &page(4)),
+            obj(4, &stream_body("", "q /X#201 Do Q")),
+            obj(
+                5,
+                &stream_body(
+                    "/Type /XObject /Subtype /Form /BBox [0 0 10 10] \
+                     /Resources << /XObject << /Inner 7 0 R >> >>",
+                    "q /Inner Do Q",
+                ),
+            ),
+            obj(6, &page(8)),
+            obj(
+                7,
+                &stream_body(
+                    "/Type /XObject /Subtype /Form /BBox [0 0 10 10] /Resources << >>",
+                    "BT /F9 12 Tf (Hi) Tj ET",
+                ),
+            ),
+            obj(8, &stream_body("", "/X#201 Do")),
+        ],
+        "",
+    );
+    let found = findings(&buf);
+    let c6 = of_class(&found, C6FontMapLost);
+    assert_eq!(c6.len(), 2, "{found:#?}");
+    for (f, page) in c6.iter().zip([3, 6]) {
+        assert!(texts(f).contains(&"slots: F9"), "{f:#?}");
+        assert!(matches!(f.location, Location::Page { obj: Some((p, 0)), .. } if p == page));
+    }
+}
+
+#[test]
+fn an_inline_type3_font_gives_no_type3_text() {
+    // `Type3Text` names the font by object id; an inline font has none.
+    let buf = classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3], 1)),
+            obj(
+                3,
+                &page_with(
+                    2,
+                    "<< /Font << /T1 << /Type /Font /Subtype /Type3 /FontBBox [0 0 1 1] \
+                     /FontMatrix [1 0 0 1 0 0] /CharProcs << >> >> >> >>",
+                    4,
+                ),
+            ),
+            obj(4, &stream_body("", "BT /T1 12 Tf (a) Tj ET")),
+        ],
+        "",
+    );
+    assert_eq!(findings(&buf), vec![]);
+}
+
 // ── C7 / C8 ─────────────────────────────────────────────────────────────
 
 #[test]

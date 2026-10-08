@@ -47,9 +47,14 @@
 //!   only a form uses, from its own `/Resources`, is not C6). The re-link
 //!   candidates are the fonts no reference from the catalog reaches, less
 //!   the descendants of another candidate; with none the slot needs a pick.
-//!   A slot whose value names nothing is C5's or C4's, not C6, and so is
-//!   every slot of a `/Resources` or `/Font` entry that names nothing usable
-//!   (its target lost its header, or is not a dictionary).
+//!   The page's resources are its own `/Resources`, else the nearest
+//!   `/Parent` ancestor's, read through the remap, so a node that lost its
+//!   header still maps its slots. A slot mapped to `null`, or to a reference
+//!   no object or orphan carries, is unmapped: C6. A slot whose font lost
+//!   its header resolves to the orphan and is C5's alone. No slot is C6
+//!   when the resources in force are unknown: a `/Resources` or `/Font`
+//!   entry names nothing usable (its target is not a dictionary), or the
+//!   page's `/Parent` chain names no object, loops or is not a reference.
 //! - **C7**: a `/FontDescriptor` with no `/FontFile`, `/FontFile2` or
 //!   `/FontFile3`, or one whose stream is missing, empty, all 0x20 or does not
 //!   read as a font. A font never embedded (no such key) is C7 too, as #14
@@ -73,7 +78,9 @@
 //! - None of these run on an encrypted file: its streams are ciphertext.
 //! - **OutlinedText**: a page whose content fills paths of three or more
 //!   curve segments, counted with their contours. **Type3Text**: one per
-//!   (page, Type3 font) a `Tf` selects. Both Info.
+//!   (page, Type3 font) a `Tf` selects. Both Info. A Type 3 font written
+//!   inline in `/Font` gives no `Type3Text`: the finding names its font by
+//!   object id, and an inline font has none.
 //!
 //! Ids are `<code>-<nnn>` (`C2-001`, `ENC-001`, `SIG-001`), numbered per
 //! code in byte order of where each finding sits, so they are stable for
@@ -90,7 +97,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use lopdf::{Dictionary, Object};
 
 use crate::pdf::carver::{Body, CarveNote, CarveReport, Origin, Orphan};
-use crate::pdf::graph::{ContentPiece, MAX_TREE_DEPTH, ObjectGraph, Resources};
+use crate::pdf::graph::{ContentPiece, MAX_TREE_DEPTH, ObjectGraph};
 use crate::pdf::lexer::{self, LexNote};
 use crate::pdf::model::{
     ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, HexWindow, InteractionKind,
@@ -1140,6 +1147,9 @@ struct Scan {
     paths: u32,
     /// Their subpaths (`m` and `re`).
     contours: u32,
+    /// Its `Do` operators that name an XObject, written again as a content
+    /// stream: what `page_content`'s `Do` search reads on a second visit.
+    dos: Vec<u8>,
 }
 
 fn scan(content: &[u8]) -> Scan {
@@ -1150,6 +1160,12 @@ fn scan(content: &[u8]) -> Scan {
             b"Tf" => {
                 if let [.., Object::Name(slot), _] = op.operands.as_slice() {
                     s.slots.insert(slot.clone());
+                }
+            }
+            b"Do" => {
+                if let Some(Object::Name(name)) = op.operands.last() {
+                    push_name(&mut s.dos, name);
+                    s.dos.extend_from_slice(b" Do\n");
                 }
             }
             b"m" | b"re" => contours = contours.saturating_add(1),
@@ -1169,101 +1185,147 @@ fn scan(content: &[u8]) -> Scan {
     s
 }
 
-/// What `resources` maps `slot` to: `Some(None)` when it has no `/Font` or
-/// its `/Font` lacks the slot, `None` when its `/Font` names nothing usable.
+/// `/name`, every byte but a letter or digit as `#xx`, so the lexer reads
+/// back the same name.
+fn push_name(out: &mut Vec<u8>, name: &[u8]) {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    out.push(b'/');
+    for &b in name {
+        if b.is_ascii_alphanumeric() {
+            out.push(b);
+        } else {
+            out.extend_from_slice(&[b'#', HEX[usize::from(b >> 4)], HEX[usize::from(b & 15)]]);
+        }
+    }
+}
+
+/// The resources dictionary in force for a stream: `None` when it is
+/// unknown, `Some(None)` when none is, `Some(Some(d))` when `d` is.
+type InForce<'d> = Option<Option<&'d Dictionary>>;
+
+/// What `resources` maps `slot` to: `Some(None)` when it has no `/Font`, or
+/// its `/Font` lacks the slot or maps it to `null` or to a reference no
+/// object or orphan carries (ISO 32000-1 7.3.10: both read as `null`, and a
+/// `null` entry as an absent one); `None` when its `/Font` names nothing
+/// usable.
 fn font_slot<'v>(
     cx: &Cx<'v>,
     resources: &'v Dictionary,
     slot: &[u8],
 ) -> Option<Option<&'v Object>> {
+    let names_nothing = |v: &Object| match v {
+        Object::Null => true,
+        Object::Reference(id) => cx.remap.target(*id).is_none(),
+        _ => false,
+    };
     match resources.get(b"Font") {
         Err(_) => Some(None),
-        Ok(v) => Some(cx.dict_of(v)?.get(slot).ok()),
+        Ok(v) => Some(cx.dict_of(v)?.get(slot).ok().filter(|v| !names_nothing(v))),
     }
 }
 
-/// The dictionary `resources`' slots resolve against, read through the
-/// remap from its owner's `/Resources` entry. `None` when that entry names
-/// nothing usable (its target lost its header or is not a dictionary): the
-/// break is C5's or C4's, so none of its slots is C6's.
-fn piece_resources<'a: 'p, 'p>(cx: &Cx<'a>, resources: &'p Resources) -> Option<&'p Dictionary> {
-    let Some(owner) = resources.owner else {
-        return Some(&resources.dict);
-    };
-    match cx
-        .dict_or_stream(owner)
-        .and_then(|d| d.get(b"Resources").ok())
-    {
-        Some(v) => cx.dict_of(v),
-        None => Some(&resources.dict),
+/// The resources in force for `page`'s own content: its `/Resources`, else
+/// the nearest `/Parent` ancestor's, each read through the remap, so an
+/// ancestor that lost its header (C5) still counts. Unknown when an entry
+/// names nothing usable (the break is C5's or C4's), or when the `/Parent`
+/// chain names no object, is not a reference, loops or runs past
+/// [`MAX_TREE_DEPTH`]: none of those is a lost font map.
+fn page_resources<'a>(cx: &Cx<'a>, page: ObjId) -> InForce<'a> {
+    let mut seen = BTreeSet::new();
+    let mut cur = page;
+    for _ in 0..=MAX_TREE_DEPTH {
+        if !seen.insert(cur) {
+            return None;
+        }
+        let d = cx.dict_or_stream(cur)?;
+        if let Ok(v) = d.get(b"Resources") {
+            return cx.dict_of(v).map(Some);
+        }
+        match d.get(b"Parent") {
+            Err(_) => return Some(None),
+            Ok(Object::Reference(p)) => cur = *p,
+            Ok(_) => return None,
+        }
+    }
+    None
+}
+
+/// The resources `piece`'s slots resolve against. A form's own
+/// `/Resources` is read through the remap from the form; anything else
+/// (the page's `/Contents`, a form with no `/Resources` of its own) uses
+/// `page`, the page's.
+fn piece_resources<'p>(cx: &Cx<'p>, piece: &'p ContentPiece, page: InForce<'p>) -> InForce<'p> {
+    match piece.resources.owner {
+        Some(form) if form == piece.stream || piece.via.contains(&form) => {
+            match cx
+                .dict_or_stream(form)
+                .and_then(|d| d.get(b"Resources").ok())
+            {
+                Some(v) => cx.dict_of(v).map(Some),
+                None => Some(Some(&piece.resources.dict)),
+            }
+        }
+        _ => page,
     }
 }
 
 fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
-    // Decoded streams, so `page_content`'s `Do` search and the scan below
-    // inflate each once. A page's own streams leave the cache when scanned;
-    // forms stay, since other pages draw them too.
-    let cache: RefCell<BTreeMap<ObjId, Option<Cow<'_, [u8]>>>> = RefCell::default();
+    // Every stream is decoded and scanned once, on its first visit, however
+    // many pages draw it. Later visits hand `page_content` only the scan's
+    // `Do` operators, so no decoded stream is kept or copied.
+    let scans: RefCell<BTreeMap<ObjId, Option<Scan>>> = RefCell::default();
     let decode = |id: ObjId| salvage.decoded(&cx.source, id, DEFAULT_CAP).ok();
-    let decoded = |id: ObjId| {
-        if let Some(hit) = cache.borrow().get(&id) {
-            return hit.clone();
+    let visit = |id: ObjId| {
+        if let Some(seen) = scans.borrow().get(&id) {
+            return seen.as_ref().map(|s| Cow::Owned(s.dos.clone()));
         }
-        let got = decode(id);
-        cache.borrow_mut().insert(id, got.clone());
-        got
+        let bytes = decode(id);
+        scans.borrow_mut().insert(id, bytes.as_deref().map(scan));
+        bytes
     };
-    let mut forms: BTreeSet<ObjId> = BTreeSet::new();
-    // Each stream is scanned once, however many pages draw it.
-    let mut scans: BTreeMap<ObjId, Option<Scan>> = BTreeMap::new();
     let mut candidates: Option<Vec<ObjId>> = None;
     let mut out = Vec::new();
     for (index, page) in cx.graph.pages_in_doc_order().into_iter().enumerate() {
         let index = u32::try_from(index).unwrap_or(u32::MAX);
-        let pieces: Vec<ContentPiece> = cx.graph.page_content(cx.carve, page, decoded);
+        let pieces: Vec<ContentPiece> = cx.graph.page_content(cx.carve, page, visit);
+        let mut scans = scans.borrow_mut();
         // The page's own resources: what its `/Contents` draw with.
-        let own = pieces
-            .iter()
-            .find(|p| p.via.is_empty())
-            .map(|p| piece_resources(cx, &p.resources));
+        let own = page_resources(cx, page);
         let mut missing: BTreeSet<Vec<u8>> = BTreeSet::new();
         let mut type3: BTreeSet<ObjId> = BTreeSet::new();
         let (mut paths, mut contours) = (0u32, 0u32);
         for piece in &pieces {
-            if !piece.via.is_empty() {
-                forms.insert(piece.stream);
-            }
-            let Some(scan) = scans.entry(piece.stream).or_insert_with(|| {
-                let bytes = cache.borrow_mut().remove(&piece.stream);
-                bytes
-                    .unwrap_or_else(|| decode(piece.stream))
-                    .map(|b| scan(&b))
-            }) else {
+            // `page_content` does not decode the deepest forms it lists.
+            let Some(scan) = scans
+                .entry(piece.stream)
+                .or_insert_with(|| decode(piece.stream).map(|b| scan(&b)))
+            else {
                 continue;
             };
             paths = paths.saturating_add(scan.paths);
             contours = contours.saturating_add(scan.contours);
-            let here = piece_resources(cx, &piece.resources);
+            let here = piece_resources(cx, piece, own);
             for slot in &scan.slots {
                 let mut value = None;
                 let mut unknown = false;
-                for resources in [Some(here), own].into_iter().flatten() {
-                    match resources.and_then(|r| font_slot(cx, r, slot)) {
-                        Some(Some(v)) => {
-                            value = Some(v);
-                            break;
-                        }
-                        Some(None) => {}
+                for resources in [here, own] {
+                    match resources {
                         None => unknown = true,
+                        Some(None) => {}
+                        Some(Some(r)) => match font_slot(cx, r, slot) {
+                            Some(Some(v)) => {
+                                value = Some(v);
+                                break;
+                            }
+                            Some(None) => {}
+                            None => unknown = true,
+                        },
                     }
                 }
                 match value {
-                    Some(Object::Reference(font))
-                        if cx
-                            .remap
-                            .target(*font)
-                            .and_then(|h| cx.dict(h))
-                            .is_some_and(|d| is_subtype(d, b"Type3")) =>
+                    // An inline Type 3 font has no id for `Type3Text`.
+                    Some(v @ Object::Reference(font))
+                        if cx.dict_of(v).is_some_and(|d| is_subtype(d, b"Type3")) =>
                     {
                         type3.insert(*font);
                     }
@@ -1275,7 +1337,6 @@ fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
                 }
             }
         }
-        cache.borrow_mut().retain(|id, _| forms.contains(id));
 
         let at = cx.remap.target(page).map_or(0, |h| cx.place(h).1);
         let location = Location::Page {
