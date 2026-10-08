@@ -1,3 +1,4 @@
 # research knowledge base: full texts, PDFs, API caches are never committed (copyright + size)
 research/cache/
 __pycache__/
+/target/
