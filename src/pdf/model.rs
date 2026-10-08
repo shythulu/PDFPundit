@@ -284,7 +284,9 @@ pub enum LengthSource {
     InflateProbe,
     /// The next `endstream` keyword.
     ScannedEndstream,
-    /// The file ended inside the stream.
+    /// The file ended inside the stream. The carver also uses it when no
+    /// `endstream` comes before the next object header and the data is cut
+    /// there; its `NoEndstream` note marks that case.
     TruncatedAtEof,
 }
 

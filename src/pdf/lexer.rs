@@ -483,7 +483,7 @@ const STRUCTURAL: [&[u8]; 7] = [
 ];
 
 #[inline]
-fn is_ws(b: u8) -> bool {
+pub(crate) fn is_ws(b: u8) -> bool {
     matches!(b, b'\0' | b'\t' | b'\n' | b'\x0c' | b'\r' | b' ')
 }
 
@@ -496,7 +496,7 @@ fn is_delim(b: u8) -> bool {
 }
 
 #[inline]
-fn is_reg(b: u8) -> bool {
+pub(crate) fn is_reg(b: u8) -> bool {
     !is_ws(b) && !is_delim(b)
 }
 
