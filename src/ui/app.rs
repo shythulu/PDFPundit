@@ -40,13 +40,15 @@ use super::color::ColorCaps;
 use super::director::{CatEvent, CatFrame, Director, Mood, Stage};
 use super::input::{Input, InputSource};
 use super::layout::full::{self, FullLayout};
+use super::layout::modals::{ModalKey, ThemeAction, ThemeChooser};
 use super::layout::widget::{OneLine, WidgetLayout};
-use super::layout::{Layout, LayoutKind, LayoutPin, choose};
+use super::layout::{FULL_SIZE, Layout, LayoutKind, LayoutPin, choose};
 use super::state::{AppState, Screen};
 use super::strings;
 use super::term::{self, Surface};
 use super::theme::Theme;
 use super::view::{self, ViewModel};
+use super::widgets::lightbar;
 use crate::appdirs::AppDirs;
 use crate::config::{self, Config, OutputDir};
 use crate::engine::{AnalyzeOptions, Engine, Pdfpundit, RepairOptions};
@@ -165,8 +167,10 @@ fn shell() -> io::Result<()> {
         Some(&mut runner),
         store.as_mut().map(|s| s as &mut dyn HistoryStore),
     );
-    runner.shutdown(SHUTDOWN_GRACE);
+    // The terminal first: the wait for the job threads happens on the user's
+    // own screen, not on a frozen cat.
     guard.restore();
+    runner.shutdown(SHUTDOWN_GRACE);
     result
 }
 
@@ -311,6 +315,7 @@ struct Shown {
     size: (u16, u16),
     theme: usize,
     kind: LayoutKind,
+    screen: Screen,
 }
 
 /// The UI's state machine: inputs and job events in, frames and terminal
@@ -402,6 +407,12 @@ impl App {
     pub(crate) fn resize(&mut self, w: u16, h: u16) {
         self.state.term_size = (w, h);
         self.kind = choose((w, h), self.pin);
+        // The theme chooser is drawn over the full layout only: a shrink
+        // closes it as Esc would.
+        if self.kind != LayoutKind::Full && matches!(self.state.screen, Screen::Themes { .. }) {
+            self.set_theme(self.theme_before);
+            self.state.screen = Screen::Main;
+        }
         self.director.set_stage(match self.kind {
             LayoutKind::Full => Stage::Full,
             LayoutKind::Widget | LayoutKind::OneLine => Stage::Widget,
@@ -438,14 +449,17 @@ impl App {
         self.state.hint = None;
         match k.code {
             KeyCode::Char('q' | 'Q') => self.quit = true,
-            KeyCode::Char('T' | 't') => {
+            KeyCode::Char('T' | 't') if self.kind == LayoutKind::Full => {
                 self.theme_before = self.theme_index;
                 self.state.screen = Screen::Themes {
-                    selected: self.theme_index,
+                    selected: ThemeChooser::open(Theme::all(), &Theme::all()[self.theme_index]),
                 };
             }
-            // TODO(T-37): the browse picker.
-            KeyCode::Char('b' | 'B') => self.state.hint = Some(strings::NOT_YET),
+            // TODO(T-37): the browse picker. Inert where the layout takes no
+            // input (the one-line fallback, D-064).
+            KeyCode::Char('b' | 'B') if layout(self.kind).accepts_input() => {
+                self.state.hint = Some(strings::NOT_YET);
+            }
             KeyCode::Char(c) => {
                 full::menu_key(&mut self.state, c);
             }
@@ -456,27 +470,32 @@ impl App {
         }
     }
 
-    /// The theme chooser: up and down try each theme on the spot, Enter keeps
-    /// it, Esc or `q` goes back to the one before.
-    // TODO(T-24): `ThemeChooser::draw` shows the list over the main screen.
+    /// The theme chooser (T-24's keyboard model): up and down try each theme
+    /// on the spot, Enter keeps it, Esc goes back to the one before.
     fn chooser_key(&mut self, code: KeyCode, selected: usize) {
-        let n = Theme::all().len();
-        let pick = match code {
-            KeyCode::Up | KeyCode::Char('k') => (selected + n - 1) % n,
-            KeyCode::Down | KeyCode::Char('j') => (selected + 1) % n,
-            KeyCode::Enter => {
-                self.state.screen = Screen::Main;
-                return;
-            }
-            KeyCode::Esc | KeyCode::Char('q' | 'Q') => {
-                self.set_theme(self.theme_before);
-                self.state.screen = Screen::Main;
-                return;
-            }
+        let key = match code {
+            KeyCode::Up => ModalKey::Up,
+            KeyCode::Down => ModalKey::Down,
+            KeyCode::Enter => ModalKey::Enter,
+            KeyCode::Esc => ModalKey::Esc,
+            KeyCode::Char(c) => ModalKey::Char(c),
             _ => return,
         };
-        self.set_theme(pick);
-        self.state.screen = Screen::Themes { selected: pick };
+        match ThemeChooser::key(Theme::all().len(), selected, key) {
+            ThemeAction::Preview(i) => {
+                self.set_theme(i);
+                self.state.screen = Screen::Themes { selected: i };
+            }
+            ThemeAction::Apply(i) => {
+                self.set_theme(i);
+                self.state.screen = Screen::Main;
+            }
+            ThemeAction::Cancel => {
+                self.set_theme(self.theme_before);
+                self.state.screen = Screen::Main;
+            }
+            ThemeAction::Ignore => {}
+        }
     }
 
     fn set_theme(&mut self, i: usize) {
@@ -681,23 +700,62 @@ impl App {
 
     /// Draws the screen at `now`, unless it would be the frame already shown.
     pub(crate) fn render(&mut self, surface: &mut dyn Surface, now: Duration) -> io::Result<()> {
-        let shown = Shown {
+        let shown = self.shown_at(now);
+        if self.shown.as_ref() == Some(&shown) {
+            return Ok(());
+        }
+        let c = self.draw(&shown);
+        surface.present(&c, &self.theme)?;
+        self.shown = Some(shown);
+        Ok(())
+    }
+
+    /// What the screen shows at `now`.
+    fn shown_at(&self, now: Duration) -> Shown {
+        Shown {
             vm: self.vm.clone(),
             cat: self.director.frame(now),
             size: self.state.term_size,
             theme: self.theme_index,
             kind: self.kind,
-        };
-        if self.shown.as_ref() == Some(&shown) {
-            return Ok(());
+            screen: self.state.screen.clone(),
         }
+    }
+
+    /// The canvas for `shown`: the layout, then the theme chooser over the
+    /// full layout while it is open, with the status bar's state saying so.
+    fn draw(&self, shown: &Shown) -> Canvas {
         let (w, h) = shown.size;
         let mut c = Canvas::new(w, h, &self.theme);
         layout(self.kind).draw(&mut c, &shown.vm, &shown.cat, &self.theme);
-        surface.present(&c, &self.theme)?;
-        self.shown = Some(shown);
-        Ok(())
+        if let (LayoutKind::Full, Screen::Themes { selected }) = (shown.kind, &shown.screen) {
+            ThemeChooser::draw(&mut c, Theme::all(), *selected);
+            modal_status(&mut c, &shown.vm, strings::CHOOSING_THEME, &self.theme);
+        }
+        c
     }
+}
+
+/// The full layout's status bar while a modal is up (T-24): the modal's state
+/// takes the place of the batch's and the queue count.
+fn modal_status(c: &mut Canvas, vm: &ViewModel, state: &str, theme: &Theme) {
+    let sb = &vm.status_bar;
+    let mut parts = vec![
+        strings::NODE_N.replace("{n}", &sb.node.to_string()),
+        format!("{{M}}{state}"),
+    ];
+    if sb.offline {
+        parts.push(format!("{{G}}{}", strings::OFFLINE));
+    }
+    let mut right = format!(
+        "{{M}}{} {{c}}│{{W}} {}×{}",
+        theme.name, sb.size.0, sb.size.1
+    );
+    if let Some((h, m)) = sb.clock {
+        right.push_str(&format!(" {{c}}│{{W}} {h:02}:{m:02}"));
+    }
+    let (w, h) = FULL_SIZE;
+    lightbar::status_bar(c, i32::from(h) - 1, i32::from(w), &parts, &right, theme);
 }
 
 fn layout(kind: LayoutKind) -> &'static dyn Layout {

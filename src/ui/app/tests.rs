@@ -14,6 +14,7 @@ use crate::jobs::{FakeEngine, JobInput, QueueEntry};
 use crate::library::RecentStatus;
 use crate::panic_guard::{self, SharedWriter};
 use crate::place::ScratchDir;
+use crate::ui::goldens;
 use crate::ui::term::TestScreen;
 
 /// Time moves one tick per event; the wall clock reads 11:38 in minute
@@ -414,9 +415,13 @@ fn keys_quit_open_the_chooser_and_move_the_cursor() {
     assert_eq!(app.state.screen, Screen::Main);
     assert_eq!(app.theme.name, first, "Esc goes back");
     app.on_input(key('T'));
+    app.on_input(code(KeyCode::Down));
+    app.on_input(code(KeyCode::Down));
+    app.on_input(key('q'));
+    assert!(!app.quit, "q is not a chooser key");
     app.on_input(code(KeyCode::Up));
     app.on_input(code(KeyCode::Enter));
-    assert_eq!(app.theme.name, Theme::all()[Theme::all().len() - 1].name);
+    assert_eq!(app.theme.name, Theme::all()[1].name, "Enter keeps it");
     assert_eq!(app.state.screen, Screen::Main);
 
     for (k, hint) in [('S', Some(strings::NOT_YET)), ('?', Some(strings::NOT_YET))] {
@@ -510,4 +515,39 @@ fn every_layout_kind_draws() {
         assert!(screen.rows().iter().any(|r| r.trim() != ""), "{w}×{h}");
     }
     assert_eq!(seen.len(), 3);
+}
+
+#[test]
+fn the_theme_chooser_is_drawn_over_the_full_layout() {
+    let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
+    app.state = AppState::mockup_idle();
+    let (w, h) = app.state.term_size;
+    app.resize(w, h);
+    app.refresh(Duration::ZERO);
+    app.arm();
+    let frame = |app: &App| app.draw(&app.shown_at(Duration::ZERO));
+    frame(&app).assert_matches(&goldens::load("01-idle"));
+    app.on_input(key('T'));
+    app.refresh(Duration::ZERO);
+    frame(&app).assert_matches(&goldens::load("06-theme-chooser"));
+
+    // The widget has no room for it: `T` opens nothing there, and a shrink
+    // closes an open chooser as Esc would.
+    app.on_input(code(KeyCode::Down));
+    assert_ne!(app.theme_index, app.theme_before);
+    app.on_input(Input::Resize(32, 16));
+    assert_eq!(app.state.screen, Screen::Main);
+    assert_eq!(app.theme_index, app.theme_before);
+    app.on_input(key('T'));
+    assert_eq!(app.state.screen, Screen::Main);
+}
+
+#[test]
+fn browse_is_inert_in_the_one_line_fallback() {
+    let (mut app, _) = started(20, 1, &config::Ui::default());
+    app.on_input(key('b'));
+    assert_eq!(app.state.hint, None);
+    let (mut app, _) = started(32, 16, &config::Ui::default());
+    app.on_input(key('b'));
+    assert_eq!(app.state.hint, Some(strings::NOT_YET));
 }

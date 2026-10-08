@@ -9,8 +9,9 @@
 //!
 //! The true case and the flush need a terminal, which a hosted runner step
 //! does not have, so they open a pty (rustix's `pty` feature, a dev-only
-//! dependency). They run on Unix only: a ConPTY variant waits on a run that
-//! shows ConPTY delivers output on windows-latest (actions/runner#3168).
+//! dependency). On Windows the true case runs on a ConPTY and is ignored until
+//! a run shows ConPTY delivers output on windows-latest (actions/runner#3168,
+//! D-058); the flush there has no runtime test yet.
 //! The guard times its child, so the time types are allowed here.
 #![allow(clippy::disallowed_types)]
 
@@ -389,5 +390,148 @@ mod pty {
         s.wait_for(FRAME_MARK, Duration::from_secs(20));
         s.alive_after(Duration::from_millis(500));
         assert_eq!(s.quit(), Some(0));
+    }
+}
+
+#[cfg(windows)]
+mod conpty {
+    //! The binary on a Windows pseudo console: `IsTerminal` holds for a
+    //! console handle, so it must not refuse.
+
+    use std::fs::File;
+    use std::io::Read;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+    use std::ptr;
+    use std::thread;
+
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, WAIT_TIMEOUT};
+    use windows_sys::Win32::System::Console::{
+        COORD, ClosePseudoConsole, CreatePseudoConsole, HPCON,
+    };
+    use windows_sys::Win32::System::Pipes::CreatePipe;
+    use windows_sys::Win32::System::Threading::{
+        CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
+        GetExitCodeProcess, InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
+        PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
+        STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
+    };
+
+    /// An anonymous pipe: its read end, then its write end.
+    fn pipe() -> (OwnedHandle, OwnedHandle) {
+        let (mut r, mut w): (HANDLE, HANDLE) = (ptr::null_mut(), ptr::null_mut());
+        // SAFETY: both out-pointers are valid for the call.
+        let ok = unsafe { CreatePipe(&mut r, &mut w, ptr::null(), 0) };
+        assert_ne!(ok, 0, "CreatePipe: {}", std::io::Error::last_os_error());
+        // SAFETY: CreatePipe succeeded, so both are fresh handles we own.
+        unsafe {
+            (
+                OwnedHandle::from_raw_handle(r),
+                OwnedHandle::from_raw_handle(w),
+            )
+        }
+    }
+
+    #[test]
+    #[ignore = "ConPTY output on windows-latest is unproven (actions/runner#3168, D-058)"]
+    fn on_a_console_it_runs_instead_of_refusing() {
+        let (in_read, _in_write) = pipe();
+        let (out_read, out_write) = pipe();
+        let mut pc: HPCON = 0;
+        let size = COORD { X: 112, Y: 38 };
+        // SAFETY: the pipe handles are open; `pc` is a valid out-pointer.
+        let hr = unsafe {
+            CreatePseudoConsole(
+                size,
+                in_read.as_raw_handle(),
+                out_write.as_raw_handle(),
+                0,
+                &mut pc,
+            )
+        };
+        assert_eq!(hr, 0, "CreatePseudoConsole: {hr:#x}");
+        // The pseudo console holds its own copies.
+        drop(in_read);
+        drop(out_write);
+        let mut out = File::from(out_read);
+        let reader = thread::spawn(move || {
+            let mut all = Vec::new();
+            let _ = out.read_to_end(&mut all);
+            all
+        });
+
+        let mut len = 0usize;
+        // SAFETY: a size query: a null list and a valid out-pointer.
+        unsafe { InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut len) };
+        let mut storage = vec![0usize; len.div_ceil(size_of::<usize>())];
+        let list: LPPROC_THREAD_ATTRIBUTE_LIST = storage.as_mut_ptr().cast();
+        // SAFETY: `storage` holds `len` bytes, pointer-aligned, for the list's life.
+        let ok = unsafe { InitializeProcThreadAttributeList(list, 1, 0, &mut len) };
+        assert_ne!(ok, 0, "InitializeProcThreadAttributeList");
+        // SAFETY: `list` is initialised; the attribute's value is the HPCON itself.
+        let ok = unsafe {
+            UpdateProcThreadAttribute(
+                list,
+                0,
+                PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize,
+                pc as *const core::ffi::c_void,
+                size_of::<HPCON>(),
+                ptr::null_mut(),
+                ptr::null(),
+            )
+        };
+        assert_ne!(ok, 0, "UpdateProcThreadAttribute");
+
+        let mut si = STARTUPINFOEXW::default();
+        si.StartupInfo.cb = u32::try_from(size_of::<STARTUPINFOEXW>()).expect("size");
+        // The test's own standard handles are pipes: the child must not
+        // inherit them, so it gets the pseudo console's.
+        si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        si.StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
+        si.StartupInfo.hStdOutput = INVALID_HANDLE_VALUE;
+        si.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
+        si.lpAttributeList = list;
+        let mut cmd: Vec<u16> = format!("\"{}\"", env!("CARGO_BIN_EXE_pdfpundit"))
+            .encode_utf16()
+            .chain([0])
+            .collect();
+        let mut pi = PROCESS_INFORMATION::default();
+        // SAFETY: every pointer is valid for the call; `cmd` is NUL-terminated
+        // and writable, as CreateProcessW requires.
+        let ok = unsafe {
+            CreateProcessW(
+                ptr::null(),
+                cmd.as_mut_ptr(),
+                ptr::null(),
+                ptr::null(),
+                0,
+                EXTENDED_STARTUPINFO_PRESENT,
+                ptr::null(),
+                ptr::null(),
+                &si.StartupInfo,
+                &mut pi,
+            )
+        };
+        assert_ne!(ok, 0, "CreateProcessW: {}", std::io::Error::last_os_error());
+
+        // SAFETY: `pi` holds the live process's handles until closed below.
+        let (waited, code) = unsafe {
+            let waited = WaitForSingleObject(pi.hProcess, 500);
+            let mut code = 0u32;
+            GetExitCodeProcess(pi.hProcess, &mut code);
+            TerminateProcess(pi.hProcess, 1);
+            WaitForSingleObject(pi.hProcess, 5000);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+            DeleteProcThreadAttributeList(list);
+            ClosePseudoConsole(pc);
+            (waited, code)
+        };
+        let output = reader.join().expect("reader");
+        assert_eq!(
+            waited,
+            WAIT_TIMEOUT,
+            "exited with {code} within 500 ms: {:?}",
+            String::from_utf8_lossy(&output)
+        );
     }
 }

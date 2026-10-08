@@ -598,9 +598,9 @@ pub const ALL: &[&str] = &[
     "Copy report",
     "Remove from queue",
     N_MORE,
-    // the shell (T-23a)
+    // the shell (T-23a): the failure line without the system's reason
     NOT_A_TERMINAL,
-    TERMINAL_FAILED,
+    "PDFPundit could not use the terminal:",
 ];
 
 #[cfg(test)]
