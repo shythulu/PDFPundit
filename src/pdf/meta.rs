@@ -7,9 +7,10 @@
 //!   other pages' modal box, then A4, the shipped `default_page_size`) as
 //!   `(|x1 - x0|, |y1 - y0|)` rounded to whole points.
 //! - **Title**: `/Title` of the document information dictionary. That is the
-//!   `/Info` of the last xref stream that names one; a classic trailer is not
-//!   in the carve's objects, so otherwise it is the last dictionary in byte
-//!   order that nothing references, has no `/Type`, and carries a `/Title`.
+//!   `/Info` of the last trailer, classic or xref stream, in byte order whose
+//!   `/Info` names a carved dictionary; when none does, it is the last
+//!   dictionary in byte order that nothing references, has no `/Type`, and
+//!   carries a `/Title`.
 //!   Text strings decode as UTF-16BE or UTF-8 by their byte-order mark, else
 //!   as PDFDocEncoding (lopdf's `decode_text_string`).
 #![cfg_attr(not(test), allow(dead_code))]
@@ -18,19 +19,24 @@ use lopdf::{Dictionary, Object};
 
 use crate::engine::PageSize;
 use crate::pdf::carver::{Body, CarveReport};
+use crate::pdf::diagnose::trailer_dict;
 use crate::pdf::graph::{ObjectGraph, winning_copies};
 use crate::pdf::model::{FileMeta, ObjId};
 use crate::pdf::rebuild::{plan_ids, rebuild_page_tree};
 
-/// The file's version, pages, page sizes and title (module docs). `graph`
-/// must be built from `carve`.
-pub(crate) fn file_meta(carve: &CarveReport, graph: &ObjectGraph) -> FileMeta {
+/// The file's version, pages, page sizes and title (module docs). `carve`
+/// and `graph` must come from `bytes`.
+///
+/// Note for the facade (T-14): this and `diagnose` each run `plan_ids` over
+/// the same carve; computing the `IdRemap` once and passing it to both would
+/// save one pass per file.
+pub(crate) fn file_meta(bytes: &[u8], carve: &CarveReport, graph: &ObjectGraph) -> FileMeta {
     let remap = plan_ids(carve, graph);
     let tree = rebuild_page_tree(carve, graph, &remap, PageSize::A4);
     FileMeta {
         version: version(carve),
         pages: u32::try_from(tree.pages.len()).unwrap_or(u32::MAX),
-        title: title(carve, graph),
+        title: title(bytes, carve, graph),
         page_sizes: tree.pages.iter().map(|p| size(&p.mediabox)).collect(),
     }
 }
@@ -57,18 +63,33 @@ fn size(mediabox: &[Object; 4]) -> (u32, u32) {
     (whole(n[2], n[0]), whole(n[3], n[1]))
 }
 
-fn title(carve: &CarveReport, graph: &ObjectGraph) -> Option<String> {
+fn title(bytes: &[u8], carve: &CarveReport, graph: &ObjectGraph) -> Option<String> {
     let winners = winning_copies(carve);
     let dict_of = |id: ObjId| match &carve.objects.get(*winners.get(&id)?)?.body {
         Body::Dict(d) => Some(d),
         _ => None,
     };
-    let declared = carve
-        .xref_streams
+    // Every trailer's `/Info`, classic and xref stream, in byte order.
+    let mut infos: Vec<(u64, ObjId)> = carve
+        .trailer_spans
         .iter()
-        .rev()
-        .find_map(|x| x.trailer.info.as_ref()?.as_reference().ok())
-        .and_then(dict_of);
+        .filter_map(|&s| {
+            let info = trailer_dict(bytes, s)?
+                .get(b"Info")
+                .ok()?
+                .as_reference()
+                .ok()?;
+            Some((s.start, info))
+        })
+        .collect();
+    infos.extend(
+        carve
+            .xref_streams
+            .iter()
+            .filter_map(|x| Some((x.span.start, x.trailer.info.as_ref()?.as_reference().ok()?))),
+    );
+    infos.sort_by_key(|&(at, _)| at);
+    let declared = infos.iter().rev().find_map(|&(_, id)| dict_of(id));
     let info: &Dictionary = match declared {
         Some(d) => d,
         None => {

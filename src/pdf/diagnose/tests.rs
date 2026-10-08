@@ -49,7 +49,7 @@ fn findings(buf: &[u8]) -> Vec<Finding> {
 fn meta(buf: &[u8]) -> FileMeta {
     let carve = carved(buf);
     let graph = ObjectGraph::from_carve(&carve);
-    file_meta(&carve, &graph)
+    file_meta(buf, &carve, &graph)
 }
 
 /// Every id is `<prefix>-<nnn>`, numbered from 001 per prefix in the order
@@ -421,6 +421,33 @@ fn an_off_startxref_in_an_xref_stream_file_is_measured_from_the_header() {
     );
 }
 
+/// The golden with `what` inserted after its header line.
+fn inserted_after_header(what: &[u8]) -> Vec<u8> {
+    let golden = fixtures::golden_pdf();
+    let line = find(&golden, b"\n").expect("a header line") + 1;
+    insert(&golden, line, what)
+}
+
+#[test]
+fn bytes_inserted_before_the_table_with_no_cut_to_explain_them_are_c3() {
+    // Every offset after the insertion is stale, the table's own entries
+    // too; no C4 or C5 finding accounts for it, so the miss is C3.
+    for (what, severity) in [
+        (b"%inserted junk line\n".to_vec(), Severity::Warning),
+        (vec![b' '; 200], Severity::Error),
+    ] {
+        let found = findings(&inserted_after_header(&what));
+        assert_eq!(found.len(), 1, "{} bytes: {found:#?}", what.len());
+        let f = &found[0];
+        assert_eq!(f.class, FindingKind::Corruption(C3TrailerDamaged));
+        assert_eq!(f.severity, severity, "{} bytes", what.len());
+        assert_eq!(
+            metric(f, "startxref_delta"),
+            Some(&MetricValue::Int(-(what.len() as i64)))
+        );
+    }
+}
+
 #[test]
 fn a_missing_tail_is_c3_with_the_tail_as_evidence() {
     let buf = fixtures::corrupt(C3TrailerDamaged, &fixtures::golden_pdf(), 0);
@@ -607,6 +634,13 @@ fn each_orphan_is_its_own_c5_finding_numbered_in_byte_order() {
         metric(c5[0], "kind"),
         Some(&MetricValue::Text("Font".into()))
     );
+    assert!(
+        c5[0]
+            .summary
+            .starts_with("a headerless dictionary (kind: Font) at byte "),
+        "{}",
+        c5[0].summary
+    );
     assert_eq!(structural(&found), BTreeSet::from([C5ObjectTagStripped]));
 }
 
@@ -632,6 +666,40 @@ fn a_cut_stream_is_c10_at_its_object_with_the_kept_fraction() {
     };
     assert!(*kept < Ratio { num: 1, den: 1 });
     assert!(*kept > Ratio { num: 0, den: 1 });
+}
+
+#[test]
+fn a_cut_stream_with_an_indirect_length_keeps_its_fraction() {
+    let data = "q 0 0 m 10 10 l S Q\n".repeat(20);
+    let declared = data.len();
+    let buf = classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3], 1)),
+            obj(
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R >>",
+            ),
+            obj(5, &declared.to_string()),
+            obj(
+                6,
+                &format!("<< /Length 5 0 R >>\nstream\n{data}\nendstream"),
+            ),
+        ],
+        "",
+    );
+    let data_start = find(&buf, b"stream\n").expect("stream keyword") + 7;
+    let cut = &buf[..data_start + 100];
+    let found = findings(cut);
+    let c10 = of_class(&found, C10Truncated);
+    assert_eq!(c10.len(), 1, "{found:#?}");
+    assert_eq!(
+        metric(c10[0], "kept_fraction"),
+        Some(&MetricValue::Ratio(Ratio {
+            num: 100,
+            den: declared as u64,
+        }))
+    );
 }
 
 #[test]
@@ -800,6 +868,37 @@ fn file_meta_reads_the_title_from_the_info_dictionary() {
         "/Info 9 0 R ",
     );
     assert_eq!(meta(&utf16).title.as_deref(), Some("été"));
+}
+
+#[test]
+fn file_meta_takes_the_classic_trailers_info_over_a_later_title_dictionary() {
+    let buf = classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3], 1)),
+            obj(3, &page(2)),
+            obj(9, "<< /Title (Real title) >>"),
+            obj(10, "<< /Title (Leftover dict nobody references) >>"),
+        ],
+        "/Info 9 0 R ",
+    );
+    assert_eq!(meta(&buf).title.as_deref(), Some("Real title"));
+
+    // With no `/Info`, the last unreferenced title dictionary stands in.
+    let bare = classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3], 1)),
+            obj(3, &page(2)),
+            obj(9, "<< /Title (Real title) >>"),
+            obj(10, "<< /Title (Leftover dict nobody references) >>"),
+        ],
+        "",
+    );
+    assert_eq!(
+        meta(&bare).title.as_deref(),
+        Some("Leftover dict nobody references")
+    );
 }
 
 #[test]

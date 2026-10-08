@@ -13,10 +13,11 @@
 //!   or `%%EOF`; or the last `startxref` misses the nearest table or xref
 //!   stream. Within ±64 bytes (lopdf's recovery window) the miss is a
 //!   Warning, past that an Error. A miss with no table or stream to land on
-//!   is C2's. A miss that the table's own entries share is not C3: when the
-//!   in-use entry with the highest offset misses its object's header by the
-//!   same amount, bytes were deleted or inserted before the table (a C4 or C5
-//!   cut), and the trailer is as it was written.
+//!   is C2's. A miss that a C4 or C5 cut explains is not C3: when the in-use
+//!   entry with the highest offset misses its object's header by the same
+//!   amount, and a C5 orphan or a C4 Error sits at or before that object,
+//!   the cut moved the table and the trailer is as it was written. Bytes
+//!   inserted or deleted with no such finding to explain them are C3.
 //! - **C4**: no catalog whose `/Pages` reaches a page-tree node (one with
 //!   `/Kids` or `/Count`), a `/Count` that is not the pages the walk reached,
 //!   or a `/Kids` entry that names nothing usable. References resolve as
@@ -84,12 +85,21 @@ pub(crate) fn diagnose(
     let c10 = c10(&cx);
     let truncated = c10.is_some();
     drafts.extend(c10);
+    let c4 = c4(&cx);
+    let c5 = c5(&cx);
+    // Where a C4 or C5 cut may have moved the bytes after it.
+    let cuts: Vec<u64> = c4
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .chain(&c5)
+        .map(|d| d.at)
+        .collect();
     if !truncated {
         drafts.extend(c2(&cx));
-        drafts.extend(c3(&cx));
+        drafts.extend(c3(&cx, &cuts));
     }
-    drafts.extend(c4(&cx));
-    drafts.extend(c5(&cx));
+    drafts.extend(c4);
+    drafts.extend(c5);
     drafts.extend(encrypted(&cx));
     drafts.extend(signed(&cx));
     drafts.extend(content(&cx, salvage));
@@ -400,7 +410,8 @@ fn c2(cx: &Cx<'_>) -> Option<Draft> {
     )
 }
 
-fn c3(cx: &Cx<'_>) -> Vec<Draft> {
+/// `cuts` are where the C4 Errors and C5 findings sit.
+fn c3(cx: &Cx<'_>, cuts: &[u64]) -> Vec<Draft> {
     let mut out = Vec::new();
     let trailer = !cx.carve.xref_streams.is_empty()
         || cx
@@ -428,13 +439,13 @@ fn c3(cx: &Cx<'_>) -> Vec<Draft> {
                 ]),
         );
     }
-    out.extend(startxref_miss(cx));
+    out.extend(startxref_miss(cx, cuts));
     out
 }
 
 /// The last `startxref`, when it misses the nearest table or xref stream
-/// and the table's entries do not share the miss (module docs).
-fn startxref_miss(cx: &Cx<'_>) -> Option<Draft> {
+/// and no cut in `cuts` explains the miss (module docs).
+fn startxref_miss(cx: &Cx<'_>, cuts: &[u64]) -> Option<Draft> {
     let (at, value) = cx.startxref?;
     let target = int(cx.base.saturating_add(value));
     let xref = cx
@@ -442,7 +453,13 @@ fn startxref_miss(cx: &Cx<'_>) -> Option<Draft> {
         .iter()
         .min_by_key(|x| (target - int(x.start)).unsigned_abs())?;
     let miss = target - int(xref.start);
-    if miss == 0 || body_shift(cx, xref) == Some(miss) {
+    if miss == 0 {
+        return None;
+    }
+    if let Some((shift, moved)) = body_shift(cx, xref)
+        && shift == miss
+        && cuts.iter().any(|&at| at <= moved)
+    {
         return None;
     }
     let severity = if miss.unsigned_abs() <= STARTXREF_SLACK {
@@ -468,8 +485,9 @@ fn startxref_miss(cx: &Cx<'_>) -> Option<Draft> {
 }
 
 /// How far the in-use entry with the highest offset misses its object's
-/// header, when that object was carved at top level before the section.
-fn body_shift(cx: &Cx<'_>, xref: &Xref) -> Option<i64> {
+/// header, when that object was carved at top level before the section, and
+/// where that object's header is.
+fn body_shift(cx: &Cx<'_>, xref: &Xref) -> Option<(i64, u64)> {
     // Each id's last top-level copy before the section.
     let mut starts: BTreeMap<ObjId, u64> = BTreeMap::new();
     for o in &cx.carve.objects {
@@ -482,14 +500,14 @@ fn body_shift(cx: &Cx<'_>, xref: &Xref) -> Option<i64> {
         .filter_map(|&(num, generation, off)| {
             let id = (u32::try_from(num).ok()?, u16::try_from(generation).ok()?);
             let actual = *starts.get(&id)?;
-            Some((off, int(cx.base.saturating_add(off)) - int(actual)))
+            Some((off, int(cx.base.saturating_add(off)) - int(actual), actual))
         })
-        .max_by_key(|&(off, _)| off)
-        .map(|(_, shift)| shift)
+        .max_by_key(|&(off, _, _)| off)
+        .map(|(_, shift, actual)| (shift, actual))
 }
 
 /// The dictionary after a `trailer` keyword, when one parses.
-fn trailer_dict(bytes: &[u8], span: ByteSpan) -> Option<Dictionary> {
+pub(crate) fn trailer_dict(bytes: &[u8], span: ByteSpan) -> Option<Dictionary> {
     let end = usize::try_from(span.end).ok()?.min(bytes.len());
     let from = usize::try_from(span.start).ok()? + b"trailer".len();
     match lexer::parse_value(&bytes[..end], from, 0).ok()?.value {
@@ -752,7 +770,7 @@ fn c5(cx: &Cx<'_>) -> Vec<Draft> {
                 Location::Span(span),
             )
             .summary(format!(
-                "a {kind} {shape} at byte {} has no object header",
+                "a headerless {shape} (kind: {kind}) at byte {}",
                 span.start
             ))
             .evidence(vec![Evidence::Metric {
@@ -813,7 +831,7 @@ fn c10(cx: &Cx<'_>) -> Option<Draft> {
         if let Some(declared) = dict
             .get(b"Length")
             .ok()
-            .and_then(|v| v.as_i64().ok())
+            .and_then(|v| cx.resolve(v).as_i64().ok())
             .and_then(|n| u64::try_from(n).ok())
             .filter(|&n| n > kept)
         {
