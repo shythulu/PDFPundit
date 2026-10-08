@@ -1,7 +1,8 @@
 //! T-13a acceptance for generate-and-validate and the structural passes:
 //! the C1–C5 and C10 fixtures re-diagnose clean for their class and pass
 //! V0/V1, the passes override, TemplateAssemble is skipped with a log, the
-//! C10 pass drops an unreachable cut object, a file with no page gets no
+//! C10 pass drops an unreachable cut object but keeps a cut catalog or
+//! `/Info` written last, a file with no page gets no
 //! output, the runs are deterministic, and the selection tuple is a pure
 //! function with a table test.
 
@@ -335,7 +336,9 @@ fn passes_override_the_planner() {
         PassOutcome::Skipped(_)
     ));
     assert!(
-        sink.logs.iter().any(|(_, m)| m.contains("C5")),
+        sink.logs
+            .iter()
+            .any(|(_, m)| m.contains("C5") && m.contains("re-emits the file regardless")),
         "{:?}",
         sink.logs
     );
@@ -428,6 +431,118 @@ fn the_c10_pass_drops_an_unreachable_cut_object() {
     assert_eq!(glyphs, golden_glyphs());
 }
 
+/// The golden's objects with one more written last, as `tail`: `last` makes
+/// it from the root id and `tail`, and `trailer` gives the trailer's
+/// `(root, info)`. Cut at `cut` bytes into the tail object.
+fn golden_with_tail(
+    last: impl FnOnce(ObjId, u32) -> Object,
+    trailer: impl FnOnce(ObjId, u32) -> (ObjId, Option<ObjId>),
+    skip_root: bool,
+    cut: impl FnOnce(&[u8]) -> usize,
+) -> (Vec<u8>, u32) {
+    let doc = Document::load_mem(&golden_pdf()).expect("loads");
+    let root = doc
+        .trailer
+        .get(b"Root")
+        .and_then(Object::as_reference)
+        .unwrap();
+    let tail = doc.objects.keys().map(|k| k.0).max().expect("objects") + 1;
+    let mut w = Writer::with_version("1.7");
+    for (&(n, _), o) in &doc.objects {
+        if !(skip_root && n == root.0) {
+            w.add(n, o.clone());
+        }
+    }
+    w.add(tail, last(root, tail));
+    let (r, info) = trailer(root, tail);
+    w.trailer(r, [7; 32], info);
+    let full = w.finish().expect("writes");
+    let header = format!("{tail} 0 obj");
+    let at = full
+        .windows(header.len())
+        .position(|win| win == header.as_bytes())
+        .expect("the tail object");
+    let end = at + cut(&full[at..]);
+    (full[..end].to_vec(), tail)
+}
+
+#[test]
+fn the_c10_pass_keeps_a_cut_catalog_written_last() {
+    // The catalog moved to the last object, cut right after `/Catalog`: its
+    // `/Pages` is gone, so only the rebuild's fallback finds it.
+    let golden = Document::load_mem(&golden_pdf()).expect("loads");
+    let (bytes, tail) = golden_with_tail(
+        |root, _| {
+            let old = golden.get_dictionary(root).expect("the catalog");
+            let mut d = Dictionary::new();
+            d.set("Type", Object::Name(b"Catalog".to_vec()));
+            for (k, v) in old.iter().filter(|(k, _)| k.as_slice() != b"Type") {
+                d.set(k.clone(), v.clone());
+            }
+            Object::Dictionary(d)
+        },
+        |_, tail| ((tail, 0), None),
+        true,
+        |obj| {
+            let name = b"/Catalog";
+            obj.windows(name.len()).position(|w| w == name).unwrap() + name.len()
+        },
+    );
+    let input = analysed(bytes);
+    assert!(
+        input.classes().contains(&C10Truncated),
+        "{:?}",
+        input.findings
+    );
+    let (g, _) = run(&input);
+    let c10 = pass(&g, C10Truncated);
+    assert!(
+        !c10.actions
+            .iter()
+            .any(|a| a.object == (tail, 0) && a.what.contains("dropped")),
+        "{:?}",
+        c10.actions
+    );
+    let out = g.output.as_deref().expect("an output");
+    assert!(chosen(&g).verification.v0.all_pass());
+    let pages = crate::pdf::text::extract_text(out, &Default::default()).expect("loads");
+    assert_eq!(pages.len(), 2);
+}
+
+#[test]
+fn the_c10_pass_keeps_a_cut_info_dictionary_written_last() {
+    // A trailer `/Info` written last, cut after its `>>`: only `endobj` is
+    // missing.
+    let (bytes, tail) = golden_with_tail(
+        |_, _| {
+            let mut d = Dictionary::new();
+            d.set("Title", Object::string_literal("Golden"));
+            Object::Dictionary(d)
+        },
+        |root, tail| (root, Some((tail, 0))),
+        false,
+        |obj| obj.windows(2).position(|w| w == b">>").unwrap() + 2,
+    );
+    let input = analysed(bytes);
+    assert!(
+        input.classes().contains(&C10Truncated),
+        "{:?}",
+        input.findings
+    );
+    let (g, _) = run(&input);
+    let c10 = pass(&g, C10Truncated);
+    assert!(
+        !c10.actions
+            .iter()
+            .any(|a| a.object == (tail, 0) && a.what.contains("dropped")),
+        "{:?}",
+        c10.actions
+    );
+    let out = g.output.as_deref().expect("an output");
+    assert!(chosen(&g).verification.v0.all_pass());
+    assert_eq!(preservation(out).features, 1, "{:?}", preservation(out));
+}
+
 /// Strict lopdf reload, the first V0 gate, as a cheap stand-in check.
 fn chosen_passes(out: &[u8]) -> bool {
     Document::load_mem(out).is_ok()
@@ -448,6 +563,13 @@ fn no_output_when_no_candidate_passes_v0() {
         g.escalations.iter().map(|e| e.kind).collect::<Vec<_>>(),
         [EscalationKind::NoCandidatePassed]
     );
+    // The passes tried are reported; no partial repair is, as nothing was
+    // written.
+    assert!(matches!(
+        pass(&g, C10Truncated).outcome,
+        PassOutcome::Partial(_)
+    ));
+    assert!(g.partial_reasons.is_empty());
 }
 
 #[test]

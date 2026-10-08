@@ -19,13 +19,23 @@
 //! `Skipped` report and a log line. The classes whose passes ran are the
 //! ones verification targets; the findings of a pass that reported
 //! `Partial` may stay in the output (D-074).
+//!
+//! `RepairOptions.passes` restricts the reports, the verification targets
+//! and the C10 drop. It does not restrict the `Resave` rebuild itself: that
+//! always writes a new header, cross-reference table and trailer, every
+//! orphan and the flat page tree. So a C1–C5 class left out of `passes` is
+//! reported `Skipped`, yet the output is usually rebuilt past it, and its
+//! finding may be gone on re-diagnosis. The `Skipped` reason and the log
+//! line say so.
 //! - **C1–C3**: re-emission fixes them (a new header, a classic table and a
 //!   trailer); one action per finding, "resolved by re-emission".
 //! - **C10**: a cut stream is written with the bytes before the cut and a
 //!   `/Length` to match (clamped); a cut object nothing reachable names is
 //!   dropped. Always `Partial`: what came after the cut is gone. Reachable
-//!   means from a catalog or a page, through the carve's references, the
-//!   rebuild's reference matches and every orphan's references.
+//!   means from what the output keeps (the catalog the rebuild chose, every
+//!   page of the flat tree, the trailer's `/Info`, every orphan's
+//!   references), through the carve's references as the rebuild resolves
+//!   them, its reference matches included.
 //! - **C5**: each headerless object is written under the number the
 //!   rebuild gave it, and named by the references the rebuild matched to it.
 //! - **C4**: the flat page tree is written: the catalog points at one
@@ -193,7 +203,7 @@ impl RepairPass for Truncation {
     }
 
     fn repair(&self, ctx: &mut RepairCtx<'_>, findings: &[Finding]) -> PassReport {
-        let reached = reachable(ctx.carve, ctx.graph, ctx.remap);
+        let reached = reachable(ctx.bytes, ctx.carve, ctx.graph, ctx.remap, ctx.page_tree);
         let mut actions = Vec::new();
         let mut dropped = 0u32;
         for (held, cut) in cut_objects(ctx.bytes, ctx.carve, ctx.doc.remap()) {
@@ -279,7 +289,7 @@ fn cut_objects(bytes: &[u8], carve: &CarveReport, remap: &IdRemap) -> Vec<(Held,
                 return None;
             }
             let cut = stream.map(|(dict, data)| Cut {
-                kept: data.end - data.start,
+                kept: data.end.saturating_sub(data.start),
                 declared: dict
                     .get(b"Length")
                     .ok()
@@ -293,31 +303,43 @@ fn cut_objects(bytes: &[u8], carve: &CarveReport, remap: &IdRemap) -> Vec<(Held,
     cut.into_iter().map(|(_, h, c)| (h, c)).collect()
 }
 
-/// Everything a catalog or a page reaches (module docs, C10).
-fn reachable(carve: &CarveReport, graph: &ObjectGraph, remap: &IdRemap) -> BTreeSet<Held> {
-    let mut roots: Vec<ObjId> = graph.catalog_candidates();
-    roots.extend(graph.pages_in_doc_order());
+/// Everything the output's roots reach through the rebuild's references
+/// (module docs, C10). The roots are what the output keeps whatever else
+/// happens: the catalog the rebuild chose, every page of the flat tree, the
+/// `/Info` dictionary the trailer will name ([`info_object`]), every other
+/// catalog and page the graph found, every orphan page and every reference
+/// an orphan holds. The walk resolves each reference with [`IdRemap::target`],
+/// so the rebuild's reference matches count as references.
+fn reachable(
+    bytes: &[u8],
+    carve: &CarveReport,
+    graph: &ObjectGraph,
+    remap: &IdRemap,
+    tree: &PageTreePlan,
+) -> BTreeSet<Held> {
+    let mut ids: Vec<ObjId> = graph.catalog_candidates();
+    ids.extend(graph.pages_in_doc_order());
+    if let CatalogPlan::Reuse(id) = tree.catalog {
+        ids.push(id);
+    }
     for orphan in &carve.orphans {
         let dict = match orphan {
             Orphan::Dict { dict, .. } | Orphan::Stream { dict, .. } => dict,
         };
-        dict.iter().for_each(|(_, v)| references(v, &mut roots));
+        dict.iter().for_each(|(_, v)| references(v, &mut ids));
     }
-    let mut ids = BTreeSet::new();
-    for root in roots {
-        if ids.contains(&root) {
-            continue;
-        }
-        ids.extend(graph.reachable(root));
-        // A root that is not a node (a reference only the rebuild matched).
-        ids.insert(root);
-    }
-    let mut held: BTreeSet<Held> = ids.into_iter().filter_map(|id| remap.target(id)).collect();
-    held.extend(remap.reconciled().iter().map(|r| r.target));
+    let mut queue: Vec<Held> = ids.into_iter().filter_map(|id| remap.target(id)).collect();
+    // What each output number holds, sorted by number.
+    let numbered = remap.objects();
+    queue.extend(tree.pages.iter().filter_map(|p| {
+        let i = numbered.binary_search_by_key(&p.id, |&(n, _)| n).ok()?;
+        Some(numbered[i].1)
+    }));
+    queue.extend(info_object(bytes, carve, graph).map(Held::Object));
     // An orphan page is a page.
     let is_page =
         |d: &Dictionary| d.get(b"Type").ok().and_then(|t| t.as_name().ok()) == Some(b"Page");
-    held.extend(
+    queue.extend(
         carve
             .orphans
             .iter()
@@ -325,7 +347,27 @@ fn reachable(carve: &CarveReport, graph: &ObjectGraph, remap: &IdRemap) -> BTree
             .filter(|(_, o)| matches!(o, Orphan::Dict { dict, .. } if is_page(dict)))
             .map(|(i, _)| Held::Orphan(i)),
     );
-    held
+    let mut seen = BTreeSet::new();
+    let mut refs = Vec::new();
+    while let Some(held) = queue.pop() {
+        if !seen.insert(held) {
+            continue;
+        }
+        refs.clear();
+        match held {
+            Held::Object(at) => match carve.objects.get(at).map(|o| &o.body) {
+                Some(Body::Dict(d) | Body::Stream { dict: d, .. }) => {
+                    d.iter().for_each(|(_, v)| references(v, &mut refs));
+                }
+                Some(Body::Primitive(v)) => references(v, &mut refs),
+                Some(Body::Unparsed) | None => {}
+            },
+            // Every orphan's references are roots already.
+            Held::Orphan(_) => {}
+        }
+        queue.extend(refs.iter().filter_map(|&id| remap.target(id)));
+    }
+    seen
 }
 
 /// Every reference in `v`, appended to `out`.
@@ -489,18 +531,21 @@ pub(crate) struct Generated {
     pub(crate) chosen: Option<Toolpath>,
     /// Every candidate built, in plan order.
     pub(crate) candidates: Vec<CandidateReport>,
-    /// The passes of the chosen candidate (of the best one when none passed).
+    /// The passes of the chosen candidate. When none passed V0, those of
+    /// the best failed candidate: what was tried on a file never written.
     pub(crate) passes: Vec<PassReport>,
     /// What the chosen candidate's emit changed.
     pub(crate) notes: EmitNotes,
     /// Escalations generation raised (`NoCandidatePassed`), beyond the plan's.
     pub(crate) escalations: Vec<Escalation>,
-    /// Each `Partial` pass's reason.
+    /// Each `Partial` pass's reason, for the output; empty when there is
+    /// none.
     pub(crate) partial_reasons: Vec<String>,
 }
 
 impl Generated {
-    /// Puts the run in `report`.
+    /// Puts the run in `report`. With no output, `report.passes` holds the
+    /// best failed candidate's passes and `partial_reasons` is empty.
     pub(crate) fn record(&self, report: &mut RepairReport) {
         report.passes = self.passes.clone();
         report.candidates = self.candidates.clone();
@@ -639,14 +684,18 @@ fn choose(built: Vec<Built>) -> Generated {
         .collect();
     let mut built = built;
     let b = built.swap_remove(best);
-    let partial_reasons = b
-        .passes
-        .iter()
-        .filter_map(|p| match &p.outcome {
-            PassOutcome::Partial(why) => Some(format!("{}: {why}", p.class.code())),
-            _ => None,
-        })
-        .collect();
+    // Reasons for a partial repair describe an output; with none, there are none.
+    let partial_reasons = if passed {
+        b.passes
+            .iter()
+            .filter_map(|p| match &p.outcome {
+                PassOutcome::Partial(why) => Some(format!("{}: {why}", p.class.code())),
+                _ => None,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let escalations = if passed {
         Vec::new()
     } else {
@@ -672,6 +721,16 @@ fn choose(built: Vec<Built>) -> Generated {
     }
 }
 
+/// The classes the `Resave` rebuild repairs whether or not their pass runs
+/// (module docs).
+const REBUILT: [CorruptionClass; 5] = [
+    C1Header,
+    C2XrefMissing,
+    C3TrailerDamaged,
+    C4PageTreeBroken,
+    C5ObjectTagStripped,
+];
+
 /// What happens to each class with findings, in pass order; logs each
 /// class skipped, once per run.
 fn schedule(
@@ -691,11 +750,13 @@ fn schedule(
         }
         let name = format!("{} ({})", class.code(), class.label());
         let scheduled = if passes.is_some_and(|chosen| !chosen.contains(&class)) {
-            sink.log(
-                LogLevel::Info,
-                format!("{name} was not selected for this repair; skipped"),
-            );
-            Scheduled::Skip("not selected for this repair".to_owned())
+            let why = if REBUILT.contains(&class) {
+                "not selected for this repair; the rebuild re-emits the file regardless"
+            } else {
+                "not selected for this repair"
+            };
+            sink.log(LogLevel::Info, format!("{name}: {why}; skipped"));
+            Scheduled::Skip(why.to_owned())
         } else if let Some(pass) = pass_for(class) {
             Scheduled::Run(pass, of_class)
         } else {
