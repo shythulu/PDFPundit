@@ -1344,7 +1344,7 @@ fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
             obj: Some(page),
         };
         for slot in missing {
-            let candidates = candidates.get_or_insert_with(|| orphan_fonts(cx));
+            let candidates = candidates.get_or_insert_with(|| orphan_fonts(cx.graph));
             let slot = String::from_utf8_lossy(&slot);
             let mut evidence = vec![Evidence::Text(format!("slots: {slot}"))];
             evidence.extend(candidates.iter().copied().map(Evidence::ObjectRef));
@@ -1401,14 +1401,14 @@ fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
 
 /// C6's re-link candidates: the fonts no reference from the catalog
 /// reaches, in byte order, less those another candidate holds as a
-/// descendant. None without a catalog.
-fn orphan_fonts(cx: &Cx<'_>) -> Vec<ObjId> {
-    let Some(&root) = cx.graph.catalog_candidates().first() else {
+/// descendant. None without a catalog. The C6 pass (T-13b) re-links from
+/// the same list.
+pub(crate) fn orphan_fonts(graph: &ObjectGraph) -> Vec<ObjId> {
+    let Some(&root) = graph.catalog_candidates().first() else {
         return Vec::new();
     };
-    let unreachable = cx.graph.unreachable(root);
-    let fonts: Vec<ObjId> = cx
-        .graph
+    let unreachable = graph.unreachable(root);
+    let fonts: Vec<ObjId> = graph
         .objects_of_kind(ObjectKind::Font)
         .into_iter()
         .filter(|id| unreachable.contains(id))
@@ -1417,7 +1417,7 @@ fn orphan_fonts(cx: &Cx<'_>) -> Vec<ObjId> {
     fonts
         .into_iter()
         .filter(|&id| {
-            !cx.graph.referrers(id).iter().any(|e| {
+            !graph.referrers(id).iter().any(|e| {
                 set.contains(&e.from) && e.path.first_key() == Some(&b"DescendantFonts"[..])
             })
         })

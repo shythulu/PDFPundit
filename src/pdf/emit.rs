@@ -20,7 +20,9 @@
 //!
 //! Streams (rule 4): bytes are never recompressed. A stream is copied raw,
 //! exactly as carved with its own `/Filter` chain, unless the C9 salvage
-//! changed what its Flate stage holds:
+//! changed what its Flate stage holds and the output takes that salvage
+//! ([`emit_resave`] takes every stream's; through [`emit_doc`], only the
+//! streams the C9 pass named with [`RebuildDoc::swap_salvaged`]):
 //! - `Repaired`: the Flate stage's input (the raw bytes through the filters
 //!   before `/FlateDecode`) with the repair's edits applied; the earlier
 //!   filters leave `/Filter`, the Flate stage, its `/DecodeParms` and every
@@ -36,6 +38,11 @@
 //! stream copy of each id; a stream written from another copy (D-032's
 //! winner can be an earlier one) is copied raw.
 //!
+//! Pages: a slot the C6 pass re-linked ([`RebuildDoc::relink_font`]) is
+//! written into the page's own `/Resources`, an inline copy of the resources
+//! in force with `/Font` holding the slot; every other page keeps its
+//! resources as the page tree plan has them.
+//!
 //! Reals (rule 6, D-075): lopdf holds a real as `f32`, so a carved real that
 //! does not survive `f32` is changed in the output. Each such token in an
 //! object written is counted ([`EmitNotes::reals_narrowed`]) and the report
@@ -46,7 +53,7 @@
 #[cfg(test)]
 mod tests;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lopdf::{Dictionary, Object};
 
@@ -102,6 +109,11 @@ impl EmitNotes {
 pub(crate) struct RebuildDoc {
     w: Writer,
     remap: IdRemap,
+    /// The streams whose C9 salvage is written (module docs, "Streams").
+    swapped: BTreeSet<ObjId>,
+    /// Per page output number, each re-linked slot and the input id of its
+    /// font (module docs, "Pages").
+    relinks: BTreeMap<u32, BTreeMap<Vec<u8>, ObjId>>,
 }
 
 impl RebuildDoc {
@@ -110,6 +122,8 @@ impl RebuildDoc {
         RebuildDoc {
             w: Writer::with_version(VERSION),
             remap,
+            swapped: BTreeSet::new(),
+            relinks: BTreeMap::new(),
         }
     }
 
@@ -123,6 +137,18 @@ impl RebuildDoc {
     pub(crate) fn forget(&mut self, held: Held) {
         self.remap.forget(held);
     }
+
+    /// Writes stream `id` from its C9 salvage entry, when the salvage changed
+    /// what its Flate stage holds (module docs, "Streams").
+    pub(crate) fn swap_salvaged(&mut self, id: ObjId) {
+        self.swapped.insert(id);
+    }
+
+    /// Maps `slot` to the input object `font` in the `/Resources` of the
+    /// page written as `page` (module docs, "Pages").
+    pub(crate) fn relink_font(&mut self, page: u32, slot: Vec<u8>, font: ObjId) {
+        self.relinks.entry(page).or_default().insert(slot, font);
+    }
 }
 
 /// The Resave output (module docs). `carve`, `graph`, `remap` and
@@ -134,7 +160,9 @@ pub(crate) fn emit_resave(
     page_tree: &PageTreePlan,
     ctx: &mut EmitCtx<'_>,
 ) -> Result<Vec<u8>, EmitError> {
-    emit_doc(RebuildDoc::new(remap.clone()), carve, graph, page_tree, ctx)
+    let mut doc = RebuildDoc::new(remap.clone());
+    doc.swapped.extend(ctx.salvage.by_obj.keys().copied());
+    emit_doc(doc, carve, graph, page_tree, ctx)
 }
 
 /// [`emit_resave`] of `doc`, as the repair passes left it. `page_tree` must
@@ -212,7 +240,7 @@ impl RebuildDoc {
             self.remap.rewrite(&mut object);
             if let Object::Dictionary(d) = &mut object {
                 if let Some(page) = pages.get(&n) {
-                    self.pin_page(d, page, tree.pages_id);
+                    self.pin_page(d, page, tree.pages_id, carve);
                 } else if n == tree.root && matches!(tree.catalog, CatalogPlan::Reuse(_)) {
                     d.set("Pages", Object::Reference((tree.pages_id, 0)));
                 }
@@ -221,8 +249,9 @@ impl RebuildDoc {
         }
     }
 
-    /// The page's inheritable attributes, resolved by T-10, written on it.
-    fn pin_page(&self, d: &mut Dictionary, page: &PagePlan, pages_id: u32) {
+    /// The page's inheritable attributes, resolved by T-10, written on it,
+    /// with the fonts re-linked to it.
+    fn pin_page(&self, d: &mut Dictionary, page: &PagePlan, pages_id: u32, carve: &CarveReport) {
         d.set("Type", Object::Name(b"Page".to_vec()));
         d.set("Parent", Object::Reference((pages_id, 0)));
         d.set("MediaBox", Object::Array(page.mediabox.to_vec()));
@@ -235,12 +264,46 @@ impl RebuildDoc {
                 d.remove(key.as_bytes());
             }
         };
-        set("Resources", page.resources.clone());
+        let resources = match self.relinks.get(&page.id) {
+            Some(slots) => Some(Object::Dictionary(self.with_fonts(
+                carve,
+                page.resources.as_ref(),
+                slots,
+            ))),
+            None => page.resources.clone(),
+        };
+        set("Resources", resources);
         set(
             "CropBox",
             page.cropbox.clone().map(|b| Object::Array(b.to_vec())),
         );
         set("Rotate", page.rotate.map(Object::Integer));
+    }
+
+    /// A copy of `resources` (carved, inline or a reference) whose `/Font`
+    /// maps each of `slots` to its font, still in the carve's ids.
+    fn with_fonts(
+        &self,
+        carve: &CarveReport,
+        resources: Option<&Object>,
+        slots: &BTreeMap<Vec<u8>, ObjId>,
+    ) -> Dictionary {
+        let resolve = |v: &Object| -> Option<Dictionary> {
+            match v {
+                Object::Dictionary(d) => Some(d.clone()),
+                Object::Reference(id) => carved_dict(carve, self.remap.target(*id)?).cloned(),
+                _ => None,
+            }
+        };
+        let mut out = resources.and_then(resolve).unwrap_or_default();
+        let mut fonts = (out.get(b"Font").ok())
+            .and_then(resolve)
+            .unwrap_or_default();
+        for (slot, &font) in slots {
+            fonts.set(slot.clone(), Object::Reference(font));
+        }
+        out.set("Font", Object::Dictionary(fonts));
+        out
     }
 
     /// The flat `/Pages` node, and the catalog when none was carved.
@@ -269,7 +332,9 @@ impl RebuildDoc {
         let raw = slice(ctx.bytes, data);
         let mut dict = carved.clone();
         self.remap.rewrite_dict(&mut dict);
-        let entry = salvaged.then(|| ctx.salvage.by_obj.get(&id)).flatten();
+        let entry = (salvaged && self.swapped.contains(&id))
+            .then(|| ctx.salvage.by_obj.get(&id))
+            .flatten();
         let rewritten = entry.and_then(|e| match &e.salvage {
             Salvage::Repaired { edits, .. } => {
                 let mut input = flate_input(carved, raw)?;
@@ -300,6 +365,20 @@ impl RebuildDoc {
             }
             None => self.w.add_stream_raw(n, dict, raw.to_vec()),
         }
+    }
+}
+
+/// The dictionary `held` carries: a carved dictionary or stream's, or an
+/// orphan's.
+fn carved_dict(carve: &CarveReport, held: Held) -> Option<&Dictionary> {
+    match held {
+        Held::Object(at) => match &carve.objects.get(at)?.body {
+            Body::Dict(d) | Body::Stream { dict: d, .. } => Some(d),
+            Body::Primitive(_) | Body::Unparsed => None,
+        },
+        Held::Orphan(at) => match carve.orphans.get(at)? {
+            Orphan::Dict { dict, .. } | Orphan::Stream { dict, .. } => Some(dict),
+        },
     }
 }
 
