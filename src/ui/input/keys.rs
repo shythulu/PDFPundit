@@ -23,11 +23,21 @@
 //! | `CSI 200 ~` … `CSI 201 ~` | one paste, everything between taken as text |
 //! | `CSI ? … c` | [`Token::DeviceAttributes`] |
 //! | `ESC ] digits ;` … `BEL` or `ESC \` | [`Token::Osc`] |
+//! | `ESC P`, `ESC _`, `ESC ^`, `ESC X` … `ESC \` (DCS, APC, PM, SOS) | nothing |
 //! | any other CSI | nothing |
 //!
 //! `ESC ]` is also what Alt+] types, so an OSC is only one once its number
-//! and `;` have come; `ESC ]` followed by anything else, or by nothing for a
-//! while, is Alt+] and the keys after it.
+//! (at most [`OSC_DIGITS`] digits) and `;` have come; `ESC ]` followed by
+//! anything else, or by nothing for a while, is Alt+] and the keys after it.
+//! Likewise `ESC P` (Alt+P) and the other string introducers: a string that
+//! ends in `ESC \` is dropped whole, and one still open when nothing comes
+//! for a while ([`Decoder::idle`]), or broken off by another escape, was Alt
+//! and the keys after it (one over [`STR_CAP`] bytes is never typing). A
+//! reply split by a pause is the price; the app sends no query that draws one
+//! today.
+//!
+//! A bracketed paste over [`PASTE_CAP`] bytes is read to its end and dropped,
+//! with a debug-log note.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 #[cfg_attr(not(unix), allow(unused_imports))]
@@ -41,6 +51,13 @@ use super::Input;
 pub(crate) const OSC_CAP: usize = 8 * 1024;
 /// The longest CSI kept; a longer one is consumed and dropped.
 const CSI_CAP: usize = 64;
+/// The most digits an OSC number may have before it is Alt+] and typing.
+pub(crate) const OSC_DIGITS: usize = 8;
+/// The longest DCS, APC, PM or SOS string kept for replay as keys; a longer
+/// one is never typing and is dropped whatever ends it.
+const STR_CAP: usize = 4096;
+/// The largest bracketed paste delivered; a larger one is dropped.
+pub(crate) const PASTE_CAP: usize = 1 << 20;
 const PASTE_END: &[u8] = b"\x1b[201~";
 
 /// The character `k` types, if it types one: a `Char` key with no Ctrl or
@@ -99,8 +116,17 @@ enum State {
         committed: bool,
         esc: bool,
     },
-    /// Inside a bracketed paste.
-    Paste { buf: Vec<u8> },
+    /// `ESC` and `intro` (`P`, `_`, `^` or `X`): a control string, or Alt and
+    /// the keys after it. `esc` when the last byte was an `ESC`.
+    Str {
+        intro: u8,
+        buf: Vec<u8>,
+        overflow: bool,
+        esc: bool,
+    },
+    /// Inside a bracketed paste; `over` once it passed [`PASTE_CAP`] (only
+    /// the tail that may hold the end marker is kept).
+    Paste { buf: Vec<u8>, over: bool },
 }
 
 /// Terminal input bytes into [`Token`]s, across any split of the stream.
@@ -141,7 +167,21 @@ impl Decoder {
                     self.byte(b, &mut out);
                 }
             }
-            State::Utf8 { .. } => {}
+            State::Str {
+                intro,
+                buf,
+                overflow: false,
+                esc,
+            } => {
+                out.push(alt_char(char::from(intro)));
+                for b in buf {
+                    self.byte(b, &mut out);
+                }
+                if esc {
+                    out.push(key(KeyCode::Esc, KeyModifiers::NONE));
+                }
+            }
+            State::Str { .. } | State::Utf8 { .. } => {}
             other => self.state = other,
         }
         out
@@ -190,6 +230,14 @@ impl Decoder {
                     }
                 }
                 b'O' => self.state = State::Ss3,
+                b'P' | b'_' | b'^' | b'X' => {
+                    self.state = State::Str {
+                        intro: b,
+                        buf: Vec::new(),
+                        overflow: false,
+                        esc: false,
+                    }
+                }
                 0x1b => {
                     out.push(key(KeyCode::Esc, KeyModifiers::NONE));
                     self.state = State::Esc;
@@ -286,7 +334,7 @@ impl Decoder {
                         };
                         return;
                     }
-                    b'0'..=b'9' if !committed => body.push(b),
+                    b'0'..=b'9' if !committed && body.len() < OSC_DIGITS => body.push(b),
                     b';' if !committed && !body.is_empty() => {
                         body.push(b);
                         committed = true;
@@ -311,16 +359,60 @@ impl Decoder {
                     esc: false,
                 };
             }
-            State::Paste { mut buf } => {
+            State::Str {
+                intro,
+                mut buf,
+                mut overflow,
+                esc,
+            } => {
+                if esc {
+                    // `ESC \` ends the string, dropped whole. Any other byte
+                    // means it was typing after all (a reply always ends in
+                    // ST): Alt and the keys, then the `ESC` starts afresh. An
+                    // overlong one is never typing and is dropped.
+                    if b != b'\\' {
+                        if !overflow {
+                            out.push(alt_char(char::from(intro)));
+                            for d in buf {
+                                self.byte(d, out);
+                            }
+                        }
+                        self.state = State::Esc;
+                        self.byte(b, out);
+                    }
+                    return;
+                }
+                let esc = b == 0x1b;
+                if !esc {
+                    overflow = overflow || buf.len() >= STR_CAP;
+                    if !overflow {
+                        buf.push(b);
+                    }
+                }
+                self.state = State::Str {
+                    intro,
+                    buf,
+                    overflow,
+                    esc,
+                };
+            }
+            State::Paste { mut buf, mut over } => {
                 buf.push(b);
                 if buf.ends_with(PASTE_END) {
                     buf.truncate(buf.len() - PASTE_END.len());
-                    out.push(Token::Input(Input::Paste(
-                        String::from_utf8_lossy(&buf).into_owned(),
-                    )));
-                } else {
-                    self.state = State::Paste { buf };
+                    out.push(Token::Input(if over {
+                        Input::Note(format!("paste: over {} MiB, dropped", PASTE_CAP >> 20))
+                    } else {
+                        Input::Paste(String::from_utf8_lossy(&buf).into_owned())
+                    }));
+                    return;
                 }
+                // The kept bytes may end in all but the last of the marker.
+                if buf.len() > PASTE_CAP + PASTE_END.len() - 1 {
+                    over = true;
+                    buf.drain(..buf.len() - (PASTE_END.len() - 1));
+                }
+                self.state = State::Paste { buf, over };
             }
         }
     }
@@ -368,7 +460,10 @@ impl Decoder {
             return;
         }
         if params == b"200" && fin == b'~' {
-            self.state = State::Paste { buf: Vec::new() };
+            self.state = State::Paste {
+                buf: Vec::new(),
+                over: false,
+            };
             return;
         }
         let Ok(text) = std::str::from_utf8(params) else {
@@ -794,5 +889,72 @@ mod tests {
         assert_eq!(d.feed(b"\x1b]72;t=m:x=1"), []);
         assert_eq!(d.idle(), []);
         assert_eq!(d.feed(b"\x1b[B"), [k(KeyCode::Down, M::NONE)]);
+        // A number longer than an OSC's is typing.
+        let many = [b"\x1b]".as_slice(), &[b'7'; OSC_DIGITS + 1], b";"].concat();
+        let mut want = vec![alt.clone()];
+        want.extend(std::iter::repeat_n(c('7'), OSC_DIGITS + 1));
+        want.push(c(';'));
+        assert_eq!(decode(&many), want);
+    }
+
+    #[test]
+    fn control_strings_are_dropped_and_alt_letters_wait_for_idle() {
+        use KeyModifiers as M;
+        // DCS (an XTVERSION or XTGETTCAP reply), APC (a kitty graphics
+        // reply), PM and SOS: nothing of them is a key, `q` included.
+        assert_eq!(
+            decode(b"\x1bP>|kitty(0.49)\x1b\\\x1b_Gi=1;OK\x1b\\\x1b^q\x1b\\\x1bXq\x1b\\z"),
+            [c('z')]
+        );
+        // An overlong string is consumed whole.
+        let long = [b"\x1bP".as_slice(), &[b'q'; 3 * STR_CAP], b"\x1b\\z"].concat();
+        assert_eq!(decode(&long), [c('z')]);
+        // Alt+P typed: a key once nothing more comes, with what followed it.
+        let mut d = Decoder::default();
+        assert_eq!(d.feed(b"\x1bPq"), []);
+        assert_eq!(d.idle(), [k(KeyCode::Char('P'), M::ALT | M::SHIFT), c('q')]);
+        // An ESC that is not ST: it was typing, and the ESC starts afresh.
+        assert_eq!(
+            decode(b"\x1b_x\x1b[A"),
+            [
+                k(KeyCode::Char('_'), M::ALT),
+                c('x'),
+                k(KeyCode::Up, M::NONE)
+            ]
+        );
+        // An overlong string open at idle is never typing.
+        let mut d = Decoder::default();
+        assert_eq!(
+            d.feed(&[b"\x1bP".as_slice(), &[b'q'; STR_CAP + 1]].concat()),
+            []
+        );
+        assert_eq!(d.idle(), []);
+    }
+
+    #[test]
+    fn a_paste_over_the_cap_is_dropped_with_a_note() {
+        let mut d = Decoder::default();
+        assert_eq!(d.feed(b"\x1b[200~"), []);
+        let chunk = vec![b'a'; 64 * 1024];
+        for _ in 0..(PASTE_CAP / chunk.len() + 1) {
+            assert_eq!(d.feed(&chunk), []);
+        }
+        // The end marker split across reads is still found.
+        assert_eq!(d.feed(b"\x1b[20"), []);
+        let t = d.feed(b"1~z");
+        assert!(matches!(&t[0], Token::Input(Input::Note(_))), "{t:?}");
+        assert_eq!(t[1..], [c('z')]);
+        // At the cap exactly, it is delivered.
+        let mut d = Decoder::default();
+        let paste = [
+            b"\x1b[200~".as_slice(),
+            &vec![b'b'; PASTE_CAP],
+            b"\x1b[201~",
+        ]
+        .concat();
+        assert_eq!(
+            d.feed(&paste),
+            [Token::Input(Input::Paste("b".repeat(PASTE_CAP)))]
+        );
     }
 }

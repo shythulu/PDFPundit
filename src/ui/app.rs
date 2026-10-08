@@ -488,6 +488,7 @@ impl App {
             Input::Tick => self.tick(now),
             Input::Mouse(_) => {}
             Input::Dnd(d) => self.on_dnd(d, now),
+            Input::Note(line) => self.log(line),
         }
     }
 
@@ -653,6 +654,11 @@ impl App {
     /// A kitty drop's candidates through the gate, then each file it lets in
     /// read into memory, at most [`HOLD_LIMIT`] bytes for the drop. How many
     /// were taken.
+    ///
+    /// v1 reads on the UI thread: D-039 needs the bytes before `t=r:o=1`,
+    /// not here, so a large drop from slow media freezes the cat (no frames,
+    /// no keys) until the read ends. The better shape reads on a worker and
+    /// calls [`DndSession::finish`] when it is done.
     fn take_drop(&mut self, candidates: Vec<PathCandidate>) -> usize {
         let before = self.admitted.len();
         self.dropped(candidates);

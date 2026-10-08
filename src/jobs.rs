@@ -329,8 +329,14 @@ pub enum Placed {
 
 /// What a dropped file gives the runner: a path, or bytes with no durable path
 /// (a macOS file promise read into memory, D-039), or both: a kitty drop's
-/// file, read while the drop was active (T-31), whose bytes are the input and
-/// whose path is where the output goes beside, when it is still there.
+/// file, read while the drop was active (T-31).
+///
+/// A `Dropped` input may be a file promise, which is gone once the drop
+/// completes, so it is treated like `Memory` where that matters: its bytes are
+/// pinned (never released at D-005's step (2), since the path may not re-read),
+/// and its output goes beside the path only while the path is still there at
+/// the D-061 probe; once it has vanished, the input has no durable "beside" and
+/// needs `output_dir` or fails with the fixed message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JobInput {
     File(PathBuf),
@@ -446,6 +452,9 @@ pub struct JobRunner<E: Engine> {
 struct Job {
     name: String,
     path: Option<PathBuf>,
+    /// The input's bytes came with it (`Memory`, `Dropped`) and may not be
+    /// re-readable from `path`: they are never released (D-039, D-005).
+    pinned: bool,
     input: InputSlot,
     input_sha256: Option<[u8; 32]>,
     /// The runner's own handle on the analysis state, dropped on eviction.
@@ -530,6 +539,7 @@ impl<E: Engine + 'static> JobRunner<E> {
                 |n| n.to_string_lossy().into_owned(),
             )
         };
+        let pinned = !matches!(input, JobInput::File(_));
         let (name, path, bytes) = match input {
             JobInput::File(path) => (name_of(&path), Some(path), None),
             JobInput::Memory { name, bytes } => (name, None, Some(Arc::new(bytes))),
@@ -545,6 +555,7 @@ impl<E: Engine + 'static> JobRunner<E> {
             Job {
                 name,
                 path,
+                pinned,
                 input: Arc::new(Mutex::new(bytes)),
                 input_sha256: None,
                 state: StateHandle::default(),
@@ -730,6 +741,7 @@ impl<E: Engine + 'static> JobRunner<E> {
             inputs: Arc::clone(&self.inputs),
             name: job.name.clone(),
             path: job.path.clone(),
+            pinned: job.pinned,
             input: Arc::clone(&job.input),
             expect_sha256: job.input_sha256,
             replay: job.replies.iter().cloned().collect(),
@@ -820,7 +832,9 @@ impl<E: Engine + 'static> JobRunner<E> {
             let largest = self
                 .jobs
                 .iter()
-                .filter(|(_, job)| job.is_parked() && job.path.is_some() && job.held_input() > 0)
+                .filter(|(_, job)| {
+                    job.is_parked() && !job.pinned && job.path.is_some() && job.held_input() > 0
+                })
                 .max_by_key(|(id, job)| (job.held_input(), Reverse(**id)))
                 .map(|(id, _)| *id);
             match largest {
@@ -890,6 +904,8 @@ struct Worker<E> {
     inputs: Arc<Mutex<BatchInputs>>,
     name: String,
     path: Option<PathBuf>,
+    /// The bytes came with the input (D-039): see [`Worker::beside`].
+    pinned: bool,
     input: InputSlot,
     /// The hash a re-read input must still have.
     expect_sha256: Option<[u8; 32]>,
@@ -985,7 +1001,7 @@ impl<E: Engine> Worker<E> {
                 Some(dir) => format!("can't write to the output_dir ({}): {e}", dir.display()),
             })
         };
-        let dest = place::destination_for(self.path.as_deref(), self.opts.output_dir.as_deref())
+        let dest = place::destination_for(self.beside(), self.opts.output_dir.as_deref())
             .map_err(unwritable)?;
         let temp = TempFile::create(&dest).map_err(unwritable)?;
 
@@ -1032,6 +1048,15 @@ impl<E: Engine> Worker<E> {
             analysis_state,
         })));
         Ok(())
+    }
+
+    /// The path the output may go beside (D-061). A pinned input's path is a
+    /// durable "beside" only while it is still there: a kitty drop's macOS
+    /// file promise is gone once the drop completes (D-039), and nothing is
+    /// ever written beside a vanished path.
+    fn beside(&self) -> Option<&Path> {
+        let path = self.path.as_deref()?;
+        (!self.pinned || path.exists()).then_some(path)
     }
 
     /// The input bytes: held ones, or read from the file. A re-read after the

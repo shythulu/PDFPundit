@@ -1035,12 +1035,12 @@ fn a_promised_input_without_output_dir_fails_with_the_fixed_message() {
 }
 
 /// A kitty drop's file (T-31): read while the drop was active, so the job
-/// works on those bytes even after the file is gone, and its output goes
-/// beside the path it was dropped from.
+/// works on those bytes, and while its path is still there the output goes
+/// beside it.
 #[test]
 fn a_dropped_input_works_on_its_bytes_and_lands_beside_its_path() {
     let dir = ScratchDir::new("jobs-dropped");
-    let path = dir.join("d.pdf");
+    let path = write(&dir, "d.pdf", b"on disk now");
     let mut h = Harness::new(FakeEngine::new(), opts());
     let id = h.runner().submit(JobInput::Dropped {
         path: path.clone(),
@@ -1050,8 +1050,96 @@ fn a_dropped_input_works_on_its_bytes_and_lands_beside_its_path() {
     let run = h.done(id).expect("repaired");
     let out = dir.join("d.repaired.pdf");
     assert_eq!(run.output_path, Some(out.clone()));
-    assert_eq!(fs::read(&out).expect("out"), b"dropped");
-    assert!(!path.exists(), "the original is never written");
+    assert_eq!(fs::read(&out).expect("out"), b"dropped", "the held bytes");
+    assert_eq!(
+        fs::read(&path).expect("in"),
+        b"on disk now",
+        "never written"
+    );
+}
+
+/// A dropped file that is gone by the D-061 probe (a macOS file promise,
+/// D-039) has no durable "beside": with no `output_dir` the job fails with the
+/// fixed message and writes nothing beside the vanished path.
+#[test]
+fn a_dropped_input_whose_file_is_gone_fails_without_output_dir() {
+    let dir = ScratchDir::new("jobs-dropped-gone");
+    let mut h = Harness::new(FakeEngine::new(), opts());
+    let id = h.runner().submit(JobInput::Dropped {
+        path: dir.join("promise.pdf"),
+        bytes: b"promised".to_vec(),
+    });
+    h.pump_until("the end", |h| h.finished(id));
+    assert_eq!(
+        h.rows[&id],
+        EntryState::Failed {
+            error: READ_ONLY_DESTINATION.into(),
+            panicked: false
+        }
+    );
+    assert_eq!(h.count_of(id, |s| *s == Seen::AnalyzeDone), 1);
+    assert!(dir.names().is_empty(), "nothing beside the vanished path");
+}
+
+/// The same input with `output_dir` set: the output goes there.
+#[test]
+fn a_dropped_input_whose_file_is_gone_goes_to_output_dir() {
+    let dir = ScratchDir::new("jobs-dropped-gone-dir");
+    let out = ScratchDir::new("jobs-dropped-gone-out");
+    let mut h = Harness::new(
+        FakeEngine::new(),
+        RunnerOptions {
+            output_dir: Some(out.path().to_path_buf()),
+            ..opts()
+        },
+    );
+    let id = h.runner().submit(JobInput::Dropped {
+        path: dir.join("promise.pdf"),
+        bytes: b"promised".to_vec(),
+    });
+    h.pump_until("done", |h| h.finished(id));
+    let run = h.done(id).expect("repaired");
+    assert_eq!(run.output_path, Some(out.join("promise.repaired.pdf")));
+    assert_eq!(
+        fs::read(out.join("promise.repaired.pdf")).expect("out"),
+        b"promised"
+    );
+    assert!(dir.names().is_empty(), "nothing beside the vanished path");
+}
+
+/// A parked kitty drop over the cap keeps its bytes (D-039, D-005 step 2):
+/// its path may have been a promise that no longer re-reads. Only its state
+/// is evicted, and the reply resumes from the held bytes.
+#[test]
+fn a_parked_dropped_input_over_the_cap_keeps_its_bytes() {
+    let dir = ScratchDir::new("jobs-dropped-pinned");
+    let out = ScratchDir::new("jobs-dropped-pinned-out");
+    let path = write(&dir, "d.pdf", b"x");
+    let mut h = Harness::new(
+        FakeEngine::new().always_asks(),
+        RunnerOptions {
+            parked_cap: 0,
+            output_dir: Some(out.path().to_path_buf()),
+            ..opts()
+        },
+    );
+    let id = h.runner().submit(JobInput::Dropped {
+        path: path.clone(),
+        bytes: vec![b'd'; 2_000],
+    });
+    h.pump_until("parked and evicted", |h| h.count(is_evicted) == 1);
+    assert_eq!(h.runner().retained_bytes(), 2_000, "the bytes are pinned");
+
+    // The promise is gone by the time the examiner answers.
+    fs::remove_file(&path).expect("remove");
+    assert!(h.runner().reply(id, InteractionReply::UseBest));
+    h.pump_until("resumed from the held bytes", |h| h.finished(id));
+    let run = h.done(id).expect("done");
+    assert_eq!(run.analysis_state, rebuilt());
+    assert_eq!(
+        fs::read(out.join("d.repaired.pdf")).expect("out"),
+        vec![b'd'; 2_000]
+    );
 }
 
 #[test]

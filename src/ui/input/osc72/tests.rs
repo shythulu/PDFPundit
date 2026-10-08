@@ -216,7 +216,7 @@ fn data_chunks_are_joined_then_decoded_once() {
     }
     assert!(list.len() > 3 * 3072, "several chunks");
     let want = [DndEvent::Data {
-        idx: 2,
+        idx: Some(2),
         data: Ok(list.as_bytes().to_vec()),
     }];
     // kitty's observed 3,072-byte raw chunks (4,096 encoded), `x=` on every
@@ -231,7 +231,7 @@ fn data_chunks_are_joined_then_decoded_once() {
     assert_eq!(
         dnd(&one),
         [DndEvent::Data {
-            idx: 2,
+            idx: Some(2),
             data: Ok(b"file:///a.pdf".to_vec())
         }]
     );
@@ -249,7 +249,7 @@ fn data_split_across_reads_and_between_keys() {
             key('a'),
             key('b'),
             Input::Dnd(DndEvent::Data {
-                idx: 2,
+                idx: Some(2),
                 data: Ok(b"file:///x/y.pdf\n".to_vec())
             }),
             key('c'),
@@ -266,7 +266,7 @@ fn caps_are_enforced() {
     assert_eq!(
         dnd(&stream),
         [DndEvent::Data {
-            idx: 1,
+            idx: Some(1),
             data: Err(DataError::TooBig)
         }]
     );
@@ -283,7 +283,7 @@ fn caps_are_enforced() {
         got,
         [
             Input::Dnd(DndEvent::Data {
-                idx: 1,
+                idx: Some(1),
                 data: Err(DataError::TooBig)
             }),
             key('k'),
@@ -314,8 +314,74 @@ fn caps_are_enforced() {
     assert_eq!(
         dnd(&stream),
         [DndEvent::Data {
-            idx: 1,
+            idx: Some(1),
             data: Err(DataError::Garbled)
+        }]
+    );
+}
+
+/// A `t=r` chain another frame breaks into is reported as garbled, so the
+/// drop it answers still ends; the new frame then counts as usual.
+#[test]
+fn an_abandoned_data_transfer_is_reported_garbled() {
+    let a = BASE64.encode(b"file:///a.pdf");
+    // Another `t`, mid-chain.
+    let mut stream = st("t=r:x=2:m=1", a.as_bytes());
+    stream.extend(st("t=m:x=-1:y=-1", b""));
+    assert_eq!(
+        dnd(&stream),
+        [
+            DndEvent::Data {
+                idx: Some(2),
+                data: Err(DataError::Garbled)
+            },
+            DndEvent::Move {
+                cell: None,
+                copy: true,
+                mimes: None
+            },
+        ]
+    );
+    // Another `x`, mid-chain: the new transfer goes on.
+    let mut stream = st("t=r:x=2:m=1", a.as_bytes());
+    stream.extend(st("t=r:x=3", a.as_bytes()));
+    stream.extend(st("t=r:x=3", b""));
+    assert_eq!(
+        dnd(&stream),
+        [
+            DndEvent::Data {
+                idx: Some(2),
+                data: Err(DataError::Garbled)
+            },
+            DndEvent::Data {
+                idx: Some(3),
+                data: Ok(b"file:///a.pdf".to_vec())
+            },
+        ]
+    );
+    // Any other transfer abandoned says nothing.
+    let mut stream = st("t=M:m=1", b"text/uri-");
+    stream.extend(st("t=m:x=1:y=1", b""));
+    assert_eq!(
+        dnd(&stream),
+        [DndEvent::Move {
+            cell: cell(1, 1),
+            copy: true,
+            mimes: None
+        }]
+    );
+}
+
+/// A first data chunk with no `x` has no index, rather than index 0.
+#[test]
+fn data_with_no_index_says_so() {
+    let mut stream = st("t=r:m=1", BASE64.encode(b"file:///a.pdf").as_bytes());
+    stream.extend(st("m=0", b""));
+    assert_eq!(
+        dnd(&stream),
+        [DndEvent::Data {
+            idx: None,
+            data: Ok(b"file:///a.pdf".to_vec())
         }]
     );
 }
@@ -645,7 +711,7 @@ fn drop_at(x: u16) -> DndEvent {
 
 fn data(list: &str) -> DndEvent {
     DndEvent::Data {
-        idx: 2,
+        idx: Some(2),
         data: Ok(list.as_bytes().to_vec()),
     }
 }
@@ -712,13 +778,20 @@ fn a_drop_on_the_cat_requests_the_list_then_completes() {
     m.on(data("file:///tmp/b.pdf"), 1);
     m.on(
         DndEvent::Data {
-            idx: 9,
+            idx: Some(9),
             data: Ok(Vec::new()),
         },
         1,
     );
     assert_eq!(m.wire.len(), 3);
     assert_eq!(m.files.len(), 1);
+}
+
+/// The requested list's first chunk, then a leave breaking into the chain.
+fn abandoned_data() -> Vec<u8> {
+    let mut stream = st("t=r:x=2:m=1", BASE64.encode(b"file:///a.pdf").as_bytes());
+    stream.extend(st("t=m:x=-1:y=-1", b""));
+    stream
 }
 
 #[test]
@@ -757,7 +830,7 @@ fn every_way_a_drop_ends_sends_its_completion() {
             events: vec![
                 drop_at(12),
                 DndEvent::Data {
-                    idx: 2,
+                    idx: Some(2),
                     data: Err(DataError::TooBig),
                 },
             ],
@@ -770,10 +843,30 @@ fn every_way_a_drop_ends_sends_its_completion() {
             events: vec![
                 drop_at(12),
                 DndEvent::Data {
-                    idx: 2,
+                    idx: Some(2),
                     data: Err(DataError::Garbled),
                 },
             ],
+            take: 0,
+            wire: vec![REQUEST_S, CANCEL_S],
+            hint: Some(strings::DROP_FAILED),
+        },
+        Case {
+            name: "data with no index",
+            events: vec![
+                drop_at(12),
+                DndEvent::Data {
+                    idx: None,
+                    data: Ok(b"file:///tmp/a.pdf".to_vec()),
+                },
+            ],
+            take: 1,
+            wire: vec![REQUEST_S, DONE_S],
+            hint: None,
+        },
+        Case {
+            name: "the data transfer abandoned mid-chain",
+            events: [vec![drop_at(12)], dnd(&abandoned_data())].concat(),
             take: 0,
             wire: vec![REQUEST_S, CANCEL_S],
             hint: Some(strings::DROP_FAILED),

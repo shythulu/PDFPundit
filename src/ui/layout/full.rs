@@ -59,6 +59,19 @@ const RECENT_ROWS: usize = 5;
 /// The blocks that step back while the cat reacts: x, y, w, h.
 const DIM_LEFT: (i32, i32, i32, i32) = (0, 8, 27, 26);
 const DIM_RIGHT: (i32, i32, i32, i32) = (85, 8, 27, 26);
+/// Where a kitty drag is told its drop is wanted (T-31): x, y, w, h. The
+/// cells between the blocks that step back, i.e. the cat and its plate but
+/// never a panel; the plate's outer columns (25–26 and 85) sit under the
+/// panels' edges and are left out (columns 27–84, rows 8–33).
+const DROP_ZONE: (u16, u16, u16, u16) = {
+    let x = DIM_LEFT.0 + DIM_LEFT.2;
+    (
+        x as u16,
+        DIM_LEFT.1 as u16,
+        (DIM_RIGHT.0 - x) as u16,
+        DIM_LEFT.3 as u16,
+    )
+};
 /// The bottom rows.
 const HINT_Y: i32 = 35;
 const HOTKEYS_Y: i32 = 36;
@@ -129,10 +142,8 @@ impl Layout for FullLayout {
         FULL_SIZE
     }
 
-    /// The cat and its plate, between the side panels: columns 27–84, rows
-    /// 8–33.
     fn drop_zone(&self) -> Option<(u16, u16, u16, u16)> {
-        Some((27, 8, 58, 26))
+        Some(DROP_ZONE)
     }
 
     /// Drawn under a 112 × 38 clip, so nothing lands past the frame on a
@@ -980,6 +991,31 @@ mod tests {
 
     fn row_text(c: &Canvas, y: u16) -> String {
         (0..c.w).map(|x| c.get(x, y).expect("cell").ch).collect()
+    }
+
+    /// The drop zone (T-31) holds the drawn cat and the top of its plate,
+    /// and touches no panel.
+    #[test]
+    fn the_drop_zone_holds_the_cat_and_no_panel() {
+        let (zx, zy, zw, zh) = DROP_ZONE;
+        let (zx, zy, zw, zh) = (i32::from(zx), i32::from(zy), i32::from(zw), i32::from(zh));
+        let g = cat::render(&cat::Pose::default(), CAT_SCALE, theme(), 0.0);
+        let (cw, ch) = (i32::from(g.cols), i32::from(g.rows));
+        assert!(
+            CAT_AT.0 >= zx
+                && CAT_AT.1 >= zy
+                && CAT_AT.0 + cw <= zx + zw
+                && CAT_AT.1 + ch <= zy + zh,
+            "the cat {cw}x{ch} at {CAT_AT:?} is outside {DROP_ZONE:?}"
+        );
+        assert!(PLATE_AT.0 <= zx && zx + zw <= PLATE_AT.0 + i32::from(PLATE_W));
+        assert!((zy..zy + zh).contains(&PLATE_AT.1), "the plate's top row");
+        for (x, y, w, h) in [CALLERS, MENU, HOW, SYSTEM] {
+            let apart = x + w <= zx || zx + zw <= x || y + h <= zy || zy + zh <= y;
+            assert!(apart, "the panel at {x},{y} is in the zone");
+        }
+        assert!(zy + zh <= HINT_Y);
+        assert_eq!(FullLayout.drop_zone(), Some(DROP_ZONE));
     }
 
     #[test]

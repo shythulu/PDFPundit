@@ -51,6 +51,10 @@ pub enum Input {
     /// kitty drag and drop (T-31): built on Unix only, by the raw splitter.
     #[cfg_attr(not(unix), allow(dead_code))]
     Dnd(DndEvent),
+    /// A line for the debug log from the reader thread (T-31: the raw
+    /// reader runs without resize events).
+    #[cfg_attr(not(unix), allow(dead_code))]
+    Note(String),
     /// Time passes and nothing else happens: a scripted input's pause. The
     /// readers never send it; the loop ticks on its own.
     #[cfg_attr(not(test), allow(dead_code))]
@@ -92,8 +96,22 @@ const ESC_WAIT: std::time::Duration = std::time::Duration::from_millis(50);
 #[cfg(unix)]
 fn raw_reader(tx: &Sender<Input>) {
     use super::term::{RawStdin, Wake};
-    let Ok(mut stdin) = RawStdin::open(true) else {
-        return;
+    // The raw reader is the only input on kitty: if the SIGWINCH pipe cannot
+    // be set up, keys and drops still come, without resize events. Opening
+    // without the pipe does no I/O and cannot fail.
+    let mut stdin = match RawStdin::open(true) {
+        Ok(stdin) => stdin,
+        Err(e) => {
+            let note = format!("input: no resize events ({e}); keys and drops still work");
+            if tx.send(Input::Note(note)).is_err() {
+                return;
+            }
+            match RawStdin::open(false) {
+                Ok(stdin) => stdin,
+                // Unreachable today; never leave the app with no keys.
+                Err(_) => return crossterm_reader(tx),
+            }
+        }
     };
     let mut splitter = osc72::Splitter::new();
     loop {

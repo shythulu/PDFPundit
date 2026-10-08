@@ -845,7 +845,7 @@ fn uri_list(paths: &[&Path]) -> Input {
         })
         .collect();
     Input::Dnd(DndEvent::Data {
-        idx: 1,
+        idx: Some(1),
         data: Ok(list.into_bytes()),
     })
 }
@@ -885,7 +885,8 @@ fn a_kitty_drop_on_the_cat_is_read_before_it_completes() {
     assert_eq!(app.admitted[0].1.as_deref(), Some(want.as_slice()));
 
     // The file goes away when the drop ends (a file promise); its bytes
-    // were taken while it was there, with the path the output goes beside.
+    // were taken while it was there. The runner pins them and, with the path
+    // gone, never writes beside it (D-039, D-061; runner_tests.rs).
     std::fs::remove_file(&a).unwrap();
     let mut submitted = Vec::new();
     app.submit_drops(Duration::from_secs(2), &mut |input| {

@@ -5,7 +5,9 @@
 //! <https://sw.kovidgoyal.net/kitty/dnd-protocol/> ("added in 0.47.0");
 //! nothing here comes from kitty's code. The page prints OSC as
 //! `0x1b 0x5b`: it is `ESC ]`, 0x1b 0x5d. Drops need kitty 0.49 or later,
-//! the release with the fixes its changelog lists as CVEs.
+//! the release with the fixes its changelog lists as CVEs. That is
+//! documentation only: nothing checks the version (an XTVERSION query could,
+//! later).
 //!
 //! Every escape code is `ESC ] 72 ; metadata ; payload ST` (or `BEL`), the
 //! metadata `:`-separated `key=value` pairs in any order. The pieces:
@@ -32,6 +34,11 @@
 //! | `t=M…;full MIME list` | `t=r:x=<1-based index of text/uri-list>`, or `t=r:o=0` |
 //! | `t=r:x=…;base64…` … `m=0` and an empty payload | the `file://` list: every file read into memory, then `t=r:o=1` (`o=0` when none) |
 //! | `t=R:x=…;ENAME[:description]` | the drop ended: `t=r:o=0` and a hint (D-057) |
+//!
+//! The `t=R` hint is the fixed one for its error name. The description,
+//! validated as safe text, goes to the debug log, not the hint row: the
+//! hint row shows only the fixed strings in `strings::ALL`, never text the
+//! terminal chose.
 //!
 //! Only copies are accepted: a drag that offers only a move (`o=2`) is
 //! declined, so the source never deletes an original. kitty's own framing
@@ -105,9 +112,12 @@ pub enum DndEvent {
         copy: bool,
         mimes: Vec<String>,
     },
-    /// `t=r`: the data for the MIME type at 1-based `idx`, decoded.
+    /// `t=r`: the data for the MIME type at 1-based `idx`, decoded. `None`
+    /// when the first chunk named no `x`: it answers the request outstanding.
+    /// A `t=r` transfer abandoned mid-chain (another frame broke in) is
+    /// reported as `Garbled`, so the drop it answers still ends.
     Data {
-        idx: u32,
+        idx: Option<u32>,
         data: Result<Vec<u8>, DataError>,
     },
     /// `t=R`: the terminal ended the drop. `name` is a POSIX error name
@@ -184,6 +194,16 @@ impl Meta {
         Some(CellPos {
             x: clamp(x),
             y: clamp(y),
+        })
+    }
+
+    /// A data transfer's `x`: `None` when absent; an `x` that is no 1-based
+    /// index is 0, which answers no request.
+    fn data_idx(&self) -> Option<u32> {
+        self.get("x").map(|_| {
+            self.int("x")
+                .and_then(|x| u32::try_from(x).ok())
+                .unwrap_or(0)
         })
     }
 
@@ -275,7 +295,7 @@ impl Transfer {
                 },
             },
             'r' => DndEvent::Data {
-                idx: m.int("x").and_then(|x| u32::try_from(x).ok()).unwrap_or(0),
+                idx: m.data_idx(),
                 data: if self.over {
                     Err(DataError::TooBig)
                 } else {
@@ -325,7 +345,16 @@ struct Reassembler {
 }
 
 impl Reassembler {
-    fn push(&mut self, f: Frame) -> Option<DndEvent> {
+    /// The events `f` completes, in order: at most an abandoned data
+    /// transfer's `Garbled` and the frame's own.
+    fn push(&mut self, f: Frame, out: &mut Vec<DndEvent>) {
+        if let Some(ev) = self.frame(f, out) {
+            out.push(ev);
+        }
+    }
+
+    /// `f`'s own event; an abandoned transfer's goes to `out` first.
+    fn frame(&mut self, f: Frame, out: &mut Vec<DndEvent>) -> Option<DndEvent> {
         let t = f.meta.t();
         // A query reply may come mid-transfer; after start-up it means
         // nothing.
@@ -352,8 +381,17 @@ impl Reassembler {
                 };
             }
             // Anything else while a transfer is open breaks the protocol:
-            // the transfer is dropped and the new frame starts afresh.
-            self.open = None;
+            // the transfer is dropped and the new frame starts afresh. A
+            // dropped data transfer still answers its request, as garbled,
+            // so the drop ends with `t=r:o=0` rather than staying open.
+            if let Some(open) = self.open.take()
+                && open.t == 'r'
+            {
+                out.push(DndEvent::Data {
+                    idx: open.meta.data_idx(),
+                    data: Err(DataError::Garbled),
+                });
+            }
         }
         // A continuation with nothing to continue.
         let t = t?;
@@ -412,10 +450,10 @@ impl Splitter {
                 Token::Osc {
                     body, truncated, ..
                 } => {
-                    if let Some(ev) =
-                        Frame::parse(&body, truncated).and_then(|f| self.chunks.push(f))
-                    {
-                        out.push(Input::Dnd(ev));
+                    if let Some(f) = Frame::parse(&body, truncated) {
+                        let mut events = Vec::new();
+                        self.chunks.push(f, &mut events);
+                        out.extend(events.into_iter().map(Input::Dnd));
                     }
                 }
                 // A late answer to start-up's DA1.
@@ -577,7 +615,12 @@ impl DndSession {
                 }
             }
             DndEvent::Data { idx, data } => {
-                if self.phase != Phase::Requested(idx) {
+                // Data with no `x` answers the request outstanding; with one,
+                // only the index asked for.
+                let Phase::Requested(want) = self.phase else {
+                    return Vec::new();
+                };
+                if idx.is_some_and(|i| i != want) {
                     return Vec::new();
                 }
                 match data {
