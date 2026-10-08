@@ -1,6 +1,7 @@
 //! T-08b acceptance: the sfnt parser and checksum, the complete and the
-//! gaps-only window, verifier B, the Adler-only re-run guard, determinism
-//! under budget and the reject counts.
+//! gaps-only window, verifier B and its running sums, the guard that widens
+//! the search under the Adler-32 alone, determinism under budget and the
+//! reject counts.
 
 use super::super::*;
 use super::*;
@@ -148,7 +149,10 @@ fn zlib(data: &[u8]) -> Vec<u8> {
     miniz_oxide::deflate::compress_to_vec_zlib(data, 6)
 }
 
-/// A localizer with [`TtfLocalizer`]'s check (or none) over fixed ranges.
+/// A localizer with [`TtfLocalizer`]'s check (or none) over fixed ranges,
+/// which never widens. Its ranges may reach past `end(T1)`, which
+/// [`TtfLocalizer`]'s own window never does: only through it does a
+/// candidate meet the no-inflate reject.
 struct Narrow {
     ranges: Vec<Range<usize>>,
     check: bool,
@@ -160,10 +164,11 @@ impl Localizer for Narrow {
         Some(Window {
             ranges: self.ranges.clone(),
             check: w.check.filter(|_| self.check),
+            widen: false,
         })
     }
-    fn early_reject(&self, candidate_out_prefix: &[u8]) -> Option<bool> {
-        TtfLocalizer.early_reject(candidate_out_prefix)
+    fn early_reject(&self, check: &Check, prefix: &[u8], same_to: usize) -> Option<bool> {
+        TtfLocalizer.early_reject(check, prefix, same_to)
     }
 }
 
@@ -173,20 +178,10 @@ fn hunt(input: &[u8], l: &dyn Localizer, limit: u64) -> Pending {
     let Read::Damaged { mode, damage, out } = read(input) else {
         panic!("searchable damage");
     };
-    let (windows, localizer, check) = windows_for(input, mode, damage, &out, &[l]);
-    assert_eq!(localizer, Some(0));
-    let mut p = Pending {
-        mode,
-        damage,
-        fallback: out,
-        in_total: input.len(),
-        windows,
-        localizer,
-        check,
-        rerun: false,
-        raw_next: false,
-        hunt: Hunt::default(),
-    };
+    let plan =
+        windows_for(input, mode, damage, &out, &[l], &Ctx::alone()).expect("never cancelled");
+    assert_eq!(plan.localizer, Some(0));
+    let mut p = Pending::new(mode, damage, out, input.len(), plan, false);
     search(input, &mut p, 0, limit, &[l], &Ctx::alone()).expect("never cancelled");
     p
 }
@@ -249,33 +244,64 @@ fn the_localizer_applies_to_adler_only_font_streams() {
             .window(&out, &InputTrace::of(&damaged, Mode::Zlib, true))
             .is_some()
     );
-    assert_eq!(
-        TtfLocalizer.window(&out, &InputTrace::of(&damaged, Mode::Zlib, false)),
-        None,
+    assert!(
+        TtfLocalizer
+            .window(&out, &InputTrace::of(&damaged, Mode::Zlib, false))
+            .is_none(),
         "error damage keeps the ladder's own window"
     );
     let text = zlib(b"BT /F1 12 Tf (not a font) Tj ET");
     let t = InputTrace::of(&text, Mode::Zlib, true);
-    assert_eq!(
-        TtfLocalizer.window(&inflate(&text, DEFAULT_CAP).out, &t),
-        None
+    assert!(
+        TtfLocalizer
+            .window(&inflate(&text, DEFAULT_CAP).out, &t)
+            .is_none()
     );
 }
 
-/// Verifier B judges the table that ends where the prefix ends.
+/// A check on `table` of `baseline`, as the localizer builds one.
+fn check_on(table: Table, baseline: &[u8]) -> Check {
+    Check {
+        at_out: table.end(),
+        from: 0,
+        memo: Arc::new(T1Sums::of(table, baseline)),
+    }
+}
+
+/// Verifier B judges T1 from the damaged output's running sums and the
+/// candidate's words past `same_to`, and agrees with the whole checksum
+/// wherever the candidate equals the damaged output before `same_to`. For
+/// `head`, whose `checkSumAdjustment` counts as zero, too.
 #[test]
-fn early_reject_checks_the_table_ending_at_the_prefix() {
-    let glyf = table(TEST_FONT, b"glyf");
-    let prefix = &TEST_FONT[..glyf.end()];
-    assert_eq!(TtfLocalizer.early_reject(prefix), Some(false));
-    let mut bad = prefix.to_vec();
-    bad[glyf.offset + 100] ^= 1;
-    assert_eq!(TtfLocalizer.early_reject(&bad), Some(true));
-    // No table ends here: nothing to judge.
-    let mut off_end = TEST_FONT[..glyf.end() - 4].to_vec();
-    off_end[glyf.offset + 100] ^= 1;
-    assert_eq!(TtfLocalizer.early_reject(&off_end), Some(false));
-    assert_eq!(TtfLocalizer.early_reject(b"not a font"), Some(false));
+fn early_reject_sums_t1_past_the_unchanged_prefix() {
+    for (tag, at) in [(b"glyf", 100), (b"head", 16)] {
+        let t = table(TEST_FONT, tag);
+        let mut baseline = TEST_FONT.to_vec();
+        baseline[t.offset + at] ^= 1;
+        let check = check_on(t, &baseline);
+        let restored = &TEST_FONT[..t.end()];
+        let mut worse = baseline[..t.end()].to_vec();
+        worse[t.offset + at + 9] ^= 4;
+        for same_to in 0..=t.offset + at {
+            let judge = |c: &[u8]| TtfLocalizer.early_reject(&check, c, same_to);
+            assert_eq!(judge(restored), Some(false), "{tag:?} {same_to}");
+            assert_eq!(judge(&worse), Some(true), "{tag:?} {same_to}");
+            assert_eq!(judge(&baseline[..t.end()]), Some(true), "{tag:?}");
+        }
+    }
+    // The adjustment itself is not summed.
+    let head = table(TEST_FONT, b"head");
+    let mut adjusted = TEST_FONT[..head.end()].to_vec();
+    adjusted[head.offset + 9] ^= 0x55;
+    let check = check_on(head, TEST_FONT);
+    assert_eq!(TtfLocalizer.early_reject(&check, &adjusted, 0), Some(false));
+    // A memo that is not the localizer's own leaves the candidate to the
+    // Adler-32.
+    let foreign = Check {
+        memo: Arc::new(()),
+        ..check
+    };
+    assert_eq!(TtfLocalizer.early_reject(&foreign, &adjusted, 0), None);
 }
 
 // ── the window ───────────────────────────────────────────────────────────
@@ -306,13 +332,9 @@ fn glyf_damage_gives_a_window_inside_glyf() {
     assert!(w.ranges[0].contains(&pos));
     assert!(top < damaged.len() - 4 - 500, "later tables are left out");
     let from = map.producer(glyf.offset) + 1;
-    assert_eq!(
-        w.check,
-        Some(Check {
-            at_out: glyf.end(),
-            from,
-        })
-    );
+    let check = w.check.as_ref().expect("glyf follows the directory");
+    assert_eq!((check.at_out, check.from), (glyf.end(), from));
+    assert!(w.widen, "a failing table widens");
     // Past the directory, the window is glyf's input span.
     assert!(trace[from - 1] >= glyf.offset && trace[top - 2] < glyf.end());
 }
@@ -335,7 +357,8 @@ fn directory_damage_gives_the_gaps_only_window() {
     let w = TtfLocalizer
         .window(&out, &InputTrace::of(&damaged, Mode::Zlib, true))
         .unwrap();
-    assert_eq!(w.check, None);
+    assert!(w.check.is_none());
+    assert!(!w.widen, "with no failing table the gaps are the window");
     let mut tables: Vec<Range<usize>> = Directory::parse(TEST_FONT)
         .unwrap()
         .tables
@@ -497,7 +520,8 @@ fn determinism_under_budget() {
 /// and positions past it), every candidate A refuses is refused by B either
 /// after decoding to `end(glyf)` or, past `glyf`, with no inflate, the
 /// accepts are the same, B spends less W, and every count is the same on
-/// two runs.
+/// two runs. B's decode-stage rejects are counted independently: the
+/// candidates whose whole decode reaches `end(glyf)` with `glyf` failing.
 #[test]
 fn b_rejects_what_a_rejects() {
     let z = font_stream();
@@ -535,8 +559,111 @@ fn b_rejects_what_a_rejects() {
     assert_eq!(a_found.len(), 1);
     assert_eq!(b_none, past.len() as u64 * 255, "every candidate past glyf");
     assert!(b_checked > 0);
-    let a_rejected = a_tried - a_accepted;
-    let b_rejected_inflated = b_tried - b_accepted - b_none;
-    assert_eq!(b_rejected_inflated + b_none, a_rejected);
+    let mut glyf_fails = 0u64;
+    for at in ranges[1].clone() {
+        for v in (0..=255u8).filter(|&v| v != damaged[at]) {
+            let mut m = damaged.clone();
+            m[at] = v;
+            let out = inflate(&m, DEFAULT_CAP).out;
+            if out.len() >= glyf.end()
+                && checksum(b"glyf", &out[glyf.offset..glyf.end()]) != glyf.checksum
+            {
+                glyf_fails += 1;
+            }
+        }
+    }
+    assert_eq!(b_checked, glyf_fails);
     assert!(b_spent < a_spent, "{b_spent} < {a_spent}");
+}
+
+/// The guard when the damage lies past T1: the original's `glyf` checksum
+/// is wrong and the damage sits in `head` or `post`, after `end(glyf)`, so
+/// the localized window cannot hold it. The search widens to the rest of
+/// the ladder's own window and repairs it as the ladder alone does.
+#[test]
+fn a_wrong_lower_checksum_with_damage_past_it_is_repaired_as_without_the_localizer() {
+    let font = small_font(Some(b"glyf"));
+    let z = zlib(&font);
+    let glyf = table(&font, b"glyf");
+    let past = Map(&trace_of(&z)).producer(glyf.end()) + 1;
+    let (damaged, pos) = seeded(&z, (past + 20..z.len() - 8).rev(), |out| {
+        out.len() == font.len() && out[..glyf.end()] == font[..glyf.end()] && out != font
+    });
+    let w = TtfLocalizer
+        .window(
+            &inflate(&damaged, DEFAULT_CAP).out,
+            &InputTrace::of(&damaged, Mode::Zlib, true),
+        )
+        .unwrap();
+    assert!(w.widen && w.check.is_some());
+    assert!(
+        w.ranges.iter().all(|r| !r.contains(&pos)),
+        "out of the window"
+    );
+
+    let localized = salvage_inflate(&damaged, &under_work());
+    let alone = salvage_with(&damaged, &under_work(), &[]);
+    let (
+        Salvage::Repaired {
+            data: d1,
+            edits: e1,
+            grade: Grade::Exact,
+            adler_rerun: true,
+            ..
+        },
+        Salvage::Repaired {
+            data: d2,
+            edits: e2,
+            grade: Grade::Exact,
+            adler_rerun: false,
+            ..
+        },
+    ) = (&localized, &alone)
+    else {
+        panic!("{localized:?} / {alone:?}");
+    };
+    assert_eq!((d1, e1), (d2, e2));
+    assert_eq!(d1, &font);
+    assert_eq!(e1, &[(pos, damaged[pos], z[pos])]);
+}
+
+/// A budget that stops inside the widened pass, after its repair, reports
+/// `Accepted` with the widened pass's own count and window: `searched`
+/// never exceeds `window`.
+#[test]
+fn accepted_after_widening_counts_the_widened_pass_only() {
+    let font = small_font(Some(b"glyf"));
+    let z = zlib(&font);
+    let glyf = table(&font, b"glyf");
+    let top = Map(&trace_of(&z)).producer(glyf.end());
+    let (damaged, _) = seeded(&z, (top - 60..top - 40).rev(), |out| {
+        out[glyf.offset..glyf.end()] != font[glyf.offset..glyf.end()]
+            && out[glyf.end()..] == font[glyf.end()..]
+    });
+    let Salvage::Repaired {
+        grade: Grade::Exact,
+        work: full,
+        adler_rerun: true,
+        ..
+    } = salvage_inflate(&damaged, &under_work())
+    else {
+        panic!("the widened pass is exhausted under work");
+    };
+    let mut accepted = 0;
+    for work in [full * 3 / 4, full * 9 / 10, full - 1] {
+        let s = salvage_inflate(&damaged, &with_work(work));
+        if let Salvage::Repaired {
+            data,
+            grade: Grade::Accepted { searched, window },
+            adler_rerun,
+            ..
+        } = &s
+        {
+            assert!(searched <= window, "work {work}: {searched} <= {window}");
+            assert!(adler_rerun);
+            assert_eq!(data, &font);
+            accepted += 1;
+        }
+    }
+    assert!(accepted >= 1, "a budget stops inside the widened pass");
 }

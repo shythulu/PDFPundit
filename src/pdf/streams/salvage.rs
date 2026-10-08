@@ -24,13 +24,14 @@
 // T-11b, T-12b and T-14 are the first callers outside the tests.
 #![cfg_attr(not(test), allow(dead_code))]
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::ops::Range;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Condvar, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
 use lopdf::Dictionary;
 use miniz_oxide::inflate::TINFLStatus;
@@ -138,10 +139,10 @@ pub(crate) enum Salvage {
     /// repair rewrites a byte of the Adler-32 trailer (the body already
     /// decoded to the original); it is T-08's addition to the interface, so
     /// the report can name trailer evidence without re-deriving it.
-    /// `adler_rerun` says the localizer's early check refused every candidate
-    /// of its window and the repair was found when the window was searched
-    /// again under the Adler-32 alone (for a font: the original's own table
-    /// checksum was wrong); T-08b's addition, so the report can say so.
+    /// `adler_rerun` says the localizer's window gave no accept and the
+    /// repair was found once the search widened past it under the Adler-32
+    /// alone (for a font: the original's own table checksum was wrong);
+    /// T-08b's addition, so the report can say so.
     Repaired {
         data: Vec<u8>,
         edits: Vec<Edit>,
@@ -370,14 +371,28 @@ impl StreamSource for CarveSource<'_> {
 /// Narrows a search to where the damage can be (T-08b's TrueType-checksum
 /// localizer, T-08c's grammar one). The first registered localizer whose
 /// [`Self::window`] answers sets the window.
+///
+/// T-08b amended T-08's protocol: `early_reject` was asked as a candidate's
+/// output grew (every 4 KiB) with the prefix alone; it is now asked once per
+/// candidate, at the window's [`Check`] pause point, with the check (and the
+/// localizer's per-stream memo) and the length of the prefix that still
+/// equals the damaged output. A localizer that judges a growing prefix
+/// (T-08c's grammar one) needs a pause point of its own or the incremental
+/// ask back.
 pub(crate) trait Localizer: Sync {
     /// The input positions to search, or `None` when this localizer does not
     /// apply. `baseline_out` is the damaged stream's own output.
     fn window(&self, baseline_out: &[u8], trace: &InputTrace) -> Option<Window>;
     /// Asked once per candidate when the window carries a [`Check`], with
-    /// the candidate's first `at_out` output bytes: `Some(true)` rejects the
+    /// the candidate's first `check.at_out` output bytes, of which the first
+    /// `same_to` are the damaged stream's own: `Some(true)` rejects the
     /// candidate; anything else lets it decode on to its end.
-    fn early_reject(&self, candidate_out_prefix: &[u8]) -> Option<bool>;
+    fn early_reject(
+        &self,
+        check: &Check,
+        candidate_out_prefix: &[u8],
+        same_to: usize,
+    ) -> Option<bool>;
 }
 
 /// The localizers the ladder consults, in order.
@@ -385,12 +400,22 @@ const LOCALIZERS: &[&dyn Localizer] = &[&TtfLocalizer];
 
 /// Input positions to search: each range from its top down, in the order
 /// given. Ranges are clamped to the input.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct Window {
     pub ranges: Vec<Range<usize>>,
     /// The early verdict on candidates, if the localizer has one.
     pub check: Option<Check>,
+    /// The window assumes something of the original that the damaged output
+    /// cannot confirm (for a font: that its table checksums were right).
+    /// When it is exhausted with no accept, the search widens under the
+    /// Adler-32 alone (see [`Pending::exhausted`]). A window with a check
+    /// widens whether or not this is set.
+    pub widen: bool,
 }
+
+/// What a localizer keeps of one stream for its
+/// [`Localizer::early_reject`]; the ladder only hands it back.
+pub(crate) type Memo = Arc<dyn Any + Send + Sync>;
 
 /// An early verdict on candidates (T-08b's verifier B). A candidate at an
 /// input position at or past `from` is decoded to `at_out` output bytes,
@@ -402,13 +427,25 @@ pub(crate) struct Window {
 /// decode stage is charged as a candidate inflate.
 ///
 /// The check assumes the original passed it. When the window is exhausted
-/// with no accept, it is searched again with no check, so an original that
-/// failed its own check costs more but is never refused; a repair found then
-/// carries `adler_rerun`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// with no accept, the search widens: the positions the check judged are
+/// searched again with no check, then the rest of the ladder's own window,
+/// so an original that failed its own check costs more but is never refused;
+/// a repair found then carries `adler_rerun`.
+#[derive(Clone)]
 pub(crate) struct Check {
     pub at_out: usize,
     pub from: usize,
+    /// The localizer's own memo of the damaged output.
+    pub memo: Memo,
+}
+
+impl std::fmt::Debug for Check {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Check")
+            .field("at_out", &self.at_out)
+            .field("from", &self.from)
+            .finish_non_exhaustive()
+    }
 }
 
 /// The damaged stream's decode, input byte by input byte: `out_after()[i]`
@@ -641,6 +678,12 @@ fn deep_allocation(pending: &[(u64, ObjId)], budget: &SalvageBudget) -> Vec<ObjI
 /// past the damaged decode still grows its scratch beyond the estimate (up
 /// to T-06's 256 MiB inflate cap, measured at about 7 × out on a flat
 /// stream), which no estimate taken before the search can foresee.
+/// A localizer's byte-wise trace (8 bytes per input byte and one decode of
+/// the output, with the fallback beside it) is built under its own admission
+/// of this estimate before the search and dropped before the search admits;
+/// T-08b's running sums over T1 (4 bytes per word, so T1's own size, at
+/// most one more output-sized buffer) are kept through the search and are
+/// not counted apart: for a font (about 2:1) `12 × raw` covers them.
 /// Admission never changes a result, only when a search starts.
 fn scratch_estimate(raw: u64, out: u64) -> u64 {
     66 * raw + (12 * raw).max(1 << 20).max(out.saturating_mul(4))
@@ -837,10 +880,13 @@ struct Pending {
     windows: [Vec<Range<usize>>; 2],
     /// The localizer that set the window, if any.
     localizer: Option<usize>,
-    /// The localizer's early check, until the window is searched again
-    /// without it.
+    /// The localizer's early check, until the search widens.
     check: Option<Check>,
-    /// The window is being (or was) searched again without the check.
+    /// Set while the window is a localizer's that assumes something of the
+    /// original: the `from` of its check (`usize::MAX` with none), until the
+    /// search widens.
+    widen: Option<usize>,
+    /// The search widened past the localizer's window.
     rerun: bool,
     /// The zlib header was rejected: when the zlib window is exhausted with
     /// no survivor, the search moves on to raw deflate.
@@ -855,6 +901,10 @@ struct Hunt {
     spent: u64,
     /// Candidates tried so far.
     tried: u64,
+    /// `tried` when the current pass over the window began: a widened or
+    /// raw-deflate pass starts its own count, so `Accepted`'s `searched`
+    /// stays within its `window`.
+    pass_start: u64,
     /// Candidates accepted (one output may be accepted more than once).
     accepted: u64,
     /// Candidates the check rejected after decoding to its `at_out`.
@@ -982,19 +1032,8 @@ fn begin(
             },
         });
     }
-    let (windows, localizer, check) = windows_for(input, mode, damage, &fallback, localizers);
-    let mut p = Pending {
-        mode,
-        damage,
-        fallback,
-        in_total: input.len(),
-        windows,
-        localizer,
-        check,
-        rerun: false,
-        raw_next,
-        hunt: Hunt::default(),
-    };
+    let plan = windows_for(input, mode, damage, &fallback, localizers, ctx)?;
+    let mut p = Pending::new(mode, damage, fallback, input.len(), plan, raw_next);
     let exhausted = search(input, &mut p, 0, budget.work, localizers, ctx)?;
     let headroom = !exhausted || total(&p.windows[1]) > total(&p.windows[0]);
     Ok(if p.hunt.found.is_empty() && headroom {
@@ -1019,6 +1058,41 @@ fn deepen(
 }
 
 impl Pending {
+    fn new(
+        mode: Mode,
+        damage: Damage,
+        fallback: Vec<u8>,
+        in_total: usize,
+        plan: Plan,
+        raw_next: bool,
+    ) -> Pending {
+        let mut p = Pending {
+            mode,
+            damage,
+            fallback,
+            in_total,
+            windows: [Vec::new(), Vec::new()],
+            localizer: None,
+            check: None,
+            widen: None,
+            rerun: false,
+            raw_next,
+            hunt: Hunt::default(),
+        };
+        p.start(plan);
+        p
+    }
+
+    /// Starts a pass over `plan`'s windows from their top.
+    fn start(&mut self, plan: Plan) {
+        self.windows = plan.windows;
+        self.localizer = plan.localizer;
+        self.check = plan.check;
+        self.widen = plan.widen;
+        self.hunt.cursor = Cursor::default();
+        self.hunt.pass_start = self.hunt.tried;
+    }
+
     /// The result for a stream that got no deep draw.
     fn settle(self) -> Outcome {
         self.conclude(0, false)
@@ -1045,7 +1119,7 @@ impl Pending {
             Grade::Exact
         } else {
             Grade::Accepted {
-                searched: self.hunt.tried,
+                searched: self.hunt.tried - self.hunt.pass_start,
                 window: total(&self.windows[phase]),
             }
         };
@@ -1062,22 +1136,36 @@ impl Pending {
         Outcome { salvage, work }
     }
 
-    /// The window is exhausted. With no survivor, a window searched under a
-    /// [`Check`] is searched again without it; then an Adler-only zlib stream
-    /// gets the trailer-recompute path, and a stream whose zlib header was
-    /// rejected moves on to raw deflate when [`raw_fallback`] allows it:
-    /// `true` means the search goes on, from the top of its own windows (the
-    /// W spent so far stays spent).
-    fn exhausted(&mut self, input: &[u8], localizers: &[&dyn Localizer]) -> bool {
+    /// The window is exhausted. With no survivor, a localizer's window that
+    /// assumes something of the original widens (see [`widened`]): the
+    /// positions its check judged, then the rest of the ladder's own window,
+    /// all under the Adler-32 alone. Then an Adler-only zlib stream gets the
+    /// trailer-recompute path, and a stream whose zlib header was rejected
+    /// moves on to raw deflate when [`raw_fallback`] allows it: `true` means
+    /// the search goes on, from the top of its new windows (the W spent so
+    /// far stays spent).
+    fn exhausted(
+        &mut self,
+        input: &[u8],
+        localizers: &[&dyn Localizer],
+        ctx: &Ctx,
+    ) -> Result<bool, Cancelled> {
         if !self.hunt.found.is_empty() {
-            return false;
+            return Ok(false);
         }
-        if self.check.take().is_some() {
+        if let Some(from) = self.widen.take() {
+            let own = own_windows(self.damage, self.in_total);
+            let localized = std::mem::take(&mut self.windows[1]);
             self.rerun = true;
-            self.hunt.cursor = Cursor::default();
-            return true;
+            self.start(Plan {
+                windows: own.map(|w| widened(&localized, from, &w)),
+                localizer: None,
+                check: None,
+                widen: None,
+            });
+            return Ok(true);
         }
-        match (self.mode, self.damage) {
+        Ok(match (self.mode, self.damage) {
             (Mode::Zlib, Damage::Adler { trailer }) => {
                 trailer_survivor(input, trailer, self);
                 false
@@ -1085,22 +1173,18 @@ impl Pending {
             (Mode::Zlib, Damage::Error { .. }) if self.raw_next => {
                 self.raw_next = false;
                 let Some((damage, out)) = raw_fallback(input) else {
-                    return false;
+                    return Ok(false);
                 };
                 let fallback = fallback_of(out);
-                let (windows, localizer, check) =
-                    windows_for(input, Mode::Raw, damage, &fallback, localizers);
+                let plan = windows_for(input, Mode::Raw, damage, &fallback, localizers, ctx)?;
                 self.mode = Mode::Raw;
                 self.damage = damage;
                 self.fallback = fallback;
-                self.windows = windows;
-                self.localizer = localizer;
-                self.check = check;
-                self.hunt.cursor = Cursor::default();
+                self.start(plan);
                 true
             }
             _ => false,
-        }
+        })
     }
 
     /// Records a survivor whose output is `out`.
@@ -1129,16 +1213,29 @@ fn prefix(mut data: Vec<u8>, in_used: usize, in_total: usize) -> Salvage {
     }
 }
 
-/// The phase-1 and deep windows, and the localizer that set them with its
-/// check.
+/// Where a search looks: the phase-1 and deep windows (the second extends
+/// the first), and the localizer that set them with its check and whether
+/// they widen (see [`Pending`]).
+struct Plan {
+    windows: [Vec<Range<usize>>; 2],
+    localizer: Option<usize>,
+    check: Option<Check>,
+    widen: Option<usize>,
+}
+
+/// The first registered localizer's window, or the ladder's own. The byte-wise
+/// trace a localizer may build (8 bytes per input byte and a decode of the
+/// output) is built under the stream's admission, as the search scratch is.
 fn windows_for(
     input: &[u8],
     mode: Mode,
     damage: Damage,
     baseline_out: &[u8],
     localizers: &[&dyn Localizer],
-) -> ([Vec<Range<usize>>; 2], Option<usize>, Option<Check>) {
+    ctx: &Ctx,
+) -> Result<Plan, Cancelled> {
     if !localizers.is_empty() {
+        let _admitted = ctx.admit(baseline_out.len() as u64)?;
         let to_end = matches!(damage, Damage::Adler { .. });
         let trace = InputTrace::of(input, mode, to_end);
         for (i, l) in localizers.iter().enumerate() {
@@ -1148,26 +1245,84 @@ fn windows_for(
                     .into_iter()
                     .map(|r| r.start.min(input.len())..r.end.min(input.len()))
                     .collect();
-                return ([ranges.clone(), ranges], Some(i), w.check);
+                let widen = (w.widen || w.check.is_some())
+                    .then(|| w.check.as_ref().map_or(usize::MAX, |c| c.from));
+                return Ok(Plan {
+                    windows: [ranges.clone(), ranges],
+                    localizer: Some(i),
+                    check: w.check,
+                    widen,
+                });
             }
         }
     }
+    Ok(Plan {
+        windows: own_windows(damage, input.len()),
+        localizer: None,
+        check: None,
+        widen: None,
+    })
+}
+
+/// The ladder's own phase-1 and deep windows for `damage` in an input of
+/// `len` bytes.
+fn own_windows(damage: Damage, len: usize) -> [Vec<Range<usize>>; 2] {
     match damage {
         Damage::Adler { trailer } => {
             let w = std::iter::once(ADLER_FROM.min(trailer)..trailer).collect::<Vec<_>>();
-            ([w.clone(), w], None, None)
+            [w.clone(), w]
         }
         Damage::Error { k } => {
-            let hi = (k + ERROR_SLACK).min(input.len());
+            let hi = (k + ERROR_SLACK).min(len);
             let lo = k.saturating_sub(ERROR_WINDOW).min(hi);
             let deep_lo = k.saturating_sub(DEEP_ERROR_WINDOW).min(lo);
-            (
-                [std::iter::once(lo..hi).collect(), vec![lo..hi, deep_lo..lo]],
-                None,
-                None,
-            )
+            [std::iter::once(lo..hi).collect(), vec![lo..hi, deep_lo..lo]]
         }
     }
+}
+
+/// The window a search widens to once a localizer's window `localized` gave
+/// no accept: first its positions at or past `from` (the ones its check
+/// judged; the positions below were already judged by the Adler-32 alone),
+/// then the ladder's own window `own` without `localized`, each piece from
+/// its top down as `own` is searched.
+fn widened(localized: &[Range<usize>], from: usize, own: &[Range<usize>]) -> Vec<Range<usize>> {
+    let mut done: Vec<Range<usize>> = localized
+        .iter()
+        .filter(|r| r.end > r.start)
+        .cloned()
+        .collect();
+    done.sort_by_key(|r| r.start);
+    let mut merged: Vec<Range<usize>> = Vec::new();
+    for r in done {
+        match merged.last_mut() {
+            Some(last) if r.start <= last.end => last.end = last.end.max(r.end),
+            _ => merged.push(r),
+        }
+    }
+    let mut out: Vec<Range<usize>> = localized
+        .iter()
+        .map(|r| r.start.max(from)..r.end)
+        .filter(|r| r.end > r.start)
+        .collect();
+    for r in own {
+        let mut pieces = Vec::new();
+        let mut at = r.start;
+        for m in &merged {
+            if m.end <= at || m.start >= r.end {
+                continue;
+            }
+            if m.start > at {
+                pieces.push(at..m.start);
+            }
+            at = at.max(m.end);
+        }
+        if at < r.end {
+            pieces.push(at..r.end);
+        }
+        out.extend(pieces.into_iter().rev());
+    }
+    out
 }
 
 /// Candidates in a window.
@@ -1235,7 +1390,7 @@ fn search(
         if !search_window(input, p, phase, limit, localizers, ctx)? {
             return Ok(false);
         }
-        if !p.exhausted(input, localizers) {
+        if !p.exhausted(input, localizers, ctx)? {
             return Ok(true);
         }
     }
@@ -1265,6 +1420,7 @@ fn search_window(
     let _admitted = ctx.admit(p.fallback.len() as u64)?;
     let base = baseline_sized(input, p.mode, true, p.fallback.len());
     let early = p.localizer.map(|i| localizers[i]);
+    let check = p.check.clone();
     let mut buf = input.to_vec();
     // Room past the damaged output, so a candidate of about its length does
     // not double the buffer.
@@ -1285,7 +1441,7 @@ fn search_window(
             ctx.poll()?;
         }
         let cp = &base.checkpoints[base.checkpoints.partition_point(|c| c.in_pos <= pos) - 1];
-        let checked = p.check.filter(|c| pos >= c.from);
+        let checked = check.as_ref().filter(|c| pos >= c.from);
         if checked.is_some_and(|c| cp.out_pos >= c.at_out) {
             // The candidate's first `at_out` bytes are the damaged stream's.
             p.hunt.tried += 1;
@@ -1300,10 +1456,13 @@ fn search_window(
         st.clone_from(&cp.state);
         let old = buf[pos];
         buf[pos] = value;
-        let mut ask = early.map(|l| move |out: &[u8]| l.early_reject(out));
-        let pause = checked
-            .zip(ask.as_mut())
-            .map(|(c, f)| (c.at_out, f as Ask<'_>));
+        // The candidate's output before its checkpoint's is the damaged
+        // stream's own.
+        let same_to = cp.out_pos;
+        let mut ask = checked
+            .zip(early)
+            .map(|(c, l)| (c.at_out, move |out: &[u8]| l.early_reject(c, out, same_to)));
+        let pause = ask.as_mut().map(|(at, f)| (*at, f as Ask<'_>));
         let r = drive(
             &mut st,
             &buf[cp.in_pos..],

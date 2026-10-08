@@ -370,9 +370,10 @@ impl Localizer for Fixed {
         Some(Window {
             ranges: self.0.clone(),
             check: None,
+            widen: false,
         })
     }
-    fn early_reject(&self, _: &[u8]) -> Option<bool> {
+    fn early_reject(&self, _: &Check, _: &[u8], _: usize) -> Option<bool> {
         unreachable!("a window with no check asks nothing")
     }
 }
@@ -738,8 +739,9 @@ fn same_output_edits_keep_data_but_not_edits_across_budgets() {
 }
 
 /// A check that refuses every candidate leaves the first pass with no
-/// accept; the window is then searched again with no check, the repair
-/// carries `adler_rerun`, and it costs more W than the plain search.
+/// accept; the search then widens with no check (the window, then the rest
+/// of the ladder's own), the repair carries `adler_rerun`, and it costs more
+/// W than the plain search.
 #[test]
 fn a_check_refusing_everything_is_rerun_under_adler() {
     struct No;
@@ -747,10 +749,15 @@ fn a_check_refusing_everything_is_rerun_under_adler() {
         fn window(&self, _: &[u8], _: &InputTrace) -> Option<Window> {
             Some(Window {
                 ranges: std::iter::once(2..300).collect(),
-                check: Some(Check { at_out: 1, from: 0 }),
+                check: Some(Check {
+                    at_out: 1,
+                    from: 0,
+                    memo: Arc::new(()),
+                }),
+                widen: false,
             })
         }
-        fn early_reject(&self, _: &[u8]) -> Option<bool> {
+        fn early_reject(&self, _: &Check, _: &[u8], _: usize) -> Option<bool> {
             Some(true)
         }
     }
@@ -787,6 +794,30 @@ fn a_check_refusing_everything_is_rerun_under_adler() {
     assert_eq!((d1, e1), (d2, e2));
     assert_eq!(d1, &data);
     assert!(w1 > w2, "{w1} > {w2}");
+}
+
+/// The widened window: the localized positions at or past `from` first,
+/// then the ladder's own window without the localized positions, each piece
+/// from its top down.
+#[test]
+fn the_widened_window_skips_what_was_judged_by_the_adler_alone() {
+    let own = std::iter::once(2..100).collect::<Vec<_>>();
+    assert_eq!(
+        widened(&[40..60, 10..20], 15, &own),
+        [40..60, 15..20, 60..100, 20..40, 2..10]
+    );
+    assert_eq!(
+        widened(&[40..60, 10..20], usize::MAX, &own),
+        [60..100, 20..40, 2..10]
+    );
+    assert_eq!(widened(&own, 0, &own), own);
+    assert_eq!(widened(&own, usize::MAX, &own), []);
+    // The deep error window extends the phase-1 one, and so do the widened.
+    let [w0, w1] = own_windows(Damage::Error { k: 5_000 }, 6_000);
+    let localized = std::iter::once(4_990..5_000).collect::<Vec<_>>();
+    let (a, b) = (widened(&localized, 0, &w0), widened(&localized, 0, &w1));
+    assert_eq!(a[..], b[..a.len()]);
+    assert_eq!(b.len(), a.len() + 1);
 }
 
 // ── salvage_all ──────────────────────────────────────────────────────────

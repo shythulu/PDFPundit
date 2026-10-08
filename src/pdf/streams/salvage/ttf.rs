@@ -9,15 +9,18 @@
 //! to input positions through the byte-wise trace (the complete window; with
 //! no failing table, the gaps between tables). A candidate past the directory
 //! is decoded to `end(T1)` first and rejected when T1's checksum still fails
-//! (verifier B); the ladder searches the window again under the Adler-32
-//! alone when that refuses every candidate, since a font's own checksums can
-//! be wrong.
+//! (verifier B), summing only the words past the candidate's checkpoint
+//! against the damaged output's running sums. A font's own checksums can be
+//! wrong, so when the window gives no accept the ladder widens the search
+//! under the Adler-32 alone: the positions B judged, then the rest of its
+//! own window.
 //!
 //! The directory format is ISO/IEC 14496-22 §4.5; the checksum is the
 //! published sum of big-endian 32-bit words, zero-padded, with `head`'s
 //! `checkSumAdjustment` counted as zero. No glyph data is read.
 
 use std::ops::Range;
+use std::sync::Arc;
 
 use super::{ADLER_FROM, Check, InputTrace, Localizer, Window};
 
@@ -77,24 +80,57 @@ impl Localizer for TtfLocalizer {
             .map(|t| Check {
                 at_out: t.end(),
                 from: map.producer(dir.end) + 1,
+                memo: Arc::new(T1Sums::of(**t, baseline_out)),
             });
-        Some(Window { ranges, check })
+        // Every failing table assumes the original's checksums were right.
+        Some(Window {
+            ranges,
+            check,
+            widen: t1.is_some(),
+        })
     }
 
-    /// Rejects the candidate when a table ending where its prefix ends (T1)
-    /// fails its checksum. A directory that no longer parses is left to the
-    /// Adler-32.
-    fn early_reject(&self, candidate_out_prefix: &[u8]) -> Option<bool> {
-        let Some(dir) = Directory::parse(candidate_out_prefix) else {
-            return Some(false);
-        };
-        let at = candidate_out_prefix.len();
-        Some(dir.tables.iter().any(|t| {
-            t.len > 0
-                && t.offset >= dir.end
-                && t.end() == at
-                && !t.verifies(candidate_out_prefix, dir.end)
-        }))
+    /// Rejects the candidate when T1 fails its checksum. Only the words at
+    /// or past `same_to` are summed: the ones before are the damaged
+    /// output's, whose running sums the check carries. A candidate is judged
+    /// only past the directory, so T1's record is the damaged output's.
+    fn early_reject(
+        &self,
+        check: &Check,
+        candidate_out_prefix: &[u8],
+        same_to: usize,
+    ) -> Option<bool> {
+        let m = check.memo.downcast_ref::<T1Sums>()?;
+        let t = m.table;
+        let bytes = candidate_out_prefix.get(t.offset..t.end())?;
+        let first = (same_to.saturating_sub(t.offset) / 4).min(m.sums.len() - 1);
+        let sum = m.sums[first].wrapping_add(word_sum(&t.tag, bytes, first));
+        Some(sum != t.checksum)
+    }
+}
+
+/// T1 and the damaged output's running sums over it: `sums[i]` is the
+/// checksum of T1's first `i` whole words.
+#[derive(Debug)]
+pub(super) struct T1Sums {
+    pub table: Table,
+    pub sums: Vec<u32>,
+}
+
+impl T1Sums {
+    /// `font` holds `table` whole.
+    pub(super) fn of(table: Table, font: &[u8]) -> T1Sums {
+        let (words, _) = font[table.offset..table.end()].as_chunks::<4>();
+        let mut sums = Vec::with_capacity(words.len() + 1);
+        let mut sum = 0u32;
+        sums.push(sum);
+        for (i, w) in words.iter().enumerate() {
+            if !is_adjustment(&table.tag, i) {
+                sum = sum.wrapping_add(u32::from_be_bytes(*w));
+            }
+            sums.push(sum);
+        }
+        T1Sums { table, sums }
     }
 }
 
@@ -163,20 +199,27 @@ fn be32(b: &[u8]) -> u32 {
 /// last one zero-padded. In `head` the third word (`checkSumAdjustment`)
 /// counts as zero.
 pub(super) fn checksum(tag: &[u8; 4], table: &[u8]) -> u32 {
-    let mut sum = 0u32;
+    word_sum(tag, table, 0)
+}
+
+/// [`checksum`]'s sum over the words from whole word `first` on (the
+/// zero-padded last word included).
+fn word_sum(tag: &[u8; 4], table: &[u8], first: usize) -> u32 {
     let (words, rest) = table.as_chunks::<4>();
-    for w in words {
-        sum = sum.wrapping_add(u32::from_be_bytes(*w));
+    let mut sum = 0u32;
+    for (i, w) in words.iter().enumerate().skip(first) {
+        if !is_adjustment(tag, i) {
+            sum = sum.wrapping_add(u32::from_be_bytes(*w));
+        }
     }
     let mut last = [0u8; 4];
     last[..rest.len()].copy_from_slice(rest);
-    sum = sum.wrapping_add(u32::from_be_bytes(last));
-    if tag == b"head"
-        && let Some(adj) = table.get(8..12)
-    {
-        sum = sum.wrapping_sub(u32::from_be_bytes([adj[0], adj[1], adj[2], adj[3]]));
-    }
-    sum
+    sum.wrapping_add(u32::from_be_bytes(last))
+}
+
+/// Whole word `i` of a `tag` table is `head`'s `checkSumAdjustment`.
+fn is_adjustment(tag: &[u8; 4], i: usize) -> bool {
+    i == 2 && tag == b"head"
 }
 
 /// Output offsets to input positions, through the byte-wise trace.
