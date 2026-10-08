@@ -10,7 +10,7 @@ use lopdf::{Dictionary, Object, StringFormat};
 
 use crate::pdf::lexer::{Lexer, MAX_DEPTH, MAX_ELEMENTS, Tok};
 
-pub(crate) use inflate::{InflateStatus, RAW_END_SLACK, inflate};
+pub(crate) use inflate::{InflateStatus, RAW_END_SLACK, inflate, probe};
 
 /// The inflate ceiling `decode_chain` callers pass by default: 256 MiB.
 pub(crate) const DEFAULT_CAP: usize = 256 << 20;
