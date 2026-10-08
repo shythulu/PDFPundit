@@ -13,11 +13,12 @@
 //!   or `%%EOF`; or the last `startxref` misses the nearest table or xref
 //!   stream. Within ±64 bytes (lopdf's recovery window) the miss is a
 //!   Warning, past that an Error. A miss with no table or stream to land on
-//!   is C2's. A miss that a C4 or C5 cut explains is not C3: when the in-use
-//!   entry with the highest offset misses its object's header by the same
-//!   amount, and a C5 orphan or a C4 Error sits at or before that object,
-//!   the cut moved the table and the trailer is as it was written. Bytes
-//!   inserted or deleted with no such finding to explain them are C3.
+//!   is C2's. A miss that a C4, C5 or C6 cut explains is not C3: when the
+//!   in-use entry with the highest offset misses its object's header by the
+//!   same amount, and a C5 orphan, a C4 Error or a C6 page (whose `/Font`
+//!   entry was cut, T-11b) sits at or before that object, the cut moved the
+//!   table and the trailer is as it was written. Bytes inserted or deleted
+//!   with no such finding to explain them are C3.
 //! - **C4**: no catalog whose `/Pages` reaches a page-tree node (one with
 //!   `/Kids` or `/Count`), a `/Count` that is not the pages the walk reached,
 //!   or a `/Kids` entry that names nothing usable. References resolve as
@@ -38,6 +39,35 @@
 //!   array, in any copy of any object (a shadow revision too) or orphan: one
 //!   Info finding for the file, `fields` counting the objects that hold one.
 //!
+//! T-11b's font and stream rules, each with tests in `tests::content`. The
+//! page rules read every page's content through T-09's `page_content` (its
+//! `/Contents`, then the Form XObjects they draw) and T-06's `content_ops`:
+//! - **C6**, one finding per (page, slot): a `Tf` selects a slot that neither
+//!   the resources in force for that stream nor the page's own carry (a slot
+//!   only a form uses, from its own `/Resources`, is not C6). The re-link
+//!   candidates are the fonts no reference from the catalog reaches, less
+//!   the descendants of another candidate; with none the slot needs a pick.
+//!   A slot whose value names nothing is C5's or C4's, not C6.
+//! - **C7**: a `/FontDescriptor` with no `/FontFile`, `/FontFile2` or
+//!   `/FontFile3`, or one whose stream is missing, empty, all 0x20 or does not
+//!   read as a font. A standard-14 name without a program is how such fonts
+//!   are written and gives no finding; a Type3 font's descriptor is skipped.
+//!   A font program whose Flate data does not decode is C9's.
+//! - **C8**: C7, and the font's `/ToUnicode` (a CIDFont's is on its Type0
+//!   parent) is missing, empty, all 0x20 or holds no `bfchar`/`bfrange`
+//!   CMap. C8 replaces C7 for that font. Both need a font pick: diagnose has
+//!   no font DB to look the name up in.
+//! - **C9**: one finding per stream whose salvage is not `Clean`: `Exact` and
+//!   `Accepted` repairs are Warnings repaired automatically; `Ambiguous`,
+//!   `ChecksumMismatch`, `Prefix`, `Unrecoverable` and `Unsearched` are
+//!   Errors repaired in part, an `Ambiguous` one listing every survivor's
+//!   edits. A font stream C7 or C8 found blank is theirs, not C9's: it holds
+//!   no zlib data to repair. A near-miss keyword the lexer read
+//!   (`C9-outside-stream`) is a Warning on its object.
+//! - **OutlinedText**: a page whose content fills paths of three or more
+//!   curve segments, counted with their contours. **Type3Text**: one per
+//!   (page, Type3 font) a `Tf` selects. Both Info.
+//!
 //! Ids are `<code>-<nnn>` (`C2-001`, `ENC-001`, `SIG-001`), numbered per
 //! code in byte order of where each finding sits, so they are stable for
 //! the same input.
@@ -46,22 +76,25 @@
 #[cfg(test)]
 mod tests;
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use lopdf::{Dictionary, Object};
 
-use crate::pdf::carver::{Body, CarveReport, Origin, Orphan};
-use crate::pdf::graph::{MAX_TREE_DEPTH, ObjectGraph};
-use crate::pdf::lexer;
+use crate::pdf::carver::{Body, CarveNote, CarveReport, Origin, Orphan};
+use crate::pdf::graph::{ContentPiece, MAX_TREE_DEPTH, ObjectGraph};
+use crate::pdf::lexer::{self, LexNote};
 use crate::pdf::model::{
-    ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, HexWindow, LengthSource, Location,
-    MetricValue, ObjId, ObjectKind, Ratio, Repairability, Severity,
+    ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, HexWindow, InteractionKind,
+    LengthSource, Location, MetricValue, ObjId, ObjectKind, Ratio, Repairability, Severity,
 };
 use crate::pdf::rebuild::{Held, IdRemap, plan_ids};
-use crate::pdf::streams::salvage::SalvageIndex;
+use crate::pdf::streams::salvage::{CarveSource, Edit, Grade, Salvage, SalvageIndex};
+use crate::pdf::streams::{DEFAULT_CAP, content_ops};
 
 use CorruptionClass::{
-    C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped, C10Truncated,
+    C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped,
+    C6FontMapLost, C7FontStreamDeleted, C8FontResourcesDeleted, C9ZlibTampered, C10Truncated,
 };
 
 /// Where readers look for the `%PDF-` header.
@@ -87,11 +120,17 @@ pub(crate) fn diagnose(
     drafts.extend(c10);
     let c4 = c4(&cx);
     let c5 = c5(&cx);
-    // Where a C4 or C5 cut may have moved the bytes after it.
+    let content = content(&cx, salvage);
+    // Where a C4, C5 or C6 cut may have moved the bytes after it.
     let cuts: Vec<u64> = c4
         .iter()
         .filter(|d| d.severity == Severity::Error)
         .chain(&c5)
+        .chain(
+            content
+                .iter()
+                .filter(|d| d.kind == FindingKind::Corruption(C6FontMapLost)),
+        )
         .map(|d| d.at)
         .collect();
     if !truncated {
@@ -102,13 +141,18 @@ pub(crate) fn diagnose(
     drafts.extend(c5);
     drafts.extend(encrypted(&cx));
     drafts.extend(signed(&cx));
-    drafts.extend(content(&cx, salvage));
+    drafts.extend(content);
     number(drafts)
 }
 
-/// C6–C9, `OutlinedText` and `Type3Text`: T-11b fills this arm.
-fn content(_cx: &Cx<'_>, _salvage: &SalvageIndex) -> Vec<Draft> {
-    Vec::new()
+/// C6–C9, `OutlinedText` and `Type3Text` (module docs).
+fn content(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
+    let mut out = pages(cx, salvage);
+    let (fonts, blanked) = font_programs(cx, salvage);
+    out.extend(fonts);
+    out.extend(c9(cx, salvage, &blanked));
+    out.extend(near_misses(cx));
+    out
 }
 
 // ── drafts and ids ───────────────────────────────────────────────────────
@@ -209,6 +253,11 @@ struct Cx<'a> {
     xrefs: Vec<Xref>,
     /// The last `startxref` that has a value: (keyword offset, value).
     startxref: Option<(u64, u64)>,
+    /// The streams, as the salvage index reads them.
+    source: CarveSource<'a>,
+    /// Each id's last stream copy, by its index in `carve.objects` (the copy
+    /// `source` gives).
+    streams: BTreeMap<ObjId, usize>,
 }
 
 /// A cross-reference section: where it starts and its in-use entries
@@ -240,6 +289,12 @@ impl<'a> Cx<'a> {
             }
         }));
         xrefs.sort_by_key(|x| x.start);
+        let mut streams = BTreeMap::new();
+        for (i, o) in carve.objects.iter().enumerate() {
+            if let Body::Stream { .. } = o.body {
+                streams.insert(o.declared_id, i);
+            }
+        }
         Cx {
             bytes,
             carve,
@@ -253,6 +308,8 @@ impl<'a> Cx<'a> {
                 .iter()
                 .rev()
                 .find_map(|&(at, v)| Some((at, v?))),
+            source: CarveSource::new(carve, bytes),
+            streams,
         }
     }
 
@@ -305,6 +362,28 @@ impl<'a> Cx<'a> {
                 let span = self.carve.orphans[i].span();
                 (Location::Span(span), span.start, None)
             }
+        }
+    }
+
+    /// `v` as a dictionary: itself, or the carved dictionary it references.
+    fn dict_of<'v>(&self, v: &'v Object) -> Option<&'v Dictionary>
+    where
+        'a: 'v,
+    {
+        match v {
+            Object::Dictionary(d) => Some(d),
+            Object::Reference(id) => self.dict(self.remap.target(*id)?),
+            _ => None,
+        }
+    }
+
+    /// The copy of stream `id` the salvage index reads: the object's span,
+    /// its data's span and the raw data.
+    fn stream(&self, id: ObjId) -> Option<(ByteSpan, ByteSpan, &'a [u8])> {
+        let o = &self.carve.objects[*self.streams.get(&id)?];
+        match &o.body {
+            Body::Stream { data, .. } => Some((o.span, *data, slice(self.bytes, *data))),
+            _ => None,
         }
     }
 
@@ -1025,4 +1104,587 @@ fn value_signs(v: &Object) -> bool {
         Object::Stream(s) => dict_signs(&s.dict),
         _ => false,
     }
+}
+
+// ── pages: C6, OutlinedText, Type3Text ──────────────────────────────────
+
+/// A filled path with at least this many curve segments is drawn text
+/// (TD §5.6).
+const OUTLINE_CURVES: u32 = 3;
+
+/// What one content stream draws, as the page rules read it.
+#[derive(Default)]
+struct Scan {
+    /// The slots its `Tf` operators select.
+    slots: BTreeSet<Vec<u8>>,
+    /// Filled paths of at least [`OUTLINE_CURVES`] curves.
+    paths: u32,
+    /// Their subpaths (`m` and `re`).
+    contours: u32,
+}
+
+fn scan(content: &[u8]) -> Scan {
+    let mut s = Scan::default();
+    let (mut curves, mut contours) = (0u32, 0u32);
+    for op in content_ops(content) {
+        match op.op {
+            b"Tf" => {
+                if let [.., Object::Name(slot), _] = op.operands.as_slice() {
+                    s.slots.insert(slot.clone());
+                }
+            }
+            b"m" | b"re" => contours = contours.saturating_add(1),
+            b"c" | b"v" | b"y" => curves = curves.saturating_add(1),
+            // Every painting operator ends the path; the fills count.
+            b"f" | b"F" | b"f*" | b"B" | b"B*" | b"b" | b"b*" | b"S" | b"s" | b"n" => {
+                let filled = !matches!(op.op, b"S" | b"s" | b"n");
+                if filled && curves >= OUTLINE_CURVES {
+                    s.paths = s.paths.saturating_add(1);
+                    s.contours = s.contours.saturating_add(contours);
+                }
+                (curves, contours) = (0, 0);
+            }
+            _ => {}
+        }
+    }
+    s
+}
+
+/// What `resources` maps `slot` to: `Some(None)` when it has no `/Font` or
+/// its `/Font` lacks the slot, `None` when its `/Font` names nothing usable.
+fn font_slot<'v>(
+    cx: &Cx<'v>,
+    resources: &'v Dictionary,
+    slot: &[u8],
+) -> Option<Option<&'v Object>> {
+    match resources.get(b"Font") {
+        Err(_) => Some(None),
+        Ok(v) => Some(cx.dict_of(v)?.get(slot).ok()),
+    }
+}
+
+fn pages(cx: &Cx<'_>, salvage: &SalvageIndex) -> Vec<Draft> {
+    let decoded = |id: ObjId| salvage.decoded(&cx.source, id, DEFAULT_CAP).ok();
+    // Each stream is scanned once, however many pages draw it.
+    let mut scans: BTreeMap<ObjId, Option<Scan>> = BTreeMap::new();
+    let mut candidates: Option<Vec<ObjId>> = None;
+    let mut out = Vec::new();
+    for (index, page) in cx.graph.pages_in_doc_order().into_iter().enumerate() {
+        let index = u32::try_from(index).unwrap_or(u32::MAX);
+        let pieces: Vec<ContentPiece> = cx.graph.page_content(cx.carve, page, decoded);
+        // The page's own resources: what its `/Contents` draw with.
+        let own = pieces
+            .iter()
+            .find(|p| p.via.is_empty())
+            .map(|p| &p.resources.dict);
+        let mut missing: BTreeSet<Vec<u8>> = BTreeSet::new();
+        let mut type3: BTreeSet<ObjId> = BTreeSet::new();
+        let (mut paths, mut contours) = (0u32, 0u32);
+        for piece in &pieces {
+            let Some(scan) = scans
+                .entry(piece.stream)
+                .or_insert_with(|| decoded(piece.stream).map(|b| scan(&b)))
+            else {
+                continue;
+            };
+            paths = paths.saturating_add(scan.paths);
+            contours = contours.saturating_add(scan.contours);
+            for slot in &scan.slots {
+                let mut value = None;
+                let mut unknown = false;
+                for resources in [Some(&piece.resources.dict), own].into_iter().flatten() {
+                    match font_slot(cx, resources, slot) {
+                        Some(Some(v)) => {
+                            value = Some(v);
+                            break;
+                        }
+                        Some(None) => {}
+                        None => unknown = true,
+                    }
+                }
+                match value {
+                    Some(Object::Reference(font))
+                        if cx
+                            .remap
+                            .target(*font)
+                            .and_then(|h| cx.dict(h))
+                            .is_some_and(|d| is_subtype(d, b"Type3")) =>
+                    {
+                        type3.insert(*font);
+                    }
+                    Some(_) => {}
+                    None if !unknown => {
+                        missing.insert(slot.clone());
+                    }
+                    None => {}
+                }
+            }
+        }
+
+        let at = cx.remap.target(page).map_or(0, |h| cx.place(h).1);
+        let location = Location::Page {
+            index,
+            obj: Some(page),
+        };
+        for slot in missing {
+            let candidates = candidates.get_or_insert_with(|| orphan_fonts(cx));
+            let slot = String::from_utf8_lossy(&slot);
+            let mut evidence = vec![Evidence::Text(format!("slots: {slot}"))];
+            evidence.extend(candidates.iter().copied().map(Evidence::ObjectRef));
+            let mut d = Draft::corruption(C6FontMapLost, Severity::Error, at, location)
+                .summary(format!(
+                    "page {} selects font /{slot}, which its resources do not map",
+                    u64::from(index) + 1
+                ))
+                .evidence(evidence);
+            if candidates.is_empty() {
+                d.repair = Repairability::Interactive(InteractionKind::FontPick);
+            }
+            out.push(d);
+        }
+        if paths > 0 {
+            out.push(Draft {
+                at,
+                kind: FindingKind::OutlinedText {
+                    glyph_runs: paths,
+                    contours,
+                },
+                severity: Severity::Info,
+                location,
+                summary: format!(
+                    "text drawn as outlines on page {} ({paths} paths, {contours} contours)",
+                    u64::from(index) + 1
+                ),
+                evidence: vec![
+                    metric("paths", i64::from(paths)),
+                    metric("contours", i64::from(contours)),
+                ],
+                repair: Repairability::NotApplicable,
+            });
+        }
+        for font in type3 {
+            out.push(Draft {
+                at,
+                kind: FindingKind::Type3Text { font },
+                severity: Severity::Info,
+                location,
+                summary: format!(
+                    "page {} shows text through the Type 3 font {} {} obj",
+                    u64::from(index) + 1,
+                    font.0,
+                    font.1
+                ),
+                evidence: vec![Evidence::ObjectRef(font)],
+                repair: Repairability::NotApplicable,
+            });
+        }
+    }
+    out
+}
+
+/// C6's re-link candidates: the fonts no reference from the catalog
+/// reaches, in byte order, less those another candidate holds as a
+/// descendant. None without a catalog.
+fn orphan_fonts(cx: &Cx<'_>) -> Vec<ObjId> {
+    let Some(&root) = cx.graph.catalog_candidates().first() else {
+        return Vec::new();
+    };
+    let unreachable = cx.graph.unreachable(root);
+    let fonts: Vec<ObjId> = cx
+        .graph
+        .objects_of_kind(ObjectKind::Font)
+        .into_iter()
+        .filter(|id| unreachable.contains(id))
+        .collect();
+    let set: BTreeSet<ObjId> = fonts.iter().copied().collect();
+    fonts
+        .into_iter()
+        .filter(|&id| {
+            !cx.graph.referrers(id).iter().any(|e| {
+                set.contains(&e.from) && e.path.first_key() == Some(&b"DescendantFonts"[..])
+            })
+        })
+        .collect()
+}
+
+fn is_subtype(d: &Dictionary, subtype: &[u8]) -> bool {
+    d.get(b"Subtype").ok().and_then(|o| o.as_name().ok()) == Some(subtype)
+}
+
+// ── C7 / C8 ──────────────────────────────────────────────────────────────
+
+/// The keys a descriptor embeds its font program under.
+const FONT_FILES: [&[u8]; 3] = [b"FontFile", b"FontFile2", b"FontFile3"];
+
+/// Fonts every reader carries, so a file need not embed them.
+const STANDARD_14: [&str; 14] = [
+    "Times-Roman",
+    "Times-Bold",
+    "Times-Italic",
+    "Times-BoldItalic",
+    "Helvetica",
+    "Helvetica-Bold",
+    "Helvetica-Oblique",
+    "Helvetica-BoldOblique",
+    "Courier",
+    "Courier-Bold",
+    "Courier-Oblique",
+    "Courier-BoldOblique",
+    "Symbol",
+    "ZapfDingbats",
+];
+
+/// What a stream a font names holds.
+enum Data<'s> {
+    /// Nothing by that id is a stream.
+    Missing,
+    /// Empty, or every byte 0x20, raw or decoded.
+    Blank,
+    Bytes(Cow<'s, [u8]>),
+    /// It does not decode, or it lost its header: C9's or C5's.
+    Unknown,
+}
+
+fn data_of<'s>(cx: &Cx<'_>, salvage: &'s SalvageIndex, id: ObjId) -> Data<'s> {
+    let Some((_, _, raw)) = cx.stream(id) else {
+        return match cx.remap.target(id) {
+            Some(Held::Orphan(_)) => Data::Unknown,
+            _ => Data::Missing,
+        };
+    };
+    if blank(raw) {
+        return Data::Blank;
+    }
+    match salvage.decoded(&cx.source, id, DEFAULT_CAP) {
+        Ok(b) if blank(&b) => Data::Blank,
+        Ok(b) => Data::Bytes(b),
+        Err(_) => Data::Unknown,
+    }
+}
+
+fn blank(b: &[u8]) -> bool {
+    b.iter().all(|&x| x == 0x20)
+}
+
+/// The bytes start like a TrueType, OpenType, Type 1 or CFF font program.
+fn sniffs_as_font(b: &[u8]) -> bool {
+    const MAGIC: [&[u8]; 7] = [
+        b"\x00\x01\x00\x00",
+        b"OTTO",
+        b"true",
+        b"typ1",
+        b"ttcf",
+        b"%!",
+        b"\x80\x01",
+    ];
+    // CFF: major version 1, a header of at least 4 bytes, offsets of 1–4.
+    let cff = matches!(b, [1, _, size, off, ..] if *size >= 4 && (1..=4).contains(off));
+    cff || MAGIC.iter().any(|m| b.starts_with(m))
+}
+
+/// A `/ToUnicode` CMap maps codes with `bfchar` or `bfrange`.
+fn is_tounicode(b: &[u8]) -> bool {
+    [&b"beginbfchar"[..], b"beginbfrange"]
+        .iter()
+        .any(|k| memchr::memmem::find(b, k).is_some())
+}
+
+/// `ABCDEF+Name` → `Name`.
+fn without_subset_tag(name: &[u8]) -> &[u8] {
+    match name.split_at_checked(7) {
+        Some((tag, rest))
+            if !rest.is_empty()
+                && tag[6] == b'+'
+                && tag[..6].iter().all(u8::is_ascii_uppercase) =>
+        {
+            rest
+        }
+        _ => name,
+    }
+}
+
+/// The C7 and C8 findings, and the streams they found blank.
+fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<ObjId>) {
+    let mut out = Vec::new();
+    let mut blanked = BTreeSet::new();
+    for desc in cx.graph.objects_of_kind(ObjectKind::FontDescriptor) {
+        let Some(held) = cx.remap.target(desc) else {
+            continue;
+        };
+        let Some(d) = cx.dict(held) else { continue };
+        let users: Vec<ObjId> = cx
+            .graph
+            .referrers(desc)
+            .iter()
+            .filter(|e| e.path.0.len() == 1 && e.path.first_key() == Some(&b"FontDescriptor"[..]))
+            .map(|e| e.from)
+            .collect();
+        let font = |id: ObjId| cx.dict(cx.remap.target(id)?);
+        if users
+            .iter()
+            .any(|&u| font(u).is_some_and(|f| is_subtype(f, b"Type3")))
+        {
+            continue;
+        }
+        let user = users.first().copied();
+        let name = d
+            .get(b"FontName")
+            .ok()
+            .or_else(|| font(user?)?.get(b"BaseFont").ok())
+            .and_then(|o| o.as_name().ok())
+            .map(|n| String::from_utf8_lossy(without_subset_tag(n)).into_owned());
+
+        // C7: the program.
+        let mut evidence = vec![Evidence::ObjectRef(desc)];
+        let why = match FONT_FILES.iter().find_map(|&k| Some((k, d.get(k).ok()?))) {
+            None if name.as_deref().is_some_and(|n| STANDARD_14.contains(&n)) => continue,
+            None => "not embedded".to_owned(),
+            Some((key, Object::Reference(id))) => {
+                if let Some((_, data, raw)) = cx.stream(*id) {
+                    evidence.push(metric("fontfile_bytes", raw.len() as i64));
+                    evidence.push(Evidence::HexWindow(HexWindow::new(data.start, raw)));
+                }
+                match data_of(cx, salvage, *id) {
+                    Data::Missing => format!(
+                        "gone: its /{} names {} {} R, which is not a stream",
+                        String::from_utf8_lossy(key),
+                        id.0,
+                        id.1
+                    ),
+                    Data::Blank => {
+                        blanked.insert(*id);
+                        "blank (empty or all 0x20)".to_owned()
+                    }
+                    Data::Bytes(b) if !sniffs_as_font(&b) => "not a font program".to_owned(),
+                    Data::Bytes(_) | Data::Unknown => continue,
+                }
+            }
+            Some((key, _)) => format!(
+                "gone: its /{} is not a reference",
+                String::from_utf8_lossy(key)
+            ),
+        };
+
+        // C8: and the `/ToUnicode` (a CIDFont's is on its Type0 parent).
+        let top = user.map(|u| {
+            cx.graph
+                .referrers(u)
+                .iter()
+                .find(|e| e.path.first_key() == Some(&b"DescendantFonts"[..]))
+                .map_or(u, |e| e.from)
+        });
+        // (its reference, a note) when it is lost.
+        let tounicode_lost = match top.and_then(font).and_then(|f| f.get(b"ToUnicode").ok()) {
+            None => Some((None, None)),
+            Some(Object::Reference(id)) => match data_of(cx, salvage, *id) {
+                Data::Missing => Some((Some(*id), None)),
+                Data::Blank => {
+                    blanked.insert(*id);
+                    Some((Some(*id), None))
+                }
+                Data::Bytes(b) if !is_tounicode(&b) => {
+                    Some((Some(*id), Some("tounicode unparsable")))
+                }
+                Data::Bytes(_) | Data::Unknown => None,
+            },
+            // A name (`/Identity-H`) is not a CMap stream, but it is not lost.
+            Some(_) => None,
+        };
+        let name = name.unwrap_or_else(|| "an unnamed font".to_owned());
+        let (location, at, _) = cx.place(held);
+        let draft = match tounicode_lost {
+            None => Draft::corruption(C7FontStreamDeleted, Severity::Error, at, location)
+                .summary(format!("the font program of {name} is {why}")),
+            Some((tounicode, note)) => {
+                evidence.extend(tounicode.map(Evidence::ObjectRef));
+                evidence.extend(note.map(|n| Evidence::Text(n.to_owned())));
+                Draft::corruption(C8FontResourcesDeleted, Severity::Error, at, location).summary(
+                    format!("the font program of {name} is {why}, and its /ToUnicode is lost"),
+                )
+            }
+        };
+        let mut draft = draft.evidence(evidence);
+        // Diagnose has no font DB to look the name up in (T-28).
+        draft.repair = Repairability::Interactive(InteractionKind::FontPick);
+        out.push(draft);
+    }
+    (out, blanked)
+}
+
+// ── C9 ───────────────────────────────────────────────────────────────────
+
+/// One finding per stream whose salvage is not `Clean`, except the font
+/// streams C7 and C8 found blank: they hold no zlib data to repair.
+fn c9(cx: &Cx<'_>, salvage: &SalvageIndex, blanked: &BTreeSet<ObjId>) -> Vec<Draft> {
+    let mut out = Vec::new();
+    for (&id, entry) in salvage
+        .by_obj
+        .iter()
+        .filter(|(id, _)| !blanked.contains(id))
+    {
+        let s = &entry.salvage;
+        let partial = |why: &str| Repairability::Partial(why.to_owned());
+        let (name, outcome, severity, repair) = match s {
+            Salvage::Clean { .. } => continue,
+            Salvage::Repaired {
+                grade: Grade::Exact,
+                ..
+            } => (
+                "Repaired",
+                "repaired; no other repair fits its window".to_owned(),
+                Severity::Warning,
+                Repairability::Auto,
+            ),
+            Salvage::Repaired {
+                grade: Grade::Accepted { .. },
+                ..
+            } => (
+                "Repaired",
+                "repaired; the budget ran out before another repair could be ruled out".to_owned(),
+                Severity::Warning,
+                Repairability::Auto,
+            ),
+            Salvage::Repaired {
+                grade: Grade::Ambiguous { outputs },
+                ..
+            } => (
+                "Repaired",
+                format!("{outputs} different repairs fit; the first in the pinned order is kept"),
+                Severity::Error,
+                partial(&format!("ambiguous: {outputs} candidate repairs")),
+            ),
+            Salvage::ChecksumMismatch { .. } => (
+                "ChecksumMismatch",
+                "it decodes, but its Adler-32 disagrees and no repair was found".to_owned(),
+                Severity::Error,
+                partial("checksum mismatch: the decoded bytes are unverified"),
+            ),
+            Salvage::Prefix {
+                in_used, in_total, ..
+            } => (
+                "Prefix",
+                format!("only what comes before input byte {in_used} of {in_total} decodes"),
+                Severity::Error,
+                partial("only the bytes before the damage decode"),
+            ),
+            Salvage::Unrecoverable => (
+                "Unrecoverable",
+                "nothing decodes and no repair was found".to_owned(),
+                Severity::Error,
+                partial("unrecoverable stream"),
+            ),
+            Salvage::Unsearched { reason } => (
+                "Unsearched",
+                format!(
+                    "its {} raw bytes are over the {}-byte search limit, so it was not searched",
+                    reason.raw_len, reason.limit
+                ),
+                Severity::Error,
+                partial("over the search size limit: not searched"),
+            ),
+        };
+        let mut evidence = vec![Evidence::Metric {
+            name: "salvage".to_owned(),
+            value: MetricValue::Text(name.to_owned()),
+        }];
+        if let Some(grade) = s.grade() {
+            evidence.push(Evidence::Metric {
+                name: "grade".to_owned(),
+                value: MetricValue::Text(format!("{grade:?}")),
+            });
+        }
+        if let Salvage::Repaired {
+            edits,
+            grade,
+            survivors,
+            work,
+            trailer_edit,
+            adler_rerun,
+            ..
+        } = s
+        {
+            evidence.push(metric("work", int(*work)));
+            if let Grade::Accepted { searched, window } = grade {
+                evidence.push(metric("searched", int(*searched)));
+                evidence.push(metric("window", int(*window)));
+            }
+            evidence.push(Evidence::Text(format!("edits: {}", edit_list(edits))));
+            if let Grade::Ambiguous { .. } = grade {
+                evidence.extend(survivors.iter().enumerate().map(|(k, edits)| {
+                    Evidence::Text(format!("survivor {}: {}", k + 1, edit_list(edits)))
+                }));
+            }
+            if *trailer_edit {
+                evidence.push(Evidence::Text(
+                    "the repair rewrites the Adler-32 trailer".to_owned(),
+                ));
+            }
+            if *adler_rerun {
+                evidence.push(Evidence::Text(
+                    "found under the Adler-32 alone, past the localizer's window".to_owned(),
+                ));
+            }
+        }
+        let span = cx.stream(id).map(|(span, _, _)| span);
+        let mut d = Draft::corruption(
+            C9ZlibTampered,
+            severity,
+            span.map_or(0, |s| s.start),
+            Location::Object { id, span },
+        )
+        .summary(format!(
+            "the Flate data of {} {} obj is damaged: {outcome}",
+            id.0, id.1
+        ))
+        .evidence(evidence);
+        d.repair = repair;
+        out.push(d);
+    }
+    out
+}
+
+/// `byte 40 0x31 -> 0x30, ...`, offsets in the Flate stage's input.
+fn edit_list(edits: &[Edit]) -> String {
+    let each: Vec<String> = edits
+        .iter()
+        .map(|(at, from, to)| format!("byte {at} 0x{from:02x} -> 0x{to:02x}"))
+        .collect();
+    each.join(", ")
+}
+
+/// `C9-outside-stream`: a keyword the lexer read one byte off, in a
+/// top-level object (in a packed one it is the object stream's data).
+fn near_misses(cx: &Cx<'_>) -> Vec<Draft> {
+    let mut out = Vec::new();
+    for o in cx
+        .carve
+        .objects
+        .iter()
+        .filter(|o| o.origin == Origin::TopLevel)
+    {
+        for note in &o.notes {
+            let CarveNote::Lex(LexNote::NearMissKeyword { at }) = *note else {
+                continue;
+            };
+            let from = usize::try_from(at)
+                .unwrap_or(usize::MAX)
+                .min(cx.bytes.len());
+            let location = Location::Object {
+                id: o.declared_id,
+                span: Some(o.span),
+            };
+            out.push(
+                Draft::corruption(C9ZlibTampered, Severity::Warning, at, location)
+                    .summary(format!(
+                        "C9-outside-stream: a keyword one byte off at byte {at} in {} {} obj",
+                        o.declared_id.0, o.declared_id.1
+                    ))
+                    .evidence(vec![Evidence::HexWindow(HexWindow::new(
+                        at,
+                        &cx.bytes[from..],
+                    ))]),
+            );
+        }
+    }
+    out
 }
