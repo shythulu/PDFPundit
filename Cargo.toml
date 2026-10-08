@@ -53,3 +53,8 @@ windows-sys = { version = "0.61", features = [
 
 [dev-dependencies]
 sha1 = "0.11"
+
+# The C9 salvage tests (T-08) inflate hundreds of megabytes of candidates;
+# an unoptimised miniz_oxide makes them minutes long. Release is unaffected.
+[profile.dev.package.miniz_oxide]
+opt-level = 3
