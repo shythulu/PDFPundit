@@ -700,8 +700,24 @@ fn pass2_collapses_whitespace_and_drops_controls() {
 fn pass2_right_to_left_runs_keep_logical_order() {
     let g = glyphs(&[("א", 20_000, 0, 10_000), ("ב", 15_000, 0, 10_000)]);
     assert_eq!(texts(&merge_runs(&g, &fonts(), &[], true)), ["אב"]);
-    // The same glyphs read left to right step back a full em: two runs.
-    assert_eq!(texts(&runs_of(&g)), ["א", "ב"]);
+    // Hebrew steps left on a left-to-right page too.
+    assert_eq!(texts(&runs_of(&g)), ["אב"]);
+    // Latin stepping back a full em is not a run, on either page.
+    let g = glyphs(&[("a", 20_000, 0, 10_000), ("b", 15_000, 0, 10_000)]);
+    assert_eq!(texts(&runs_of(&g)), ["a", "b"]);
+    assert_eq!(texts(&merge_runs(&g, &fonts(), &[], true)), ["a", "b"]);
+    // Digits at Helvetica's 556 milli-em step right on a right-to-left page:
+    // one run, not four runs a reversed sort could scramble.
+    let mut g = glyphs(&[
+        ("2", 0, 0, 10_000),
+        ("0", 5_560, 0, 10_000),
+        ("2", 11_120, 0, 10_000),
+        ("4", 16_680, 0, 10_000),
+    ]);
+    for glyph in &mut g {
+        glyph.advance = 556;
+    }
+    assert_eq!(texts(&merge_runs(&g, &fonts(), &[], true)), ["2024"]);
 }
 
 #[test]
@@ -802,6 +818,7 @@ fn pass5_recursion_stops_at_the_depth_cap() {
     let cut = Cut {
         spans: &spans,
         rtl: false,
+        median_em: 10_000,
         column_gap: 15_000,
         band_gap: 1,
     };
@@ -1061,4 +1078,345 @@ fn styled_runs_keep_their_spaces_outside_the_style() {
         ..plain("bold")
     };
     assert_eq!(lines[0], Line(vec![plain("a "), bold, plain(" c")]));
+}
+
+// ── review fixes: mixed direction, hostile sizes, guards ────────────────
+
+/// One piece of a line drawn by [`visual_line`]: its text in logical order,
+/// its font and whether its glyphs are drawn left to right.
+type Piece<'a> = (&'a str, FontKey, bool);
+
+/// A line drawn the way a right-to-left layout engine draws it, glyphs in
+/// logical order at `advance` milli-em, from `right` leftwards. A stretch of
+/// consecutive left-to-right pieces is one unit, filled left to right.
+fn visual_line(out: &mut Vec<GlyphItem>, pieces: &[Piece], right: f64, y: f64, advance: f32) {
+    let w = BODY * f64::from(advance) / 1000.0;
+    let mut pen = right;
+    let mut k = 0;
+    while k < pieces.len() {
+        let end = if pieces[k].2 {
+            k + pieces[k..].iter().take_while(|p| p.2).count()
+        } else {
+            k + 1
+        };
+        let chars: Vec<(char, FontKey)> = pieces[k..end]
+            .iter()
+            .flat_map(|&(t, f, _)| t.chars().map(move |c| (c, f)))
+            .collect();
+        let n = chars.len() as f64;
+        for (i, &(c, font)) in chars.iter().enumerate() {
+            let x = if pieces[k].2 {
+                pen - n * w + i as f64 * w
+            } else {
+                pen - (i + 1) as f64 * w
+            };
+            out.push(GlyphItem {
+                advance: Some(advance),
+                ..glyph(&c.to_string(), x, y, BODY, font)
+            });
+        }
+        pen -= n * w;
+        k = end;
+    }
+}
+
+fn line_strings(l: &PageLayout) -> Vec<String> {
+    l.blocks.iter().flat_map(block_lines).collect()
+}
+
+#[test]
+fn numbers_and_latin_words_on_an_arabic_line_keep_their_order() {
+    // "مرحبا بالعالم 2024 PDF نص", "PDF" in bold so it is a run of its own.
+    // Helvetica digits are 556 milli-em; a full em is the extreme.
+    for advance in [500.0, 556.0, 600.0, 1000.0] {
+        let mut g = Vec::new();
+        visual_line(
+            &mut g,
+            &[
+                ("مرحبا بالعالم ", REGULAR, false),
+                ("2024 ", REGULAR, true),
+                ("PDF", BOLD, true),
+                (" نص", REGULAR, false),
+            ],
+            540.0,
+            700.0,
+            advance,
+        );
+        let l = layout(&page_of(g));
+        assert_eq!(
+            line_strings(&l),
+            ["مرحبا بالعالم 2024 PDF نص"],
+            "advance {advance}: {l:?}"
+        );
+    }
+}
+
+#[test]
+fn a_hebrew_name_on_an_english_line_keeps_its_order() {
+    for advance in [500.0, 600.0] {
+        let w = BODY * f64::from(advance) / 1000.0;
+        let mut g = Vec::new();
+        let start = 72.0;
+        for (i, c) in "Dear ".chars().enumerate() {
+            g.push(GlyphItem {
+                advance: Some(advance),
+                ..glyph(&c.to_string(), start + i as f64 * w, 700.0, BODY, REGULAR)
+            });
+        }
+        // "שלום" occupies four advances after "Dear ", drawn right to left.
+        let right = start + 9.0 * w;
+        for (i, c) in "שלום".chars().enumerate() {
+            g.push(GlyphItem {
+                advance: Some(advance),
+                ..glyph(
+                    &c.to_string(),
+                    right - (i + 1) as f64 * w,
+                    700.0,
+                    BODY,
+                    BOLD,
+                )
+            });
+        }
+        for (i, c) in " friend, and many more words".chars().enumerate() {
+            g.push(GlyphItem {
+                advance: Some(advance),
+                ..glyph(&c.to_string(), right + i as f64 * w, 700.0, BODY, REGULAR)
+            });
+        }
+        assert_eq!(
+            line_strings(&layout(&page_of(g))),
+            ["Dear שלום friend, and many more words"],
+            "advance {advance}"
+        );
+    }
+}
+
+#[test]
+fn pass6_runs_against_the_page_direction_are_reversed_as_a_group() {
+    let spans = word_spans(&[
+        ("عربي", 300_000, 0),
+        ("two", 200_000, 0),
+        ("-", 170_000, 0),
+        ("one", 100_000, 0),
+        ("نص", 0, 0),
+    ]);
+    let all: Vec<usize> = (0..spans.len()).collect();
+    let lines = cluster_lines(&spans, &all, true);
+    let order: Vec<&str> = lines[0]
+        .runs
+        .iter()
+        .map(|&i| spans[i].text.as_str())
+        .collect();
+    assert_eq!(order, ["عربي", "one", "-", "two", "نص"]);
+    assert_eq!(dir_of("٢٠٢٤"), Dir::Ltr);
+    assert_eq!(dir_of(" (x"), Dir::Ltr);
+    assert_eq!(dir_of("…"), Dir::Neutral);
+}
+
+#[test]
+fn pass1_is_near_linear_on_a_hundred_thousand_identical_glyphs() {
+    // 100k copies of "a" on a 2 pt grid, none a shadow of another: the
+    // earlier all-pairs scan took seconds here in a release build.
+    let items: Vec<(&str, i64, i64, i64)> = (0..100_000)
+        .map(|k| ("a", (k % 400) * 2_000, (k / 400) * 2_000, 10_000))
+        .collect();
+    let mut g = glyphs(&items);
+    let n = g.len();
+    // Every glyph also gets a fake-bold copy 0.3 pt away.
+    let copies: Vec<Glyph> = g
+        .iter()
+        .map(|o| Glyph {
+            seq: o.seq + n,
+            x: o.x + 300,
+            y: o.y - 300,
+            ..o.clone()
+        })
+        .collect();
+    g.extend(copies);
+    assert_eq!(drop_shadows(g).len(), n);
+}
+
+#[test]
+fn a_hundred_thousand_glyph_page_finishes() {
+    let mut g = Vec::new();
+    for row in 0..250 {
+        for col in 0..400 {
+            g.push(glyph(
+                "a",
+                f64::from(col) * 20.0,
+                5_000.0 - f64::from(row) * 13.2,
+                BODY,
+                REGULAR,
+            ));
+        }
+    }
+    let l = layout(&page_of(g));
+    let ink: usize = line_strings(&l)
+        .iter()
+        .map(|s| s.chars().filter(|c| *c == 'a').count())
+        .sum();
+    assert_eq!(ink, 100_000);
+}
+
+#[test]
+fn pass5_a_scrambled_staircase_of_ten_thousand_spans_finishes() {
+    // Every span is its own line and every gap is a candidate gutter; the
+    // content order is scrambled so every candidate is refused. Trying each
+    // gap took seconds in a release build; only the widest few are tried.
+    let mut rng = Rng(7);
+    let mut words: Vec<(&str, i64, i64)> = (0..10_000)
+        .map(|k| ("x", k * 20_000, -k * 12_000))
+        .collect();
+    for k in (1..words.len()).rev() {
+        words.swap(k, rng.below(k as u64 + 1) as usize);
+    }
+    let spans = word_spans(&words);
+    let total: usize = leaves(&spans, false).iter().map(Vec::len).sum();
+    assert_eq!(total, 10_000);
+}
+
+#[test]
+fn pass5_two_columns_drawn_line_by_line_across_the_gutter_read_across() {
+    // The documented cost of the content-order guard (MAX_COLUMN_SWITCHES):
+    // with nothing but geometry this page is two columns, and so is a
+    // two-column key/value table; the guard reads both row by row.
+    let left = ["Left one.", "Left two.", "Left three.", "Left four."];
+    let right = ["Right one.", "Right two.", "Right three.", "Right four."];
+    let mut g = Vec::new();
+    for (i, (l, r)) in left.iter().zip(right).enumerate() {
+        let y = 700.0 - i as f64 * PITCH;
+        ltr(&mut g, l, 72.0, y, BODY, REGULAR);
+        ltr(&mut g, r, 340.0, y, BODY, REGULAR);
+    }
+    let l = layout(&page_of(g));
+    assert_eq!(l.blocks.len(), 1, "{l:?}");
+    let want: Vec<String> = left
+        .iter()
+        .zip(right)
+        .map(|(l, r)| format!("{l} {r}"))
+        .collect();
+    assert_eq!(line_strings(&l), want);
+}
+
+#[test]
+fn pass5_a_grid_drawn_column_by_column_is_still_a_table() {
+    // The switches guard lets this cut through; the table guard does not.
+    let mut g = Vec::new();
+    for (c, col) in ["A", "B", "C"].iter().enumerate() {
+        for r in 0..3 {
+            ltr(
+                &mut g,
+                &format!("{col}{}", r + 1),
+                72.0 + c as f64 * 100.0,
+                700.0 - r as f64 * 14.0,
+                BODY,
+                REGULAR,
+            );
+        }
+    }
+    let cells = |r: &str| ["A", "B", "C"].map(|c| format!("{c}{r}")).to_vec();
+    assert_eq!(
+        layout(&page_of(g)).blocks,
+        vec![Block::Table {
+            rows: vec![cells("1"), cells("2"), cells("3")],
+            header: false,
+        }]
+    );
+}
+
+#[test]
+fn pass5_a_small_table_inside_a_column_does_not_block_the_gutter() {
+    let mut g = Vec::new();
+    let left = [
+        "Left column prose line one.",
+        "Left column prose line two.",
+        "Left column prose line three.",
+        "Left column prose line four.",
+    ];
+    let right = [
+        "Right column prose one.",
+        "Right column prose two.",
+        "Right column prose three.",
+        "Right column prose four.",
+        "Right column prose five.",
+        "Right column prose six.",
+        "Right column prose seven.",
+    ];
+    body(&mut g, &left, 72.0, 700.0);
+    // A 3×3 table under the left prose, inside the left column.
+    for r in 0..3 {
+        for c in 0..3 {
+            ltr(
+                &mut g,
+                &format!("t{r}{c}"),
+                72.0 + c as f64 * 60.0,
+                700.0 - (4 + r) as f64 * PITCH,
+                BODY,
+                REGULAR,
+            );
+        }
+    }
+    body(&mut g, &right, 340.0, 700.0);
+    let l = layout(&page_of(g));
+    assert!(
+        matches!(l.blocks.last(), Some(Block::Paragraph(lines)) if lines.len() == right.len()),
+        "{l:?}"
+    );
+    assert!(l.blocks.iter().any(|b| matches!(b, Block::Table { .. })));
+}
+
+#[test]
+fn pass7_distinct_headings_back_to_back_stay_apart() {
+    let mut g = Vec::new();
+    ltr(&mut g, "Chapter 2", 72.0, 720.0, 18.0, BOLD);
+    // Two sizes lower: a second heading, not a wrapped line.
+    ltr(&mut g, "Background", 72.0, 684.0, 18.0, BOLD);
+    // A centred title wrapping onto a shorter line is one heading.
+    ltr(&mut g, "A centred title that", 200.0, 640.0, 18.0, BOLD);
+    ltr(&mut g, "wraps", 267.5, 619.0, 18.0, BOLD);
+    body(
+        &mut g,
+        &[
+            "Body text here, long enough to outweigh the headings.",
+            "More body text, so that eleven points is the body size.",
+        ],
+        72.0,
+        590.0,
+    );
+    let heads: Vec<String> = layout(&page_of(g))
+        .blocks
+        .iter()
+        .filter(|b| matches!(b, Block::Heading { .. }))
+        .flat_map(block_lines)
+        .collect();
+    assert_eq!(
+        heads,
+        ["Chapter 2", "Background", "A centred title that wraps"]
+    );
+}
+
+#[test]
+fn pass4_a_glyph_mapped_only_to_controls_is_counted() {
+    let mut g = glyphs(&[
+        ("a", 0, 0, 10_000),
+        ("\u{7}", 5_000, 0, 10_000),
+        ("\u{0}\u{1b}", 10_000, 0, 10_000),
+        ("\t", 15_000, 0, 10_000),
+        ("", 20_000, 0, 10_000),
+    ]);
+    g.push(Glyph {
+        text: Some("b".to_owned()),
+        ..g[0].clone()
+    });
+    let (kept, hidden) = drop_unprintable(g);
+    // The tab is a space and the empty text carries nothing.
+    assert_eq!(kept.iter().map(|g| g.seq).collect::<Vec<_>>(), [0, 3, 4, 0]);
+    assert_eq!(hidden, 2);
+    let mut page = Vec::new();
+    body(&mut page, &["Seen"], 72.0, 700.0);
+    page.push(glyph("\u{3}", 100.0, 700.0, BODY, REGULAR));
+    assert_eq!(
+        layout(&page_of(page)).notes,
+        vec![LayoutNote::Unmapped { glyphs: 1 }]
+    );
 }

@@ -12,33 +12,51 @@
 //! (or run's) font size.
 //!
 //! Passes, each a private function with its own tests:
-//! 1. [`drop_shadows`]: a glyph repeating an earlier one's text and font within
-//!    [`SHADOW_MILLI_EM`] in x and y is dropped (fake bold, drop shadows).
+//! 1. [`drop_shadows`]: a glyph repeating an earlier one's text, font and size
+//!    within [`SHADOW_MILLI_EM`] in x and y is dropped (fake bold, drop
+//!    shadows).
 //! 2. [`merge_runs`]: consecutive glyphs of one font, one baseline and one
 //!    link join a run; a gap of [`SPACE_GAP_MILLI_EM`] or more inserts one
-//!    space; a gap of [`RUN_BREAK_MILLI_EM`] or more ends the run.
+//!    space; a gap of [`RUN_BREAK_MILLI_EM`] or more ends the run. The gap is
+//!    measured in the glyph's own direction ([`dir_of`]): Arabic and Hebrew
+//!    step left, Latin and digits step right, on any page.
 //! 3. [`cluster_lines`]: runs whose baselines differ by less than
 //!    [`LINE_MILLI_SIZE`] join a line; lines sort by (baseline down, x).
 //! 4. [`drop_unprintable`]: glyphs under [`MIN_SIZE_MILLI_PT`], invisible
-//!    glyphs (render mode 3) and unmapped glyphs never enter a run. The first
-//!    two are counted into the `Unmapped` note when they carry text.
+//!    glyphs (render mode 3), glyphs mapped only to control characters and
+//!    unmapped glyphs never enter a run. All but the last are counted into the
+//!    `Unmapped` note when they carry text.
 //! 5. [`Cut::split`]: XY-cut. Horizontal gaps of [`BAND_GAP_MILLI_PITCH`] of
 //!    the median baseline pitch split the region into bands; failing that, the
 //!    widest vertical gap of [`COLUMN_GAP_MILLI_EM`] of the page's median em
-//!    splits it into columns. Depth at most [`MAX_CUT_DEPTH`].
+//!    splits it into columns. Depth at most [`MAX_CUT_DEPTH`]. Two guards keep
+//!    tables whole: a cut through a table's channel is refused (geometric),
+//!    and so is a cut the content order crosses more than
+//!    [`MAX_COLUMN_SWITCHES`] times (see there: the spec's cut is purely
+//!    geometric; this one is our addition).
 //! 6. [`is_rtl`]: reading order is bands top to bottom and columns left to
 //!    right; a page whose mapped glyphs are mostly Arabic or Hebrew reads its
 //!    columns (and the runs of a line) right to left. Glyphs keep their
-//!    content (logical) order inside a run.
+//!    content (logical) order inside a run. Runs set against the page's
+//!    direction (a number or a Latin word on an Arabic line) keep their own
+//!    order as a group ([`embed_runs`]).
 //! 7. [`heading_levels`]: headings by size and weight against the page's
-//!    modal body size, levels by distinct size, at most three.
+//!    modal body size, levels by distinct size, at most three. A heading line
+//!    wrapping on from one of its level ([`HEADING_WRAP_MILLI_SIZE`]) joins
+//!    it.
 //! 8. [`list_marker`]: list items by their leading marker.
 //! 9. [`find_tables`]: three or more consecutive lines sharing two or more
 //!    whitespace channels become a table.
 //! 10. [`link_at`]: a [`UriAnnot`] whose rect holds a glyph's origin links it.
-//! 11. Images follow the text, in the order given (see [`analyse`]).
+//! 11. Images follow the text, in the order given: [`ExtractedImage`] carries
+//!     no position yet, so the spec's "placed by its bbox" waits on T-02b/T-36
+//!     (see [`analyse`]).
 //! 12. [`notes`]: outlined text, Type 3 text, unmapped glyphs and image-only
 //!     pages become [`LayoutNote`]s.
+//!
+//! Every pass is near-linear in the page's glyphs (sorting, grid lookups,
+//! bounded candidate lists), so a hostile page cannot stall export. One
+//! remaining product is [`link_at`]: glyphs × link annotations.
 //!
 //! Thresholds are the `const`s below. Tuning one is a re-baseline of the
 //! goldens, not a design change.
@@ -47,7 +65,7 @@
 #[cfg(test)]
 mod tests;
 
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
@@ -90,9 +108,18 @@ const MAX_CUT_DEPTH: u32 = 4;
 /// be one line: a title spans the columns under it.
 const MIN_COLUMN_LINES: usize = 2;
 /// Pass 5. Columns are drawn one after the other, so content order switches
-/// side once (a few stray runs aside). A table drawn row by row switches on
-/// every row and is not cut into columns.
+/// side once (a few stray runs aside: a late caption, a footnote marker). A
+/// table drawn row by row switches on every row and is not cut into columns.
+/// This is the one content-order rule in the cut, and a deliberate addition
+/// to the spec's purely geometric XY-cut: a two-column table (one channel) is
+/// below [`find_tables`]' three-column minimum, so geometry alone would read
+/// its keys, then its values. The cost: prose in two columns drawn line by
+/// line across the gutter reads across it.
 const MAX_COLUMN_SWITCHES: usize = 3;
+/// Pass 5. Only the widest few gaps of a region are tried as gutters, so a
+/// region costs a bounded number of line clusterings however many gaps it
+/// has.
+const MAX_COLUMN_CANDIDATES: usize = 8;
 /// Pass 5. Run boxes: glyphs carry no bounding box (D-038), so a run spans
 /// from 0.2 of its size below the baseline to 0.8 above it.
 const ASCENT_MILLI: i64 = 800;
@@ -109,6 +136,12 @@ const BOLD_WEIGHT: u32 = 600;
 /// Pass 7. Sizes are compared in tenths of a point, so 24 and 23.999 are one
 /// size.
 const SIZE_BUCKET_MILLI_PT: i64 = 100;
+/// Pass 7. A heading line continues the heading above it (a wrapped title)
+/// when its baseline is at most 1.4 sizes lower, about one line of leading,
+/// and the two share a left edge or a centre within one size. A larger gap
+/// starts a new heading.
+const HEADING_WRAP_MILLI_SIZE: i64 = 1400;
+const HEADING_ALIGN_MILLI_SIZE: i64 = 1000;
 /// Pass 9. Table shape: three rows and two channels (three columns).
 const TABLE_MIN_LINES: usize = 3;
 const TABLE_MIN_CHANNELS: usize = 2;
@@ -116,6 +149,9 @@ const TABLE_MIN_CHANNELS: usize = 2;
 const TABLE_CELL_GAP_MILLI_EM: i64 = 1000;
 /// Pass 9. Rows' gaps line up within half a median em.
 const TABLE_ALIGN_MILLI_EM: i64 = 500;
+/// Pass 9. A line with more cell gaps than this is not a table row: no
+/// Markdown table is that wide, and it bounds the channel matching.
+const TABLE_MAX_GAPS: usize = 64;
 /// A Type 3 glyph has no advance width; half an em is a typical one.
 const TYPE3_ADVANCE_MILLI_EM: i64 = 500;
 /// A line of three or more of one of these and nothing else is a rule.
@@ -300,7 +336,15 @@ fn has_ink(text: &str) -> bool {
 
 // ── pass 4: tiny, invisible and unmapped glyphs ─────────────────────────
 
+/// Whether `text` maps to something but nothing [`push_text`] keeps: only
+/// control characters that are not whitespace.
+fn only_controls(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(|c| c.is_control() && !c.is_whitespace())
+}
+
 /// The glyphs that may enter a run, and how many of the rest carry text.
+/// A glyph mapped only to control characters carries text that cannot be
+/// shown, so it is counted too rather than dropped silently.
 fn drop_unprintable(glyphs: Vec<Glyph>) -> (Vec<Glyph>, u32) {
     let mut hidden = 0u32;
     let mut kept = Vec::with_capacity(glyphs.len());
@@ -308,6 +352,10 @@ fn drop_unprintable(glyphs: Vec<Glyph>) -> (Vec<Glyph>, u32) {
         let Some(text) = g.text.as_deref() else {
             continue;
         };
+        if only_controls(text) {
+            hidden = hidden.saturating_add(1);
+            continue;
+        }
         if g.invisible || g.size < MIN_SIZE_MILLI_PT {
             if has_ink(text) {
                 hidden = hidden.saturating_add(1);
@@ -321,24 +369,34 @@ fn drop_unprintable(glyphs: Vec<Glyph>) -> (Vec<Glyph>, u32) {
 
 // ── pass 1: shadow dedup ────────────────────────────────────────────────
 
-/// The `(x, y, size)` of every kept glyph, by text and font.
-type Seen = BTreeMap<(String, FontKey), Vec<(i64, i64, i64)>>;
+/// The kept glyphs by (text, font, size), each on a grid whose cell is the
+/// shadow radius: `(cell x, cell y) → (x, y)`.
+type Seen = BTreeMap<(String, FontKey, i64), BTreeMap<(i64, i64), (i64, i64)>>;
 
+/// Two kept glyphs never share a cell (the later would be within the radius
+/// of the earlier), and a copy lies in one of the 3×3 cells around its
+/// original, so each glyph costs nine lookups: near-linear on any page.
 fn drop_shadows(glyphs: Vec<Glyph>) -> Vec<Glyph> {
     // Looked up by key, never iterated.
     let mut seen = Seen::new();
-    let near = |d: i64, size: i64| d.abs() * 1000 <= SHADOW_MILLI_EM * size;
     let mut out = Vec::with_capacity(glyphs.len());
     for g in glyphs {
-        let key = (g.text.clone().unwrap_or_default(), g.font);
-        let earlier = seen.entry(key).or_default();
-        if earlier
-            .iter()
-            .any(|&(x, y, size)| near(g.x - x, size) && near(g.y - y, size))
-        {
+        let radius = SHADOW_MILLI_EM * g.size / 1000;
+        let cell = radius.max(1);
+        let near = |d: i64| d.abs() * 1000 <= SHADOW_MILLI_EM * g.size;
+        let (cx, cy) = (g.x.div_euclid(cell), g.y.div_euclid(cell));
+        let key = (g.text.clone().unwrap_or_default(), g.font, g.size);
+        let grid = seen.entry(key).or_default();
+        let copy = (-1..=1).any(|dx| {
+            (-1..=1).any(|dy| {
+                grid.get(&(cx + dx, cy + dy))
+                    .is_some_and(|&(x, y)| near(g.x - x) && near(g.y - y))
+            })
+        });
+        if copy {
             continue;
         }
-        earlier.push((g.x, g.y, g.size));
+        grid.entry((cx, cy)).or_insert((g.x, g.y));
         out.push(g);
     }
     out
@@ -355,6 +413,38 @@ fn is_rtl_char(c: char) -> bool {
         | '\u{FB1D}'..='\u{FB4F}'   // Hebrew presentation forms
         | '\u{FB50}'..='\u{FDFF}'   // Arabic presentation forms A
         | '\u{FE70}'..='\u{FEFC}') // Arabic presentation forms B
+}
+
+/// A character's (or a text's) writing direction, as far as layout needs it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Dir {
+    /// Latin, digits (Arabic-Indic ones too: numbers are written left to
+    /// right in Arabic) and every other letter outside [`is_rtl_char`].
+    Ltr,
+    /// Arabic and Hebrew letters.
+    Rtl,
+    /// Spaces and punctuation: they take the direction of their neighbours.
+    Neutral,
+}
+
+fn dir_of_char(c: char) -> Dir {
+    if matches!(c, '\u{0660}'..='\u{0669}' | '\u{06F0}'..='\u{06F9}') {
+        Dir::Ltr
+    } else if is_rtl_char(c) {
+        Dir::Rtl
+    } else if c.is_alphanumeric() {
+        Dir::Ltr
+    } else {
+        Dir::Neutral
+    }
+}
+
+/// The direction of the first character that has one.
+fn dir_of(text: &str) -> Dir {
+    text.chars()
+        .map(dir_of_char)
+        .find(|&d| d != Dir::Neutral)
+        .unwrap_or(Dir::Neutral)
 }
 
 /// Whether most mapped, inked glyphs are Arabic or Hebrew.
@@ -423,6 +513,8 @@ struct Span {
     size: i64,
     /// The last glyph's left edge and right edge.
     pen: (i64, i64),
+    /// From the text, once the run is complete.
+    dir: Dir,
 }
 
 impl Span {
@@ -452,6 +544,7 @@ fn push_text(buf: &mut String, text: &str) {
     }
 }
 
+/// `rtl`: the page's direction, which only breaks ties (see the gap below).
 fn merge_runs(glyphs: &[Glyph], fonts: &FontTable, annots: &[UriAnnot], rtl: bool) -> Vec<Span> {
     let mut out = Vec::new();
     let mut cur: Option<Span> = None;
@@ -466,10 +559,21 @@ fn merge_runs(glyphs: &[Glyph], fonts: &FontTable, annots: &[UriAnnot], rtl: boo
             && r.link == link
         {
             let em = r.size.max(g.size);
-            let gap = if rtl {
-                r.pen.0 - (g.x + width)
-            } else {
-                g.x - r.pen.1
+            // A glyph steps the way its script is written, whatever the
+            // page's direction: digits on an Arabic line step right. Spaces
+            // and punctuation take the step that is closer to touching the
+            // last glyph (ties: the page's direction).
+            let right = g.x - r.pen.1;
+            let left = r.pen.0 - (g.x + width);
+            let gap = match dir_of(text) {
+                Dir::Ltr => right,
+                Dir::Rtl => left,
+                Dir::Neutral => match left.abs().cmp(&right.abs()) {
+                    Ordering::Less => left,
+                    Ordering::Greater => right,
+                    Ordering::Equal if rtl => left,
+                    Ordering::Equal => right,
+                },
             };
             let baseline = (r.y - g.y).abs() * 1000 <= SAME_BASELINE_MILLI_EM * em;
             let near =
@@ -504,11 +608,15 @@ fn merge_runs(glyphs: &[Glyph], fonts: &FontTable, annots: &[UriAnnot], rtl: boo
             y: g.y,
             size: g.size,
             pen: (g.x, g.x + width),
+            dir: Dir::Neutral,
         });
     }
     out.extend(cur);
     // A run of spaces only carries nothing a gap does not.
     out.retain(|s| has_ink(&s.text));
+    for s in &mut out {
+        s.dir = dir_of(&s.text);
+    }
     out
 }
 
@@ -554,9 +662,36 @@ fn cluster_lines(spans: &[Span], idx: &[usize], rtl: bool) -> Vec<LineG> {
         } else {
             l.runs.sort_by_key(|&i| (spans[i].x0, spans[i].seq));
         }
+        embed_runs(spans, &mut l.runs, rtl);
     }
     lines.sort_by_key(|l| (Reverse(l.y), l.x0));
     lines
+}
+
+/// A line's runs arrive in the page's direction. A stretch of runs written
+/// the other way (a number and a Latin word on an Arabic line, a Hebrew name
+/// on an English one), with any spaces and punctuation between them, reads
+/// in its own direction, so the stretch is reversed (a small part of the
+/// Unicode bidi algorithm: enough for embedded words and numbers).
+fn embed_runs(spans: &[Span], runs: &mut [usize], rtl: bool) {
+    let against = if rtl { Dir::Ltr } else { Dir::Rtl };
+    let mut k = 0;
+    while k < runs.len() {
+        if spans[runs[k]].dir != against {
+            k += 1;
+            continue;
+        }
+        let mut end = k + 1;
+        for (j, &i) in runs.iter().enumerate().skip(k + 1) {
+            match spans[i].dir {
+                d if d == against => end = j + 1,
+                Dir::Neutral => {}
+                _ => break,
+            }
+        }
+        runs[k..end].reverse();
+        k = end;
+    }
 }
 
 /// The lower middle value.
@@ -585,6 +720,7 @@ fn reading_order(spans: &[Span], median_em: i64, rtl: bool) -> Vec<Vec<LineG>> {
     let cut = Cut {
         spans,
         rtl,
+        median_em,
         column_gap: (COLUMN_GAP_MILLI_EM * median_em / 1000).max(1),
         band_gap: (BAND_GAP_MILLI_PITCH * pitch / 1000).max(1),
     };
@@ -599,6 +735,8 @@ fn reading_order(spans: &[Span], median_em: i64, rtl: bool) -> Vec<Vec<LineG>> {
 struct Cut<'a> {
     spans: &'a [Span],
     rtl: bool,
+    /// Milli-points: [`find_tables`]' tolerance.
+    median_em: i64,
     /// Milli-points.
     column_gap: i64,
     band_gap: i64,
@@ -654,21 +792,33 @@ impl Cut<'_> {
     }
 
     /// The region cut at its widest acceptable vertical gap of `column_gap`
-    /// or more: both sides hold two lines and were drawn one after the other.
+    /// or more: both sides hold two lines, no table is cut through, and the
+    /// sides were drawn one after the other. Only the
+    /// [`MAX_COLUMN_CANDIDATES`] widest gaps are tried.
     fn columns(&self, idx: &[usize]) -> Option<(Vec<usize>, Vec<usize>)> {
         let s = self.spans;
         let mut order = idx.to_vec();
         order.sort_by_key(|&i| (s[i].x0, s[i].seq));
+        // (width, left edge, right edge)
         let mut gaps = Vec::new();
         let mut reach = s[*order.first()?].x1;
         for &i in &order[1..] {
             if s[i].x0 - reach >= self.column_gap {
-                gaps.push((s[i].x0 - reach, s[i].x0));
+                gaps.push((s[i].x0 - reach, reach, s[i].x0));
             }
             reach = reach.max(s[i].x1);
         }
-        gaps.sort_by_key(|&(width, at)| (Reverse(width), at));
-        gaps.into_iter().find_map(|(_, at)| {
+        if gaps.is_empty() {
+            return None;
+        }
+        gaps.sort_by_key(|&(width, _, at)| (Reverse(width), at));
+        gaps.truncate(MAX_COLUMN_CANDIDATES);
+        let lines = cluster_lines(s, idx, self.rtl);
+        let tables = find_tables(s, &lines, self.median_em);
+        gaps.into_iter().find_map(|(_, from, at)| {
+            if cuts_a_table(&tables, lines.len(), from, at) {
+                return None;
+            }
             let (left, right): (Vec<usize>, Vec<usize>) = idx.iter().partition(|&&i| s[i].x0 < at);
             let lines = |side: &[usize]| cluster_lines(s, side, self.rtl).len();
             (lines(&left) >= MIN_COLUMN_LINES
@@ -688,6 +838,16 @@ impl Cut<'_> {
         sides.sort_unstable();
         sides.windows(2).filter(|w| w[0].1 != w[1].1).count()
     }
+}
+
+/// Whether the gap `from..at` is a channel of a table that fills at least
+/// half of the region's `lines`. A column gutter runs the region's height; a
+/// table's channel only its rows, so a table that small is a table inside a
+/// column, and the gutter beside it may still be cut.
+fn cuts_a_table(tables: &[TableSpan], lines: usize, from: i64, at: i64) -> bool {
+    tables.iter().any(|t| {
+        (t.end - t.start) * 2 >= lines && t.channels.iter().any(|&(a, b)| a <= at && from <= b)
+    })
 }
 
 // ── passes 7–9: blocks ──────────────────────────────────────────────────
@@ -784,12 +944,14 @@ fn is_rule(text: &str) -> bool {
 }
 
 /// A table found by pass 9: lines `start..end` of a leaf, cells split at
-/// `cuts` (milli-points, ascending).
+/// `cuts` (milli-points, ascending), the middles of `channels`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TableSpan {
     start: usize,
     end: usize,
     cuts: Vec<i64>,
+    /// `(left edge, right edge)` of each strip every row leaves empty.
+    channels: Vec<(i64, i64)>,
 }
 
 /// A line's cell gaps, `(left edge, right edge)`, left to right.
@@ -809,7 +971,17 @@ fn cell_gaps(spans: &[Span], line: &LineG) -> Vec<(i64, i64)> {
 /// continues it when one of the row's gaps overlaps it within `tol`.
 fn find_tables(spans: &[Span], lines: &[LineG], median_em: i64) -> Vec<TableSpan> {
     let tol = TABLE_ALIGN_MILLI_EM * median_em / 1000;
-    let gaps: Vec<Vec<(i64, i64)>> = lines.iter().map(|l| cell_gaps(spans, l)).collect();
+    let gaps: Vec<Vec<(i64, i64)>> = lines
+        .iter()
+        .map(|l| {
+            let g = cell_gaps(spans, l);
+            if g.len() > TABLE_MAX_GAPS {
+                Vec::new()
+            } else {
+                g
+            }
+        })
+        .collect();
     let narrow = |channels: &[(i64, i64)], row: &[(i64, i64)]| {
         let mut out: Vec<(i64, i64)> = channels
             .iter()
@@ -841,6 +1013,7 @@ fn find_tables(spans: &[Span], lines: &[LineG], median_em: i64) -> Vec<TableSpan
                 start: i,
                 end: j,
                 cuts,
+                channels,
             });
             i = j;
         } else {
@@ -861,7 +1034,7 @@ fn table_row(spans: &[Span], line: &LineG, cuts: &[i64], rtl: bool) -> Vec<Strin
         .map(|cell| {
             let mut text = String::new();
             for (k, &i) in cell.iter().enumerate() {
-                if k > 0 && wide_gap(&spans[cell[k - 1]], &spans[i], rtl) {
+                if k > 0 && wide_gap(&spans[cell[k - 1]], &spans[i]) {
                     push_text(&mut text, " ");
                 }
                 push_text(&mut text, &spans[i].text);
@@ -875,10 +1048,10 @@ fn table_row(spans: &[Span], line: &LineG, cuts: &[i64], rtl: bool) -> Vec<Strin
     row
 }
 
-/// Whether the gap between consecutive runs `p` then `s` of a line is a word
-/// space.
-fn wide_gap(p: &Span, s: &Span, rtl: bool) -> bool {
-    let gap = if rtl { p.x0 - s.x1 } else { s.x0 - p.x1 };
+/// Whether the gap between consecutive runs `p` and `s` of a line is a word
+/// space, whichever side of `p` the run `s` is on.
+fn wide_gap(p: &Span, s: &Span) -> bool {
+    let gap = (s.x0 - p.x1).max(p.x0 - s.x1);
     gap * 1000 >= SPACE_GAP_MILLI_EM * p.size.max(s.size)
 }
 
@@ -921,12 +1094,12 @@ fn push_run(out: &mut Vec<Run>, mut run: Run, space: bool) {
     out.push(run);
 }
 
-fn out_line(spans: &[Span], line: &LineG, annots: &[UriAnnot], rtl: bool) -> Line {
+fn out_line(spans: &[Span], line: &LineG, annots: &[UriAnnot]) -> Line {
     let mut out = Vec::new();
     let mut prev: Option<&Span> = None;
     for &i in &line.runs {
         let s = &spans[i];
-        let space = prev.is_some_and(|p| p.text.ends_with(' ') || wide_gap(p, s, rtl));
+        let space = prev.is_some_and(|p| p.text.ends_with(' ') || wide_gap(p, s));
         prev = Some(s);
         let run = Run {
             text: s.text.trim_end().to_owned(),
@@ -989,6 +1162,17 @@ impl Emitter<'_> {
         if self.rtl { -line.x1 } else { line.x0 }
     }
 
+    /// Whether heading line `line` wraps on from `above`: about one line of
+    /// leading lower, sharing a leading edge or a centre.
+    fn wraps(&self, above: &LineG, line: &LineG) -> bool {
+        let size = above.size.max(line.size);
+        let drop = above.y - line.y;
+        let tol = HEADING_ALIGN_MILLI_SIZE * size;
+        let edge = (self.indent(above) - self.indent(line)).abs() * 1000 <= tol;
+        let centre = ((above.x0 + above.x1) - (line.x0 + line.x1)).abs() * 500 <= tol;
+        drop > 0 && drop * 1000 <= HEADING_WRAP_MILLI_SIZE * size && (edge || centre)
+    }
+
     fn heading_level(&self, line: &LineG) -> Option<u8> {
         let size = line_size(self.spans, line);
         (self.headings && is_heading(size, line_bold(self.spans, line), self.body))
@@ -999,7 +1183,10 @@ impl Emitter<'_> {
     fn leaf(&self, lines: &[LineG], tables: &[TableSpan], out: &mut Vec<Block>) {
         let mut para: Vec<Line> = Vec::new();
         let mut list: Option<ListAcc> = None;
-        let mut last_heading: Option<u8> = None;
+        // The level and line of the heading just emitted, if the last block
+        // is one.
+        let mut last_heading: Option<(u8, &LineG)> = None;
+        let mut next_table = tables.iter().peekable();
         let flush = |para: &mut Vec<Line>, list: &mut Option<ListAcc>, out: &mut Vec<Block>| {
             if !para.is_empty() {
                 out.push(Block::Paragraph(std::mem::take(para)));
@@ -1013,7 +1200,7 @@ impl Emitter<'_> {
         };
         let mut k = 0;
         while k < lines.len() {
-            if let Some(t) = tables.iter().find(|t| t.start == k) {
+            if let Some(t) = next_table.next_if(|t| t.start == k) {
                 flush(&mut para, &mut list, out);
                 last_heading = None;
                 let rows: Vec<Vec<String>> = lines[t.start..t.end]
@@ -1027,7 +1214,7 @@ impl Emitter<'_> {
             }
             let g = &lines[k];
             k += 1;
-            let line = out_line(self.spans, g, self.annots, self.rtl);
+            let line = out_line(self.spans, g, self.annots);
             let text = line_text(&line);
             if is_rule(&text) {
                 flush(&mut para, &mut list, out);
@@ -1035,7 +1222,9 @@ impl Emitter<'_> {
                 out.push(Block::Rule);
             } else if let Some(level) = self.heading_level(g) {
                 flush(&mut para, &mut list, out);
-                if last_heading == Some(level)
+                if let Some((above_level, above)) = last_heading
+                    && above_level == level
+                    && self.wraps(above, g)
                     && let Some(Block::Heading { runs, .. }) = out.last_mut()
                 {
                     for (n, run) in line.0.into_iter().enumerate() {
@@ -1047,7 +1236,7 @@ impl Emitter<'_> {
                         runs: line.0,
                     });
                 }
-                last_heading = Some(level);
+                last_heading = Some((level, g));
             } else if let Some((n, ordered)) = list_marker(&text) {
                 last_heading = None;
                 if !para.is_empty() || list.as_ref().is_some_and(|l| l.ordered != ordered) {
@@ -1095,8 +1284,11 @@ fn classify(
     let total: usize = leaves.iter().map(Vec::len).sum();
     let mut sizes = BTreeSet::new();
     for (lines, tables) in leaves.iter().zip(&tables) {
-        for (k, line) in lines.iter().enumerate() {
-            let in_table = tables.iter().any(|t| (t.start..t.end).contains(&k));
+        let mut in_table = vec![false; lines.len()];
+        for t in tables {
+            in_table[t.start..t.end].fill(true);
+        }
+        for (line, in_table) in lines.iter().zip(in_table) {
             let size = line_size(spans, line);
             if !in_table && is_heading(size, line_bold(spans, line), body) {
                 sizes.insert(size);
