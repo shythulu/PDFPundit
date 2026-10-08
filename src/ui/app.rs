@@ -558,9 +558,9 @@ impl App {
                 }
             }
         }
-        if let Some(hint) = refusal.or(warning) {
-            self.state.hint = Some(hint);
-        }
+        // A clean drop clears an earlier drop's hint, so a good file never
+        // looks refused.
+        self.state.hint = refusal.or(warning);
     }
 
     /// The files the gate let in since the last call: the cat chomps them

@@ -11,6 +11,13 @@
 //! | `"a b.pdf"` | quoted; `\` escapes `"`, `\`, `$` and `` ` `` | quoted |
 //! | `a\ b.pdf` | `\` escapes the next character | `\` is the path separator |
 //! | `file:///x/a%20b.pdf` | percent-decoded; host empty or `localhost` | the same, `/C:/` read as `C:/` |
+//! | `\\server\share\a.pdf` | `\` escapes, as above | refused: another machine |
+//!
+//! Only this machine's files go in. A `file:` URI with another host is
+//! refused, and so, on Windows, is a UNC path (`\\server\share`, or
+//! `file:////server/share`): opening one reaches out over SMB, which an
+//! offline tool must not do, and which can hand the user's credentials to
+//! the server. `\\?\C:\…` and `\\.\C:\…` name a local drive and come in.
 //!
 //! The text is untrusted. A candidate whose path holds U+FFFD is refused: the
 //! terminal's bytes were not UTF-8 (crossterm decodes a paste lossily), so the
@@ -96,17 +103,14 @@ fn split(text: &str, style: Style) -> Vec<(String, String)> {
                     raw.push(q);
                     match q {
                         '"' => break,
-                        '\\' if style == Style::Posix => match chars.peek() {
-                            Some(&e @ ('"' | '\\' | '$' | '`')) => {
+                        '\\' if style == Style::Posix => match chars.peek().copied() {
+                            Some(e @ ('"' | '\\' | '$' | '`')) => {
                                 raw.push(e);
                                 word.push(e);
                                 chars.next();
                             }
                             // A quoted line continuation is removed.
-                            Some('\n') => {
-                                raw.push('\n');
-                                chars.next();
-                            }
+                            _ if continuation(&mut chars, &mut raw) => {}
                             _ => word.push(q),
                         },
                         _ => word.push(q),
@@ -115,14 +119,13 @@ fn split(text: &str, style: Style) -> Vec<(String, String)> {
             }
             '\\' if style == Style::Posix => {
                 raw.push(c);
-                match chars.next() {
+                if continuation(&mut chars, &mut raw) {
                     // A line continuation joins the lines.
-                    Some('\n') => raw.push('\n'),
-                    Some(e) => {
-                        raw.push(e);
-                        word.push(e);
-                    }
-                    None => {}
+                    continue;
+                }
+                if let Some(e) = chars.next() {
+                    raw.push(e);
+                    word.push(e);
                 }
             }
             _ => {
@@ -138,12 +141,30 @@ fn split(text: &str, style: Style) -> Vec<(String, String)> {
     items
 }
 
+/// After a `\`, consumes a line break, LF or CRLF, into `raw` and says
+/// whether there was one. A lone CR is not a line break.
+fn continuation(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, raw: &mut String) -> bool {
+    let mut ahead = chars.clone();
+    let taken = match (ahead.next(), ahead.next()) {
+        (Some('\n'), _) => "\n",
+        (Some('\r'), Some('\n')) => "\r\n",
+        _ => return false,
+    };
+    raw.push_str(taken);
+    for _ in taken.chars() {
+        chars.next();
+    }
+    true
+}
+
 /// The candidate for one item.
 fn candidate(raw: String, word: &str, style: Style) -> PathCandidate {
     let path = if has_scheme(word, "file:") {
         from_file_uri(word, style)
     } else if word.contains('\u{FFFD}') {
         Err(strings::DROP_GARBLED)
+    } else if style == Style::Windows && is_unc(word) {
+        Err(strings::DROP_NOT_LOCAL)
     } else {
         Ok(PathBuf::from(word))
     };
@@ -210,6 +231,10 @@ fn from_file_uri(uri: &str, style: Style) -> Result<PathBuf, &'static str> {
         Style::Posix => Ok(posix_path(bytes)),
         Style::Windows => {
             let s = String::from_utf8(bytes).map_err(|_| strings::DROP_GARBLED)?;
+            // `file:////server/share`: a UNC path in a local URI.
+            if is_unc(&s) {
+                return Err(strings::DROP_NOT_LOCAL);
+            }
             // `/C:/x` and `/C|/x` are the drive path `C:/x`.
             let b = s.as_bytes();
             let drive = b.len() >= 3
@@ -223,6 +248,23 @@ fn from_file_uri(uri: &str, style: Style) -> Result<PathBuf, &'static str> {
             }))
         }
     }
+}
+
+/// Whether `path`, read as a Windows path, names another machine: it opens
+/// with two separators (`\\` or `/`, in any mix) and is not a local drive's
+/// device path (`\\?\C:` or `\\.\C:`).
+fn is_unc(path: &str) -> bool {
+    let b = path.as_bytes();
+    let sep = |i: usize| matches!(b.get(i), Some(b'\\' | b'/'));
+    if !(sep(0) && sep(1)) {
+        return false;
+    }
+    let drive = matches!(b.get(2), Some(b'?' | b'.'))
+        && sep(3)
+        && b.get(4).is_some_and(u8::is_ascii_alphabetic)
+        && b.get(5) == Some(&b':')
+        && (b.len() == 6 || sep(6));
+    !drive
 }
 
 /// A decoded URI path as a Unix path: any bytes but NUL are a name.
@@ -308,6 +350,11 @@ mod tests {
             [some("/a/xy.pdf")],
             "a line continuation joins"
         );
+        assert_eq!(
+            paths("/a/x\\\r\ny.pdf \"/b/u\\\r\nv.pdf\"", Style::Posix),
+            [some("/a/xy.pdf"), some("/b/uv.pdf")],
+            "so does one before CRLF, quoted or not"
+        );
     }
 
     #[test]
@@ -368,6 +415,35 @@ mod tests {
             (c.path.clone(), c.reason),
             (None, Some(strings::DROP_GARBLED))
         );
+    }
+
+    #[test]
+    fn a_unc_path_is_refused_on_windows() {
+        for text in [
+            r"\\server\share\x.pdf",
+            "//server/share/x.pdf",
+            r"\/server\share\x.pdf",
+            r"\\?\UNC\server\share\x.pdf",
+            r#""\\server\my share\x.pdf""#,
+            "file:////server/share/x.pdf",
+            "file://localhost//server/share/x.pdf",
+            "file:///%5C%5Cserver/share/x.pdf",
+        ] {
+            let got = parse(text, Style::Windows);
+            assert_eq!(got.len(), 1, "{text:?}");
+            assert_eq!(
+                (got[0].path.clone(), got[0].reason),
+                (None, Some(strings::DROP_NOT_LOCAL)),
+                "{text:?}"
+            );
+        }
+        // A local drive's device path comes in.
+        assert_eq!(
+            paths(r"\\?\C:\a\x.pdf \\.\D:\y.pdf", Style::Windows),
+            [some(r"\\?\C:\a\x.pdf"), some(r"\\.\D:\y.pdf")]
+        );
+        // On Unix `//x` is a local path.
+        assert_eq!(paths("//tmp/x.pdf", Style::Posix), [some("//tmp/x.pdf")]);
     }
 
     #[test]

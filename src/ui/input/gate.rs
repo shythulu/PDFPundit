@@ -4,6 +4,7 @@
 //! | check | outcome |
 //! |---|---|
 //! | the name ends in `.pdf` (any case) | else refused |
+//! | not a UNC path (`\\server\share`; Windows only) | else refused: another machine |
 //! | a regular file that opens and reads | else refused |
 //! | at most 4 GiB | else refused: the writer cannot emit above it (T-12a rule 7) |
 //! | above `warn_above` (512 MiB) | accepted, with a warning |
@@ -15,7 +16,7 @@
 
 use std::fs::{self, File};
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf, Prefix};
 
 use crate::pdf::write::MAX_OUTPUT_BYTES;
 use crate::ui::strings;
@@ -43,6 +44,9 @@ pub fn gate(path: &Path, warn_above: u64) -> Result<Admitted, &'static str> {
     if !is_pdf(path) {
         return Err(strings::DROP_NOT_A_PDF);
     }
+    if is_unc(path) {
+        return Err(strings::DROP_NOT_LOCAL);
+    }
     let meta = fs::metadata(path).map_err(|_| strings::DROP_UNREADABLE)?;
     if !meta.is_file() {
         return Err(strings::DROP_UNREADABLE);
@@ -64,12 +68,26 @@ pub fn gate(path: &Path, warn_above: u64) -> Result<Admitted, &'static str> {
     })
 }
 
+/// Whether `path` names a share on another machine. Checked before any file
+/// call: opening one reaches out over SMB, which can hand the user's
+/// credentials to the server. Paths have prefixes only on Windows, so this is
+/// never true elsewhere. The paste parser refuses these first (`paste.rs`);
+/// this covers every other source.
+fn is_unc(path: &Path) -> bool {
+    match path.components().next() {
+        Some(Component::Prefix(p)) => {
+            matches!(p.kind(), Prefix::UNC(..) | Prefix::VerbatimUNC(..))
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;
 
     use super::*;
-    use crate::engine::AnalyzeOptions;
+    use crate::engine::{AnalyzeOptions, Engine, NullProgress, Pdfpundit};
     use crate::pdf::carver::carve;
     use crate::pdf::diagnose::diagnose;
     use crate::pdf::fixtures;
@@ -106,8 +124,15 @@ mod tests {
         let a = gate(&path, warn_above()).expect("C1 reaches the engine");
         assert!(!a.drop_sniff, "the sniff is recorded, not a gate");
 
-        // What the engine analyses is the file the gate let in.
+        // The admitted path goes through the engine facade, as a drop does.
         let bytes = fs::read(&a.path).unwrap();
+        let analysis = Pdfpundit
+            .analyze(&bytes, &AnalyzeOptions::default(), &mut NullProgress)
+            .expect("not cancelled");
+        assert_eq!(analysis.stats.bytes, a.bytes);
+        // `Pdfpundit::analyze` reports no findings until T-14 wires the
+        // pipeline in, so the C1 finding is checked on the same steps it
+        // will run: carve, graph, diagnose.
         let carved = carve(&bytes, &|| false).expect("not cancelled");
         let graph = ObjectGraph::from_carve(&carved);
         let found = diagnose(&bytes, &carved, &graph, &SalvageIndex::default());
@@ -139,6 +164,21 @@ mod tests {
         assert_eq!(gate(&sub, warn_above()), Err(strings::DROP_UNREADABLE));
     }
 
+    #[test]
+    fn a_unc_path_is_refused_before_it_is_opened_on_windows() {
+        let got = gate(Path::new(r"\\server\share\x.pdf"), warn_above());
+        if cfg!(windows) {
+            assert_eq!(got, Err(strings::DROP_NOT_LOCAL));
+            assert_eq!(
+                gate(Path::new(r"\\?\UNC\server\share\x.pdf"), warn_above()),
+                Err(strings::DROP_NOT_LOCAL)
+            );
+        } else {
+            // A relative name with backslashes in it, which is not there.
+            assert_eq!(got, Err(strings::DROP_UNREADABLE));
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn an_unreadable_pdf_is_refused() {
@@ -154,7 +194,8 @@ mod tests {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
     }
 
-    /// A sparse file of `len` bytes that starts with a header.
+    /// A file of `len` bytes that starts with a header: sparse on Unix,
+    /// allocated on Windows.
     fn sparse(dir: &ScratchDir, name: &str, len: u64) -> PathBuf {
         let path = dir.join(name);
         let f = File::create(&path).unwrap();
@@ -163,6 +204,10 @@ mod tests {
         path
     }
 
+    /// Runs on every leg, as the ticket asks. On Windows the files are not
+    /// sparse (NTFS allocates what `set_len` asks for), so this needs about
+    /// 5.6 GiB of free temporary disk there, which a hosted runner has; the
+    /// files are gone when the test ends.
     #[test]
     fn five_gib_is_refused_and_six_hundred_mib_is_let_in_with_a_warning() {
         let dir = ScratchDir::new("gate-size");
@@ -180,8 +225,8 @@ mod tests {
         assert!(gate(&small, 1024).unwrap().big);
     }
 
-    /// Unix only: NTFS allocates what `set_len` asks for, and two more 4 GiB
-    /// files would not fit a hosted runner's disk.
+    /// Unix only: on Windows these two would be another 8 GiB of allocated
+    /// disk on top of the test above, which the ticket does not ask for.
     #[cfg(unix)]
     #[test]
     fn the_ceiling_itself_is_let_in() {

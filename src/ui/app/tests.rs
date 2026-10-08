@@ -579,9 +579,15 @@ fn pdf(dir: &ScratchDir, name: &str) -> PathBuf {
     path
 }
 
-/// A paste of `paths`, each single-quoted as a terminal would.
+/// A paste of `paths`, each double-quoted as a terminal would. Double
+/// quotes, not single: the Windows style reads `'` as a name character.
+/// Scratch paths hold no `"`, `$` or `` ` ``, and a `\` in one is a Windows
+/// path, where it is a name character too.
 fn paste_of(paths: &[&Path]) -> Input {
-    let items: Vec<String> = paths.iter().map(|p| format!("'{}'", p.display())).collect();
+    let items: Vec<String> = paths
+        .iter()
+        .map(|p| format!("\"{}\"", p.display()))
+        .collect();
     Input::Paste(items.join(" "))
 }
 
@@ -678,6 +684,21 @@ fn a_drop_makes_the_cat_chomp_n_files() {
 
     // Nothing more was let in: nothing more is submitted.
     app.submit_drops(now, &mut |_| panic!("submitted twice"));
+}
+
+#[test]
+fn a_clean_drop_clears_the_last_refusal() {
+    let dir = ScratchDir::new("app-hint");
+    let a = pdf(&dir, "a.pdf");
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    send(&mut app, paste_of(&[Path::new("/nowhere/notes.txt")]));
+    assert_eq!(app.state.hint, Some(strings::DROP_NOT_A_PDF));
+    send(&mut app, paste_of(&[&a]));
+    assert_eq!(
+        app.state.hint, None,
+        "the good drop is not shown as refused"
+    );
+    assert_eq!(app.admitted.len(), 1);
 }
 
 #[test]
