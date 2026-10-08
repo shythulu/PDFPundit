@@ -84,6 +84,20 @@ jobs:
       - name: cargo deny check licenses
         run: cargo deny --locked check licenses
 
+  # The UI goldens (T-00, D-055): the dump from generate.py is deterministic and
+  # the committed tests/data/ui is exactly what it produces, on both Unix runners.
+  # A platform-specific diff is a bug report, not a tolerance.
+  ui-goldens:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: dump twice, compare with each other and with the committed set
+        run: tools/check-ui-goldens.sh
+
   # Generated font assets are committed; regenerating them must change nothing
   # (D-021 amended). Inactive until tools/build-templates exists (T-29).
   assets:

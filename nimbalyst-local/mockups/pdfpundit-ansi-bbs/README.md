@@ -7,6 +7,7 @@ everything needed to review or change the mockup at
 | File | What it is |
 | --- | --- |
 | `generate.py` | The source of truth. Builds the mockup HTML and the PNG stills. Python 3, standard library only. |
+| `dump_goldens.py` | Dumps cell-exact JSON goldens of every frame and cat pose to `tests/data/ui/` for the Rust UI tests. Imports `generate.py` unchanged. |
 | `darkberry-palette.json` | DarkBerry palette v0.3.0, vendored from <https://darkberry.slacklab.ca/palette.json> so the build works offline. |
 | `frames/*.png` | One still per screen, plus each step of both drop animations (full size and widget). Read these to review the mockup without a browser. |
 | `../pdfpundit-ansi-bbs.mockup.html` | Build output (about 1.9 MB). Open it in a browser to see the animation. Don't edit it by hand. |
@@ -17,7 +18,8 @@ python3 generate.py --frames   # also re-render frames/*.png (needs Chrome or Ch
 ```
 
 After changing the generator, re-render the frames and look at them before
-committing. The HTML is too big to review as text. When you change only one
+committing, and re-run `python3 -I dump_goldens.py`: the Rust UI must match
+those goldens cell for cell, and a test fails while they are stale. The HTML is too big to review as text. When you change only one
 part, check the rest is untouched: `cmp` the other PNGs against their committed
 versions. Colour class numbers are handed out in render order, so render
 everything inside `page()`. A `render()` call made while the frame list is
