@@ -1,0 +1,6 @@
+# The OCR leg of the harness (D-067): PaddleOCR on the CPU build of PaddlePaddle.
+# paddlex 3.7.2 comes in through paddleocr and is pinned in the lock. Python 3.12
+# or 3.13 only (paddlepaddle 3.3.1 has no cp314 wheel). Locked by:
+#   uv pip compile tools/ocr-recall/requirements.in --python-version 3.12 --python-platform x86_64-manylinux_2_28 --generate-hashes -o tools/ocr-recall/requirements.lock
+paddleocr==3.7.0
+paddlepaddle==3.3.1

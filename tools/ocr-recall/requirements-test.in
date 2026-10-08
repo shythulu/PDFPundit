@@ -1,0 +1,4 @@
+# The test-only set: pytest, for `python3 -I -m pytest tools/ocr-recall/tests`
+# (no PaddleOCR, no model download). Locked by:
+#   uv pip compile tools/ocr-recall/requirements-test.in --universal --python-version 3.12 --generate-hashes -o tools/ocr-recall/requirements-test.lock
+pytest==8.4.2
