@@ -8,6 +8,7 @@ use std::sync::mpsc::Receiver;
 use super::*;
 use crate::engine::*;
 use crate::panic_guard::{self, SharedWriter};
+use crate::pdf::fixtures;
 use crate::place::ScratchDir;
 
 /// What the test saw, without the reply senders.
@@ -23,6 +24,7 @@ enum Seen {
     Waiting(usize),
     Failed(String, bool),
     Cancelled,
+    Exported(PathBuf),
     Other,
 }
 
@@ -42,6 +44,8 @@ struct Harness {
     holding: BTreeMap<JobId, u64>,
     /// Each eviction and how many jobs held a state just before it.
     evictions: Vec<(JobId, usize)>,
+    /// Every `Log` event.
+    logs: Vec<(JobId, LogLevel, String)>,
 }
 
 impl Harness {
@@ -59,6 +63,7 @@ impl Harness {
             work: BTreeMap::new(),
             holding: BTreeMap::new(),
             evictions: Vec::new(),
+            logs: Vec::new(),
         }
     }
 
@@ -164,6 +169,14 @@ impl Harness {
                 Seen::Evicted
             }
             JobEvent::WaitingForYou { parked } => Seen::Waiting(*parked),
+            JobEvent::ExportDone { path } => {
+                self.rows.insert(id, EntryState::Done);
+                Seen::Exported(path.clone())
+            }
+            JobEvent::Log(level, msg) => {
+                self.logs.push((id, *level, msg.clone()));
+                Seen::Other
+            }
             JobEvent::Failed { error, panicked } => {
                 self.holding.remove(&id);
                 self.rows.insert(
@@ -1164,4 +1177,235 @@ fn the_salvage_threads_are_clamped_and_reach_both_option_sets() {
     assert_eq!(o.repair.analyze, o.analyze);
     assert_eq!(o.parked_cap, 1 << 30);
     assert_eq!(o.output_dir, None);
+}
+
+// ── Markdown export (T-32b) ─────────────────────────────────────────────
+
+fn is_exported(s: &Seen) -> bool {
+    matches!(s, Seen::Exported(_))
+}
+
+impl Harness {
+    /// Where each of job `id`'s exports went, in order.
+    fn exports(&self, id: JobId) -> Vec<PathBuf> {
+        self.seen
+            .iter()
+            .filter_map(|(i, s)| match s {
+                Seen::Exported(path) if *i == id => Some(path.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+/// An engine slow enough that an export asked right after `submit` reaches
+/// the job before its repair is placed.
+fn slow_engine() -> FakeEngine {
+    FakeEngine::new().on_analyze(vec![FakeStep::Slow {
+        steps: 5,
+        pause_ms: 20,
+    }])
+}
+
+/// The page-one image of the golden, as a repair extracts it.
+fn golden_images() -> Vec<(String, Vec<u8>)> {
+    vec![("p1-1.jpg".to_owned(), fixtures::TINY_JPEG.to_vec())]
+}
+
+fn images_dir(stem: &str, input: &[u8]) -> String {
+    place::images_dir_name(stem, &Sha256::digest(input).into())
+}
+
+#[test]
+fn the_one_shot_flow_repairs_then_exports_the_same_entry() {
+    let dir = ScratchDir::new("jobs-oneshot");
+    let input = write(&dir, "memo.pdf", &fixtures::golden_pdf());
+    let mut h = Harness::new(slow_engine(), opts());
+    let id = h.submit(&input);
+    assert!(h.runner().export(id));
+    h.pump_until("exported", |h| h.count(is_exported) == 1);
+    h.drain();
+
+    let steps: Vec<&Seen> = h
+        .seen
+        .iter()
+        .filter(|(i, s)| *i == id && !matches!(s, Seen::Other | Seen::Waiting(_)))
+        .map(|(_, s)| s)
+        .collect();
+    assert_eq!(steps.len(), 6, "{steps:#?}");
+    assert_eq!(*steps[0], Seen::Started("analyze"));
+    assert_eq!(*steps[1], Seen::AnalyzeDone);
+    assert_eq!(*steps[2], Seen::Started("repair"));
+    assert!(is_done(steps[3]));
+    assert_eq!(*steps[4], Seen::Started("export"));
+    assert_eq!(*steps[5], Seen::Exported(dir.join("memo.md")));
+
+    let md = fs::read_to_string(dir.join("memo.md")).expect("md");
+    for line in fixtures::GOLDEN_TEXT.iter().flat_map(|p| p.iter()) {
+        assert!(md.contains(line), "{line:?} in {md}");
+    }
+    assert_eq!(dir.names(), ["memo.md", "memo.pdf", "memo.repaired.pdf"]);
+}
+
+#[test]
+fn export_never_runs_unless_asked() {
+    let dir = ScratchDir::new("jobs-noexport");
+    let input = write(&dir, "memo.pdf", &fixtures::golden_pdf());
+    let mut h = Harness::new(FakeEngine::new().with_images(golden_images()), opts());
+    let id = h.submit(&input);
+    h.pump_until("done", |h| h.finished(id));
+    h.drain();
+    assert_eq!(h.count(|s| *s == Seen::Started("export")), 0);
+    assert_eq!(dir.names(), ["memo.pdf", "memo.repaired.pdf"]);
+}
+
+#[test]
+fn an_existing_report_md_survives_and_the_export_takes_2() {
+    let dir = ScratchDir::new("jobs-report-md");
+    let input = write(&dir, "report.pdf", &fixtures::golden_pdf());
+    write(&dir, "report.md", b"the examiner's own notes");
+    let mut h = Harness::new(slow_engine(), opts());
+    let id = h.submit(&input);
+    assert!(h.runner().export(id));
+    h.pump_until("exported", |h| h.count(is_exported) == 1);
+    assert_eq!(h.exports(id), [dir.join("report (2).md")]);
+    assert_eq!(
+        fs::read(dir.join("report.md")).expect("kept"),
+        b"the examiner's own notes"
+    );
+}
+
+#[test]
+fn two_exports_of_one_input_are_identical_and_write_the_images_once() {
+    let dir = ScratchDir::new("jobs-twice");
+    let bytes = fixtures::golden_pdf();
+    let input = write(&dir, "scan.pdf", &bytes);
+    let images = images_dir("scan", &bytes);
+    let engine = slow_engine().with_images(golden_images());
+    let mut h = Harness::new(engine, opts());
+    let id = h.submit(&input);
+    assert!(h.runner().export(id));
+    h.pump_until("first export", |h| h.count(is_exported) == 1);
+    h.pump_until("job ended", |h| h.finished(id));
+    let image = dir.join(&images).join("p1-1.jpg");
+    let written = fs::metadata(&image)
+        .and_then(|m| m.modified())
+        .expect("mtime");
+
+    // Asked again once the job has ended: an export-only run.
+    assert!(h.runner().export(id));
+    h.pump_until("second export", |h| h.count(is_exported) == 2);
+    assert_eq!(
+        h.exports(id),
+        [dir.join("scan.md"), dir.join("scan (2).md")]
+    );
+    let first = fs::read(dir.join("scan.md")).expect("first");
+    let second = fs::read(dir.join("scan (2).md")).expect("second");
+    assert_eq!(first, second, "the .md bytes never depend on the disk");
+    let link = format!("![]({images}/p1-1.jpg)");
+    assert!(String::from_utf8_lossy(&first).contains(&link), "{link}");
+
+    assert_eq!(
+        dir.names(),
+        [
+            "scan (2).md".to_owned(),
+            images.clone(),
+            "scan.md".to_owned(),
+            "scan.pdf".to_owned(),
+            "scan.repaired.pdf".to_owned(),
+        ],
+        "one images directory, one repaired file"
+    );
+    assert_eq!(
+        fs::metadata(&image)
+            .and_then(|m| m.modified())
+            .expect("mtime"),
+        written,
+        "the images directory was reused, not rewritten"
+    );
+    assert_eq!(fs::read(&image).expect("image"), fixtures::TINY_JPEG);
+    // The export-only run repaired in memory: no second repaired file, no
+    // second RepairDone.
+    assert_eq!(h.count_of(id, is_done), 1);
+}
+
+#[test]
+fn a_foreign_images_directory_never_captures_the_links() {
+    let dir = ScratchDir::new("jobs-foreign");
+    let bytes = fixtures::golden_pdf();
+    let input = write(&dir, "scan.pdf", &bytes);
+    let images = images_dir("scan", &bytes);
+    fs::create_dir(dir.join(&images)).expect("foreign dir");
+    fs::write(dir.join(&images).join("p1-1.jpg"), b"someone else's").expect("foreign file");
+
+    let mut h = Harness::new(slow_engine().with_images(golden_images()), opts());
+    let id = h.submit(&input);
+    assert!(h.runner().export(id));
+    h.pump_until("exported", |h| h.count(is_exported) == 1);
+
+    let base = images.strip_suffix(".images").expect("suffix");
+    let ours = format!("{base} (2).images");
+    assert_eq!(
+        fs::read(dir.join(&ours).join("p1-1.jpg")).expect("ours"),
+        fixtures::TINY_JPEG
+    );
+    assert_eq!(
+        fs::read(dir.join(&images).join("p1-1.jpg")).expect("theirs"),
+        b"someone else's",
+        "the foreign directory is left alone"
+    );
+    let md = fs::read_to_string(dir.join("scan.md")).expect("md");
+    let encoded = ours
+        .replace(' ', "%20")
+        .replace('(', "%28")
+        .replace(')', "%29");
+    assert!(md.contains(&format!("![]({encoded}/p1-1.jpg)")), "{md}");
+    assert!(!md.contains(&format!("]({images}/")), "{md}");
+    let warned: Vec<&String> = h
+        .logs
+        .iter()
+        .filter(|(i, level, _)| *i == id && *level == LogLevel::Warn)
+        .map(|(_, _, msg)| msg)
+        .collect();
+    assert_eq!(warned.len(), 1, "{warned:?}");
+    assert!(warned[0].contains(&ours) && warned[0].contains(&images));
+}
+
+#[test]
+fn a_later_export_replays_the_answers_and_checks_the_input() {
+    let dir = ScratchDir::new("jobs-export-later");
+    let input = write(&dir, "memo.pdf", &fixtures::golden_pdf());
+    let mut h = Harness::new(FakeEngine::new().always_asks(), opts());
+    let id = h.submit(&input);
+    h.pump_until("asked", |h| h.count(is_asked) == 1);
+    assert!(h.runner().reply(id, InteractionReply::UseBest));
+    h.pump_until("done", |h| h.finished(id));
+
+    assert!(h.runner().export(id));
+    h.pump_until("exported", |h| h.count(is_exported) == 1);
+    assert_eq!(h.count(is_asked), 1, "the earlier answer was replayed");
+    assert_eq!(
+        h.engine.replies(),
+        [InteractionReply::UseBest, InteractionReply::UseBest]
+    );
+    assert_eq!(h.exports(id), [dir.join("memo.md")]);
+
+    // The file changed since: the export refuses it.
+    fs::write(&input, b"%PDF-1.4 something else").expect("rewrite");
+    assert!(h.runner().export(id));
+    h.pump_until("failed", |h| {
+        h.count(|s| matches!(s, Seen::Failed(e, false) if e == INPUT_CHANGED)) == 1
+    });
+}
+
+#[test]
+fn an_unknown_or_unstarted_job_cannot_be_exported() {
+    let dir = ScratchDir::new("jobs-export-unknown");
+    let mut h = Harness::new(slow_engine(), opts());
+    assert!(!h.runner().export(JobId(99)));
+    let first = h.submit(&write(&dir, "a.pdf", &fixtures::golden_pdf()));
+    let queued = h.submit(&write(&dir, "b.pdf", &fixtures::golden_pdf()));
+    h.runner().cancel(queued);
+    assert!(!h.runner().export(queued));
+    h.pump_until("done", |h| h.finished(first));
 }

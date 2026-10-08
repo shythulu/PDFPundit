@@ -30,6 +30,13 @@
 //! memory before the drop completes, since a macOS file promise is gone after
 //! that (D-039): at most [`HOLD_LIMIT`] bytes a drop.
 //!
+//! Export (T-32b, D-048): Enter opens the per-file menu over the selected
+//! queue row and its `Export → Markdown` item, or `e` straight from the batch
+//! and result views, asks the runner for that file's Markdown export. It is
+//! never automatic: asked while the file is still queued or working, the
+//! export follows its repair (the "repair → export" one-shot); asked later,
+//! the runner runs it on its own.
+//!
 //! The loop owns the [`AppState`], the [`Director`], the runner and the history
 //! store. It hands every job event to the runner first and then to the state,
 //! records each finished repair in the store and refills the history summary
@@ -60,7 +67,7 @@ use super::input::osc72::{DndAction, DndSession, HOLD_LIMIT};
 use super::input::paste::{PathCandidate, paths_from_paste};
 use super::input::{DndEvent, Input, InputSource};
 use super::layout::browse::{self, BrowseAction, BrowseKey, BrowseState};
-use super::layout::full::{self, FullLayout};
+use super::layout::full::{self, FileAction, FullLayout, MenuKey};
 use super::layout::modals::{ModalKey, ThemeAction, ThemeChooser};
 use super::layout::widget::{OneLine, WidgetLayout};
 use super::layout::{FULL_SIZE, Layout, LayoutKind, LayoutPin, choose};
@@ -331,6 +338,7 @@ fn event_loop<E: Engine + 'static>(
         };
         if let Some(r) = runner.as_deref_mut() {
             app.submit_drops(now, &mut |input| r.submit(input));
+            app.request_exports(&mut |id| r.export(id));
         }
         app.refresh(now);
         if app.quit {
@@ -383,6 +391,9 @@ pub(crate) struct App {
     /// Files the drop gate let in, for [`App::submit_drops`]; a kitty drop's
     /// with their bytes, read while the drop was active (D-039).
     admitted: Vec<(Admitted, Option<Vec<u8>>)>,
+    /// Jobs whose Markdown export was asked for, for
+    /// [`App::request_exports`].
+    exports: Vec<JobId>,
     /// The kitty drag-and-drop protocol (T-31).
     dnd: DndSession,
     /// Path candidates the one-line fallback refused (D-064).
@@ -430,6 +441,7 @@ impl App {
             pre_frame_dropped: 0,
             warn_above: AnalyzeOptions::default().max_file_bytes,
             admitted: Vec::new(),
+            exports: Vec::new(),
             dnd: DndSession::default(),
             refused_too_small: 0,
             browse_from: std::env::current_dir()
@@ -481,6 +493,10 @@ impl App {
         // Esc would.
         if self.kind == LayoutKind::OneLine && matches!(self.state.screen, Screen::Browse(_)) {
             self.close_browse();
+        }
+        // The per-file menu is the full layout's: a shrink closes it.
+        if self.kind != LayoutKind::Full {
+            self.state.file_menu = None;
         }
         self.director.set_stage(match self.kind {
             LayoutKind::Full => Stage::Full,
@@ -722,6 +738,10 @@ impl App {
             self.browse_key(k.code);
             return;
         }
+        if self.state.file_menu.is_some() {
+            self.file_menu_key(k.code);
+            return;
+        }
         match k.code {
             KeyCode::Char('q' | 'Q') => self.quit = true,
             KeyCode::Char('T' | 't') if self.kind == LayoutKind::Full => {
@@ -735,8 +755,19 @@ impl App {
             KeyCode::Char('b' | 'B') if layout(self.kind).accepts_input() => {
                 self.state.screen = Screen::Browse(BrowseState::open(&self.browse_from));
             }
+            // Export the selected file (the result view's `e`, DA:472).
+            KeyCode::Char('e' | 'E')
+                if self.kind == LayoutKind::Full && full::menu_target(&self.state).is_some() =>
+            {
+                if let Some(i) = full::menu_target(&self.state) {
+                    self.ask_export(i);
+                }
+            }
             KeyCode::Char(c) => {
                 full::menu_key(&mut self.state, c);
+            }
+            KeyCode::Enter if self.kind == LayoutKind::Full => {
+                full::open_file_menu(&mut self.state);
             }
             KeyCode::Enter if self.kind == LayoutKind::Widget => self.ask_for_full_size(),
             KeyCode::Up if self.kind == LayoutKind::Full => self.move_cursor(false),
@@ -805,6 +836,45 @@ impl App {
                     })
                     .collect();
                 self.dropped(candidates);
+            }
+        }
+    }
+
+    /// The per-file menu's keys (T-22b's menu, T-32b's export item); `q`
+    /// still quits, as the menu's hotkeys row says.
+    fn file_menu_key(&mut self, code: KeyCode) {
+        let key = match code {
+            KeyCode::Char('q' | 'Q') => {
+                self.quit = true;
+                return;
+            }
+            KeyCode::Up => MenuKey::Up,
+            KeyCode::Down => MenuKey::Down,
+            KeyCode::Enter => MenuKey::Enter,
+            KeyCode::Esc => MenuKey::Esc,
+            KeyCode::Char(c) => MenuKey::Char(c),
+            _ => return,
+        };
+        if let Some(FileAction::Export(i)) = full::file_menu_key(&mut self.state, key) {
+            self.ask_export(i);
+        }
+    }
+
+    /// Queue row `i`'s export, for the loop to ask the runner for.
+    fn ask_export(&mut self, i: usize) {
+        if let Some(e) = self.state.batch.entries.get(i) {
+            self.exports.push(e.job);
+        }
+    }
+
+    /// The exports asked for since the last call, each passed to `export`
+    /// (the runner's [`JobRunner::export`]). One the runner cannot run (its
+    /// file was cancelled before it started) is refused on the hint row.
+    pub(crate) fn request_exports(&mut self, export: &mut dyn FnMut(JobId) -> bool) {
+        for id in std::mem::take(&mut self.exports) {
+            if !export(id) {
+                self.log(format!("export: job {} is not known to the runner", id.0));
+                self.state.hint = Some(strings::EXPORT_UNAVAILABLE);
             }
         }
     }
@@ -920,9 +990,10 @@ impl App {
                 self.finish(i);
                 self.record(id, i, unix, store);
             }
-            JobEvent::ExportDone { .. } => {
+            JobEvent::ExportDone { path } => {
                 entry.state = EntryState::Done;
                 self.finish(i);
+                self.log(format!("export: wrote {}", path.display()));
             }
             JobEvent::Parked => self.finish(i),
             JobEvent::Resumed => {
