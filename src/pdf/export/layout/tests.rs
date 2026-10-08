@@ -842,6 +842,19 @@ fn pass6_direction_is_the_majority_of_mapped_ink() {
     assert!(!mixed(2, 2));
     assert!(mixed(1, 0));
     assert!(!mixed(0, 0));
+    // Digits have no direction here, Arabic-Indic ones included: six Arabic
+    // letters and seven digits are an Arabic page, and two Latin letters
+    // outvote one Arabic letter however many Arabic-Indic digits follow.
+    let mut phone = vec![("ر", 0, 0, 10_000); 6];
+    phone.extend([("5", 0, 0, 10_000); 7]);
+    assert!(is_rtl(&glyphs(&phone)));
+    let mut indic = vec![
+        ("a", 0, 0, 10_000),
+        ("b", 0, 0, 10_000),
+        ("ر", 0, 0, 10_000),
+    ];
+    indic.extend([("٥", 0, 0, 10_000); 5]);
+    assert!(!is_rtl(&glyphs(&indic)));
 }
 
 #[test]
@@ -1082,30 +1095,24 @@ fn styled_runs_keep_their_spaces_outside_the_style() {
 
 // ── review fixes: mixed direction, hostile sizes, guards ────────────────
 
-/// One piece of a line drawn by [`visual_line`]: its text in logical order,
-/// its font and whether its glyphs are drawn left to right.
+/// One piece of a line, in logical order: its text, its font and whether
+/// it is a left-to-right unit (a number, a Latin word).
 type Piece<'a> = (&'a str, FontKey, bool);
 
-/// A line drawn the way a right-to-left layout engine draws it, glyphs in
-/// logical order at `advance` milli-em, from `right` leftwards. A stretch of
-/// consecutive left-to-right pieces is one unit, filled left to right.
-fn visual_line(out: &mut Vec<GlyphItem>, pieces: &[Piece], right: f64, y: f64, advance: f32) {
+/// A line laid out the way the Unicode bidi algorithm lays out a
+/// right-to-left paragraph: pieces in logical order from `right` leftwards,
+/// each left-to-right piece a unit of its own whose glyphs run left to right,
+/// every other glyph stepping left. Glyphs are emitted in logical order at
+/// `advance` milli-em. The caller splits the pieces as the algorithm does: a
+/// number and a Latin word with a space between are two units, the space
+/// right to left.
+fn rtl_line(out: &mut Vec<GlyphItem>, pieces: &[Piece], right: f64, y: f64, advance: f32) {
     let w = BODY * f64::from(advance) / 1000.0;
     let mut pen = right;
-    let mut k = 0;
-    while k < pieces.len() {
-        let end = if pieces[k].2 {
-            k + pieces[k..].iter().take_while(|p| p.2).count()
-        } else {
-            k + 1
-        };
-        let chars: Vec<(char, FontKey)> = pieces[k..end]
-            .iter()
-            .flat_map(|&(t, f, _)| t.chars().map(move |c| (c, f)))
-            .collect();
-        let n = chars.len() as f64;
-        for (i, &(c, font)) in chars.iter().enumerate() {
-            let x = if pieces[k].2 {
+    for &(text, font, ltr) in pieces {
+        let n = text.chars().count() as f64;
+        for (i, c) in text.chars().enumerate() {
+            let x = if ltr {
                 pen - n * w + i as f64 * w
             } else {
                 pen - (i + 1) as f64 * w
@@ -1116,7 +1123,6 @@ fn visual_line(out: &mut Vec<GlyphItem>, pieces: &[Piece], right: f64, y: f64, a
             });
         }
         pen -= n * w;
-        k = end;
     }
 }
 
@@ -1124,19 +1130,51 @@ fn line_strings(l: &PageLayout) -> Vec<String> {
     l.blocks.iter().flat_map(block_lines).collect()
 }
 
+/// Helvetica digits are 556 milli-em; a full em is the extreme.
+const ADVANCES: [f32; 5] = [300.0, 500.0, 556.0, 600.0, 1000.0];
+
 #[test]
 fn numbers_and_latin_words_on_an_arabic_line_keep_their_order() {
-    // "مرحبا بالعالم 2024 PDF نص", "PDF" in bold so it is a run of its own.
-    // Helvetica digits are 556 milli-em; a full em is the extreme.
-    for advance in [500.0, 556.0, 600.0, 1000.0] {
+    // "مرحبا بالعالم 2024 PDF نص": 2024 is drawn right of PDF.
+    for advance in ADVANCES {
+        for pdf_font in [REGULAR, BOLD] {
+            let mut g = Vec::new();
+            rtl_line(
+                &mut g,
+                &[
+                    ("مرحبا بالعالم ", REGULAR, false),
+                    ("2024", REGULAR, true),
+                    (" ", REGULAR, false),
+                    ("PDF", pdf_font, true),
+                    (" نص", REGULAR, false),
+                ],
+                540.0,
+                700.0,
+                advance,
+            );
+            let l = layout(&page_of(g));
+            assert_eq!(
+                line_strings(&l),
+                ["مرحبا بالعالم 2024 PDF نص"],
+                "advance {advance}: {l:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_phone_number_on_an_arabic_line_keeps_its_digit_groups_in_order() {
+    // "رقم الهاتف 555 1234 للتواصل": 555 is drawn right of 1234.
+    for advance in ADVANCES {
         let mut g = Vec::new();
-        visual_line(
+        rtl_line(
             &mut g,
             &[
-                ("مرحبا بالعالم ", REGULAR, false),
-                ("2024 ", REGULAR, true),
-                ("PDF", BOLD, true),
-                (" نص", REGULAR, false),
+                ("رقم الهاتف ", REGULAR, false),
+                ("555", REGULAR, true),
+                (" ", REGULAR, false),
+                ("1234", REGULAR, true),
+                (" للتواصل", REGULAR, false),
             ],
             540.0,
             700.0,
@@ -1145,44 +1183,54 @@ fn numbers_and_latin_words_on_an_arabic_line_keep_their_order() {
         let l = layout(&page_of(g));
         assert_eq!(
             line_strings(&l),
-            ["مرحبا بالعالم 2024 PDF نص"],
+            ["رقم الهاتف 555 1234 للتواصل"],
             "advance {advance}: {l:?}"
         );
     }
 }
 
+/// An English line from `start` holding a right-to-left stretch: `before`,
+/// then `stretch` (logical order, each piece a unit as in [`rtl_line`],
+/// placed right to left), then `after`. Glyphs in logical order.
+fn ltr_line_with_rtl(
+    out: &mut Vec<GlyphItem>,
+    (before, stretch, after): (&str, &[Piece], &str),
+    start: f64,
+    advance: f32,
+) {
+    let w = BODY * f64::from(advance) / 1000.0;
+    let at = |out: &mut Vec<GlyphItem>, c: char, x: f64, font: FontKey| {
+        out.push(GlyphItem {
+            advance: Some(advance),
+            ..glyph(&c.to_string(), x, 700.0, BODY, font)
+        });
+    };
+    for (i, c) in before.chars().enumerate() {
+        at(out, c, start + i as f64 * w, REGULAR);
+    }
+    let left = start + before.chars().count() as f64 * w;
+    let width: usize = stretch.iter().map(|p| p.0.chars().count()).sum();
+    let right = left + width as f64 * w;
+    rtl_line(out, stretch, right, 700.0, advance);
+    for (i, c) in after.chars().enumerate() {
+        at(out, c, right + i as f64 * w, REGULAR);
+    }
+}
+
 #[test]
 fn a_hebrew_name_on_an_english_line_keeps_its_order() {
-    for advance in [500.0, 600.0] {
-        let w = BODY * f64::from(advance) / 1000.0;
+    for advance in ADVANCES {
         let mut g = Vec::new();
-        let start = 72.0;
-        for (i, c) in "Dear ".chars().enumerate() {
-            g.push(GlyphItem {
-                advance: Some(advance),
-                ..glyph(&c.to_string(), start + i as f64 * w, 700.0, BODY, REGULAR)
-            });
-        }
-        // "שלום" occupies four advances after "Dear ", drawn right to left.
-        let right = start + 9.0 * w;
-        for (i, c) in "שלום".chars().enumerate() {
-            g.push(GlyphItem {
-                advance: Some(advance),
-                ..glyph(
-                    &c.to_string(),
-                    right - (i + 1) as f64 * w,
-                    700.0,
-                    BODY,
-                    BOLD,
-                )
-            });
-        }
-        for (i, c) in " friend, and many more words".chars().enumerate() {
-            g.push(GlyphItem {
-                advance: Some(advance),
-                ..glyph(&c.to_string(), right + i as f64 * w, 700.0, BODY, REGULAR)
-            });
-        }
+        ltr_line_with_rtl(
+            &mut g,
+            (
+                "Dear ",
+                &[("שלום", BOLD, false)],
+                " friend, and many more words",
+            ),
+            72.0,
+            advance,
+        );
         assert_eq!(
             line_strings(&layout(&page_of(g))),
             ["Dear שלום friend, and many more words"],
@@ -1192,13 +1240,48 @@ fn a_hebrew_name_on_an_english_line_keeps_its_order() {
 }
 
 #[test]
-fn pass6_runs_against_the_page_direction_are_reversed_as_a_group() {
+fn a_number_after_a_hebrew_word_on_an_english_line_keeps_its_place() {
+    // "Dear שלום 2024 friend": the number joins the Hebrew stretch and is
+    // drawn left of the name ("Dear 2024 שלום friend" on the page).
+    for advance in ADVANCES {
+        let mut g = Vec::new();
+        ltr_line_with_rtl(
+            &mut g,
+            (
+                "Dear ",
+                &[
+                    ("שלום", REGULAR, false),
+                    (" ", REGULAR, false),
+                    ("2024", REGULAR, true),
+                ],
+                " friend, and many more words",
+            ),
+            72.0,
+            advance,
+        );
+        assert_eq!(
+            line_strings(&layout(&page_of(g))),
+            ["Dear שלום 2024 friend, and many more words"],
+            "advance {advance}"
+        );
+    }
+}
+
+#[test]
+fn pass6_a_mixed_stretch_reads_in_content_order_and_a_wide_gap_parts_it() {
+    // Content order is logical; x order is the bidi layout's.
     let spans = word_spans(&[
-        ("عربي", 300_000, 0),
-        ("two", 200_000, 0),
-        ("-", 170_000, 0),
-        ("one", 100_000, 0),
-        ("نص", 0, 0),
+        // Runs a full em or more apart in content order, so each is its
+        // own; 10 pt, half-em glyphs.
+        ("عربي", 305_000, 0),
+        ("one", 260_000, 0),
+        ("two", 287_000, 0),
+        ("نص", 245_000, 0),
+        // 1.2 em past the stretch: still part of it.
+        ("ثم", 223_000, 0),
+        // 1.8 em past it: a second stretch, in the page's order.
+        ("و", 180_000, 0),
+        ("لا", 195_000, 0),
     ]);
     let all: Vec<usize> = (0..spans.len()).collect();
     let lines = cluster_lines(&spans, &all, true);
@@ -1207,7 +1290,7 @@ fn pass6_runs_against_the_page_direction_are_reversed_as_a_group() {
         .iter()
         .map(|&i| spans[i].text.as_str())
         .collect();
-    assert_eq!(order, ["عربي", "one", "-", "two", "نص"]);
+    assert_eq!(order, ["عربي", "one", "two", "نص", "ثم", "لا", "و"]);
     assert_eq!(dir_of("٢٠٢٤"), Dir::Ltr);
     assert_eq!(dir_of(" (x"), Dir::Ltr);
     assert_eq!(dir_of("…"), Dir::Neutral);
@@ -1277,7 +1360,7 @@ fn pass5_a_scrambled_staircase_of_ten_thousand_spans_finishes() {
 
 #[test]
 fn pass5_two_columns_drawn_line_by_line_across_the_gutter_read_across() {
-    // The documented cost of the content-order guard (MAX_COLUMN_SWITCHES):
+    // The documented cost of the content-order guard (Cut::interleaved):
     // with nothing but geometry this page is two columns, and so is a
     // two-column key/value table; the guard reads both row by row.
     let left = ["Left one.", "Left two.", "Left three.", "Left four."];
@@ -1300,7 +1383,7 @@ fn pass5_two_columns_drawn_line_by_line_across_the_gutter_read_across() {
 
 #[test]
 fn pass5_a_grid_drawn_column_by_column_is_still_a_table() {
-    // The switches guard lets this cut through; the table guard does not.
+    // The content-order guard lets this cut through; the grid guard does not.
     let mut g = Vec::new();
     for (c, col) in ["A", "B", "C"].iter().enumerate() {
         for r in 0..3 {
@@ -1322,6 +1405,65 @@ fn pass5_a_grid_drawn_column_by_column_is_still_a_table() {
             header: false,
         }]
     );
+}
+
+#[test]
+fn pass5_three_columns_of_prose_on_shared_baselines_read_column_by_column() {
+    // Every merged line has the two gutters as cell gaps, so the region
+    // lines up as a table; its cells are whole lines of prose, not a grid.
+    let col = |name: &str| ["one", "two", "three", "four"].map(|n| format!("{name} {n} is here."));
+    let (alpha, beta, gamma) = (col("Alpha"), col("Beta"), col("Gamma"));
+    let mut g = Vec::new();
+    for (x, lines) in [(50.0, &alpha), (230.0, &beta), (410.0, &gamma)] {
+        let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
+        body(&mut g, &lines, x, 700.0);
+    }
+    let para_of = |lines: &[String; 4]| para(&lines.each_ref().map(String::as_str));
+    assert_eq!(
+        layout(&page_of(g)).blocks,
+        vec![para_of(&alpha), para_of(&beta), para_of(&gamma)]
+    );
+}
+
+#[test]
+fn pass5_late_footnote_markers_do_not_merge_two_columns() {
+    // Two columns drawn one after the other, then four superscript markers
+    // drawn last, alternating sides: five crossings, well short of the seven
+    // a page drawn row by row has.
+    let left = ["Left a.", "Left b.", "Left c.", "Left d."];
+    let right = ["Right a.", "Right b.", "Right c.", "Right d."];
+    let mut g = Vec::new();
+    body(&mut g, &left, 72.0, 700.0);
+    body(&mut g, &right, 340.0, 700.0);
+    let end = |x: f64, s: &str| x + s.chars().count() as f64 * BODY * 0.5;
+    for (n, (x, row)) in [
+        (end(72.0, left[0]), 0.0),
+        (end(340.0, right[0]), 0.0),
+        (end(72.0, left[1]), 1.0),
+        (end(340.0, right[1]), 1.0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let y = 700.0 - row * PITCH + 3.0;
+        ltr(&mut g, &(n + 1).to_string(), x, y, 7.0, REGULAR);
+    }
+    let l = layout(&page_of(g));
+    assert_eq!(
+        line_strings(&l),
+        [
+            "Left a.1",
+            "Left b.3",
+            "Left c.",
+            "Left d.",
+            "Right a.2",
+            "Right b.4",
+            "Right c.",
+            "Right d."
+        ],
+        "{l:?}"
+    );
+    assert_eq!(l.blocks.len(), 2, "{l:?}");
 }
 
 #[test]

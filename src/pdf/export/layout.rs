@@ -11,7 +11,14 @@
 //! ban in clippy.toml is crate-wide. "milli-em" is a thousandth of the glyph's
 //! (or run's) font size.
 //!
-//! Passes, each a private function with its own tests:
+//! Passes, each a private function with its own tests. They are numbered as
+//! in the spec, and two depart from it on purpose:
+//! - Pass 4 runs before pass 1, so an invisible (render mode 3) OCR glyph can
+//!   never count as the original of the visible glyph under it and swallow
+//!   it.
+//! - Pass 1's key adds the size to the spec's (text, font, x, y): a large
+//!   and a small copy of one letter at one origin are two glyphs.
+//!
 //! 1. [`drop_shadows`]: a glyph repeating an earlier one's text, font and size
 //!    within [`SHADOW_MILLI_EM`] in x and y is dropped (fake bold, drop
 //!    shadows).
@@ -30,16 +37,21 @@
 //!    the median baseline pitch split the region into bands; failing that, the
 //!    widest vertical gap of [`COLUMN_GAP_MILLI_EM`] of the page's median em
 //!    splits it into columns. Depth at most [`MAX_CUT_DEPTH`]. Two guards keep
-//!    tables whole: a cut through a table's channel is refused (geometric),
-//!    and so is a cut the content order crosses more than
-//!    [`MAX_COLUMN_SWITCHES`] times (see there: the spec's cut is purely
-//!    geometric; this one is our addition).
+//!    tables whole. A cut through the channel of a grid of short cells is
+//!    refused ([`cuts_a_grid`]). So is a cut whose sides content order
+//!    alternates between on every row ([`Cut::interleaved`]). The spec's cut
+//!    is purely geometric; the second guard is our addition.
 //! 6. [`is_rtl`]: reading order is bands top to bottom and columns left to
-//!    right; a page whose mapped glyphs are mostly Arabic or Hebrew reads its
+//!    right; a page whose letters are mostly Arabic or Hebrew reads its
 //!    columns (and the runs of a line) right to left. Glyphs keep their
-//!    content (logical) order inside a run. Runs set against the page's
-//!    direction (a number or a Latin word on an Arabic line) keep their own
-//!    order as a group ([`embed_runs`]).
+//!    content (logical) order inside a run. A stretch of a line that mixes
+//!    both directions (a number or a Latin word on an Arabic line) reads in
+//!    content order, which the spec takes as logical order ([`order_line`]).
+//!
+//!    Known limit: a producer that draws right-to-left glyphs in visual
+//!    order (left to right in content order) gets them back reversed, or
+//!    with a word space misplaced. Detecting such runs (Arabic or Hebrew
+//!    glyphs stepping right in content order) is left to a later pass.
 //! 7. [`heading_levels`]: headings by size and weight against the page's
 //!    modal body size, levels by distinct size, at most three. A heading line
 //!    wrapping on from one of its level ([`HEADING_WRAP_MILLI_SIZE`]) joins
@@ -107,15 +119,15 @@ const MAX_CUT_DEPTH: u32 = 4;
 /// (a right-aligned page number, a dotted leader) is not a gutter. Bands may
 /// be one line: a title spans the columns under it.
 const MIN_COLUMN_LINES: usize = 2;
-/// Pass 5. Columns are drawn one after the other, so content order switches
-/// side once (a few stray runs aside: a late caption, a footnote marker). A
-/// table drawn row by row switches on every row and is not cut into columns.
-/// This is the one content-order rule in the cut, and a deliberate addition
-/// to the spec's purely geometric XY-cut: a two-column table (one channel) is
-/// below [`find_tables`]' three-column minimum, so geometry alone would read
-/// its keys, then its values. The cost: prose in two columns drawn line by
-/// line across the gutter reads across it.
-const MAX_COLUMN_SWITCHES: usize = 3;
+/// Pass 5. A table blocks a gutter only when the median of its cells is at
+/// most two words. Prose columns on shared baselines line up as a table too
+/// (each merged line has the gutters as cell gaps), but their cells are
+/// whole lines of text.
+const GRID_MAX_WORDS: i64 = 2;
+/// Pass 6. Runs of a line closer than a column gutter (1.5 ems) are one
+/// stretch of text, which reads in content order when it mixes directions; a
+/// wider gap parts columns or table cells, which keep the page's order.
+const BIDI_STRETCH_GAP_MILLI_EM: i64 = 1500;
 /// Pass 5. Only the widest few gaps of a region are tried as gutters, so a
 /// region costs a bounded number of line clusterings however many gaps it
 /// has.
@@ -447,18 +459,28 @@ fn dir_of(text: &str) -> Dir {
         .unwrap_or(Dir::Neutral)
 }
 
-/// Whether most mapped, inked glyphs are Arabic or Hebrew.
+/// The direction of a text's first letter. Digits, spaces and punctuation
+/// have none here: a page of Arabic phone numbers is still an Arabic page.
+fn letter_dir(text: &str) -> Option<Dir> {
+    text.chars()
+        .find(|c| c.is_alphabetic())
+        .map(|c| if is_rtl_char(c) { Dir::Rtl } else { Dir::Ltr })
+}
+
+/// Whether most glyphs that are letters are Arabic or Hebrew.
 fn is_rtl(glyphs: &[Glyph]) -> bool {
-    let (mut rtl, mut mapped) = (0usize, 0usize);
+    let (mut rtl, mut letters) = (0usize, 0usize);
     for text in glyphs.iter().filter_map(|g| g.text.as_deref()) {
-        if has_ink(text) {
-            mapped += 1;
-            if text.chars().any(is_rtl_char) {
+        match letter_dir(text) {
+            Some(Dir::Rtl) => {
                 rtl += 1;
+                letters += 1;
             }
+            Some(_) => letters += 1,
+            None => {}
         }
     }
-    rtl * 2 > mapped
+    rtl * 2 > letters
 }
 
 // ── passes 2 and 10: runs and links ─────────────────────────────────────
@@ -656,41 +678,49 @@ fn cluster_lines(spans: &[Span], idx: &[usize], rtl: bool) -> Vec<LineG> {
         });
     }
     for l in &mut lines {
-        if rtl {
-            l.runs
-                .sort_by_key(|&i| (Reverse(spans[i].x1), spans[i].seq));
-        } else {
-            l.runs.sort_by_key(|&i| (spans[i].x0, spans[i].seq));
-        }
-        embed_runs(spans, &mut l.runs, rtl);
+        order_line(spans, &mut l.runs, rtl);
     }
     lines.sort_by_key(|l| (Reverse(l.y), l.x0));
     lines
 }
 
-/// A line's runs arrive in the page's direction. A stretch of runs written
-/// the other way (a number and a Latin word on an Arabic line, a Hebrew name
-/// on an English one), with any spaces and punctuation between them, reads
-/// in its own direction, so the stretch is reversed (a small part of the
-/// Unicode bidi algorithm: enough for embedded words and numbers).
-fn embed_runs(spans: &[Span], runs: &mut [usize], rtl: bool) {
-    let against = if rtl { Dir::Ltr } else { Dir::Rtl };
-    let mut k = 0;
-    while k < runs.len() {
-        if spans[runs[k]].dir != against {
-            k += 1;
-            continue;
-        }
-        let mut end = k + 1;
-        for (j, &i) in runs.iter().enumerate().skip(k + 1) {
-            match spans[i].dir {
-                d if d == against => end = j + 1,
-                Dir::Neutral => {}
-                _ => break,
+/// Puts a line's runs in reading order. They are sorted in the page's
+/// direction, then cut into stretches at gaps of [`BIDI_STRETCH_GAP_MILLI_EM`]
+/// or more (column gutters, table cells). A stretch holding runs of both
+/// directions (a number or a Latin word on an Arabic line, a Hebrew name on
+/// an English one) is put back in content order, which the spec takes as the
+/// logical order. The bidi algorithm lays such a line out in ways x order
+/// cannot undo: on an Arabic line, "2024 PDF" is drawn with each word read
+/// left to right but the two words placed right to left.
+fn order_line(spans: &[Span], runs: &mut [usize], rtl: bool) {
+    if rtl {
+        runs.sort_by_key(|&i| (Reverse(spans[i].x1), spans[i].seq));
+    } else {
+        runs.sort_by_key(|&i| (spans[i].x0, spans[i].seq));
+    }
+    let mut start = 0;
+    while start < runs.len() {
+        let first = &spans[runs[start]];
+        // The far edge reached so far, in reading direction.
+        let mut edge = if rtl { first.x0 } else { first.x1 };
+        let mut size = first.size;
+        let mut end = start + 1;
+        while let Some(&i) = runs.get(end) {
+            let s = &spans[i];
+            let gap = if rtl { edge - s.x1 } else { s.x0 - edge };
+            size = size.max(s.size);
+            if gap * 1000 >= BIDI_STRETCH_GAP_MILLI_EM * size {
+                break;
             }
+            edge = if rtl { edge.min(s.x0) } else { edge.max(s.x1) };
+            end += 1;
         }
-        runs[k..end].reverse();
-        k = end;
+        let stretch = &mut runs[start..end];
+        let has = |d: Dir| stretch.iter().any(|&i| spans[i].dir == d);
+        if has(Dir::Ltr) && has(Dir::Rtl) {
+            stretch.sort_by_key(|&i| spans[i].seq);
+        }
+        start = end;
     }
 }
 
@@ -792,9 +822,9 @@ impl Cut<'_> {
     }
 
     /// The region cut at its widest acceptable vertical gap of `column_gap`
-    /// or more: both sides hold two lines, no table is cut through, and the
-    /// sides were drawn one after the other. Only the
-    /// [`MAX_COLUMN_CANDIDATES`] widest gaps are tried.
+    /// or more: both sides hold two lines, no grid is cut through, and the
+    /// sides were not drawn row by row. Only the [`MAX_COLUMN_CANDIDATES`]
+    /// widest gaps are tried.
     fn columns(&self, idx: &[usize]) -> Option<(Vec<usize>, Vec<usize>)> {
         let s = self.spans;
         let mut order = idx.to_vec();
@@ -815,39 +845,65 @@ impl Cut<'_> {
         gaps.truncate(MAX_COLUMN_CANDIDATES);
         let lines = cluster_lines(s, idx, self.rtl);
         let tables = find_tables(s, &lines, self.median_em);
+        let grids: Vec<&TableSpan> = tables
+            .iter()
+            .filter(|t| (t.end - t.start) * 2 >= lines.len() && short_cells(s, &lines, t))
+            .collect();
         gaps.into_iter().find_map(|(_, from, at)| {
-            if cuts_a_table(&tables, lines.len(), from, at) {
+            if cuts_a_grid(&grids, from, at) {
                 return None;
             }
             let (left, right): (Vec<usize>, Vec<usize>) = idx.iter().partition(|&&i| s[i].x0 < at);
             let lines = |side: &[usize]| cluster_lines(s, side, self.rtl).len();
-            (lines(&left) >= MIN_COLUMN_LINES
-                && lines(&right) >= MIN_COLUMN_LINES
-                && self.switches(&left, &right) <= MAX_COLUMN_SWITCHES)
+            let fewer = lines(&left).min(lines(&right));
+            (fewer >= MIN_COLUMN_LINES && !self.interleaved(&left, &right, fewer))
                 .then_some((left, right))
         })
     }
 
-    /// How often content order crosses between the two sides.
-    fn switches(&self, left: &[usize], right: &[usize]) -> usize {
+    /// Whether content order alternates between the sides on every row of
+    /// the side with `fewer` lines: at least `2 × fewer − 1` crossings, the
+    /// count a region drawn row by row has. Columns are drawn one after the
+    /// other, so content order crosses once, plus one or two per late run (a
+    /// caption, a footnote marker).
+    ///
+    /// This is the one content-order rule in the cut, and a deliberate
+    /// addition to the spec's purely geometric XY-cut: a two-column table
+    /// (one channel) is below [`find_tables`]' three-column minimum, so
+    /// geometry alone would read its keys, then its values. The cost: prose
+    /// in two columns drawn line by line across the gutter reads across it.
+    fn interleaved(&self, left: &[usize], right: &[usize], fewer: usize) -> bool {
         let mut sides: Vec<(usize, bool)> = left
             .iter()
             .map(|&i| (self.spans[i].seq, false))
             .chain(right.iter().map(|&i| (self.spans[i].seq, true)))
             .collect();
         sides.sort_unstable();
-        sides.windows(2).filter(|w| w[0].1 != w[1].1).count()
+        let crossings = sides.windows(2).filter(|w| w[0].1 != w[1].1).count();
+        crossings + 1 >= 2 * fewer
     }
 }
 
-/// Whether the gap `from..at` is a channel of a table that fills at least
-/// half of the region's `lines`. A column gutter runs the region's height; a
-/// table's channel only its rows, so a table that small is a table inside a
-/// column, and the gutter beside it may still be cut.
-fn cuts_a_table(tables: &[TableSpan], lines: usize, from: i64, at: i64) -> bool {
-    tables.iter().any(|t| {
-        (t.end - t.start) * 2 >= lines && t.channels.iter().any(|&(a, b)| a <= at && from <= b)
-    })
+/// Whether the median cell of table `t` (lines of `lines`) holds at most
+/// [`GRID_MAX_WORDS`] words.
+fn short_cells(spans: &[Span], lines: &[LineG], t: &TableSpan) -> bool {
+    let words: Vec<i64> = lines[t.start..t.end]
+        .iter()
+        .flat_map(|l| table_row(spans, l, &t.cuts, false))
+        .filter(|cell| !cell.is_empty())
+        .map(|cell| i64::try_from(cell.split_whitespace().count()).unwrap_or(i64::MAX))
+        .collect();
+    median(words).is_some_and(|m| m <= GRID_MAX_WORDS)
+}
+
+/// Whether the gap `from..at` is a channel of one of `grids`: tables of short
+/// cells filling at least half of the region's lines. A column gutter runs
+/// the region's height; a table's channel only its rows, so a smaller table
+/// is a table inside a column, and the gutter beside it may still be cut.
+fn cuts_a_grid(grids: &[&TableSpan], from: i64, at: i64) -> bool {
+    grids
+        .iter()
+        .any(|t| t.channels.iter().any(|&(a, b)| a <= at && from <= b))
 }
 
 // ── passes 7–9: blocks ──────────────────────────────────────────────────
