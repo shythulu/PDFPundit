@@ -15,23 +15,30 @@
 //! (`CatEvent::DragAt`), so neither is drawn: the status bar keeps the
 //! batch's state. Both wait on that data.
 //!
+//! With files in the queue the layout shows the batch view (frame 03) or,
+//! while the cursor is on a finished file, the result view (frame 05); see
+//! [`screen`]. Both draw only what the view model carries: the cells those
+//! frames fill with data it lacks (metadata, pipeline stage, log, output
+//! paths, recovery figures) stay blank until it does (T-22b, flagged).
+//!
 //! MENU draws `H history`, `S setup` and `? help` because the golden does, but
 //! v1 has no screen behind them (D-048, flagged for the user): [`menu_key`]
 //! answers those keys with the "not yet" hint and opens nothing.
 #![cfg_attr(not(test), allow(dead_code))]
 
 use super::{FULL_SIZE, Layout};
-use crate::ui::canvas::Canvas;
+use crate::ui::canvas::{BoxStyle, Canvas, plain_len};
 use crate::ui::cat;
-use crate::ui::color::{Rgb, mix};
+use crate::ui::color::{Rgb, mix, ramp};
 use crate::ui::director::{CHOMP, CRUMBS, CRUMBS_AT, CatFrame};
 use crate::ui::state::AppState;
 use crate::ui::strings;
 use crate::ui::theme::Theme;
-use crate::ui::view::{Role, ViewModel};
-use crate::ui::widgets::r#box::{Panel, fit, panel};
+use crate::ui::view::{QueueRow, Role, RowKind, ViewModel};
+use crate::ui::widgets::r#box::{Panel, fit, named, panel};
 use crate::ui::widgets::lightbar::{self, hk};
-use crate::ui::widgets::logo;
+use crate::ui::widgets::queue::QueueBox;
+use crate::ui::widgets::{bar, findings, logo};
 
 /// The cat's scale and top-left cell.
 pub const CAT_SCALE: f64 = 0.93;
@@ -125,8 +132,39 @@ impl Layout for FullLayout {
     /// Drawn under a 112 × 38 clip, so nothing lands past the frame on a
     /// larger canvas.
     fn draw(&self, c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
-        c.clipped(FULL_SIZE.0, FULL_SIZE.1, |c| draw_main(c, vm, cat, theme));
+        c.clipped(FULL_SIZE.0, FULL_SIZE.1, |c| match screen(vm, cat) {
+            FullScreen::Main => draw_main(c, vm, cat, theme),
+            FullScreen::Batch => draw_batch(c, vm, cat, theme),
+            FullScreen::Result => draw_result(c, vm, cat, theme),
+        });
     }
+}
+
+/// Which of the full layout's screens is up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FullScreen {
+    /// Frame 01: no files yet, and every drop reaction (frames 02, 02b),
+    /// which the mockup draws only here.
+    Main,
+    /// Frame 03: files in the queue, the cursor on one not finished.
+    Batch,
+    /// Frame 05: the cursor on a finished file.
+    Result,
+}
+
+/// The screen for `vm` while the cat shows `cat`.
+pub fn screen(vm: &ViewModel, cat: &CatFrame) -> FullScreen {
+    if vm.queue_rows.is_empty() || reacting(cat) {
+        return FullScreen::Main;
+    }
+    match selected(vm).map(|r| r.kind) {
+        Some(RowKind::Ok | RowKind::Partial | RowKind::Failed) => FullScreen::Result,
+        _ => FullScreen::Batch,
+    }
+}
+
+fn selected(vm: &ViewModel) -> Option<&QueueRow> {
+    vm.queue_rows.iter().find(|r| r.selected)
 }
 
 /// The idle screen and the drop reactions over it.
@@ -357,6 +395,439 @@ fn to_i32(n: usize) -> i32 {
     i32::try_from(n).unwrap_or(i32::MAX)
 }
 
+// ── the batch and result views (T-22b, frames 03 and 05) ─────────────────
+
+/// The batch view's cat: scale and top-left cell; the line under it.
+const BATCH_CAT: (f64, i32, i32) = (0.68, 68, 11);
+const DROP_MORE_AT: (i32, i32) = (69, 31);
+/// The result view's cat, and its line.
+const RESULT_CAT: (f64, i32, i32) = (0.52, 8, 17);
+const SATISFIED_AT: (i32, i32) = (5, 31);
+/// The queue box: x, y, width, name column.
+const BATCH_QUEUE: (i32, i32, i32, usize) = (1, 2, 64, 21);
+const RESULT_QUEUE: (i32, i32, i32, usize) = (1, 2, 50, 20);
+/// The analysis panel, the needs-input box and the result panel: x, y, w, h.
+const ANALYSIS_BOX: (i32, i32, i32, i32) = (1, 13, 64, 19);
+const NEEDS_BOX: (i32, i32, i32, i32) = (67, 2, 44, 9);
+const RESULT_BOX: (i32, i32, i32, i32) = (52, 2, 59, 30);
+/// The per-file menu: x, y, w, h.
+const MENU_BOX: (i32, i32, i32, i32) = (17, 7, 32, 10);
+/// The progress box's top row.
+const PROGRESS_Y: i32 = 32;
+/// The finding rows each panel has, and their summary columns.
+const ANALYSIS_FINDINGS: (i32, usize, usize) = (20, 4, 22);
+const RESULT_FINDINGS: (i32, usize, usize) = (9, 4, 24);
+/// The result panel's font rows: first row, count, name column.
+const RESULT_FONTS: (i32, usize, usize) = (21, 3, 17);
+
+/// Frame 03: the queue, the analysis of the file under the cursor, the box
+/// asking for a decision when a file is parked, the cat, the progress box.
+///
+/// Frame 03 also shows the file's version, page count, size and producer, the
+/// repair's pipeline stage and toolpath, each finding's detail column and a
+/// live log. The view model carries none of these (T-22b's open question), so
+/// those rows are left blank rather than invented.
+fn draw_batch(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
+    let (crumb, mode) = strings::CRUMB_BATCH;
+    header(c, &format!("{{w}}{crumb} {{D}}· {{c}}{mode} "), theme);
+    let (x, y, w, name_w) = BATCH_QUEUE;
+    QueueBox {
+        x,
+        y,
+        w,
+        name_w,
+        short: false,
+    }
+    .draw(c, &vm.queue_rows, &queue_note(vm), theme);
+
+    let name = selected(vm).map_or("", |r| r.name.as_str());
+    let ab = named(
+        c,
+        ANALYSIS_BOX,
+        BoxStyle::default(),
+        strings::ANALYSIS,
+        name,
+        title_room(ANALYSIS_BOX.2, strings::ANALYSIS, ""),
+        theme,
+    );
+    let (_, ay, _, _) = ANALYSIS_BOX;
+    ab.sep(c, ay + 5, theme);
+    ab.line(
+        c,
+        ay + 6,
+        &format!(
+            " {{W}}{} {{D}}{}",
+            strings::FINDINGS,
+            strings::STREAMED_AS_FOUND
+        ),
+        theme,
+    );
+    let (fy, n, summary_w) = ANALYSIS_FINDINGS;
+    for (i, f) in vm.selected_findings.iter().take(n).enumerate() {
+        findings::finding(c, &ab, fy + to_i32(i), f, summary_w, theme);
+    }
+    ab.sep(c, ay + 11, theme);
+    ab.line(c, ay + 12, &format!(" {{W}}{}", strings::LOG), theme);
+
+    if let Some((_, name)) = &vm.needs_you {
+        needs_box(c, vm, name, theme);
+    }
+    let (scale, cx, cy) = BATCH_CAT;
+    c.blit_grid(&cat::render(&cat.pose, scale, theme, cat.glow), cx, cy);
+    let (dx, dy) = DROP_MORE_AT;
+    c.rich(dx, dy, &format!("{{D}}{}", strings::DROP_MORE), None, theme);
+    view_footer(c, vm, theme, None);
+}
+
+/// Frame 05: the queue (short statuses), the result for the file under the
+/// cursor, the cat, the per-file menu when it is open, the progress box.
+///
+/// Frame 05 also shows the output's name and folder, the toolpath and the
+/// repair's time, each finding's detail column, the recovery bars, a picked
+/// font's family and a substitution's caveat. The view model carries none of
+/// these (T-22b's open question), so those cells are left blank.
+fn draw_result(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
+    header(c, &format!("{{w}}{} ", strings::CRUMB_RESULTS), theme);
+    let (x, y, w, name_w) = RESULT_QUEUE;
+    QueueBox {
+        x,
+        y,
+        w,
+        name_w,
+        short: true,
+    }
+    .draw(c, &vm.queue_rows, &queue_note(vm), theme);
+
+    let row = selected(vm);
+    let note = row.map_or_else(String::new, |r| {
+        format!(
+            "{{{}}}{} {}",
+            slot_of(r.kind.role()),
+            r.kind.glyph(),
+            r.label
+        )
+    });
+    let rb = named(
+        c,
+        RESULT_BOX,
+        BoxStyle {
+            note: Some(&note),
+            ..BoxStyle::default()
+        },
+        strings::RESULT,
+        row.map_or("", |r| r.name.as_str()),
+        title_room(RESULT_BOX.2, strings::RESULT, &note),
+        theme,
+    );
+    let (_, ry, _, _) = RESULT_BOX;
+    rb.sep(c, ry + 5, theme);
+    rb.line(
+        c,
+        ry + 6,
+        &format!(
+            " {{W}}{:<34}{{D}}{}",
+            strings::FINDINGS,
+            strings::BEFORE_AFTER
+        ),
+        theme,
+    );
+    let (fy, n, summary_w) = RESULT_FINDINGS;
+    for (i, f) in vm.selected_findings.iter().take(n).enumerate() {
+        let y = fy + to_i32(i);
+        let x = findings::finding(c, &rb, y, f, summary_w, theme);
+        findings::before_after(c, &rb, x, y, f, theme);
+    }
+    rb.sep(c, ry + 11, theme);
+    rb.line(c, ry + 12, &format!(" {{W}}{}", strings::RECOVERY), theme);
+    rb.sep(c, ry + 17, theme);
+    rb.line(c, ry + 18, &format!(" {{W}}{}", strings::FONTS), theme);
+    let (fy, n, name_w) = RESULT_FONTS;
+    for (i, f) in vm.font_resolutions.iter().take(n).enumerate() {
+        findings::font(c, &rb, fy + to_i32(i), f, name_w, theme);
+    }
+    rb.sep(c, ry + 22, theme);
+    let keys: Vec<String> = strings::RESULT_KEYS
+        .iter()
+        .map(|&(k, l)| hk(k, l))
+        .collect();
+    rb.line(c, ry + 23, &format!(" {}", keys.join("  ")), theme);
+    let repaired = row.is_some_and(|r| r.kind == RowKind::Ok);
+    if repaired {
+        let stops: Vec<Rgb> = ['D', 'm', 'M', 'W']
+            .iter()
+            .filter_map(|&k| theme.slot(k))
+            .collect();
+        c.gtext(
+            rb.0.x + 2,
+            ry + 26,
+            strings::CASE_CLOSED,
+            &stops,
+            true,
+            None,
+        );
+    }
+
+    let (scale, cx, cy) = RESULT_CAT;
+    c.blit_grid(&cat::render(&cat.pose, scale, theme, cat.glow), cx, cy);
+    if repaired {
+        let (sx, sy) = SATISFIED_AT;
+        let (line, burp) = strings::CAT_SATISFIED;
+        c.rich(sx, sy, &format!("{{D}}{line} {{m}}{burp}"), None, theme);
+    }
+    view_footer(c, vm, theme, vm.c9_line.as_deref());
+}
+
+/// What both views draw last: the per-file menu when it is open, the progress
+/// box, the hotkeys, the status bar and the bottom edge's note: the one-off
+/// hint, else `fallback` (the result view's C9 count line, D-041: frame 05
+/// has no row for it, so it takes the hint row, which in these views is the
+/// progress box's bottom edge, until the user places it).
+fn view_footer(c: &mut Canvas, vm: &ViewModel, theme: &Theme, fallback: Option<&str>) {
+    if let Some(sel) = vm.file_menu {
+        file_menu(c, sel, theme);
+    }
+    let pb = bar::progress(
+        c,
+        PROGRESS_Y,
+        vm.current.as_ref(),
+        &batch_markup(vm),
+        vm.batch_progress,
+        theme,
+    );
+    if let Some(note) = vm.hint.or(fallback) {
+        pb.bottom_note(c, note, theme.roles.body);
+    }
+    if vm.file_menu.is_some() {
+        lightbar::hotkeys(c, 1, HOTKEYS_Y, &strings::MENU_KEYS, theme);
+    } else {
+        lightbar::hotkeys(c, 1, HOTKEYS_Y, &strings::BATCH_KEYS, theme);
+    }
+    let counts = &vm.counts;
+    let mut parts = vec![
+        fill_n(strings::BATCH_N_OF_N, &[counts.done(), counts.total]),
+        part(need_input(counts.needs_input)),
+        part(failed(counts.failed)),
+    ];
+    if vm.status_bar.offline {
+        parts.push(format!("{{G}}{}", strings::OFFLINE));
+    }
+    let mut right = format!("{{M}}{}", theme.name);
+    if let Some((h, m)) = vm.status_bar.clock {
+        right.push_str(&format!(" {{c}}│{{W}} {h:02}:{m:02}"));
+    }
+    lightbar::status_bar(c, BAR_Y, W, &parts, &right, theme);
+}
+
+/// The header row: a block, the app's name in three colours, `»` and the
+/// breadcrumb (markup), then a rule to the edge along the border gradient
+/// reversed and back.
+fn header(c: &mut Canvas, crumb: &str, theme: &Theme) {
+    for (x, ch, t) in [(1, '▐', 0.1), (2, '█', 0.4), (3, '▌', 0.8)] {
+        c.put(x, 0, ch, Some(ramp(&theme.logo_ramp, t)), None);
+    }
+    let name: Vec<char> = strings::APP_NAME.chars().collect();
+    let part = |r: std::ops::Range<usize>| name[r].iter().collect::<String>();
+    let e = c.rich(
+        5,
+        0,
+        &format!(
+            "{{W}}{}{{M}}{}{{m}}{} {{D}}» {crumb}",
+            part(0..3),
+            part(3..6),
+            part(6..name.len())
+        ),
+        None,
+        theme,
+    );
+    let stops: Vec<Rgb> = theme
+        .roles
+        .border_stops
+        .iter()
+        .rev()
+        .chain(theme.roles.border_stops.iter().skip(1))
+        .copied()
+        .collect();
+    let rule = "─".repeat(usize::try_from(W - e - 2).unwrap_or(0));
+    c.gtext(e + 1, 0, &rule, &stops, false, None);
+}
+
+/// The queue box's note: done of total, then how many wait on you and how
+/// many failed, each only when there are any.
+fn queue_note(vm: &ViewModel) -> String {
+    let n = &vm.counts;
+    let mut note = strings::N_OF_N_DONE
+        .replacen("{n}", &format!("{{G}}{}{{w}}", n.done()), 1)
+        .replacen("{n}", &n.total.to_string(), 1);
+    if n.needs_input > 0 {
+        note.push_str(&after_dot(need_input(n.needs_input)));
+    }
+    if n.failed > 0 {
+        note.push_str(&after_dot(failed(n.failed)));
+    }
+    note
+}
+
+/// `1 needs input` in the needs-input colour, `2 need input`, or `0 need
+/// input` in green: the text and its colour's slot letter.
+fn need_input(n: usize) -> (char, String) {
+    let (k, s) = match n {
+        0 => ('G', strings::N_NEED_INPUT),
+        1 => ('M', strings::N_NEEDS_INPUT),
+        _ => ('M', strings::N_NEED_INPUT),
+    };
+    (k, s.replace("{n}", &n.to_string()))
+}
+
+/// `1 failed` in red, or `0 failed` in green.
+fn failed(n: usize) -> (char, String) {
+    let k = if n == 0 { 'G' } else { 'R' };
+    (k, strings::N_FAILED.replace("{n}", &n.to_string()))
+}
+
+/// A count after a dim `·`, the space before it in the count's colour.
+fn after_dot((k, text): (char, String)) -> String {
+    format!(" {{D}}·{{{k}}} {text}")
+}
+
+/// A count as a status bar part.
+fn part((k, text): (char, String)) -> String {
+    format!("{{{k}}}{text}")
+}
+
+/// The progress box's batch line: `batch 3/7`, then how many are parked, or
+/// failing that how many failed.
+fn batch_markup(vm: &ViewModel) -> String {
+    let n = &vm.counts;
+    let word = strings::BATCH_N_OF_N
+        .split_once(' ')
+        .map_or(strings::BATCH_N_OF_N, |(w, _)| w);
+    let mut s = format!("{{w}}{word} {{W}}{}{{D}}/{{W}}{}", n.done(), n.total);
+    if n.needs_input > 0 {
+        let parked = strings::N_PARKED.replace("{n}", &n.needs_input.to_string());
+        s.push_str(&after_dot(('M', parked)));
+    } else if n.failed > 0 {
+        s.push_str(&after_dot(failed(n.failed)));
+    }
+    s
+}
+
+/// `template` with each `{n}` replaced by the next of `values`.
+fn fill_n(template: &str, values: &[usize]) -> String {
+    values.iter().fold(template.to_string(), |s, v| {
+        s.replacen("{n}", &v.to_string(), 1)
+    })
+}
+
+/// The box asking for a decision about the first parked file: its name, how
+/// many of its fonts cannot be reproduced (its queue row's detail), and the
+/// keys. Frame 03 adds the file's page count and language guess, which the
+/// view model does not carry, so nothing follows the name yet.
+fn needs_box(c: &mut Canvas, vm: &ViewModel, name: &str, theme: &Theme) {
+    let (x, y, w, h) = NEEDS_BOX;
+    let style = BoxStyle {
+        title: Some(strings::NEEDS_INPUT_TITLE),
+        grad: Some(&theme.gradients.modal),
+        title_colours: ('W', 'm'),
+        ..BoxStyle::default()
+    };
+    let p = Panel(c.boxed(x, y, w, h, &style, theme));
+    let room = usize::try_from(w - 4).unwrap_or(0);
+    let nx = p.line(c, y + 2, " ", theme);
+    p.text(
+        c,
+        nx,
+        y + 2,
+        &format!("{} ", fit(name, room)),
+        theme.roles.file,
+    );
+    let fonts = vm
+        .queue_rows
+        .iter()
+        .find(|r| r.kind == RowKind::NeedsInput)
+        .and_then(|r| r.detail.as_deref())
+        .unwrap_or("");
+    let fx = p.line(c, y + 3, " ", theme);
+    let fx = p.text(c, fx, y + 3, fonts, theme.roles.body);
+    let (can_be, read, but_not, reproduced) = strings::CAN_BE_READ_NOT_REPRODUCED;
+    p.line_at(
+        c,
+        fx,
+        y + 3,
+        &format!(" {can_be} {{W}}{read}{{w}} {but_not} {{W}}{reproduced}{{w}}."),
+        theme,
+    );
+    p.line(
+        c,
+        y + 4,
+        &format!(" {{D}}{}", strings::PARKED_KEEPS_GOING),
+        theme,
+    );
+    let keys: Vec<String> = strings::NEEDS_INPUT_KEYS
+        .iter()
+        .map(|&(k, l)| hk(k, l))
+        .collect();
+    p.line(c, y + 6, &format!("  {}", keys.join("   ")), theme);
+}
+
+/// The per-file menu (D-048, frame 05), the cursor on item `sel`.
+fn file_menu(c: &mut Canvas, sel: usize, theme: &Theme) {
+    let (x, y, w, h) = MENU_BOX;
+    let style = BoxStyle {
+        title: Some(strings::FILE_MENU),
+        grad: Some(&theme.gradients.menu),
+        title_colours: ('W', 'y'),
+        shadow: true,
+        ..BoxStyle::default()
+    };
+    c.boxed(x, y, w, h, &style, theme);
+    let items = &strings::FILE_MENU_ITEMS;
+    let sel = sel.min(items.len() - 1);
+    let bar = theme.slot('b').unwrap_or(theme.roles.lightbar);
+    let rule: Vec<Rgb> = [Some(theme.roles.bg), theme.slot('y'), theme.slot('Y')]
+        .into_iter()
+        .flatten()
+        .collect();
+    for (i, item) in items.iter().enumerate() {
+        let ry = y + 1 + to_i32(i);
+        match item {
+            None => c.gtext(x + 1, ry, &"─".repeat(30), &rule, true, None),
+            Some((label, key)) if i == sel => {
+                c.fill(x + 1, ry, w - 2, 1, theme.roles.body, bar);
+                c.rich(
+                    x + 1,
+                    ry,
+                    &format!("{{Y/b}} ► {{W}}{label:<22}{{Y}}{key:>3} "),
+                    None,
+                    theme,
+                );
+            }
+            Some((label, key)) => {
+                c.rich(
+                    x + 1,
+                    ry,
+                    &format!("   {{w}}{label:<22}{{Y}}{key:>3}"),
+                    None,
+                    theme,
+                );
+            }
+        }
+    }
+}
+
+/// How many characters of a file's name fit in a `w`-wide box's top edge
+/// after `title`, leaving room for `note` (markup) at its right.
+fn title_room(w: i32, title: &str, note: &str) -> usize {
+    let used = 4 + title.chars().count() + 1 + 2;
+    let note = if note.is_empty() {
+        0
+    } else {
+        plain_len(note) + 2 + 4
+    };
+    usize::try_from(w)
+        .unwrap_or(0)
+        .saturating_sub(used + note + 1)
+}
+
 /// What a MENU key does on the main screen when it has no screen in v1
 /// (D-048, flagged for the user): `H` (history), `S` (setup) and `?` (help)
 /// set the hint row to "not yet" and open nothing. Returns whether the key
@@ -376,10 +847,14 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::engine::{C9Summary, FontResolutionKind};
+    use crate::jobs::{EntryState, QueueEntry};
     use crate::library::{HistorySummary, RecentRow, RecentStatus};
     use crate::ui::canvas::HALF;
-    use crate::ui::director::{CHOMP_DURS, CatEvent, CellPos, DRAG, DRAG_DOC, DRAG_DURS, Director};
-    use crate::ui::goldens;
+    use crate::ui::director::{
+        CHOMP_DURS, CatEvent, CellPos, DRAG, DRAG_DOC, DRAG_DURS, Director, Mood,
+    };
+    use crate::ui::goldens::{self, Golden, GoldenCell, Rgb as GoldenRgb};
     use crate::ui::state::Screen;
     use crate::ui::view::view;
 
@@ -515,7 +990,57 @@ mod tests {
         app.clock = Some((23, 59));
         app.hint = Some(strings::NOT_YET);
         out.push(view(&app));
+        out.push(view(&result_with_c9(Some(0))));
+        out.push(view(&long_batch()));
         out
+    }
+
+    /// Frame 05's state with a C9 count line: the selected file's repair
+    /// found damaged streams.
+    fn result_with_c9(menu: Option<usize>) -> AppState {
+        let mut app = AppState::mockup_result();
+        app.file_menu = menu;
+        let run = app.batch.entries[2]
+            .run
+            .as_mut()
+            .expect("thesis_ar.pdf ran");
+        run.report.c9_summary = C9Summary {
+            streams_damaged: 3,
+            repaired: 3,
+            exact: 2,
+            accepted: 1,
+            ..C9Summary::default()
+        };
+        app
+    }
+
+    /// Frame 03's batch twice over, with long names, failures and the
+    /// cursor near the end, so the queue scrolls and every field is cut.
+    fn long_batch() -> AppState {
+        let mut app = AppState::mockup_batch();
+        let extra: Vec<QueueEntry> = app.batch.entries.clone();
+        app.batch.entries.extend(extra);
+        for (i, e) in app.batch.entries.iter_mut().enumerate() {
+            e.name = format!("an_extremely_long_evidence_bundle_name_number_{i}.pdf");
+            if i == 9 {
+                e.state = EntryState::Failed {
+                    error: "w".repeat(200),
+                    panicked: false,
+                };
+            }
+            for f in &mut e.findings {
+                f.summary = "s".repeat(90);
+            }
+        }
+        app.selected = Some(12);
+        app.batch.current = Some(11);
+        app.batch.entries[11].state = EntryState::Analyzing {
+            phase: None,
+            done: 1,
+            total: None,
+        };
+        app.file_menu = Some(99);
+        app
     }
 
     #[test]
@@ -655,10 +1180,273 @@ mod tests {
         }
     }
 
+    // ── the batch and result views (T-22b) ───────────────────────────────
+
+    /// Cells frames 03 and 05 fill with data the view model does not carry
+    /// (T-22b's open question), as `(row, first column, end column)`. The
+    /// layout leaves them blank on the panel's fill, so they are compared as
+    /// blank: everything else is cell-exact.
+    const BATCH_UNFILLED: &[(u16, u16, u16)] = &[
+        // the parked file's page count and language guess
+        (4, 83, 110),
+        // version, pages, size and producer; the pipeline stage; the toolpath
+        (14, 2, 64),
+        (16, 2, 64),
+        (17, 2, 64),
+        // each finding's detail column, and a carve summary row
+        (20, 34, 64),
+        (21, 34, 64),
+        (22, 34, 64),
+        (23, 2, 64),
+        // the log
+        (26, 2, 64),
+        (27, 2, 64),
+        (28, 2, 64),
+        (29, 2, 64),
+    ];
+    const RESULT_UNFILLED: &[(u16, u16, u16)] = &[
+        // the output's name and folder; the toolpath, time and re-diagnosis
+        (4, 53, 110),
+        (5, 53, 110),
+        (6, 53, 110),
+        // each finding's detail column
+        (9, 96, 110),
+        (10, 96, 110),
+        (11, 96, 110),
+        // the recovery rows and bars
+        (15, 53, 110),
+        (16, 53, 110),
+        (17, 53, 110),
+        (18, 53, 110),
+        // a picked font's family; a substitution's caveat
+        (22, 84, 110),
+        (23, 93, 110),
+    ];
+
+    /// The golden `name` with the `spans` the view model cannot fill blanked.
+    fn unfilled(name: &str, spans: &[(u16, u16, u16)]) -> Golden {
+        let mut g = goldens::load(name);
+        let t = theme();
+        let blank = GoldenCell::Text {
+            ch: ' ',
+            fg: GoldenRgb(t.roles.body.0),
+            bg: GoldenRgb(t.roles.bg.0),
+        };
+        let masked = |x: u16, y: u16| {
+            spans
+                .iter()
+                .any(|&(sy, x0, x1)| sy == y && (x0..x1).contains(&x))
+        };
+        let w = usize::from(g.w);
+        for &(y, x0, x1) in spans {
+            for x in x0..x1 {
+                // A span covers only data, never a border or the background.
+                assert!(
+                    !matches!(g.cell(x, y), GoldenCell::Text { ch: '║', .. }),
+                    "({x}, {y}) is a border"
+                );
+                g.cells[usize::from(y) * w + usize::from(x)] = blank;
+            }
+        }
+        g.blink.retain(|&(x, y)| !masked(x, y));
+        g
+    }
+
+    /// The cat between reactions in `mood`.
+    fn resting_in(mood: Mood) -> CatFrame {
+        let mut d = Director::new();
+        d.on(CatEvent::Mood(mood), Duration::ZERO);
+        d.frame(Duration::ZERO)
+    }
+
+    /// Frame 03, cell-exact outside the data the view model lacks. The
+    /// mockup draws the meme pose there ("closed", the idle mood's), not the
+    /// needs-you pose the director gives this batch; the goldens test the
+    /// layout, so the cat frame is the mockup's.
+    #[test]
+    fn batch_matches_frame_03() {
+        let vm = view(&AppState::mockup_batch());
+        let cat = resting_in(Mood::Idle);
+        assert_eq!(screen(&vm, &cat), FullScreen::Batch);
+        draw(FULL_SIZE, &vm, &cat).assert_matches(&unfilled("03-batch", BATCH_UNFILLED));
+    }
+
+    /// Frame 05 with its file menu open on the first item, cell-exact
+    /// outside the data the view model lacks; the fixture has no C9 line.
+    #[test]
+    fn result_matches_frame_05() {
+        let mut app = AppState::mockup_result();
+        app.file_menu = Some(0);
+        let vm = view(&app);
+        assert_eq!(vm.c9_line, None);
+        let cat = resting(&vm);
+        assert_eq!(screen(&vm, &cat), FullScreen::Result);
+        draw(FULL_SIZE, &vm, &cat).assert_matches(&unfilled("05-result", RESULT_UNFILLED));
+    }
+
+    /// D-041's count line has no row in frame 05, so it takes the result
+    /// view's hint row: the progress box's bottom edge, row 35.
+    #[test]
+    fn a_c9_count_line_takes_the_result_views_hint_row() {
+        let app = result_with_c9(None);
+        let vm = view(&app);
+        let line = vm
+            .c9_line
+            .clone()
+            .expect("the repair found damaged streams");
+        assert!(line.starts_with("3 streams repaired; 2 "), "{line:?}");
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        let row = row_text(&c, 35);
+        assert!(row.contains(&format!("╡ {line} ╞")), "{row:?}");
+        assert_eq!(row.chars().nth(1), Some('╚'));
+        assert_eq!(row.chars().nth(110), Some('╝'));
+        // Without it the edge is a plain border.
+        let vm = view(&AppState::mockup_result());
+        let row = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 35);
+        assert_eq!(row, format!(" ╚{}╝ ", "═".repeat(108)));
+    }
+
+    /// The batch view has no hint row either: a one-off hint ("not yet")
+    /// takes the same edge, and wins over the C9 line while it is up.
+    #[test]
+    fn a_one_off_hint_takes_the_views_bottom_edge() {
+        let mut app = AppState::mockup_batch();
+        app.hint = Some(strings::NOT_YET);
+        let vm = view(&app);
+        let row = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 35);
+        assert!(
+            row.contains(&format!("╡ {} ╞", strings::NOT_YET)),
+            "{row:?}"
+        );
+        let mut app = result_with_c9(None);
+        app.hint = Some(strings::NOT_YET);
+        let vm = view(&app);
+        let row = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 35);
+        assert!(row.contains(strings::NOT_YET), "{row:?}");
+        assert!(!row.contains("streams repaired"), "{row:?}");
+    }
+
+    /// Which screen is up: the main one with no files and during every
+    /// reaction, then the result view on a finished file, else the batch.
+    #[test]
+    fn the_screen_follows_the_queue_the_cursor_and_the_cat() {
+        let idle = view(&AppState::mockup_idle());
+        let batch = view(&AppState::mockup_batch());
+        let result = view(&AppState::mockup_result());
+        let done = view(&AppState::mockup_done());
+        let mut failed = AppState::mockup_batch();
+        failed.selected = Some(6);
+        let failed = view(&failed);
+        let rest = resting_in(Mood::Idle);
+        for (vm, cat, want) in [
+            (&idle, &rest, FullScreen::Main),
+            (&batch, &rest, FullScreen::Batch),
+            (&result, &rest, FullScreen::Result),
+            (&failed, &rest, FullScreen::Result),
+            // a finished batch with the cursor on nothing
+            (&done, &rest, FullScreen::Batch),
+            (&batch, &chomp(3), FullScreen::Main),
+            (&result, &drag(2), FullScreen::Main),
+        ] {
+            assert_eq!(screen(vm, cat), want);
+        }
+    }
+
+    /// The menu is drawn only while it is open; its hotkeys replace the
+    /// batch keys, and an out-of-range cursor lands on the last item.
+    #[test]
+    fn the_file_menu_is_drawn_only_while_open() {
+        let vm = view(&AppState::mockup_result());
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        assert!(!row_text(&c, 7).contains(strings::FILE_MENU));
+        assert!(row_text(&c, 36).contains("[enter] file menu"));
+        let mut app = AppState::mockup_result();
+        app.file_menu = Some(42);
+        let vm = view(&app);
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        assert!(row_text(&c, 7).contains(strings::FILE_MENU));
+        assert!(row_text(&c, 10).contains(strings::EXPORT_MARKDOWN));
+        assert!(row_text(&c, 15).contains("► Remove from queue"));
+        assert!(row_text(&c, 36).contains("[esc] close menu"));
+    }
+
+    /// A long name is cut with `…` in the panels' top edges, which stay
+    /// whole, and the result panel's name stops short of its note.
+    #[test]
+    fn long_names_stay_inside_the_panel_titles() {
+        let app = long_batch();
+        let mut closed = app.clone();
+        closed.file_menu = None;
+        let vm = view(&closed);
+        let row: Vec<char> = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 13)
+            .chars()
+            .collect();
+        assert_eq!(&row[61..=64], &['…', ' ', '╞', '╗'], "{row:?}");
+        let mut app = AppState::mockup_result();
+        app.batch.entries[2].name = "n".repeat(80);
+        let vm = view(&app);
+        let row: String = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 2);
+        assert!(row.contains("… ╞═╡ √ repaired ╞═╗"), "{row:?}");
+    }
+
+    /// File names, finding summaries and font names are data: braces in them
+    /// are drawn, not read as colour markup.
+    #[test]
+    fn data_in_the_views_is_drawn_verbatim() {
+        let mut app = AppState::mockup_result();
+        let thesis = &mut app.batch.entries[2];
+        thesis.name = "x{R}.pdf".into();
+        thesis.findings[0].summary = "a{G}b".into();
+        thesis.font_resolutions[0].base_font = Some("/F{Y}nt".into());
+        let vm = view(&app);
+        let c = draw(FULL_SIZE, &vm, &resting(&vm));
+        assert!(row_text(&c, 2).contains("RESULT » x{R}.pdf"));
+        assert!(row_text(&c, 6).contains("x{R}.pdf"));
+        assert!(row_text(&c, 9).contains("[ERR] C2 a{G}b"));
+        assert!(row_text(&c, 21).contains("F1 F{Y}nt"));
+    }
+
     #[test]
     fn the_layout_is_112_by_38_and_takes_input() {
         assert_eq!(FullLayout.min_size(), (112, 38));
         assert!(FullLayout.accepts_input());
+    }
+
+    /// The words the view model supplies (file names, statuses, finding
+    /// summaries, font names, the C9 line): data, not the layout's strings,
+    /// plus the stand-in for a font with no name, which stays out of the
+    /// deny-list because the engine's reports say "unknown" too.
+    fn data_words(vm: &ViewModel) -> Vec<String> {
+        let mut text: Vec<String> = vm.recent.iter().map(|r| r.name.clone()).collect();
+        for r in &vm.queue_rows {
+            text.push(r.name.clone());
+            text.push(r.label.to_string());
+            text.extend(r.detail.clone());
+            text.extend(r.short_detail.clone());
+        }
+        for f in &vm.selected_findings {
+            text.push(f.summary.clone());
+            text.extend(f.code.map(str::to_string));
+        }
+        for f in &vm.font_resolutions {
+            text.push(f.slot.clone());
+            text.extend(f.name.clone());
+            if let Some(FontResolutionKind::Substituted(s)) = &f.resolution {
+                text.push(s.label.clone());
+            }
+        }
+        if let Some(cur) = &vm.current {
+            text.push(cur.name.clone());
+            text.push(cur.activity.label().to_string());
+        }
+        text.extend(vm.c9_line.clone());
+        text.push(strings::FONT_UNKNOWN.to_string());
+        let mut words = text.clone();
+        words.extend(
+            text.iter()
+                .flat_map(|t| t.split_whitespace().map(str::to_string)),
+        );
+        words
     }
 
     /// Every word the layout draws comes from the string table (the T-14
@@ -672,7 +1460,7 @@ mod tests {
             .collect();
         let mut frames = Vec::new();
         for vm in stress_states() {
-            let names: Vec<String> = vm.recent.iter().map(|r| r.name.clone()).collect();
+            let names = data_words(&vm);
             frames.push((draw(FULL_SIZE, &vm, &resting(&vm)), names));
         }
         let vm = view(&AppState::mockup_idle());
@@ -690,15 +1478,29 @@ mod tests {
                 let cut =
                     |ch: char| ch.is_whitespace() || "║╔╗╚╝╡╞╟╢═─│█".contains(ch) || ch == HALF;
                 for word in row.split(cut) {
-                    let a_name = |n: &String| match word.strip_suffix('…') {
-                        Some(head) => n.starts_with(head),
-                        None => n == word,
+                    // A name cut by `…`, or a piece of one a box is drawn
+                    // over (the file menu over the queue and the analysis
+                    // panel's title).
+                    let covered = ['╔', '║', '╚'].iter().any(|b| {
+                        row.contains(&format!("{word}{b}")) || row.contains(&format!("{b}{word}"))
+                    });
+                    let head = word.strip_suffix('…').unwrap_or(word);
+                    let a_name = |n: &String| {
+                        if covered {
+                            n.contains(head)
+                        } else if word.ends_with('…') {
+                            n.starts_with(head)
+                        } else {
+                            n == word
+                        }
                     };
                     let numeric = |w: &str| {
                         w.chars()
                             .all(|ch| ch.is_ascii_digit() || ":×…".contains(ch))
                     };
+                    // A lone letter is a hotkey (the file menu's key column).
                     if !word.chars().any(char::is_alphabetic)
+                        || word.chars().count() == 1
                         || numeric(word)
                         || names.iter().any(a_name)
                     {

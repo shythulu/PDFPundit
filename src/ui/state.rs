@@ -27,6 +27,9 @@ pub struct AppState {
     pub selected: Option<usize>,
     /// A one-off hint for the hint row (D-048's "not yet", D-064's refusal).
     pub hint: Option<&'static str>,
+    /// The per-file menu (D-048, frame 05) is open over the selected file,
+    /// the cursor on item `n` of `strings::FILE_MENU_ITEMS` (T-22b).
+    pub file_menu: Option<usize>,
 }
 
 /// Which screen is up.

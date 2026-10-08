@@ -3,19 +3,21 @@
 //! colour (`b`) with the app's name and state on the left and the theme, the
 //! size and the clock on the right.
 
+use std::fmt::Display;
+
 use crate::ui::canvas::{Canvas, plain_len};
 use crate::ui::strings;
 use crate::ui::theme::Theme;
 
 /// A hotkey label in markup: `[K] label`, the brackets dim, the key in the
-/// hotkey colour.
-pub fn hk(key: char, label: &str) -> String {
+/// hotkey colour. The key is a letter or a word (`enter`, `↑↓`).
+pub fn hk(key: impl Display, label: &str) -> String {
     format!("{{D}}[{{Y}}{key}{{D}}]{{w}} {label}")
 }
 
 /// The hotkeys row: each `(key, label)` two cells apart, from `(x, y)`.
-pub fn hotkeys(c: &mut Canvas, x: i32, y: i32, keys: &[(char, &str)], theme: &Theme) {
-    let row: Vec<String> = keys.iter().map(|&(k, l)| hk(k, l)).collect();
+pub fn hotkeys<K: Display>(c: &mut Canvas, x: i32, y: i32, keys: &[(K, &str)], theme: &Theme) {
+    let row: Vec<String> = keys.iter().map(|(k, l)| hk(k, l)).collect();
     c.rich(x, y, &format!(" {}", row.join("  ")), None, theme);
 }
 

@@ -137,6 +137,115 @@ pub const STATE_IDLE: &str = "idle";
 /// setup and help.
 pub const NOT_YET: &str = "·∙· not yet ·∙·";
 
+// The full layout's batch and result views (T-22b, frames 03 and 05).
+
+/// The header row's breadcrumb after the app's name: the batch view's two
+/// parts, and the result view's.
+pub const CRUMB_BATCH: (&str, &str) = ("batch", "auto-repair ON");
+pub const CRUMB_RESULTS: &str = "results";
+
+/// The queue box: its title, its counts note (`{n}` the count; the first
+/// note part's `{n}` is the done files, the second the total) and its column
+/// headings.
+pub const QUEUE: &str = "QUEUE";
+pub const N_OF_N_DONE: &str = "{n}/{n} done";
+/// One file waiting on you, or any other number of them.
+pub const N_NEEDS_INPUT: &str = "{n} needs input";
+pub const N_NEED_INPUT: &str = "{n} need input";
+pub const N_FAILED: &str = "{n} failed";
+pub const QUEUE_HEADINGS: &str = "   file                  status";
+
+/// The box asking for a decision. The second line follows the parked file's
+/// count of fonts ("2 fonts").
+pub const NEEDS_INPUT_TITLE: &str = "‼ NEEDS iNPUT";
+pub const CAN_BE_READ_NOT_REPRODUCED: (&str, &str, &str, &str) =
+    ("can be", "read", "but not", "reproduced");
+pub const PARKED_KEEPS_GOING: &str = "parked · the batch keeps going.";
+pub const NEEDS_INPUT_KEYS: [(&str, &str); 2] = [("i", "resolve now"), ("l", "later")];
+
+/// The batch view's line under the cat.
+pub const DROP_MORE: &str = "drop more pdfs on the cat to queue them";
+
+/// The analysis panel: its title before the file's name, and its headings.
+pub const ANALYSIS: &str = "ANALYSiS »";
+pub const FINDINGS: &str = "FiNDiNGS";
+pub const STREAMED_AS_FOUND: &str = "streamed as found";
+pub const LOG: &str = "LOG";
+
+/// A finding's level tag.
+pub const TAG_ERR: &str = "[ERR]";
+pub const TAG_WRN: &str = "[WRN]";
+pub const TAG_INF: &str = "[iNF]";
+
+/// The two-line progress box: the batch line (`{n}` done, then total) and
+/// what follows it while a file is parked or once one failed; a percentage.
+pub const BATCH_N_OF_N: &str = "batch {n}/{n}";
+pub const N_PARKED: &str = "{n} parked";
+pub const N_PERCENT: &str = "{n}%";
+
+/// The batch view's hotkeys, and the hotkeys while the file menu is open.
+pub const BATCH_KEYS: [(&str, &str); 6] = [
+    ("↑↓", "select"),
+    ("enter", "file menu"),
+    ("i", "resolve"),
+    ("+", "add files"),
+    ("p", "pause"),
+    ("q", "quit"),
+];
+pub const MENU_KEYS: [(&str, &str); 4] = [
+    ("↑↓", "move"),
+    ("enter", "choose"),
+    ("esc", "close menu"),
+    ("q", "quit"),
+];
+
+/// The result panel: its title before the file's name and its headings.
+pub const RESULT: &str = "RESULT »";
+pub const BEFORE_AFTER: &str = "before after";
+pub const RECOVERY: &str = "RECOVERY";
+pub const FONTS: &str = "FONTS";
+
+/// A font row's words: where the font came from, then what became of it.
+/// The intact and bundled rows are frame 05's; a re-linked, text-only or
+/// skipped slot has no frame yet, so these are T-22b's words until one
+/// exists. [`FONT_UNKNOWN`] stands in for a name the file does not give; it
+/// is not in [`ALL`], because the engine's reports say "unknown" of things.
+pub const FONT_EMBEDDED: &str = "embedded";
+pub const FONT_BUNDLED: &str = "bundled";
+pub const FONT_INTACT: &str = "intact";
+pub const FONT_RELINKED: &str = "relinked";
+pub const FONT_TEXT_ONLY: &str = "text only";
+pub const FONT_LEFT_AS_FOUND: &str = "left as found";
+pub const FONT_UNKNOWN: &str = "unknown";
+
+/// The result panel's actions row.
+pub const RESULT_KEYS: [(&str, &str); 4] = [
+    ("o", "open"),
+    ("e", "export .md"),
+    ("d", "re-diagnose"),
+    ("c", "copy"),
+];
+
+/// The result panel's sign-off and the cat's line under it.
+pub const CASE_CLOSED: &str = "─── case closed · the cat has inspected this pdf ───";
+pub const CAT_SATISFIED: (&str, &str) = ("the cat is satisfied.", "burp.");
+
+/// The per-file menu (D-048): its title and items, `None` a separator. The
+/// export item is DA:472's `Export → <name>.md` action, labelled as frame 05
+/// draws it.
+pub const FILE_MENU: &str = "FiLE";
+pub const FILE_MENU_ITEMS: [Option<(&str, char)>; 8] = [
+    Some(("Open repaired PDF", 'o')),
+    Some(("Reveal in folder", 'f')),
+    Some((EXPORT_MARKDOWN, 'e')),
+    Some(("Re-diagnose", 'd')),
+    None,
+    Some(("Repair options…", 'R')),
+    Some(("Copy report", 'c')),
+    Some(("Remove from queue", 'x')),
+];
+pub const EXPORT_MARKDOWN: &str = "Export → Markdown";
+
 /// The artefact deny-list. Several entries are ordinary words ("open",
 /// "closed", "happy", "drag", "idle", "working", "needs", "done", "nom"), so
 /// T-14's scan must match whole words (else "nom" flags "nominal"), and the
@@ -248,6 +357,63 @@ pub const ALL: &[&str] = &[
     STATE_BUSY,
     STATE_NEEDS_YOU,
     NOT_YET,
+    // the full layout's batch and result views (T-22b), as drawn: the
+    // breadcrumbs behind their chevron, keyed labels with their key, and the
+    // font words in the phrases a row draws them in
+    "» batch · auto-repair ON",
+    "» results",
+    QUEUE,
+    N_OF_N_DONE,
+    N_NEEDS_INPUT,
+    N_NEED_INPUT,
+    N_FAILED,
+    QUEUE_HEADINGS,
+    NEEDS_INPUT_TITLE,
+    "can be read but not reproduced.",
+    PARKED_KEEPS_GOING,
+    "[i] resolve now",
+    "[l] later",
+    DROP_MORE,
+    ANALYSIS,
+    "FiNDiNGS streamed as found",
+    LOG,
+    TAG_ERR,
+    TAG_WRN,
+    TAG_INF,
+    BATCH_N_OF_N,
+    N_PARKED,
+    N_PERCENT,
+    "[↑↓] select",
+    "[enter] file menu",
+    "[i] resolve",
+    "[+] add files",
+    "[p] pause",
+    "[q] quit",
+    "[↑↓] move",
+    "[enter] choose",
+    "[esc] close menu",
+    RESULT,
+    "FiNDiNGS before after",
+    RECOVERY,
+    FONTS,
+    "embedded intact",
+    "embedded relinked",
+    FONT_TEXT_ONLY,
+    FONT_LEFT_AS_FOUND,
+    "[o] open",
+    "[e] export .md",
+    "[d] re-diagnose",
+    "[c] copy",
+    CASE_CLOSED,
+    "the cat is satisfied. burp.",
+    FILE_MENU,
+    "Open repaired PDF",
+    "Reveal in folder",
+    EXPORT_MARKDOWN,
+    "Re-diagnose",
+    "Repair options…",
+    "Copy report",
+    "Remove from queue",
 ];
 
 #[cfg(test)]
@@ -280,11 +446,20 @@ mod tests {
     /// entry in `ALL` is one of them, so a renamed label leaves no stale one.
     #[test]
     fn the_full_layouts_entries_follow_its_arrays() {
-        let keyed: Vec<String> = MENU_ITEMS
+        let mut keyed: Vec<String> = MENU_ITEMS
             .iter()
             .chain(&HOTKEYS)
             .map(|(k, l)| format!("[{k}] {l}"))
             .collect();
+        keyed.extend(
+            BATCH_KEYS
+                .iter()
+                .chain(&MENU_KEYS)
+                .chain(&RESULT_KEYS)
+                .chain(&NEEDS_INPUT_KEYS)
+                .map(|(k, l)| format!("[{k}] {l}")),
+        );
+        keyed.extend([TAG_ERR, TAG_WRN, TAG_INF].map(String::from));
         let how: Vec<String> = HOW_LINES
             .iter()
             .map(|(n, t)| n.map_or_else(|| (*t).to_string(), |n| format!("{n} {t}")))
@@ -327,6 +502,17 @@ mod tests {
             if sys_label(s) {
                 assert!(sys.iter().any(|r| r == s), "stale {s:?} in ALL");
             }
+        }
+    }
+
+    /// The per-file menu's export item (D-048, DA:472) and every other item
+    /// are in the deny-list as drawn.
+    #[test]
+    fn the_file_menus_labels_are_in_all() {
+        assert!(ALL.contains(&EXPORT_MARKDOWN));
+        assert!(FILE_MENU_ITEMS.contains(&Some((EXPORT_MARKDOWN, 'e'))));
+        for (label, _) in FILE_MENU_ITEMS.iter().flatten() {
+            assert!(ALL.contains(label), "{label:?} missing from ALL");
         }
     }
 
