@@ -110,6 +110,9 @@ pub(super) fn analyze(
     let meta = file_meta(bytes, &carve, &graph);
 
     phase(sink, 3)?;
+    // Repair computes this baseline again inside `generate_and_validate`, a
+    // second text extraction of the input; keeping it in `AnalysisState`
+    // would save that (left for a later ticket, no effect on output).
     let base = baseline(bytes, &carve);
     let font_slots = font_slots(bytes, &carve, &graph, &salvage);
     let stats = AnalyzeStats {
@@ -389,6 +392,10 @@ impl Interact for Recorder<'_> {
             }
         };
         let reply = self.inner.ask(req)?;
+        // Inferred from the reply: a user who picks "use best" is recorded
+        // as `UseBest`, like the `UseBest` handler. `Interact` cannot say who
+        // answered; T-30 or T-15 should revisit this once the runner's
+        // adapter can.
         let source = match reply {
             InteractionReply::UseBest => InteractionSource::UseBest,
             _ => InteractionSource::User,
@@ -399,5 +406,115 @@ impl Interact for Recorder<'_> {
             source,
         });
         Ok(reply)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+
+    use super::*;
+    use crate::engine::{
+        FontCandidate, FontPickRequest, InteractionRecord, InteractionRequestId,
+        InteractionSummary, Ratio, SubstituteChoice, UnreproducibleRequest,
+    };
+
+    /// Answers from a script, in order, and keeps what it was asked.
+    struct Scripted {
+        replies: VecDeque<InteractionReply>,
+        asked: Vec<InteractionRequest>,
+    }
+
+    impl Scripted {
+        fn new(replies: impl IntoIterator<Item = InteractionReply>) -> Self {
+            Scripted {
+                replies: replies.into_iter().collect(),
+                asked: Vec::new(),
+            }
+        }
+    }
+
+    impl Interact for Scripted {
+        fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+            self.asked.push(req.clone());
+            Ok(self
+                .replies
+                .pop_front()
+                .unwrap_or_else(|| panic!("an unscripted question: {req:?}")))
+        }
+    }
+
+    #[test]
+    fn every_question_is_numbered_passed_on_and_recorded() {
+        let pick = FontPickRequest {
+            id: InteractionRequestId(0),
+            page: 2,
+            slot: "F3".into(),
+            sample_codes: vec![1, 2],
+            candidates: vec![FontCandidate {
+                font_id: "noto-sans".into(),
+                family: "Noto Sans".into(),
+                language: "en".into(),
+                score: Ratio { num: 1, den: 2 },
+                confidence: Ratio { num: 1, den: 3 },
+                preview: String::new(),
+            }],
+            preview: String::new(),
+        };
+        let unrepro = UnreproducibleRequest {
+            id: InteractionRequestId(0),
+            family: "Garamond".into(),
+            slots: vec![(4, "F7".into()), (5, "F7".into())],
+            reason: "no font covers it".into(),
+            options: vec![SubstituteChoice {
+                font_id: "noto-serif".into(),
+                label: "Noto Serif".into(),
+            }],
+        };
+        let mut script = Scripted::new([
+            InteractionReply::Pick("noto-sans".into()),
+            InteractionReply::UseBest,
+        ]);
+        let mut recorder = Recorder {
+            inner: &mut script,
+            records: Vec::new(),
+        };
+        let a = recorder.ask(InteractionRequest::FontPick(pick)).unwrap();
+        let b = (recorder.ask(InteractionRequest::FontUnreproducible(unrepro))).unwrap();
+        assert_eq!(a, InteractionReply::Pick("noto-sans".into()));
+        assert_eq!(b, InteractionReply::UseBest);
+        let records = recorder.records;
+        assert_eq!(
+            records,
+            vec![
+                InteractionRecord {
+                    request: InteractionSummary {
+                        kind: InteractionKind::FontPick,
+                        page: Some(2),
+                        slot: Some("F3".into()),
+                        candidates: vec!["noto-sans".into()],
+                    },
+                    reply: InteractionReply::Pick("noto-sans".into()),
+                    source: InteractionSource::User,
+                },
+                InteractionRecord {
+                    request: InteractionSummary {
+                        kind: InteractionKind::FontUnreproducible,
+                        page: Some(4),
+                        slot: Some("F7".into()),
+                        candidates: vec!["noto-serif".into()],
+                    },
+                    reply: InteractionReply::UseBest,
+                    source: InteractionSource::UseBest,
+                },
+            ]
+        );
+        let ids: Vec<InteractionRequestId> = (script.asked.iter())
+            .map(|r| match r {
+                InteractionRequest::FontPick(p) => p.id,
+                InteractionRequest::FontUnreproducible(u) => u.id,
+            })
+            .collect();
+        assert_eq!(ids, [InteractionRequestId(1), InteractionRequestId(2)]);
     }
 }

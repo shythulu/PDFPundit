@@ -288,7 +288,9 @@ pub struct AnalysisState {
     pub(crate) input_sha256: [u8; 32],
     /// The budget `salvage` was built under: a repair under another one
     /// analyses again, so the report's settings are the ones its salvage
-    /// ran under (D-073). [`AnalysisState::new`] sets the default.
+    /// ran under (D-073). [`AnalysisState::new`] sets the default. T-15: the
+    /// Repair job must pass the Analyze job's `AnalyzeOptions::salvage_budget`
+    /// in `RepairOptions::analyze`, or repair rebuilds the state.
     pub(crate) salvage_budget: SalvageBudget,
     /// Added to [`Self::heap_bytes`] so the runner's memory cap is testable
     /// with a fake engine (T-15).

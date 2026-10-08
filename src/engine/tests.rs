@@ -1,6 +1,6 @@
-//! End-to-end tests through the facade on fixtures (T-14). Uses only `crate::engine::*`.
-//! The inputs come from `crate::pdf::fixtures`, and lopdf's strict load
-//! checks the outputs.
+//! End-to-end tests through the facade on fixtures (T-14). Uses
+//! `crate::engine::*` only, with two exceptions: the inputs come from
+//! `crate::pdf::fixtures`, and lopdf's strict load checks the outputs.
 //!
 //! - every class with a pass in this version repairs end to end under
 //!   `UseBest`, and the output reloads strictly with that class gone;
@@ -13,7 +13,7 @@
 //! - a report from a result reloaded from history equals the one from a
 //!   fresh analysis (D-073);
 //! - the recorded settings and replies replay to the same output and report
-//!   (goal-r2-q12), and every question is numbered and recorded;
+//!   (goal-r2-q12);
 //! - analysis fills the file's summary, statistics and font slots.
 
 use std::cell::Cell;
@@ -242,20 +242,23 @@ fn a_class_without_a_pass_is_skipped_and_said_so() {
 
 #[test]
 fn cancellation_stops_analysis_inside_the_carve() {
-    // Twenty thousand objects: the carve polls once per 256 landmarks.
+    // Twenty thousand objects: the carve polls once per 256 landmarks, so
+    // it polls well over ten times before it ends.
     let mut bytes = b"%PDF-1.7\n".to_vec();
     for n in 1..=20_000 {
         bytes.extend_from_slice(format!("{n} 0 obj\n<< /N {n} >>\nendobj\n").as_bytes());
     }
-    // The first poll is before the carve; the second is inside it.
+    // Poll 1 is the "carving" phase; polls 2 to 11 are the carve's own. A
+    // carve that never polled would run to the end, and the "salvage"
+    // phase and its polls would follow before the eleventh poll.
     let mut sink = Counter {
-        cancel_after: Some(1),
+        cancel_after: Some(10),
         ..Counter::default()
     };
     let r = analyze(&bytes, &AnalyzeOptions::default(), &mut sink);
     assert_eq!(r, Err(Cancelled));
     assert_eq!(sink.phases, ["carving"]);
-    assert_eq!(sink.polls.get(), 2);
+    assert_eq!(sink.polls.get(), 11);
     assert_eq!(sink.findings, 0);
 
     // Cancelled before it starts, repair builds nothing.
@@ -468,6 +471,11 @@ fn the_recorded_settings_and_replies_replay_to_the_same_output_and_report() {
     let analysis = analyze(&bytes, &opts.analyze, &mut NullProgress).unwrap();
     let first = repaired_with(&bytes, &analysis, &opts, &mut UseBest, &mut NullProgress);
     assert_eq!(first.report.settings, SettingsSnapshot::of(&opts));
+    // No pass asks in this version, so the replies half of the replay is
+    // vacuous until T-30 adds an asking pass; this fails then, as a prompt
+    // to give the fixture a question. Numbering and recording are tested
+    // beside the recorder in `pipeline`.
+    assert!(first.report.interactions.is_empty());
 
     let replay = options_from(&first.report.settings);
     let mut script = Scripted::new(first.report.interactions.iter().map(|r| r.reply.clone()));
@@ -486,80 +494,6 @@ fn the_recorded_settings_and_replies_replay_to_the_same_output_and_report() {
     let text = serde_json::to_string(&first.report).expect("serialises");
     let back: RepairReport = serde_json::from_str(&text).expect("deserialises");
     assert_eq!(back, first.report);
-}
-
-#[test]
-fn every_question_is_numbered_passed_on_and_recorded() {
-    let pick = FontPickRequest {
-        id: InteractionRequestId(0),
-        page: 2,
-        slot: "F3".into(),
-        sample_codes: vec![1, 2],
-        candidates: vec![FontCandidate {
-            font_id: "noto-sans".into(),
-            family: "Noto Sans".into(),
-            language: "en".into(),
-            score: Ratio { num: 1, den: 2 },
-            confidence: Ratio { num: 1, den: 3 },
-            preview: String::new(),
-        }],
-        preview: String::new(),
-    };
-    let unrepro = UnreproducibleRequest {
-        id: InteractionRequestId(0),
-        family: "Garamond".into(),
-        slots: vec![(4, "F7".into()), (5, "F7".into())],
-        reason: "no font covers it".into(),
-        options: vec![SubstituteChoice {
-            font_id: "noto-serif".into(),
-            label: "Noto Serif".into(),
-        }],
-    };
-    let mut script = Scripted::new([
-        InteractionReply::Pick("noto-sans".into()),
-        InteractionReply::UseBest,
-    ]);
-    let mut recorder = pipeline::Recorder {
-        inner: &mut script,
-        records: Vec::new(),
-    };
-    let a = recorder.ask(InteractionRequest::FontPick(pick)).unwrap();
-    let b = (recorder.ask(InteractionRequest::FontUnreproducible(unrepro))).unwrap();
-    assert_eq!(a, InteractionReply::Pick("noto-sans".into()));
-    assert_eq!(b, InteractionReply::UseBest);
-    let records = recorder.records;
-    assert_eq!(
-        records,
-        vec![
-            InteractionRecord {
-                request: InteractionSummary {
-                    kind: InteractionKind::FontPick,
-                    page: Some(2),
-                    slot: Some("F3".into()),
-                    candidates: vec!["noto-sans".into()],
-                },
-                reply: InteractionReply::Pick("noto-sans".into()),
-                source: InteractionSource::User,
-            },
-            InteractionRecord {
-                request: InteractionSummary {
-                    kind: InteractionKind::FontUnreproducible,
-                    page: Some(4),
-                    slot: Some("F7".into()),
-                    candidates: vec!["noto-serif".into()],
-                },
-                reply: InteractionReply::UseBest,
-                source: InteractionSource::UseBest,
-            },
-        ]
-    );
-    let ids: Vec<InteractionRequestId> = (script.asked.iter())
-        .map(|r| match r {
-            InteractionRequest::FontPick(p) => p.id,
-            InteractionRequest::FontUnreproducible(u) => u.id,
-        })
-        .collect();
-    assert_eq!(ids, [InteractionRequestId(1), InteractionRequestId(2)]);
 }
 
 // ── analysis ─────────────────────────────────────────────────────────────

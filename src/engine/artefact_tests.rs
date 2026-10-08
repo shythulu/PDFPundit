@@ -1,10 +1,18 @@
-//! Deny-list scan of every artefact for UI copy (T-14). Uses only `crate::engine::*`.
-//! The deny-list is `crate::ui::strings::ALL` and the inputs come from
-//! `crate::pdf::fixtures` (goal-r2-q11, goal point 3: no cat in artefacts).
+//! Deny-list scan of every artefact for UI copy (T-14). Uses
+//! `crate::engine::*` only, with these exceptions: the deny-list
+//! `crate::ui::strings::ALL`, the inputs from `crate::pdf::fixtures`
+//! (goal-r2-q11, goal point 3: no cat in artefacts), the fixture list in
+//! the sibling `tests` module, and lopdf to decode the repaired PDF.
 //!
 //! Every artefact the facade produces for the fixtures is scanned: the
-//! repaired PDF, the serialised report and its fixed lines. The Markdown
-//! export joins the scan when it lands (T-32b).
+//! repaired PDF, the serialised report and its fixed lines. The repaired
+//! PDF is scanned twice: as raw bytes, and decoded. The decoded form is
+//! every stream's content after its filters (object streams are already
+//! expanded by lopdf's load) and every string's bytes and its text-string
+//! decoding (UTF-16BE, UTF-8 or PDFDocEncoding), so copy hidden in a Flate
+//! stream, a hex string or a UTF-16 `/Title` is caught. A stream whose
+//! filters lopdf cannot undo is scanned raw only. The Markdown export joins
+//! the scan when it lands (T-32b).
 //!
 //! **Matching.** An entry hits where its text appears whole: not inside a
 //! longer word ("nom" does not hit "nominal"; letters, digits and `_` make
@@ -13,6 +21,8 @@
 //! is only placeholders and punctuation (`{n}%`) names no copy of its own and
 //! is not scanned: it would hit every percentage a report states. Matching
 //! is case-sensitive, on raw bytes.
+
+use lopdf::{Document, Object, decode_text_string};
 
 use super::tests::class_fixtures;
 use super::*;
@@ -145,8 +155,47 @@ fn artefacts(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
             out.report.lines().join("\n").into_bytes(),
         ),
     ];
-    v.extend(out.output.map(|o| ("the repaired PDF", o)));
+    if let Some(o) = out.output {
+        v.push(("the repaired PDF, decoded", decoded(&o)));
+        v.push(("the repaired PDF", o));
+    }
     v
+}
+
+/// Cap on one stream's decoded size: the fixtures are small.
+const DECODE_MAX: usize = 64 << 20;
+
+/// `pdf`'s decoded streams and strings, one per line (module docs).
+fn decoded(pdf: &[u8]) -> Vec<u8> {
+    fn strings(o: &Object, out: &mut Vec<u8>) {
+        match o {
+            Object::String(raw, _) => {
+                out.extend_from_slice(raw);
+                out.push(b'\n');
+                if let Ok(text) = decode_text_string(o) {
+                    out.extend_from_slice(text.as_bytes());
+                    out.push(b'\n');
+                }
+            }
+            Object::Array(items) => items.iter().for_each(|i| strings(i, out)),
+            Object::Dictionary(d) => d.iter().for_each(|(_, v)| strings(v, out)),
+            Object::Stream(s) => {
+                s.dict.iter().for_each(|(_, v)| strings(v, out));
+                if let Ok(body) = s.decompressed_content_with_limit(DECODE_MAX) {
+                    out.extend_from_slice(&body);
+                    out.push(b'\n');
+                }
+            }
+            _ => {}
+        }
+    }
+    let doc = Document::load_mem(pdf).expect("the repaired PDF loads");
+    let mut out = Vec::new();
+    for o in doc.objects.values() {
+        strings(o, &mut out);
+    }
+    strings(&Object::Dictionary(doc.trailer.clone()), &mut out);
+    out
 }
 
 #[test]
@@ -180,6 +229,45 @@ fn the_scan_finds_what_it_must_and_nothing_inside_words() {
 }
 
 #[test]
+fn the_decoded_scan_finds_copy_in_compressed_streams_and_utf16_strings() {
+    use lopdf::{Dictionary, Stream, dictionary, text_string};
+    let mut doc = Document::with_version("1.7");
+    let body = "BT (feed me) Tj ET\n".repeat(64).into_bytes();
+    let mut stream = Stream::new(Dictionary::new(), body);
+    stream.compress().expect("compresses");
+    assert!(
+        stream.dict.get(b"Filter").is_ok(),
+        "the stream is compressed"
+    );
+    let content = doc.add_object(stream);
+    let pages = doc.new_object_id();
+    let page = doc.add_object(dictionary! {
+        "Type" => "Page", "Parent" => pages, "Contents" => content,
+    });
+    doc.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages", "Kids" => vec![page.into()], "Count" => 1,
+        }),
+    );
+    let catalog = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+    let info = doc.add_object(dictionary! { "Title" => text_string("chomp ‼") });
+    doc.trailer.set("Root", catalog);
+    doc.trailer.set("Info", info);
+    let mut pdf = Vec::new();
+    doc.save_to(&mut pdf).expect("saves");
+
+    let raw: Vec<&str> = hits(&pdf).into_iter().map(|(e, _)| e).collect();
+    for e in ["feed me", "chomp", "‼"] {
+        assert!(!raw.contains(&e), "{e:?} is hidden from the raw scan");
+    }
+    let seen: Vec<&str> = hits(&decoded(&pdf)).into_iter().map(|(e, _)| e).collect();
+    for e in ["feed me", "chomp", "‼"] {
+        assert!(seen.contains(&e), "{e:?} in {seen:?}");
+    }
+}
+
+#[test]
 fn no_artefact_carries_ui_copy() {
     let mut inputs: Vec<(String, Vec<u8>)> = vec![
         ("the golden".into(), golden_pdf()),
@@ -198,6 +286,7 @@ fn no_artefact_carries_ui_copy() {
             assert!(found.is_empty(), "{name} of {input}: {found:?}");
         }
     }
-    // Every input has a report and its lines; all but the two goldens an output.
-    assert_eq!(scanned, 3 * inputs.len() - 2);
+    // Every input has a report and its lines; all but the two goldens an
+    // output, scanned raw and decoded.
+    assert_eq!(scanned, 4 * inputs.len() - 4);
 }

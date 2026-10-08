@@ -63,6 +63,7 @@ fn a_file_with_no_page_plans_resave_and_gets_no_output() {
     let p = plan(&analysis, &opts);
     assert_eq!(p.prior, Toolpath::Resave);
     assert!(p.escalations.is_empty());
+    assert_eq!(p.candidates, [Toolpath::Resave, Toolpath::TemplateAssemble]);
 
     let fonts = FontDb::empty();
     let out = repair(
@@ -77,7 +78,7 @@ fn a_file_with_no_page_plans_resave_and_gets_no_output() {
     .expect("not cancelled");
     assert_eq!(out.output, None);
     assert!(
-        matches!(out.status, OutcomeStatus::Failed(_) | OutcomeStatus::Ok),
+        matches!(&out.status, OutcomeStatus::Failed(why) if why.contains("(V0)")),
         "{:?}",
         out.status
     );
