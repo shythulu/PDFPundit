@@ -164,9 +164,17 @@ fn documented_items(all_html: &str) -> Vec<String> {
     items
 }
 
+/// The font-DB builder `tools/build-templates` calls, with the two types its
+/// signature names.
+const BUILDER: [&str; 3] = [
+    "pdf::fontdb::build::build_from_ttf",
+    "pdf::fontdb::build::IndexEntry",
+    "pdf::fontdb::build::BuildError",
+];
+
 fn allowed(item: &str) -> bool {
     item == "run"
-        || item == "pdf::fontdb::build::build_from_ttf"
+        || BUILDER.contains(&item)
         || ["pdf::model::", "pdf::fixtures::", "pdf::write::"]
             .iter()
             .any(|prefix| item.starts_with(prefix))
@@ -212,6 +220,6 @@ fn documented_items_reads_rustdoc_item_lists() {
     let items = documented_items(html);
     assert_eq!(items, ["engine::analyze", "pdf::model::Finding", "run"]);
     assert!(allowed("run") && allowed("pdf::model::Finding"));
-    assert!(allowed("pdf::fontdb::build::build_from_ttf"));
+    assert!(BUILDER.iter().all(|item| allowed(item)));
     assert!(!allowed("engine::analyze") && !allowed("pdf::fontdb::build::other"));
 }
