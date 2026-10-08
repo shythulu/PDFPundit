@@ -43,6 +43,9 @@ pub struct Canvas {
     pub blink: BTreeSet<(u16, u16)>,
     /// The theme's background, which text written over a pixel pair gets.
     bg: Rgb,
+    /// Writes land only left of and above this cell (see [`Canvas::clipped`]);
+    /// the canvas's own size outside a clip.
+    lim: (u16, u16),
 }
 
 impl Canvas {
@@ -59,7 +62,18 @@ impl Canvas {
             cells: vec![blank; usize::from(w) * usize::from(h)],
             blink: BTreeSet::new(),
             bg: theme.roles.bg,
+            lim: (w, h),
         }
+    }
+
+    /// Runs `f` with every write limited to the top-left `w × h` cells, so a
+    /// layout drawn on a larger canvas cannot spill past its own area.
+    pub fn clipped<R>(&mut self, w: u16, h: u16, f: impl FnOnce(&mut Canvas) -> R) -> R {
+        let outer = self.lim;
+        self.lim = (outer.0.min(w), outer.1.min(h));
+        let r = f(self);
+        self.lim = outer;
+        r
     }
 
     /// The cell at `(x, y)`; `None` outside the canvas.
@@ -71,10 +85,11 @@ impl Canvas {
         usize::from(y) * usize::from(self.w) + usize::from(x)
     }
 
-    /// `(x, y)` as a cell position, if it is on the canvas.
+    /// `(x, y)` as a cell position, if it is on the canvas and inside the
+    /// current clip.
     fn at(&self, x: i32, y: i32) -> Option<(u16, u16)> {
         let (x, y) = (u16::try_from(x).ok()?, u16::try_from(y).ok()?);
-        (x < self.w && y < self.h).then_some((x, y))
+        (x < self.lim.0 && y < self.lim.1).then_some((x, y))
     }
 
     fn cell_mut(&mut self, x: i32, y: i32) -> Option<&mut CanvasCell> {
@@ -535,6 +550,29 @@ mod tests {
 
     fn slot(k: char) -> Rgb {
         theme().slot(k).expect("slot")
+    }
+
+    /// Under a clip nothing lands past it, and the clip ends with `f`.
+    #[test]
+    fn clipped_writes_stay_inside_the_clip() {
+        let t = theme();
+        let blank = Canvas::new(6, 3, t);
+        let mut c = blank.clone();
+        c.clipped(3, 2, |c| {
+            c.rich(1, 1, "abcdef", None, t);
+            c.fill(0, 0, 9, 9, t.roles.dim, t.roles.dim);
+            c.set_blink(4, 0);
+            c.set_blink(2, 1);
+        });
+        for y in 0..3 {
+            for x in 0..6 {
+                let inside = x < 3 && y < 2;
+                assert_eq!(c.get(x, y) != blank.get(x, y), inside, "({x}, {y})");
+            }
+        }
+        assert_eq!(c.blink.iter().copied().collect::<Vec<_>>(), [(2, 1)]);
+        c.put(5, 2, 'z', None, None);
+        assert_eq!(c.get(5, 2).map(|k| k.ch), Some('z'));
     }
 
     #[test]

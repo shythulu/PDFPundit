@@ -23,7 +23,9 @@ pub trait Layout {
     fn min_size(&self) -> (u16, u16);
 
     /// Draws `vm` and the cat's frame into `c`, inside the top-left
-    /// [`Layout::min_size`] cells (the canvas clips anything past its edge).
+    /// [`Layout::min_size`] cells (the canvas clips anything past its edge;
+    /// a layout on a larger canvas keeps to its area with
+    /// [`Canvas::clipped`]).
     fn draw(&self, c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme);
 
     /// Whether drops, pastes and the picker work in this layout. Only the
