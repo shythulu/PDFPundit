@@ -7,6 +7,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod content;
+
 use super::*;
 use crate::engine::Cancelled;
 use crate::pdf::carver::carve;
