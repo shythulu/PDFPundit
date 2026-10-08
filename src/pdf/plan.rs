@@ -23,8 +23,6 @@
 //! `RepairOptions.passes`: `None` lets the planner decide (GG §1); `Some`
 //! is the user's checklist and the table sees only the findings of the
 //! classes it names. Repair logs the classes it leaves out.
-// T-14 is the first caller outside the tests.
-#![cfg_attr(not(test), allow(dead_code))]
 
 #[cfg(test)]
 mod tests;

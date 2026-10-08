@@ -5,26 +5,23 @@
 //! A caller learns [`Engine`] (analyze, plan, repair), [`Progress`],
 //! [`Interact`] and the model types. Behind them sit carve, salvage, graph,
 //! rebuild, diagnose, plan, emit and verify. Every shape here is fixed by T-02b;
-//! T-14 replaces the stub bodies of [`Pdfpundit`] without changing a shape (the
-//! contract tests compare the serialised shape with `tests/data/contract/`).
+//! T-14 filled the bodies of [`Pdfpundit`] (in `pipeline`) without changing a
+//! shape (the contract tests compare the serialised shape with
+//! `tests/data/contract/`).
 //!
 //! Serialised types hold no map with a non-string key (plan §3.1): maps keyed by
 //! anything else are `Vec<(K, V)>` sorted by `K`.
 #![deny(clippy::iter_over_hash_type)]
-// The runner (T-15), the shell (T-23a) and the real bodies (T-14) are the
-// consumers; until they land most of this is unused outside the tests.
-// TODO(T-14, T-15): remove this allow once the real bodies and the runner use
-// the facade, so it stops hiding dead code.
-#![allow(dead_code)]
 
+mod pipeline;
 mod report;
+mod slots;
 
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 // The facade's vocabulary, re-exported for its callers; unused until they land.
 #[allow(unused_imports)]
@@ -289,6 +286,10 @@ pub struct AnalysisState {
     pub(crate) graph: ObjectGraph,
     pub(crate) salvage: SalvageIndex,
     pub(crate) input_sha256: [u8; 32],
+    /// The budget `salvage` was built under: a repair under another one
+    /// analyses again, so the report's settings are the ones its salvage
+    /// ran under (D-073). [`AnalysisState::new`] sets the default.
+    pub(crate) salvage_budget: SalvageBudget,
     /// Added to [`Self::heap_bytes`] so the runner's memory cap is testable
     /// with a fake engine (T-15).
     #[cfg(test)]
@@ -307,6 +308,7 @@ impl AnalysisState {
             graph,
             salvage,
             input_sha256,
+            salvage_budget: SalvageBudget::default(),
             #[cfg(test)]
             scripted_heap_bytes: 0,
         }
@@ -431,8 +433,8 @@ pub trait Engine: Send + Sync {
     ) -> Result<RepairOutcome, Cancelled>;
 }
 
-/// The real engine. Stub bodies until T-14: analysis reports no findings and
-/// reads only the header version; repair fails with "engine not built".
+/// The real engine: carve, salvage, graph, diagnose, plan, repair, emit and
+/// verify behind the three calls (the bodies are in `pipeline`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Pdfpundit;
 
@@ -440,75 +442,33 @@ impl Engine for Pdfpundit {
     fn analyze(
         &self,
         bytes: &[u8],
-        _opts: &AnalyzeOptions,
+        opts: &AnalyzeOptions,
         sink: &mut dyn Progress,
     ) -> Result<AnalysisResult, Cancelled> {
-        if sink.cancelled() {
-            return Err(Cancelled);
-        }
-        Ok(AnalysisResult {
-            meta: FileMeta {
-                version: header_version(bytes),
-                pages: 0,
-                title: None,
-                page_sizes: Vec::new(),
-            },
-            findings: Vec::new(),
-            carve: CarveSummary::default(),
-            font_slots: Vec::new(),
-            stats: AnalyzeStats {
-                bytes: bytes.len() as u64,
-                ..AnalyzeStats::default()
-            },
-            input_sha256: Sha256::digest(bytes).into(),
-            state: StateHandle::default(),
-        })
+        pipeline::analyze(bytes, opts, sink)
     }
 
-    fn plan(&self, _analysis: &AnalysisResult, _opts: &RepairOptions) -> RepairPlan {
-        RepairPlan {
-            candidates: vec![Toolpath::Resave],
-            prior: Toolpath::Resave,
-            escalations: Vec::new(),
-        }
+    fn plan(&self, analysis: &AnalysisResult, opts: &RepairOptions) -> RepairPlan {
+        pipeline::plan(analysis, opts)
     }
 
     fn repair(
         &self,
-        _bytes: &[u8],
+        bytes: &[u8],
         analysis: &AnalysisResult,
-        _plan: &RepairPlan,
+        plan: &RepairPlan,
         opts: &RepairOptions,
         fonts: &FontDb,
-        _ask: &mut dyn Interact,
-        _sink: &mut dyn Progress,
+        ask: &mut dyn Interact,
+        sink: &mut dyn Progress,
     ) -> Result<RepairOutcome, Cancelled> {
-        Ok(RepairOutcome {
-            output: None,
-            report: RepairReport::default_for(analysis, opts, fonts),
-            status: OutcomeStatus::Failed("engine not built".into()),
-            images: Vec::new(),
-            analysis_state: AnalysisStateUse::Rebuilt {
-                reason: "stub".into(),
-            },
-        })
+        pipeline::repair(bytes, analysis, plan, opts, fonts, ask, sink)
     }
 }
 
-/// The `x.y` of the first `%PDF-x.y` in the first KiB, if any.
-fn header_version(bytes: &[u8]) -> Option<String> {
-    const MARKER: &[u8] = b"%PDF-";
-    let head = &bytes[..bytes.len().min(1024)];
-    let at = head.windows(MARKER.len()).position(|w| w == MARKER)?;
-    match bytes.get(at + MARKER.len()..at + MARKER.len() + 3)? {
-        [major, b'.', minor] if major.is_ascii_digit() && minor.is_ascii_digit() => {
-            Some(format!("{}.{}", *major as char, *minor as char))
-        }
-        _ => None,
-    }
-}
-
-/// [`Engine::analyze`] on [`Pdfpundit`].
+/// [`Engine::analyze`] on [`Pdfpundit`]. The free functions are for the
+/// tests; the runner holds an [`Engine`].
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn analyze(
     bytes: &[u8],
     opts: &AnalyzeOptions,
@@ -518,11 +478,13 @@ pub fn analyze(
 }
 
 /// [`Engine::plan`] on [`Pdfpundit`].
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn plan(analysis: &AnalysisResult, opts: &RepairOptions) -> RepairPlan {
     Pdfpundit.plan(analysis, opts)
 }
 
 /// [`Engine::repair`] on [`Pdfpundit`].
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn repair(
     bytes: &[u8],
     analysis: &AnalysisResult,
@@ -540,6 +502,8 @@ pub fn repair(
 /// Where the engine reports what it is doing, and asks whether to stop.
 pub trait Progress {
     fn phase(&mut self, name: &'static str, index: u32, total: u32);
+    // No phase of this version reports a count within it.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn progress(&mut self, done: u64, total: Option<u64>);
     fn finding(&mut self, f: &Finding);
     fn log(&mut self, level: LogLevel, msg: String);
@@ -547,6 +511,7 @@ pub trait Progress {
 }
 
 /// Ignores everything and never cancels.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NullProgress;
 
@@ -574,11 +539,14 @@ pub struct Cancelled;
 
 /// Where a repair asks its questions (D-020).
 pub trait Interact {
+    // The font passes ask (T-30); no pass of this version does.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled>;
 }
 
 /// Answers every question with [`InteractionReply::UseBest`]. Reachable only
 /// from the tests and the runner.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UseBest;
 

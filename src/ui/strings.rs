@@ -4,9 +4,9 @@
 //!
 //! Seeded by T-02b with the mockup's fixed set. The UI tickets that draw
 //! strings append to [`ALL`]; nothing is ever removed from it.
-// The layouts (T-21 on) and the artefact test (T-14) read these.
-// TODO(T-14): remove this allow once the artefact test reads the table.
-#![allow(dead_code)]
+// The layouts read most of these; the names only the deny-list holds, and
+// `ALL` itself, are read by the artefact test (T-14) alone.
+#![cfg_attr(not(test), allow(dead_code))]
 
 /// The seven themes, default first (UI D3).
 pub const THEME_NAMES: [&str; 7] = [
