@@ -1,0 +1,258 @@
+{
+  "meta": {
+    "version": "1.4",
+    "pages": 6,
+    "title": "Quarterly figures",
+    "page_sizes": [
+      [
+        612,
+        792
+      ],
+      [
+        595,
+        842
+      ]
+    ]
+  },
+  "findings": [
+    {
+      "id": "C3-001",
+      "class": {
+        "Corruption": "C3TrailerDamaged"
+      },
+      "severity": "Error",
+      "location": {
+        "Object": {
+          "id": [
+            1,
+            0
+          ],
+          "span": {
+            "start": 100,
+            "end": 180
+          }
+        }
+      },
+      "summary": "trailer missing",
+      "evidence": [
+        {
+          "ObjectRef": [
+            1,
+            0
+          ]
+        }
+      ],
+      "repair": "Auto"
+    },
+    {
+      "id": "C9-001",
+      "class": {
+        "Corruption": "C9ZlibTampered"
+      },
+      "severity": "Error",
+      "location": {
+        "Object": {
+          "id": [
+            14,
+            0
+          ],
+          "span": {
+            "start": 100,
+            "end": 180
+          }
+        }
+      },
+      "summary": "zlib stream damaged",
+      "evidence": [
+        {
+          "ObjectRef": [
+            14,
+            0
+          ]
+        }
+      ],
+      "repair": "Auto"
+    }
+  ],
+  "carve": {
+    "objects": 212,
+    "orphans": 3,
+    "streams": 40,
+    "shadows": 1,
+    "xref_kind": "Classic",
+    "header_offset": 4,
+    "truncated": false,
+    "caps_hit": [
+      "container elements"
+    ]
+  },
+  "font_slots": [
+    {
+      "page": 0,
+      "slot": "F1",
+      "base_font": "/ABCDEF+NotoSans-Regular",
+      "subtype": "/Type0",
+      "embedded": true,
+      "tounicode": "Present",
+      "glyph_count": 104,
+      "resolution": {
+        "kind": {
+          "Relinked": [
+            9,
+            0
+          ]
+        },
+        "provenance": [
+          "carved /FontFile2"
+        ]
+      }
+    },
+    {
+      "page": 1,
+      "slot": "F1",
+      "base_font": "/ABCDEF+NotoSans-Regular",
+      "subtype": "/Type0",
+      "embedded": true,
+      "tounicode": "Missing",
+      "glyph_count": 104,
+      "resolution": {
+        "kind": {
+          "Picked": {
+            "font_id": "noto-sans-regular",
+            "confidence": {
+              "num": 7,
+              "den": 10
+            }
+          }
+        },
+        "provenance": [
+          "carved /FontFile2"
+        ]
+      }
+    },
+    {
+      "page": 2,
+      "slot": "F2",
+      "base_font": "/ABCDEF+NotoSans-Regular",
+      "subtype": "/Type0",
+      "embedded": true,
+      "tounicode": "Unparsable",
+      "glyph_count": 104,
+      "resolution": {
+        "kind": {
+          "Substituted": {
+            "font_id": "noto-sans-regular",
+            "label": "Noto Sans Regular"
+          }
+        },
+        "provenance": [
+          "carved /FontFile2"
+        ]
+      }
+    },
+    {
+      "page": 3,
+      "slot": "F2",
+      "base_font": "/ABCDEF+NotoSans-Regular",
+      "subtype": "/Type0",
+      "embedded": true,
+      "tounicode": "Missing",
+      "glyph_count": 104,
+      "resolution": {
+        "kind": "TextOnly",
+        "provenance": [
+          "carved /FontFile2"
+        ]
+      }
+    },
+    {
+      "page": 4,
+      "slot": "F3",
+      "base_font": "/ABCDEF+NotoSans-Regular",
+      "subtype": "/Type0",
+      "embedded": true,
+      "tounicode": "Missing",
+      "glyph_count": 104,
+      "resolution": {
+        "kind": "Skipped",
+        "provenance": [
+          "carved /FontFile2"
+        ]
+      }
+    },
+    {
+      "page": 5,
+      "slot": "F4",
+      "base_font": "/ABCDEF+NotoSans-Regular",
+      "subtype": "/Type0",
+      "embedded": true,
+      "tounicode": "Present",
+      "glyph_count": 104,
+      "resolution": null
+    }
+  ],
+  "stats": {
+    "bytes": 1153024,
+    "pages_discovered": 6,
+    "salvage_work_total": 10700000000,
+    "streams_by_salvage": {
+      "Clean": 38,
+      "Repaired": 2
+    },
+    "baseline_kind": "Extracted",
+    "paint_counts": [
+      {
+        "path_fills": 1,
+        "path_strokes": 2,
+        "images": 1,
+        "glyph_runs_visible": 12,
+        "glyph_runs_invisible": 0,
+        "glyphs_inked": 340,
+        "clips": 1
+      },
+      {
+        "path_fills": 0,
+        "path_strokes": 0,
+        "images": 0,
+        "glyph_runs_visible": 0,
+        "glyph_runs_invisible": 0,
+        "glyphs_inked": 0,
+        "clips": 0
+      }
+    ]
+  },
+  "input_sha256": [
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171,
+    171
+  ]
+}
