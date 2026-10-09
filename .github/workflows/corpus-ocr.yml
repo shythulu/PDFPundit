@@ -1,0 +1,88 @@
+# REPDF-style OCR word recall, nightly (T-38b; D-013, D-036, D-063, D-067,
+# D-068, D-071).
+#
+# Never a PR gate. The job fetches only the 44 files of bench/smoke_subset.txt
+# at the pinned commit, rasterises them with the corpus `ocr` mode (T-38a),
+# OCRs every PNG once with PaddleOCR and prints the labelled per-class tables,
+# per-page OCR digests and per-page seconds to the log, which is public.
+# Nothing is uploaded. The corpus clone and the rasters are never cached;
+# only wheels and models are, because they are not corpus bytes.
+name: corpus ocr
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Model tier (medium costs about 13x tiny per page)"
+        type: choice
+        options: [tiny, medium]
+        default: tiny
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  REPDF_URL: https://github.com/dfrc-korea/REPDF
+  REPDF_COMMIT: e547d4d1b77ead7e8cccce8b02878a6d33aa427a
+  PADDLE_PDX_CACHE_HOME: ${{ github.workspace }}/target/corpus/paddle-models
+  PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+  OCR_TIER: ${{ inputs.tier || 'tiny' }}
+
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - name: Wheel cache (not corpus bytes)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ocr-wheels-${{ runner.os }}-${{ hashFiles('tools/ocr-recall/requirements.lock', 'tools/ocr-recall/requirements-test.lock') }}
+      - name: Model cache (not corpus bytes)
+        uses: actions/cache@v4
+        with:
+          path: target/corpus/paddle-models
+          key: ocr-models-${{ hashFiles('tools/ocr-recall/models.toml') }}
+      - name: Harness tests (no PaddleOCR, no model download)
+        run: |
+          set -eu
+          uv venv --python 3.12 "$RUNNER_TEMP/ocr-test"
+          uv pip install --python "$RUNNER_TEMP/ocr-test" --require-hashes -r tools/ocr-recall/requirements-test.lock
+          "$RUNNER_TEMP/ocr-test/bin/python" -I -m pytest tools/ocr-recall/tests
+      - name: Install the pinned PaddleOCR set
+        run: |
+          set -eu
+          uv venv --python 3.12 "$RUNNER_TEMP/ocr"
+          uv pip install --python "$RUNNER_TEMP/ocr" --require-hashes -r tools/ocr-recall/requirements.lock
+      - name: Sparse shallow checkout of the smoke subset at the pinned commit
+        run: |
+          set -eu
+          dir="$RUNNER_TEMP/repdf"
+          git init --quiet "$dir"
+          git -C "$dir" remote add origin "$REPDF_URL"
+          git -C "$dir" config core.sparseCheckout true
+          git -C "$dir" sparse-checkout set --no-cone --stdin < bench/smoke_subset.txt
+          git -C "$dir" fetch --quiet --depth 1 --filter=blob:none origin "$REPDF_COMMIT"
+          git -C "$dir" checkout --quiet FETCH_HEAD
+          test "$(git -C "$dir" rev-parse HEAD)" = "$REPDF_COMMIT"
+          test "$(find "$dir" -name '*.pdf' | wc -l)" -eq 44
+          echo "PDFPUNDIT_CORPUS=$dir" >> "$GITHUB_ENV"
+      - name: Rasterise originals and repairs (corpus ocr mode)
+        run: cargo test --locked --release --lib -- --ignored --nocapture bench::corpus::ocr
+      - name: OCR word recall (prints the labelled tables)
+        run: >-
+          "$RUNNER_TEMP/ocr/bin/python" -I tools/ocr-recall/ocr_recall.py
+          --manifest target/corpus/ocr_inputs/manifest.csv
+          --out target/corpus/ocr_results.csv
+          --tier "$OCR_TIER"
+          --engine paddle
