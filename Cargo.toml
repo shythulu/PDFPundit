@@ -19,7 +19,7 @@ members = [".", "tools/build-templates"]
 
 # Release packaging (T-35): `dist plan`, `dist build`, `dist generate` read this.
 # Plain archives on the three CI targets with a checksum each, built and
-# published only by .github/workflows/release.yml on a `v*` tag. No installers
+# published only by .github/workflows/v-release.yml on a `v*` tag. No installers
 # (each fetches over the network; D-142), no source tarball, nothing to
 # crates.io (`publish = false` above). Re-run the eng-r4-fr3 RUSTFLAGS probe
 # before raising cargo-dist-version.
@@ -36,8 +36,14 @@ include = ["THIRD_PARTY_NOTICES.md", "THIRD_PARTY_CRATES.md"]
 tag-namespace = "v"
 pr-run-mode = "skip"
 install-updater = false
-# tools/check-release-archive.py runs the guard and release-strings checks on
-# each archive before anything is published.
+# dist's default, stated so an upgrade cannot flip it: the Windows exe links the
+# C runtime statically and needs no VC++ redistributable. dist builds that
+# target with RUSTFLAGS="-Ctarget-feature=+crt-static", so the shipped .exe is
+# not the binary CI's release job builds (see [profile.dist] below).
+msvc-crt-static = true
+# release-guard.yml runs tools/check-release-archive.py (the guard and
+# release-strings checks) on every archive the plan lists, one leg per target
+# from tools/release-guard-matrix.py, before anything is published.
 global-artifacts-jobs = ["./release-guard"]
 
 [features]
@@ -125,7 +131,11 @@ opt-level = 3
 [profile.dev.package.adler2]
 opt-level = 3
 
-# The profile `dist build` uses: exactly release, so the binary CI's guard and
-# release-strings jobs prove is the one that ships (D-051).
+# The profile `dist build` uses: release with no changes (D-051). On macOS and
+# Linux the shipped binary is the one CI's guard and release-strings jobs build.
+# On Windows it is not: dist adds +crt-static (msvc-crt-static above), a
+# different target feature and cfg. release-guard.yml runs the guard and
+# release-strings checks on the shipped archive itself, so that binary is still
+# checked.
 [profile.dist]
 inherits = "release"

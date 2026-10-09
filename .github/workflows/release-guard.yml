@@ -3,6 +3,9 @@
 # its host job publishes nothing unless every leg here passes. Each archive is
 # checked on its own target's runner, because the guard check runs the binary:
 # checksum, exact contents, no dev-only switch, and the terminal refusal.
+# The legs come from the `plan` input (tools/release-guard-matrix.py): every
+# archive the plan builds gets one, and a plan target with no guard runner fails
+# the matrix job, so a new target cannot publish unguarded.
 # Nothing here sets RUSTFLAGS (AGENTS.md "Build").
 name: Release guard
 
@@ -17,17 +20,30 @@ permissions:
   contents: read
 
 jobs:
+  matrix:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: matrix self-test
+        run: python -I tools/release-guard-matrix.py --self-test
+      - name: one guard leg per archive in the plan
+        id: matrix
+        env:
+          PLAN: ${{ inputs.plan }}
+        run: python -I tools/release-guard-matrix.py >> "$GITHUB_OUTPUT"
+
   guard:
+    needs: matrix
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - runner: macos-14
-            archive: pdfpundit-aarch64-apple-darwin.tar.xz
-          - runner: ubuntu-22.04
-            archive: pdfpundit-x86_64-unknown-linux-gnu.tar.xz
-          - runner: windows-2022
-            archive: pdfpundit-x86_64-pc-windows-msvc.zip
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
