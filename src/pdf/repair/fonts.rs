@@ -34,9 +34,20 @@
 //! - `AutoAccept(c)`: substitute `c.font_id`, `Fixed`;
 //! - `Ask`: `FontPick` is asked. `Pick(id)` substitutes `id`; `UseBest` the
 //!   top candidate, `Partial` (the candidate fell short of auto-accepting,
-//!   and nobody looked at it); `Skip` the top candidate, `Partial("font
-//!   substituted without confirmation")` (TD §5.3); `Substitute(choice)`
-//!   substitutes the choice; `TextOnly` as below;
+//!   and nobody looked at it), except on a weak C8 guess (below); `Skip`
+//!   the top candidate, `Partial("font substituted without confirmation")`
+//!   (TD §5.3); `Substitute(choice)` substitutes the choice; `TextOnly` as
+//!   below;
+//! - a weak C8 guess (G-02, D-122 (b)): `UseBest` on a C8 `FontPick` whose
+//!   top candidate's dictionary hit is below 1/2 substitutes no font. The
+//!   font is kept as found and gets a `/ToUnicode` rebuilt from the top
+//!   candidate's reading of the codes, so the text is recoverable; the slot
+//!   resolves `TextOnly` and the pass is `Partial("text recovered; font not
+//!   confirmed")`. A forensic output prefers no new font to a wrong one; a
+//!   user who trusts the guess can still `Pick` it. At or above 1/2, and in
+//!   C7 (whose `/ToUnicode` already carries the text), `UseBest`
+//!   substitutes as above. When the top candidate maps none of the codes
+//!   there is nothing to recover and the slot is `TextOnly` as below;
 //! - `Unreproducible`: `FontUnreproducible` is asked once per font family per
 //!   file, and the answer holds for every font of that family (an answer
 //!   given in the C7 pass holds in C8 too). The family is T-28's: the
@@ -81,8 +92,9 @@ use crate::pdf::fontdb::FontDb;
 use crate::pdf::fontdb::build::IndexEntry;
 use crate::pdf::fontdb::decode::decode_codes;
 use crate::pdf::fontdb::dict::{Dictionary as WordList, FrequencyList};
-use crate::pdf::fontdb::score::{CodeRun, FontDecision, infer, resolve};
+use crate::pdf::fontdb::score::{CodeRun, FontDecision, MIN_HIT, infer, resolve};
 use crate::pdf::fontdb::template::harvest_from;
+use crate::pdf::model::CorruptionClass::C7FontStreamDeleted;
 use crate::pdf::model::{CorruptionClass, Finding, InteractionKind, Location, ObjId, Ratio};
 use crate::pdf::rebuild::Held;
 use crate::pdf::streams::salvage::CarveSource;
@@ -176,13 +188,14 @@ impl RepairPass for FontPrograms {
                     provenance,
                 ),
                 Decided::Decision(decision, provenance) => {
-                    (answer(ctx, &t, decision, &family_slots), provenance)
+                    (answer(ctx, &t, decision, &family_slots, c8), provenance)
                 }
             };
             for line in &provenance {
                 let msg = format!("{} {} obj: {line}", t.descriptor.0, t.descriptor.1);
                 ctx.sink.log(LogLevel::Info, msg);
             }
+            let recovers = matches!(choice, Choice::Recover { .. });
             let (what, why, kind) = apply(ctx, &t, choice, c8);
             actions.push(RepairAction {
                 object: t.descriptor,
@@ -192,6 +205,11 @@ impl RepairPass for FontPrograms {
             if let Some(why) = why {
                 partial.push(why);
                 ctx.notes.partial.push((self.0, t.finding.location));
+            }
+            // The recovered font keeps its lost program beside its new
+            // /ToUnicode: the output re-diagnoses it as C7 (repair.rs docs).
+            if recovers {
+                (ctx.notes.partial_as).push((C7FontStreamDeleted, t.finding.location));
             }
             for (page, slot) in t.slot_names() {
                 ctx.notes.resolutions.push((
@@ -823,6 +841,14 @@ enum Choice {
     },
     /// Keep the font as found; its `/ToUnicode` text stays.
     TextOnly,
+    /// Keep the font as found and give it a `/ToUnicode` over `used`: the
+    /// codes as database font `id` reads them, a guess whose hit `hit` is
+    /// below 1/2 (C8 under `UseBest`, module docs).
+    Recover {
+        id: String,
+        hit: Ratio,
+        used: BTreeMap<u16, char>,
+    },
     /// Keep the font as found, for this reason.
     Leave(String),
 }
@@ -833,6 +859,7 @@ fn answer(
     t: &Target<'_>,
     decision: FontDecision,
     family_slots: &[(String, Vec<(u32, String)>)],
+    c8: bool,
 ) -> Choice {
     match decision {
         FontDecision::AutoAccept(c) => Choice::Font {
@@ -851,6 +878,9 @@ fn answer(
                 .candidates
                 .first()
                 .map(|c| (c.font_id.clone(), c.confidence));
+            // T-28's `resolve` puts each candidate's dictionary hit in
+            // `score`.
+            let top_hit = req.candidates.first().map_or(ZERO, |c| c.score);
             let confidence_of = |id: &str| {
                 req.candidates
                     .iter()
@@ -878,6 +908,22 @@ fn answer(
                     "the picked font {id} is not in the font database; the best candidate \
                      was substituted"
                 ))),
+                // A weak C8 guess: recover the text, substitute nothing.
+                InteractionReply::UseBest if c8 && top_hit < MIN_HIT => match &top {
+                    Some((id, _)) => {
+                        let used = read_through(ctx.fonts, id, &t.codes());
+                        if used.is_empty() {
+                            Choice::TextOnly
+                        } else {
+                            Choice::Recover {
+                                id: id.clone(),
+                                hit: top_hit,
+                                used,
+                            }
+                        }
+                    }
+                    None => Choice::Leave("not substituted: no candidate font".to_owned()),
+                },
                 // `Ask` means the top candidate fell short of auto-accepting:
                 // taking it unseen is a guess, never `Fixed` (a C8 guess
                 // reads the codes through a font nothing confirmed).
@@ -1143,9 +1189,29 @@ fn apply(
             Some("text only: no reproducible font".to_owned()),
             FontResolutionKind::TextOnly,
         ),
+        Choice::Recover { id, hit, used } => {
+            let (mapped, all) = (used.len(), t.codes().len());
+            ctx.doc.set_tounicode(t.top, used);
+            (
+                format!(
+                    "text recovered, no font substituted: /ToUnicode rebuilt over {mapped} of \
+                     {all} codes as {id} reads them, a guess nothing confirmed (hit {}/{}, \
+                     below 1/2); the font is kept as found for {}",
+                    hit.num,
+                    hit.den,
+                    pages()
+                ),
+                Some(RECOVERED.to_owned()),
+                FontResolutionKind::TextOnly,
+            )
+        }
         Choice::Leave(why) => (why.clone(), Some(why), FontResolutionKind::Skipped),
     }
 }
+
+/// The `Partial` reason of a weak C8 guess whose text was recovered (module
+/// docs).
+const RECOVERED: &str = "text recovered; font not confirmed";
 
 /// C8: each code's character through font `id`'s `.gmap` (the code is the
 /// glyph id); a code the `.gmap` does not map is left out.
