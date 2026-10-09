@@ -150,3 +150,18 @@ The user answered Tiers 2–4 of the decision log on 2026-10-08 (see the "Answer
 
 - Implement `tools/ocr-recall/engines/tesseract.py` with per-script `tessdata_best` models (eng, fra, spa, ara, hin, chi_sim), pinned by hash, routed by the page's language label like the Paddle engine. Update the nightly workflow to install Tesseract on the runner. Do not install anything system-wide on this Mac; if Tesseract is not installed locally, test with the existing pytest fakes and say the real run is the nightly job's first run.
 - Acceptance: the engine's pytest cases pass; `--engine tesseract --dry-run` works; the D-063 header stays on the output.
+
+## CI ticket (first hosted run, 2026-10-09)
+
+**CI-01 Make the first CI run green on all three OSes** · D-058 (the first windows-latest run is the measurement) · defaulted-reversible
+
+- Problem: run 37907209463 (the branch's first push) failed in two ways. Logs: `/tmp/pdfpundit-run/ci-failed.clean.log` (all failed jobs) and `/tmp/pdfpundit-run/ci-win-test.clean.log` (the full Windows test job).
+  1. `lint` on all three OSes: clippy `needless_borrows_for_generic_args` at `src/pdf/repair.rs:1627` and `:1642`. The runners use a newer stable Rust than the authoring Mac's 1.98.1, so local clippy did not see it.
+  2. `test (windows-latest)`: 11 failures. Contract snapshots (`src/engine/contract_tests.rs:389`), the source-scanning tripwires (`pdf::verify::tests::nothing_outside_the_render_gate_touches_pixels`, `pdf::write::tests::rules_3_and_5_no_compression_no_streams_no_resave`), three `ui::app` tests (kitty drop, drop with nothing to take, `e` on a pasted pdf), and `ui::input::paste::tests::a_unc_path_is_refused_on_windows`. Read each panic in the log before changing anything.
+- Build:
+  - Fix the two clippy findings.
+  - Pin the toolchain so local and CI lint and build with the same Rust: add `rust-toolchain.toml` (`channel = "1.98.1"`, components rustfmt and clippy), and make CI install that version (`dtolnay/rust-toolchain` or `rustup show` honouring the file). Record this as a new decision-log entry (defaulted-reversible): reproducible builds and stable lint results.
+  - Line endings: add `.gitattributes` rules so text files that tests read byte-for-byte (`*.rs`, the contract and golden JSON under `tests/data/`, `*.md` read by tests, `*.csv`, `*.txt` manifests) check out with LF on every OS (`text eol=lf`), keeping existing `-text` rules for binary assets. Where a test reads its own source or a data file, make it robust to CRLF as well (normalise `\r\n` before comparing), so a user checkout with `core.autocrlf` still passes.
+  - The ui::app and paste failures: find the real cause from the panic text (paths with `\`, drive letters, UNC forms, temp-dir layout on Windows) and fix the code or the test, whichever is wrong. Do not weaken a guard to make a test pass; if a guard's behaviour on Windows is wrong, fix the guard and say so.
+  - Windows cannot be run locally. Verify what you can on the Mac (`cargo test`, `cargo clippy` with the pinned toolchain, and `cargo build --target x86_64-pc-windows-gnu` / `cargo clippy --target x86_64-pc-windows-gnu` if the target is installed), and write in your report exactly which Windows failures you expect fixed and why. The hosted re-run is the real check.
+- Acceptance: local gates green on the pinned toolchain; the two clippy sites fixed; every Windows failure has a stated cause and fix; tests that read files are CRLF-robust (a unit test feeds CRLF content to each helper).
