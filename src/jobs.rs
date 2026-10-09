@@ -1207,7 +1207,7 @@ impl<E: Engine> Worker<E> {
     }
 
     /// Writes the Markdown export of a repair into `dest` (D-044, D-060):
-    /// the images first, into `<stem>.<hash8>.images` (reused when it already
+    /// the images first, into `<hash8>.images` (reused when it already
     /// holds exactly these files), then `<stem>.md` through `temp`, never
     /// replacing anything. It reads the repaired file when the repair made
     /// one, else the input as it is, and the analysis's findings for the
@@ -1235,13 +1235,13 @@ impl<E: Engine> Worker<E> {
         let image_dir_name = if images.is_empty() {
             None
         } else {
-            let dir = place::write_images(dest, &stem, &sha256, images)
+            let dir = place::write_images(dest, &sha256, images)
                 .map_err(|e| Stop::Failed(format!("can't write the exported images: {e}")))?;
             let name = dir
                 .path
                 .file_name()
                 .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-            let wanted = place::images_dir_name(&stem, &sha256);
+            let wanted = place::images_dir_name(&sha256);
             if name != wanted {
                 self.send(JobEvent::Log(
                     LogLevel::Warn,

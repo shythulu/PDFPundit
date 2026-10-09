@@ -108,7 +108,7 @@ fn outlined(index: u32) -> Finding {
 
 // ── acceptance ──────────────────────────────────────────────────────────
 
-/// The golden's Markdown, its page-one image in `golden.0123abcd.images`. A
+/// The golden's Markdown, its page-one image in `0123abcd.images`. A
 /// change here is a change in what export writes: re-baseline only with a
 /// reason (a T-32a threshold tuning is a re-baseline, not a design change).
 const GOLDEN_MD: &str = include_str!("../../../../tests/data/export/golden.md");
@@ -120,7 +120,7 @@ fn golden_markdown() -> String {
         &pages,
         &MarkdownOptions {
             page_separators: true,
-            image_dir_name: Some("golden.0123abcd.images".to_owned()),
+            image_dir_name: Some("0123abcd.images".to_owned()),
         },
     )
 }
@@ -389,11 +389,11 @@ fn image_links_point_into_the_images_directory() {
     };
     let opts = MarkdownOptions {
         page_separators: false,
-        image_dir_name: Some("my scan.0123abcd (2).images".to_owned()),
+        image_dir_name: Some("0123abcd (2).images".to_owned()),
     };
     assert_eq!(
         to_markdown(&[page(vec![image("p3-1.jpg")])], &opts),
-        "![](my%20scan.0123abcd%20%282%29.images/p3-1.jpg)\n"
+        "![](0123abcd%20%282%29.images/p3-1.jpg)\n"
     );
     assert_eq!(
         md(vec![image("p3-1.jpg")]),
@@ -452,4 +452,282 @@ fn the_export_is_deterministic_and_links_follow_the_layout() {
         to_markdown(&[layout], &MarkdownOptions::default()),
         "see [here](https://example.org/)\n"
     );
+}
+
+// ── nothing in the text can embed or fetch (F-02) ───────────────────────
+
+fn linked(text: &str, uri: &str) -> Run {
+    Run {
+        link: Some(uri.to_owned()),
+        ..plain(text)
+    }
+}
+
+/// What a CommonMark reader sees outside code spans, as `(char, escaped)`:
+/// a backslash before ASCII punctuation escapes it, and a backtick string
+/// opens a code span that the next backtick string of the same length
+/// closes (its contents are literal, so they are left out).
+fn outside_code(md: &str) -> Vec<(char, bool)> {
+    let chars: Vec<char> = md.chars().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\\' && chars.get(i + 1).is_some_and(char::is_ascii_punctuation) {
+            out.push((chars[i + 1], true));
+            i += 2;
+        } else if c == '`' {
+            let n = chars[i..].iter().take_while(|&&c| c == '`').count();
+            let mut j = i + n;
+            let mut close = None;
+            while j < chars.len() {
+                let m = chars[j..].iter().take_while(|&&c| c == '`').count();
+                if m == n {
+                    close = Some(j + m);
+                    break;
+                }
+                j += m.max(1);
+            }
+            match close {
+                Some(end) => i = end,
+                None => {
+                    out.extend(std::iter::repeat_n(('`', false), n));
+                    i += n;
+                }
+            }
+        } else {
+            out.push((c, false));
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Every place an unescaped `![` would open an image.
+fn images_in(md: &str) -> usize {
+    outside_code(md)
+        .windows(2)
+        .filter(|w| w[0] == ('!', false) && w[1] == ('[', false))
+        .count()
+}
+
+/// Whether an unescaped `<` (raw HTML, an autolink) is anywhere in `md`.
+fn raw_angle(md: &str) -> bool {
+    outside_code(md).contains(&('<', false))
+}
+
+/// The destination of every `[…](…)` link a reader would see.
+fn link_targets(md: &str) -> Vec<String> {
+    let seen = outside_code(md);
+    let mut out = Vec::new();
+    for (i, w) in seen.windows(2).enumerate() {
+        if w == [(']', false), ('(', false)] {
+            let dest: String = seen[i + 2..]
+                .iter()
+                .take_while(|&&(c, esc)| (c, esc) != (')', false))
+                .map(|&(c, _)| c)
+                .collect();
+            out.push(dest);
+        }
+    }
+    out
+}
+
+#[test]
+fn a_bang_before_a_link_never_makes_an_image() {
+    let out = md(vec![Block::Paragraph(vec![Line(vec![
+        plain("Look!"),
+        linked("here", "https://example.org/x.png"),
+    ])])]);
+    assert_eq!(out, "Look\\![here](https://example.org/x.png)\n");
+    assert_eq!(images_in(&out), 0, "{out}");
+    assert_eq!(link_targets(&out), ["https://example.org/x.png"]);
+}
+
+#[test]
+fn html_in_pdf_text_is_literal_text() {
+    let out = md(vec![
+        Block::Paragraph(vec![line("<img src=x>")]),
+        Block::Heading {
+            level: 1,
+            runs: vec![plain("<script>")],
+        },
+        Block::Table {
+            rows: vec![vec!["<b>".to_owned()]],
+            header: true,
+        },
+    ]);
+    assert_eq!(
+        out,
+        "\\<img src=x\\>\n\n# \\<script\\>\n\n| \\<b\\> |\n| --- |\n"
+    );
+    assert!(!raw_angle(&out), "{out}");
+}
+
+#[test]
+fn code_spans_never_touch() {
+    // A refused link counts as none, and an empty run between two code
+    // spans is dropped: either way the spans merge instead of their fences
+    // fusing into one unclosed run that leaves `<img …>` bare.
+    let mono = |text: &str, link: Option<&str>| Run {
+        mono: true,
+        link: link.map(str::to_owned),
+        ..plain(text)
+    };
+    let out = md(vec![
+        Block::Paragraph(vec![Line(vec![
+            mono("<img src=x>", Some("file:///etc/passwd")),
+            mono("``b", None),
+        ])]),
+        Block::Paragraph(vec![Line(vec![
+            mono("<i>", None),
+            Run {
+                bold: true,
+                ..plain("")
+            },
+            mono("<b>", None),
+        ])]),
+    ]);
+    assert_eq!(out, "```<img src=x>``b```\n\n`<i><b>`\n");
+    assert!(!raw_angle(&out), "{out}");
+}
+
+/// Characters that mean something to Markdown or HTML, weighted so random
+/// runs hit every construct often.
+const ALPHABET: &[&str] = &[
+    "!",
+    "[",
+    "]",
+    "(",
+    ")",
+    "<",
+    ">",
+    "`",
+    "``",
+    "\\",
+    "*",
+    "_",
+    "~",
+    "&",
+    "#",
+    ";",
+    ":",
+    "/",
+    "|",
+    "+",
+    "-",
+    "=",
+    ".",
+    "1",
+    "9",
+    "\"",
+    "'",
+    " ",
+    "  ",
+    "a",
+    "Z",
+    "é",
+    "\t",
+    "\n",
+    "\u{1b}",
+    "\0",
+    "&amp;",
+    "&#33;",
+    "www.",
+    "http://",
+    "https://e.org",
+    "<img src=x>",
+    "![",
+    "](",
+    "-->",
+];
+
+/// Link targets an annotation could carry: allowed and refused schemes,
+/// and characters that would end or confuse a destination.
+const URIS: &[&str] = &[
+    "https://example.org/",
+    "http://e.org/a b(c)<d>",
+    "mailto:a@b.c",
+    "ftp://f.org/x\\y`z[1]",
+    "javascript:alert(1)",
+    "file:///etc/passwd",
+    "data:image/png;base64,AAAA",
+];
+
+struct Rng(u64);
+
+impl Rng {
+    /// xorshift64*: a fixed, platform-independent source for the fuzz test.
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 >> 12;
+        self.0 ^= self.0 << 25;
+        self.0 ^= self.0 >> 27;
+        self.0.wrapping_mul(0x2545_f491_4f6c_dd1d)
+    }
+
+    fn below(&mut self, n: usize) -> usize {
+        (self.next() % n as u64) as usize
+    }
+
+    fn text(&mut self) -> String {
+        (0..self.below(6))
+            .map(|_| ALPHABET[self.below(ALPHABET.len())])
+            .collect()
+    }
+
+    fn run(&mut self) -> Run {
+        Run {
+            text: self.text(),
+            bold: self.below(4) == 0,
+            italic: self.below(4) == 0,
+            mono: self.below(5) == 0,
+            link: (self.below(3) == 0).then(|| URIS[self.below(URIS.len())].to_owned()),
+        }
+    }
+
+    fn line(&mut self) -> Line {
+        Line((0..1 + self.below(5)).map(|_| self.run()).collect())
+    }
+
+    fn block(&mut self) -> Block {
+        match self.below(5) {
+            0 => Block::Heading {
+                level: 1 + self.below(3) as u8,
+                runs: self.line().0,
+            },
+            1 => Block::List {
+                ordered: self.below(2) == 0,
+                items: (0..1 + self.below(3))
+                    .map(|_| (0..1 + self.below(2)).map(|_| self.line()).collect())
+                    .collect(),
+            },
+            2 => Block::Table {
+                rows: (0..1 + self.below(3))
+                    .map(|_| (0..1 + self.below(3)).map(|_| self.text()).collect())
+                    .collect(),
+                header: self.below(2) == 0,
+            },
+            _ => Block::Paragraph((0..1 + self.below(3)).map(|_| self.line()).collect()),
+        }
+    }
+}
+
+#[test]
+fn random_runs_never_embed_fetch_or_autolink() {
+    let allowed_dests: Vec<String> = URIS
+        .iter()
+        .filter(|u| allowed(u))
+        .map(|u| destination(u))
+        .collect();
+    let mut rng = Rng(0x00f0_2f02_9e37_79b9);
+    for case in 0..4000 {
+        let blocks: Vec<Block> = (0..1 + rng.below(4)).map(|_| rng.block()).collect();
+        let out = md(blocks.clone());
+        let ctx = || format!("case {case}: {blocks:?}\n---\n{out}");
+        assert_eq!(images_in(&out), 0, "{}", ctx());
+        assert!(!raw_angle(&out), "{}", ctx());
+        for dest in link_targets(&out) {
+            assert!(allowed_dests.contains(&dest), "{dest:?} in {}", ctx());
+        }
+    }
 }

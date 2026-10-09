@@ -418,29 +418,28 @@ pub struct ImagesDir {
     pub reused: bool,
 }
 
-/// `<stem>.<first 8 hex of sha256(input)>.images`: named from content, never
-/// from what is on disk, so the same input gives the same links (D-060).
-pub fn images_dir_name(stem: &str, input_sha256: &[u8; 32]) -> String {
+/// `<first 8 hex of sha256(input)>.images`: named from the input's bytes
+/// only, never from its file name or from what is on disk, so the same bytes
+/// give the same links under any name (D-060, amended by F-02).
+pub fn images_dir_name(input_sha256: &[u8; 32]) -> String {
     let hash: String = input_sha256[..4]
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect();
-    format!("{stem}.{hash}.images")
+    format!("{hash}.images")
 }
 
 /// Writes `files` into the content-named images directory in `dir`. An
 /// existing directory of that name whose files are exactly `files` is reused
 /// and nothing is written; one with anything else in it is left alone and the
-/// images go to `<stem>.<hash> (N).images` instead. The directory is created
+/// images go to `<hash> (N).images` instead. The directory is created
 /// with `create_dir` (atomic) and every child with `create_new`; there is no
 /// staging directory.
 pub fn write_images(
     dir: &Path,
-    stem: &str,
     input_sha256: &[u8; 32],
     files: &[(String, Vec<u8>)],
 ) -> io::Result<ImagesDir> {
-    check_component(stem)?;
     let names: BTreeSet<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
     if names.len() != files.len() {
         return Err(io::Error::new(
@@ -451,7 +450,7 @@ pub fn write_images(
     for name in &names {
         check_component(name)?;
     }
-    let base = images_dir_name(stem, input_sha256);
+    let base = images_dir_name(input_sha256);
     let base = base.strip_suffix(".images").expect("named above");
     for n in 1..=MAX_SUFFIX {
         let path = dir.join(format!("{}.images", suffixed(base, n, None)));
@@ -838,17 +837,17 @@ mod tests {
             ("p1-1.jpg".to_string(), b"jpeg one".to_vec()),
             ("p3-1.jpg".to_string(), b"jpeg two".to_vec()),
         ];
-        assert_eq!(images_dir_name("scan", &sha), "scan.abababab.images");
+        assert_eq!(images_dir_name(&sha), "abababab.images");
 
-        let first = write_images(dir.path(), "scan", &sha, &files).expect("written");
-        assert_eq!(first.path, dir.join("scan.abababab.images"));
+        let first = write_images(dir.path(), &sha, &files).expect("written");
+        assert_eq!(first.path, dir.join("abababab.images"));
         assert!(!first.reused);
         assert_eq!(names_in(&first.path), ["p1-1.jpg", "p3-1.jpg"]);
 
         let modified = fs::metadata(first.path.join("p1-1.jpg"))
             .and_then(|m| m.modified())
             .expect("mtime");
-        let again = write_images(dir.path(), "scan", &sha, &files).expect("reused");
+        let again = write_images(dir.path(), &sha, &files).expect("reused");
         assert_eq!(
             again,
             ImagesDir {
@@ -863,11 +862,11 @@ mod tests {
             modified,
             "nothing was rewritten"
         );
-        assert_eq!(dir.names(), ["scan.abababab.images"]);
+        assert_eq!(dir.names(), ["abababab.images"]);
 
         let other = vec![("p1-1.jpg".to_string(), b"something else".to_vec())];
-        let suffixed = write_images(dir.path(), "scan", &sha, &other).expect("written");
-        assert_eq!(suffixed.path, dir.join("scan.abababab (2).images"));
+        let suffixed = write_images(dir.path(), &sha, &other).expect("written");
+        assert_eq!(suffixed.path, dir.join("abababab (2).images"));
         assert!(!suffixed.reused);
         assert_eq!(
             fs::read(first.path.join("p1-1.jpg")).expect("read"),
@@ -876,8 +875,8 @@ mod tests {
 
         // A directory with an extra file is different too.
         fs::write(first.path.join("notes.txt"), b"mine").expect("user file");
-        let third = write_images(dir.path(), "scan", &sha, &files).expect("written");
-        assert_eq!(third.path, dir.join("scan.abababab (3).images"));
+        let third = write_images(dir.path(), &sha, &files).expect("written");
+        assert_eq!(third.path, dir.join("abababab (3).images"));
         assert_eq!(
             fs::read(first.path.join("notes.txt")).expect("read"),
             b"mine"
@@ -889,9 +888,9 @@ mod tests {
         let dir = ScratchDir::new("place-g-names");
         let sha = [0; 32];
         let dup = vec![("a".to_string(), vec![1]), ("a".to_string(), vec![2])];
-        assert!(write_images(dir.path(), "s", &sha, &dup).is_err());
+        assert!(write_images(dir.path(), &sha, &dup).is_err());
         let escape = vec![("../a".to_string(), vec![1])];
-        assert!(write_images(dir.path(), "s", &sha, &escape).is_err());
+        assert!(write_images(dir.path(), &sha, &escape).is_err());
         assert!(dir.names().is_empty());
     }
 

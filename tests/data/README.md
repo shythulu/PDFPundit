@@ -59,6 +59,6 @@ mockup's sample names, not corpus files.
 
 The Markdown export of `golden_pdf()` with `TINY_JPEG` as its page-one image
 `p1-1.jpg`, page separators on and the images directory named
-`golden.0123abcd.images`. Written once by this crate's own emitter and checked
+`0123abcd.images`. Written once by this crate's own emitter and checked
 by hand; `src/pdf/export/markdown/tests.rs` compares it byte for byte. A
 change is a change in what export writes: re-baseline only with a reason.

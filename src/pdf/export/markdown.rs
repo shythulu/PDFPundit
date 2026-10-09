@@ -20,9 +20,12 @@
 //!   `![](<dir>/<name>)` links into the images directory, rules as `---`.
 //!
 //! Inline text is escaped so that a PDF's own characters never become
-//! Markdown syntax: `\`, `` ` ``, `*`, `_`, `[`, `]`, `<`, `>`, `~` always,
-//! `&` before something that could read as an entity, `|` in table cells, and
-//! a line start that would open a block (`#`, `-`, `+`, `=`, `1.`, `1)`).
+//! Markdown or HTML syntax (F-02): `\`, `` ` ``, `*`, `_`, `[`, `]`, `<`, `>`,
+//! `~`, `!` always, `&` before something that could read as an entity, `|`
+//! in table cells, and a line start that would open a block (`#`, `-`, `+`,
+//! `=`, `1.`, `1)`). So text can never open an image (`!` before a link the
+//! writer made would read as `![…](…)` and fetch its target), raw HTML or an
+//! autolink; the only links are the ones the writer makes from `/Annots`.
 //! Bold and italic runs become `**…**` and `*…*` with their outer spaces moved
 //! outside the markers (best effort: CommonMark's flanking rules leave the
 //! markers as text where a styled run starts or ends with punctuation glued
@@ -48,8 +51,8 @@ use super::layout::{Block, LayoutNote, Line, PageLayout, Run};
 pub struct MarkdownOptions {
     /// A `<!-- page N -->` comment before each page.
     pub page_separators: bool,
-    /// The images directory's file name (D-060's content-derived
-    /// `<stem>.<hash8>.images`, or its `(N)` form), never a path. `None` when
+    /// The images directory's file name (content-derived, `<hash8>.images`
+    /// or its `(N)` form, D-060 as amended by F-02), never a path. `None` when
     /// no images were written: an image block is then a comment saying so.
     pub image_dir_name: Option<String>,
 }
@@ -249,23 +252,30 @@ fn inline(runs: &[Run], heading: bool) -> String {
 }
 
 /// Adjacent runs with the same style and link joined, so two bold runs never
-/// write `**a****b**`.
+/// write `**a****b**`. A link the writer will not keep counts as none, and
+/// empty runs are dropped: two code spans that touched would read as one
+/// longer fence, unclosed, and leave their contents (raw HTML, say) bare.
 fn merge(runs: &[Run]) -> Vec<Run> {
     let mut out: Vec<Run> = Vec::with_capacity(runs.len());
-    for r in runs {
+    for r in runs.iter().filter(|r| !r.text.is_empty()) {
         let text: String = r
             .text
             .chars()
             .map(|c| if c.is_whitespace() { ' ' } else { c })
             .collect();
+        let link = r.link.clone().filter(|uri| allowed(uri));
         match out.last_mut() {
             Some(last)
                 if (last.bold, last.italic, last.mono, &last.link)
-                    == (r.bold, r.italic, r.mono, &r.link) =>
+                    == (r.bold, r.italic, r.mono, &link) =>
             {
                 last.text.push_str(&text);
             }
-            _ => out.push(Run { text, ..r.clone() }),
+            _ => out.push(Run {
+                text,
+                link,
+                ..r.clone()
+            }),
         }
     }
     out
@@ -321,7 +331,7 @@ fn escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for (i, c) in text.char_indices() {
         match c {
-            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '~' => {
+            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '~' | '!' => {
                 out.push('\\');
                 out.push(c);
             }
