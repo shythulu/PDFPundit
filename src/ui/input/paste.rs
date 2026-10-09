@@ -447,6 +447,8 @@ mod tests {
         // as the UNC share `\\tmp\x.pdf`, which has no file name (CI-01).
         #[cfg(unix)]
         assert_eq!(paths("//tmp/x.pdf", Style::Posix), [some("//tmp/x.pdf")]);
+        #[cfg(windows)]
+        assert_eq!(paths("//tmp/x.pdf", Style::Posix), [None]);
     }
 
     #[test]
