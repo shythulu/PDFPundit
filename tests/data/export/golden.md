@@ -3,7 +3,7 @@
 PDFPundit golden page one.
 The quick brown fox jumps over the lazy dog.
 
-![](golden.0123abcd.images/p1-1.jpg)
+![](0123abcd.images/p1-1.jpg)
 
 <!-- page 2 -->
 

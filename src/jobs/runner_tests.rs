@@ -1212,8 +1212,8 @@ fn golden_images() -> Vec<(String, Vec<u8>)> {
     vec![("p1-1.jpg".to_owned(), fixtures::TINY_JPEG.to_vec())]
 }
 
-fn images_dir(stem: &str, input: &[u8]) -> String {
-    place::images_dir_name(stem, &Sha256::digest(input).into())
+fn images_dir(input: &[u8]) -> String {
+    place::images_dir_name(&Sha256::digest(input).into())
 }
 
 #[test]
@@ -1280,7 +1280,7 @@ fn two_exports_of_one_input_are_identical_and_write_the_images_once() {
     let dir = ScratchDir::new("jobs-twice");
     let bytes = fixtures::golden_pdf();
     let input = write(&dir, "scan.pdf", &bytes);
-    let images = images_dir("scan", &bytes);
+    let images = images_dir(&bytes);
     let engine = slow_engine().with_images(golden_images());
     let mut h = Harness::new(engine, opts());
     let id = h.submit(&input);
@@ -1308,8 +1308,8 @@ fn two_exports_of_one_input_are_identical_and_write_the_images_once() {
     assert_eq!(
         dir.names(),
         [
-            "scan (2).md".to_owned(),
             images.clone(),
+            "scan (2).md".to_owned(),
             "scan.md".to_owned(),
             "scan.pdf".to_owned(),
             "scan.repaired.pdf".to_owned(),
@@ -1330,11 +1330,42 @@ fn two_exports_of_one_input_are_identical_and_write_the_images_once() {
 }
 
 #[test]
+fn renaming_the_input_does_not_change_the_markdown() {
+    let dir = ScratchDir::new("jobs-renamed");
+    let bytes = fixtures::golden_pdf();
+    let first = write(&dir, "scan.pdf", &bytes);
+    let second = write(&dir, "evidence 7.pdf", &bytes);
+    let images = images_dir(&bytes);
+    let mut h = Harness::new(slow_engine().with_images(golden_images()), opts());
+    let a = h.submit(&first);
+    let b = h.submit(&second);
+    assert!(h.runner().export(a));
+    assert!(h.runner().export(b));
+    h.pump_until("both exported", |h| h.count(is_exported) == 2);
+    h.pump_until("both ended", |h| h.finished(a) && h.finished(b));
+
+    let md_a = fs::read(dir.join("scan.md")).expect("first");
+    let md_b = fs::read(dir.join("evidence 7.md")).expect("second");
+    assert_eq!(md_a, md_b, "the .md bytes depend on the input bytes only");
+    let link = format!("![]({images}/p1-1.jpg)");
+    assert!(String::from_utf8_lossy(&md_a).contains(&link), "{link}");
+    assert_eq!(
+        dir.names()
+            .iter()
+            .filter(|n| n.ends_with(".images"))
+            .count(),
+        1,
+        "one images directory for both names: {:?}",
+        dir.names()
+    );
+}
+
+#[test]
 fn a_foreign_images_directory_never_captures_the_links() {
     let dir = ScratchDir::new("jobs-foreign");
     let bytes = fixtures::golden_pdf();
     let input = write(&dir, "scan.pdf", &bytes);
-    let images = images_dir("scan", &bytes);
+    let images = images_dir(&bytes);
     fs::create_dir(dir.join(&images)).expect("foreign dir");
     fs::write(dir.join(&images).join("p1-1.jpg"), b"someone else's").expect("foreign file");
 
