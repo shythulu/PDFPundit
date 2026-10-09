@@ -112,6 +112,34 @@ Each row is one question only the user can answer. Options are the row's letters
 | D-091 | DarkBerry notice: confirmed. |
 | D-065 | Ship the Smudge likeness as designed (a), after the question was explained. T-35 is no longer blocked. |
 
+### Answered by the user, 2026-10-09 (round 3: custody, evidence records and new screens, all as recommended)
+
+These settle the open questions of `ux-design.md` and the evidence schema (kept outside the repo until it is committed with custody mode). "Blank" fields print as "not provided" (schema Q13); one submission reference per batch (schema Q15).
+
+| # | Answer |
+|---|---|
+| Q27 | Case reference may stay blank; add `require_case_details` (off by default) that refuses an empty one. |
+| Q28 | A drop during a running custody batch opens a new prompt pre-filled with the last answers. |
+| Q29 | Custody mode refuses to start until `[general] output_dir` is set, so the evidence folder stays untouched (schema Q16). |
+| Q30 | kitty drops: the bytes arrive at the drop; the prompt says so. No further restriction. |
+| Q31 | History shows local time; custody records use UTC. |
+| Q32 | Under `NO_COLOR` the cat is drawn as shade-block art. |
+| Q33 | Saving from setup backs up the old file as `config.toml.bak` and warns that comments are dropped. |
+| Q34 | Frame 05's "kept in the output, against the input" and frame 03's short info labels are accepted. |
+| Q35 | Record files are named after the full output name (`<name>.repaired.pdf.custody.json`) (schema Q1). |
+| Q36 | Prompt fields: case reference, examiner, submission reference, authority/notes; the last two optional (schema Q2). |
+| Q37 | The host name is recorded by default, with a `record_host_name` switch (schema Q3). |
+| Q38 | Image files are written only on Markdown export or in custody mode, not on a plain repair (schema Q4). |
+| Q39 | CASE/UCO JSON-LD ships after the JSON and text records, off by default (schema Q5). |
+| Q40 | Derived PNG views for JPX/CCITT/JBIG2 and Type3 glyph bitmaps are off, behind settings (schema Q6, Q10). |
+| Q41 | The local UTC offset is filled on every platform, reusing the existing time-zone parser (schema Q7). |
+| Q42 | The build commit comes from the release workflow; local builds record null (schema Q8). |
+| Q43 | Verify writes `.verify-<n>.txt` every time (schema Q9). |
+| Q44 | No per-case custody log in v1 (schema Q12). |
+| Q45 | Releases publish a SHA-256 per executable, and custody records cite it (schema Q14). |
+| Q46 | No `.bin` copy of a repaired image's damaged stream; the record keeps its hash and span (schema Q17). |
+| Q47 | Do not buy ISO/IEC 27037 and 27042; the design rests on SWGDE, NIST and ACPO (schema Q11). |
+
 ### Answered by the user, 2026-10-08 (Tiers 3 and 4)
 
 | ID | Answer | Work it needs |
