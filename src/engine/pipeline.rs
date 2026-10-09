@@ -44,10 +44,10 @@ use sha2::{Digest, Sha256};
 
 use super::slots::font_slots;
 use super::{
-    AnalysisResult, AnalysisState, AnalysisStateUse, AnalyzeOptions, AnalyzeStats, Cancelled,
-    CarveSummary, FontDb, Interact, InteractionReply, InteractionRequest, InteractionRequestId,
-    LogLevel, OutcomeStatus, Progress, RepairOptions, RepairOutcome, RepairPlan, RepairReport,
-    SIGNED_NOTE, SalvageBudget, StateHandle, XrefKind,
+    AnalysisResult, AnalysisState, AnalysisStateUse, AnalyzeOptions, AnalyzeStats, Answer,
+    Cancelled, CarveSummary, FontDb, Interact, InteractionRequest, InteractionRequestId, LogLevel,
+    OutcomeStatus, Progress, RepairOptions, RepairOutcome, RepairPlan, RepairReport, SIGNED_NOTE,
+    SalvageBudget, StateHandle, XrefKind,
 };
 use crate::pdf::carver::{Body, CarveNote, CarveReport, Orphan, carve};
 use crate::pdf::diagnose::{diagnose, provisional};
@@ -427,7 +427,7 @@ pub(super) struct Numberer<'a> {
 }
 
 impl Interact for Numberer<'_> {
-    fn ask(&mut self, mut req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+    fn ask(&mut self, mut req: InteractionRequest) -> Result<Answer, Cancelled> {
         self.asked += 1;
         let id = InteractionRequestId(self.asked);
         match &mut req {
@@ -444,8 +444,8 @@ mod tests {
 
     use super::*;
     use crate::engine::{
-        FontCandidate, FontPickRequest, InteractionRequestId, NullProgress, Ratio,
-        SubstituteChoice, UnreproducibleRequest,
+        FontCandidate, FontPickRequest, InteractionReply, InteractionRequestId, NullProgress,
+        Ratio, SubstituteChoice, UnreproducibleRequest,
     };
     use crate::pdf::fixtures::{corrupt, golden_pdf};
 
@@ -465,12 +465,11 @@ mod tests {
     }
 
     impl Interact for Scripted {
-        fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+        fn ask(&mut self, req: InteractionRequest) -> Result<Answer, Cancelled> {
             self.asked.push(req.clone());
-            Ok(self
-                .replies
-                .pop_front()
-                .unwrap_or_else(|| panic!("an unscripted question: {req:?}")))
+            let reply = (self.replies.pop_front())
+                .unwrap_or_else(|| panic!("an unscripted question: {req:?}"));
+            Ok(Answer::user(reply))
         }
     }
 
@@ -573,8 +572,8 @@ mod tests {
         };
         let a = numberer.ask(InteractionRequest::FontPick(pick)).unwrap();
         let b = (numberer.ask(InteractionRequest::FontUnreproducible(unrepro))).unwrap();
-        assert_eq!(a, InteractionReply::Pick("noto-sans".into()));
-        assert_eq!(b, InteractionReply::UseBest);
+        assert_eq!(a, Answer::user(InteractionReply::Pick("noto-sans".into())));
+        assert_eq!(b, Answer::user(InteractionReply::UseBest));
         assert_eq!(numberer.asked, 2);
         let ids: Vec<InteractionRequestId> = (script.asked.iter())
             .map(|r| match r {

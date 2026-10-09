@@ -47,6 +47,9 @@
 //! question with the best guess. `[fonts] prompt_unresolved = false`
 //! answers every question with the best guess as it comes, and an answer
 //! holds for the rest of its font family in that file (see `questions`).
+//! Each answer carries who gave it (D-141): `User` for the question the
+//! user answered, `Batched` for a family's carried answer, `b`'s later
+//! questions and `a`, and `Policy` for `prompt_unresolved = false`.
 //! The widget never shows a question (D5): it keeps its `‼` and "zoom me".
 //!
 //! Shell fixes (F-06): in a terminal larger than the layout the layout sits in
@@ -103,7 +106,8 @@ use super::widgets::lightbar;
 use crate::appdirs::AppDirs;
 use crate::config::{self, Config, OutputDir};
 use crate::engine::{
-    AnalyzeOptions, Engine, InteractionReply, InteractionRequest, Pdfpundit, RepairOptions,
+    AnalyzeOptions, Answer, Engine, InteractionReply, InteractionRequest, InteractionSource,
+    Pdfpundit, RepairOptions,
 };
 use crate::jobs::{
     AppEvent, EntryState, JobEvent, JobId, JobInput, JobKind, JobRunner, QueueEntry, RunnerOptions,
@@ -462,7 +466,7 @@ pub(crate) struct App {
     /// the best guess, without asking.
     prompt_unresolved: bool,
     /// Answers to parked questions, for [`App::send_replies`].
-    replies: Vec<(JobId, InteractionReply)>,
+    replies: Vec<(JobId, Answer)>,
     /// What the user has answered, per file.
     answers: Answers,
     /// The kitty drag-and-drop protocol (T-31).
@@ -944,10 +948,11 @@ impl App {
     }
 
     /// The font pick's keys (T-24's keyboard model): each answer goes to the
-    /// runner and the modal moves on to the next parked question; `b`'s
-    /// best guess holds for the file's later questions too ("use best for
-    /// both"); `a` answers every parked question with the best guess; Esc
-    /// closes it with the job still parked.
+    /// runner as the user's and the modal moves on to the next parked
+    /// question; `b`'s best guess holds for the file's later questions too
+    /// ("use best for both"); `a` answers every parked question with the
+    /// best guess, recorded as `Batched` (D-141); Esc closes it with the job
+    /// still parked.
     fn font_pick_key(&mut self, code: KeyCode, entry: usize, selected: usize) {
         let key = match code {
             KeyCode::Up => ModalKey::Up,
@@ -968,12 +973,17 @@ impl App {
             }
             FontPickAction::Reply(reply) => {
                 let whole_file = key == ModalKey::Char('b') || key == ModalKey::Char('B');
-                self.answer(entry, reply, whole_file);
+                let answer = Answer::user(reply);
+                self.answer(entry, answer, whole_file);
                 self.show_next_question(entry);
             }
             FontPickAction::BestForAll => {
                 while let Some(i) = self.next_parked(0) {
-                    self.answer(i, InteractionReply::UseBest, true);
+                    let best = Answer {
+                        reply: InteractionReply::UseBest,
+                        source: InteractionSource::Batched,
+                    };
+                    self.answer(i, best, true);
                 }
                 self.state.screen = Screen::Main;
             }
@@ -1007,18 +1017,19 @@ impl App {
         };
     }
 
-    /// Answers row `i`'s parked question with `reply` (for the whole file
+    /// Answers row `i`'s parked question with `answer` (for the whole file
     /// with `whole_file`): remembered for the file's later questions, sent
     /// to the runner by [`App::send_replies`], and the row is repairing again.
-    fn answer(&mut self, i: usize, reply: InteractionReply, whole_file: bool) {
+    fn answer(&mut self, i: usize, answer: Answer, whole_file: bool) {
         let Some(request) = self.parked_request(i).cloned() else {
             return;
         };
-        let reply = questions::reply_for(&request, reply);
+        let reply = questions::reply_for(&request, answer.reply);
         let entry = &mut self.state.batch.entries[i];
         self.answers
             .record(entry.job, entry, &request, &reply, whole_file);
-        self.replies.push((entry.job, reply));
+        let source = answer.source;
+        self.replies.push((entry.job, Answer { reply, source }));
         entry.state = EntryState::Repairing {
             phase: None,
             done: 0,
@@ -1029,7 +1040,7 @@ impl App {
     /// The answers given since the last call, each passed to `reply` (the
     /// runner's [`JobRunner::reply`]). One the runner refuses (the job is no
     /// longer parked: it was cancelled) is logged.
-    pub(crate) fn send_replies(&mut self, reply: &mut dyn FnMut(JobId, InteractionReply) -> bool) {
+    pub(crate) fn send_replies(&mut self, reply: &mut dyn FnMut(JobId, Answer) -> bool) {
         for (id, answer) in std::mem::take(&mut self.replies) {
             if !reply(id, answer) {
                 self.log(format!("font question: job {} is not parked", id.0));
@@ -1215,21 +1226,22 @@ impl App {
             // runner, and a kept clone would keep a cancelled job waiting.
             // A question already answered (`prompt_unresolved = false`, or
             // the file's earlier answer for its family) is answered at once;
-            // any other parks in the row until the user answers it. The
-            // engine records such an answer as the user's (its contract has
-            // no answer source yet), so the log names each one and where it
+            // any other parks in the row until the user answers it. Such an
+            // answer goes to the engine as `Policy` or `Batched`, never as
+            // the user's (D-141), and the log names each one and where it
             // came from.
             JobEvent::NeedsInteraction { request, .. } => {
                 let known = if self.prompt_unresolved {
                     self.answers
                         .known(id, entry, &request)
-                        .map(|(r, o)| (r, o.to_string()))
+                        .map(|(r, o)| (r, InteractionSource::Batched, o.to_string()))
                 } else {
                     let why = "[fonts] prompt_unresolved = false (best guess)";
-                    Some((InteractionReply::UseBest, why.to_owned()))
+                    let reply = InteractionReply::UseBest;
+                    Some((reply, InteractionSource::Policy, why.to_owned()))
                 };
                 match known {
-                    Some((reply, from)) => {
+                    Some((reply, source, from)) => {
                         let reply = questions::reply_for(&request, reply);
                         let (page, slot) = questions::asked_at(&request);
                         let line = format!(
@@ -1238,7 +1250,7 @@ impl App {
                             entry.name,
                             u64::from(page) + 1
                         );
-                        self.replies.push((id, reply));
+                        self.replies.push((id, Answer { reply, source }));
                         self.log(line);
                     }
                     None => entry.state = EntryState::WaitingOnUser(request),

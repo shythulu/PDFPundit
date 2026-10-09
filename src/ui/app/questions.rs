@@ -11,9 +11,9 @@
 //!   ([`family`]), so `NotoSans-Regular` and `NotoSans-Bold` ask once. A
 //!   pick is carried only to a font the later question lists: the same
 //!   font, else its first candidate of the picked font's family. When it
-//!   lists neither, the question is asked: the engine takes any pick as
-//!   the user's, so carrying a font the scorer did not rank for the slot
-//!   would grade an unseen guess as fixed.
+//!   lists neither, the question is asked: the engine grades any pick,
+//!   carried or not, as a confirmed font, so carrying a font the scorer did
+//!   not rank for the slot would grade an unseen guess as fixed.
 //!
 //! A question's family comes from the analysis's `/BaseFont` for its slot,
 //! never from the request's own name (an unreproducible font without a
@@ -23,9 +23,9 @@
 //! are remembered apart: `Skip` means "keep the best guess" to a font pick
 //! and "leave the font as found" to an unreproducible font.
 //!
-//! An answer given this way reaches the engine as an ordinary reply, so the
-//! run's interaction record cannot tell it from one the user gave; the app
-//! log names each one and the answer it came from.
+//! An answer given this way reaches the engine as `Batched`, never as the
+//! user's (D-141), so the run's interaction record tells it from one the
+//! user gave; the app log names each one and the answer it came from.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};

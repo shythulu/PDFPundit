@@ -153,21 +153,21 @@ fn salvage_metric(f: &Finding) -> Option<&str> {
 
 /// Answers from a script, in order; a question past its end is a failure.
 struct Scripted {
-    replies: VecDeque<InteractionReply>,
+    replies: VecDeque<Answer>,
     asked: Vec<InteractionRequest>,
 }
 
 impl Scripted {
-    fn new(replies: impl IntoIterator<Item = InteractionReply>) -> Self {
+    fn answering(answers: impl IntoIterator<Item = Answer>) -> Self {
         Scripted {
-            replies: replies.into_iter().collect(),
+            replies: answers.into_iter().collect(),
             asked: Vec::new(),
         }
     }
 }
 
 impl Interact for Scripted {
-    fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+    fn ask(&mut self, req: InteractionRequest) -> Result<Answer, Cancelled> {
         self.asked.push(req.clone());
         Ok(self
             .replies
@@ -630,11 +630,7 @@ fn the_recorded_settings_and_replies_replay_to_the_same_output_and_report() {
     assert!(first.report.interactions.is_empty());
 
     let replay = options_from(&first.report.settings);
-    let mut script = Scripted::new(
-        (first.report.interactions.iter())
-            .filter(|r| r.source != InteractionSource::Policy)
-            .map(|r| r.reply.clone()),
-    );
+    let mut script = Scripted::answering(first.report.replay_answers());
     let again = analyze(&bytes, &replay.analyze, &mut NullProgress).unwrap();
     let second = repaired_with(&bytes, &again, &replay, &mut script, &mut NullProgress);
     assert!(

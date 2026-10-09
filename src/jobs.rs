@@ -31,9 +31,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::engine::{
-    AnalysisResult, AnalysisStateUse, AnalyzeOptions, Cancelled, CorruptionClass, Engine, FileMeta,
-    Finding, FontDb, FontSlot, Interact, InteractionReply, InteractionRequest, LogLevel,
-    OutcomeStatus, Progress, RepairOptions, RepairOutcome, RepairReport, StateHandle,
+    AnalysisResult, AnalysisStateUse, AnalyzeOptions, Answer, Cancelled, CorruptionClass, Engine,
+    FileMeta, Finding, FontDb, FontSlot, Interact, InteractionRequest, LogLevel, OutcomeStatus,
+    Progress, RepairOptions, RepairOutcome, RepairReport, StateHandle,
 };
 use crate::panic_guard;
 #[cfg(feature = "export")]
@@ -107,7 +107,7 @@ pub enum JobEvent {
     /// state stops the runner from ending the wait (on eviction or quit).
     NeedsInteraction {
         request: InteractionRequest,
-        reply: SyncSender<InteractionReply>,
+        reply: SyncSender<Answer>,
     },
     AnalyzeDone(Box<AnalysisResult>),
     RepairDone(Box<RepairRun>),
@@ -477,7 +477,7 @@ struct Finished {
     path: Option<PathBuf>,
     pinned: bool,
     input_sha256: Option<[u8; 32]>,
-    replies: Vec<InteractionReply>,
+    replies: Vec<Answer>,
 }
 
 /// [`Job::export`]'s bits. The runner sets [`EXPORT_REQUESTED`] (only while
@@ -499,8 +499,9 @@ struct Job {
     /// The runner's own handle on the analysis state, dropped on eviction.
     state: StateHandle,
     salvage_work_total: u64,
-    /// Every reply the user gave this entry, in order (replayed on a re-run).
-    replies: Vec<InteractionReply>,
+    /// Every answer given this entry, with its source, in order (replayed
+    /// on a re-run).
+    replies: Vec<Answer>,
     /// True once the state was evicted: the run record says so.
     rebuilt: bool,
     /// The live worker; `None` before it starts and after eviction.
@@ -519,7 +520,7 @@ enum Stage {
     Running,
     Parked {
         request: InteractionRequest,
-        reply: Option<SyncSender<InteractionReply>>,
+        reply: Option<SyncSender<Answer>>,
     },
     /// Cancelled; waiting for the worker to report `Cancelled`.
     Stopping,
@@ -691,10 +692,12 @@ impl<E: Engine + 'static> JobRunner<E> {
         self.report_waiting(id);
     }
 
-    /// Answers a parked job's question. A job whose thread is still waiting
-    /// gets the reply at once; an evicted one re-runs Analyze and Repair with
-    /// every reply so far replayed. False when the job is not parked.
-    pub fn reply(&mut self, id: JobId, reply: InteractionReply) -> bool {
+    /// Answers a parked job's question with `reply` and who gave it (the
+    /// user, or the app on its own: D-141). A job whose thread is still
+    /// waiting gets the answer at once; an evicted one re-runs Analyze and
+    /// Repair with every answer so far replayed, sources and all. False when
+    /// the job is not parked.
+    pub fn reply(&mut self, id: JobId, reply: Answer) -> bool {
         let Some(job) = self.jobs.get_mut(&id) else {
             return false;
         };
@@ -881,12 +884,7 @@ impl<E: Engine + 'static> JobRunner<E> {
         }
     }
 
-    fn park(
-        &mut self,
-        id: JobId,
-        request: InteractionRequest,
-        reply: SyncSender<InteractionReply>,
-    ) {
+    fn park(&mut self, id: JobId, request: InteractionRequest, reply: SyncSender<Answer>) {
         let Some(job) = self.jobs.get_mut(&id) else {
             return;
         };
@@ -1034,8 +1032,8 @@ struct Worker<E> {
     input: InputSlot,
     /// The hash a re-read input must still have.
     expect_sha256: Option<[u8; 32]>,
-    /// Replies answered without asking again (a re-run after eviction).
-    replay: VecDeque<InteractionReply>,
+    /// Answers given without asking again (a re-run after eviction).
+    replay: VecDeque<Answer>,
     rebuilt: bool,
     cancel: CancelToken,
     quiet: Arc<AtomicBool>,
@@ -1367,11 +1365,11 @@ struct JobInteract {
     id: JobId,
     emit: Emit,
     cancel: CancelToken,
-    replay: VecDeque<InteractionReply>,
+    replay: VecDeque<Answer>,
 }
 
 impl Interact for JobInteract {
-    fn ask(&mut self, request: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+    fn ask(&mut self, request: InteractionRequest) -> Result<Answer, Cancelled> {
         if let Some(reply) = self.replay.pop_front() {
             return Ok(reply);
         }
@@ -1435,7 +1433,7 @@ mod fake {
         always_asks: bool,
         profile: Arc<ProfileFn>,
         panics_when: Arc<PanicFn>,
-        replies: Mutex<Vec<InteractionReply>>,
+        replies: Mutex<Vec<Answer>>,
         repaired_states: Mutex<Vec<StateHandle>>,
         images: Vec<(String, Vec<u8>)>,
         font_slots: Vec<FontSlot>,
@@ -1515,6 +1513,11 @@ mod fake {
 
         /// Every reply the fake has received, in order.
         pub(crate) fn replies(&self) -> Vec<InteractionReply> {
+            self.answers().into_iter().map(|a| a.reply).collect()
+        }
+
+        /// Every answer the fake has received, with its source, in order.
+        pub(crate) fn answers(&self) -> Vec<Answer> {
             self.replies.lock().expect("replies lock").clone()
         }
 
@@ -1530,11 +1533,14 @@ mod fake {
             })
         }
 
+        /// Runs `steps`; each question asked and its answer go to
+        /// `records`, as the real engine's asking pass records them.
         fn run(
             &self,
             steps: &[FakeStep],
             sink: &mut dyn Progress,
             mut ask: Option<&mut dyn Interact>,
+            records: &mut Vec<InteractionRecord>,
         ) -> Result<Vec<Finding>, Cancelled> {
             let mut findings = Vec::new();
             for step in steps {
@@ -1552,7 +1558,7 @@ mod fake {
                         let ask = ask
                             .as_deref_mut()
                             .expect("the fake asks only during repair");
-                        self.ask(ask, req.clone())?;
+                        self.ask(ask, req.clone(), records)?;
                     }
                     FakeStep::Slow { steps, pause_ms } => {
                         for done in 1..=*steps {
@@ -1569,9 +1575,38 @@ mod fake {
             Ok(findings)
         }
 
-        fn ask(&self, ask: &mut dyn Interact, req: InteractionRequest) -> Result<(), Cancelled> {
-            let reply = ask.ask(req)?;
-            self.replies.lock().expect("replies lock").push(reply);
+        fn ask(
+            &self,
+            ask: &mut dyn Interact,
+            req: InteractionRequest,
+            records: &mut Vec<InteractionRecord>,
+        ) -> Result<(), Cancelled> {
+            let (kind, page, slot, candidates) = match &req {
+                InteractionRequest::FontPick(r) => (
+                    InteractionKind::FontPick,
+                    Some(r.page),
+                    Some(r.slot.clone()),
+                    r.candidates.iter().map(|c| c.font_id.clone()).collect(),
+                ),
+                InteractionRequest::FontUnreproducible(r) => (
+                    InteractionKind::FontUnreproducible,
+                    r.slots.first().map(|(p, _)| *p),
+                    r.slots.first().map(|(_, s)| s.clone()),
+                    r.options.iter().map(|o| o.font_id.clone()).collect(),
+                ),
+            };
+            let answer = ask.ask(req)?;
+            records.push(InteractionRecord {
+                request: InteractionSummary {
+                    kind,
+                    page,
+                    slot,
+                    candidates,
+                },
+                reply: answer.reply.clone(),
+                source: answer.recorded_source(),
+            });
+            self.replies.lock().expect("replies lock").push(answer);
             Ok(())
         }
     }
@@ -1586,7 +1621,7 @@ mod fake {
             if (self.panics_when)(bytes) {
                 panic!("fake engine panic");
             }
-            let findings = self.run(&self.analyze_steps, sink, None)?;
+            let findings = self.run(&self.analyze_steps, sink, None, &mut Vec::new())?;
             let profile = (self.profile)(bytes);
             let input_sha256: [u8; 32] = Sha256::digest(bytes).into();
             let mut state = AnalysisState::new(
@@ -1633,9 +1668,10 @@ mod fake {
                 .lock()
                 .expect("states lock")
                 .push(analysis.state.clone());
-            self.run(&self.repair_steps, sink, Some(&mut *ask))?;
+            let mut interactions = Vec::new();
+            self.run(&self.repair_steps, sink, Some(&mut *ask), &mut interactions)?;
             if self.always_asks {
-                self.ask(ask, Self::standard_question())?;
+                self.ask(ask, Self::standard_question(), &mut interactions)?;
             }
             let hash: [u8; 32] = Sha256::digest(bytes).into();
             let analysis_state = match &analysis.state.0 {
@@ -1649,7 +1685,10 @@ mod fake {
             };
             Ok(RepairOutcome {
                 output: Some(bytes.to_vec()),
-                report: RepairReport::default_for(analysis, opts, fonts),
+                report: RepairReport {
+                    interactions,
+                    ..RepairReport::default_for(analysis, opts, fonts)
+                },
                 status: OutcomeStatus::Ok,
                 images: self.images.clone(),
                 analysis_state,
@@ -1709,12 +1748,12 @@ mod tests {
     }
 
     impl Interact for Scripted {
-        fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+        fn ask(&mut self, req: InteractionRequest) -> Result<Answer, Cancelled> {
             self.asked.push(req);
             if self.replies.is_empty() {
                 Err(Cancelled)
             } else {
-                Ok(self.replies.remove(0))
+                Ok(Answer::user(self.replies.remove(0)))
             }
         }
     }
@@ -1824,6 +1863,25 @@ mod tests {
             [
                 InteractionReply::TextOnly,
                 InteractionReply::Pick("x".into())
+            ]
+        );
+        // Its report records each question and answer, as the engine's does.
+        let recorded: Vec<_> = (out.report.interactions.iter())
+            .map(|r| (r.request.kind, r.request.slot.as_deref(), r.source))
+            .collect();
+        assert_eq!(
+            recorded,
+            [
+                (
+                    InteractionKind::FontUnreproducible,
+                    Some("F2"),
+                    InteractionSource::User
+                ),
+                (
+                    InteractionKind::FontPick,
+                    Some("F1"),
+                    InteractionSource::User
+                ),
             ]
         );
         assert_eq!(out.status, OutcomeStatus::Ok);

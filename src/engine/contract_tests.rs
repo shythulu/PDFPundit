@@ -94,7 +94,43 @@ fn use_best_answers_every_interaction_request() {
         InteractionRequest::FontPick(font_pick_request()),
         InteractionRequest::FontUnreproducible(unreproducible_request()),
     ] {
-        assert_eq!(UseBest.ask(req), Ok(InteractionReply::UseBest));
+        let answer = UseBest.ask(req).expect("answered");
+        assert_eq!(answer.reply, InteractionReply::UseBest);
+        assert_eq!(answer.recorded_source(), InteractionSource::UseBest);
+    }
+}
+
+/// D-141: the record keeps who answered. The user's own best guess is
+/// `UseBest`; every other answer keeps the source it came with.
+#[test]
+fn an_answer_is_recorded_with_its_source() {
+    let pick = InteractionReply::Pick("noto-sans-regular".into());
+    let cases = [
+        (
+            pick.clone(),
+            InteractionSource::User,
+            InteractionSource::User,
+        ),
+        (
+            InteractionReply::UseBest,
+            InteractionSource::User,
+            InteractionSource::UseBest,
+        ),
+        (pick, InteractionSource::Batched, InteractionSource::Batched),
+        (
+            InteractionReply::UseBest,
+            InteractionSource::Batched,
+            InteractionSource::Batched,
+        ),
+        (
+            InteractionReply::UseBest,
+            InteractionSource::Policy,
+            InteractionSource::Policy,
+        ),
+    ];
+    for (reply, source, recorded) in cases {
+        let answer = Answer { reply, source };
+        assert_eq!(answer.recorded_source(), recorded, "{answer:?}");
     }
 }
 
@@ -582,7 +618,7 @@ fn fixtures_carry_every_variant() {
     ));
     assert!(covers(
         r.interactions.iter().map(|i| source_index(i.source)),
-        3
+        4
     ));
     assert!(covers(
         r.passes.iter().map(|p| pass_outcome_index(&p.outcome)),
@@ -798,6 +834,7 @@ fn source_index(s: InteractionSource) -> usize {
         InteractionSource::User => 0,
         InteractionSource::Policy => 1,
         InteractionSource::UseBest => 2,
+        InteractionSource::Batched => 3,
     }
 }
 
@@ -1225,6 +1262,16 @@ fn report_fixture() -> RepairReport {
             },
             reply: InteractionReply::Skip,
             source: InteractionSource::User,
+        },
+        InteractionRecord {
+            request: InteractionSummary {
+                kind: InteractionKind::FontPick,
+                page: Some(4),
+                slot: Some("F4".into()),
+                candidates: vec!["noto-sans-bold".into()],
+            },
+            reply: InteractionReply::Pick("noto-sans-bold".into()),
+            source: InteractionSource::Batched,
         },
     ];
     report.findings_after = model_findings()

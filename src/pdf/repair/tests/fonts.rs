@@ -9,9 +9,9 @@ use lopdf::{Document, LoadOptions};
 use super::*;
 use crate::bench::metrics::Lang;
 use crate::engine::{
-    AnalysisResult, AnalyzeStats, CarveSummary, FontResolutionKind, Interact, InteractionReply,
-    InteractionRequest, InteractionSource, PageSize, RepairReport, StateHandle, SubstituteChoice,
-    UnreproduciblePolicy,
+    AnalysisResult, AnalyzeStats, Answer, CarveSummary, FontResolutionKind, Interact,
+    InteractionReply, InteractionRequest, InteractionSource, PageSize, RepairReport, StateHandle,
+    SubstituteChoice, UnreproduciblePolicy,
 };
 use crate::pdf::emit::{EmitCtx, Substitution, emit_doc, emit_template_assemble};
 use crate::pdf::fixtures::TEST_FONT;
@@ -278,24 +278,29 @@ fn load_strict(pdf: &[u8]) -> Document {
 
 /// An `Interact` that answers from a script and keeps every question.
 struct Scripted {
-    replies: Vec<InteractionReply>,
+    answers: Vec<Answer>,
     asked: Vec<InteractionRequest>,
 }
 
 impl Scripted {
+    /// Answers the user gives, in order.
     fn new(replies: Vec<InteractionReply>) -> Self {
+        Self::answering(replies.into_iter().map(Answer::user).collect())
+    }
+
+    fn answering(answers: Vec<Answer>) -> Self {
         Scripted {
-            replies,
+            answers,
             asked: Vec::new(),
         }
     }
 }
 
 impl Interact for Scripted {
-    fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
+    fn ask(&mut self, req: InteractionRequest) -> Result<Answer, Cancelled> {
         self.asked.push(req);
-        assert!(!self.replies.is_empty(), "asked more than scripted");
-        Ok(self.replies.remove(0))
+        assert!(!self.answers.is_empty(), "asked more than scripted");
+        Ok(self.answers.remove(0))
     }
 }
 
@@ -714,6 +719,75 @@ fn font_pick_replies_give_the_documented_outcomes() {
     }
 }
 
+/// Who gave an answer reaches the record as given (D-141): the app's
+/// family-carried and "apply best to all" answers are `Batched`, its
+/// `prompt_unresolved = false` answers are `Policy`, and only the user's own
+/// answer to that question is `User` (or `UseBest` for the best guess).
+#[test]
+fn the_answers_source_is_recorded_as_given() {
+    let db = test_db();
+    let opts = always_ask();
+    let cases = [
+        (
+            InteractionReply::Pick(SHUFFLED.to_owned()),
+            InteractionSource::User,
+            InteractionSource::User,
+        ),
+        (
+            InteractionReply::UseBest,
+            InteractionSource::User,
+            InteractionSource::UseBest,
+        ),
+        (
+            InteractionReply::Pick(SHUFFLED.to_owned()),
+            InteractionSource::Batched,
+            InteractionSource::Batched,
+        ),
+        (
+            InteractionReply::UseBest,
+            InteractionSource::Batched,
+            InteractionSource::Batched,
+        ),
+        (
+            InteractionReply::UseBest,
+            InteractionSource::Policy,
+            InteractionSource::Policy,
+        ),
+    ];
+    for (reply, given, recorded) in cases {
+        let answer = Answer {
+            reply: reply.clone(),
+            source: given,
+        };
+        let mut ask = Scripted::answering(vec![answer]);
+        let ran = run_pass(&c7(), C7FontStreamDeleted, &db, &opts, &mut ask, &[]);
+        let rec = record(&ran.notes);
+        assert_eq!(
+            (rec.reply.clone(), rec.source),
+            (reply.clone(), recorded),
+            "{reply:?} from {given:?}"
+        );
+    }
+
+    // An unreproducible font's question records its source the same way.
+    let answer = Answer {
+        reply: InteractionReply::Substitute(sparse_choice()),
+        source: InteractionSource::Batched,
+    };
+    let mut ask = Scripted::answering(vec![answer]);
+    let ran = run_pass(
+        &c7(),
+        C7FontStreamDeleted,
+        &sparse_db(),
+        &RepairOptions::default(),
+        &mut ask,
+        &[],
+    );
+    let rec = record(&ran.notes);
+    assert_eq!(rec.request.kind, InteractionKind::FontUnreproducible);
+    assert_eq!(rec.source, InteractionSource::Batched);
+}
+
 /// The sparse database: no font maps the golden's text, so every slot is
 /// unreproducible.
 fn sparse_db() -> FontDb {
@@ -992,15 +1066,44 @@ fn an_asked_question_reaches_the_engine_report_once_and_replays() {
     assert_eq!(rec.request.kind, InteractionKind::FontPick);
 
     // Replaying the asked replies gives the same file and report.
-    let replies = (first.report.interactions.iter())
-        .filter(|r| r.source != InteractionSource::Policy)
-        .map(|r| r.reply.clone())
-        .collect();
-    let mut again = Scripted::new(replies);
+    let mut again = Scripted::answering(first.report.replay_answers());
     let second = through_engine(&bytes, &test_db(), &opts, &mut again);
-    assert!(again.replies.is_empty());
+    assert!(again.answers.is_empty());
     assert_eq!(first.output, second.output);
     assert_eq!(first.report, second.report);
+}
+
+/// An answer the app gave on its own is asked for like any other, so a
+/// replay from the report gives it back, source and all (D-141); the
+/// engine's own policy answer is not asked again.
+#[test]
+fn answers_the_app_gave_replay_with_their_source() {
+    let bytes = corrupt(C7FontStreamDeleted, &golden_pdf(), 0);
+    let opts = always_ask();
+    for source in [InteractionSource::Policy, InteractionSource::Batched] {
+        let answer = Answer {
+            reply: InteractionReply::UseBest,
+            source,
+        };
+        let mut ask = Scripted::answering(vec![answer.clone()]);
+        let first = through_engine(&bytes, &test_db(), &opts, &mut ask);
+        assert_eq!(ask.asked.len(), 1);
+        assert_eq!(first.report.replay_answers(), [answer], "{source:?}");
+        let mut again = Scripted::answering(first.report.replay_answers());
+        let second = through_engine(&bytes, &test_db(), &opts, &mut again);
+        assert!(again.answers.is_empty(), "{source:?}");
+        assert_eq!(first.output, second.output, "{source:?}");
+        assert_eq!(first.report, second.report, "{source:?}");
+    }
+
+    let bytes = corrupt(C7FontStreamDeleted, &two_fonts(), 0);
+    let opts = RepairOptions {
+        unreproducible: UnreproduciblePolicy::SubstituteGeneric,
+        ..RepairOptions::default()
+    };
+    let out = through_engine(&bytes, &sparse_db(), &opts, &mut Scripted::new(Vec::new()));
+    assert_eq!(out.report.interactions.len(), 1);
+    assert!(out.report.replay_answers().is_empty(), "never asked");
 }
 
 // ── template assembly ────────────────────────────────────────────────────

@@ -448,7 +448,10 @@ fn a_parked_job_does_not_block_the_next_and_a_reply_resumes_it() {
         [a, b]
     );
 
-    assert!(h.runner().reply(a, InteractionReply::Pick("font-a".into())));
+    assert!(
+        h.runner()
+            .reply(a, Answer::user(InteractionReply::Pick("font-a".into())))
+    );
     h.pump_until("a finishes", |h| h.finished(a));
     let run = h.done(a).expect("a done");
     assert_eq!(
@@ -463,10 +466,13 @@ fn a_parked_job_does_not_block_the_next_and_a_reply_resumes_it() {
     assert!(!h.finished(b), "b is still waiting");
 
     assert!(
-        !h.runner().reply(a, InteractionReply::Skip),
+        !h.runner().reply(a, Answer::user(InteractionReply::Skip)),
         "a is no longer parked"
     );
-    assert!(h.runner().reply(b, InteractionReply::TextOnly));
+    assert!(
+        h.runner()
+            .reply(b, Answer::user(InteractionReply::TextOnly))
+    );
     h.pump_until("b finishes", |h| h.finished(b));
     assert!(h.done(b).is_some());
     assert_eq!(
@@ -572,10 +578,10 @@ fn the_queue_keeps_draining_when_every_file_asks() {
     );
 
     for (i, id) in ids.iter().enumerate() {
-        assert!(
-            h.runner()
-                .reply(*id, InteractionReply::Pick(format!("font-{i}")))
-        );
+        assert!(h.runner().reply(
+            *id,
+            Answer::user(InteractionReply::Pick(format!("font-{i}")))
+        ));
     }
     h.pump_until("all twenty repaired", |h| h.count(is_done) == 20);
     assert_eq!(
@@ -627,7 +633,12 @@ fn a_re_run_replays_every_earlier_reply() {
         "state evicted and input released"
     );
 
-    assert!(h.runner().reply(id, InteractionReply::TextOnly));
+    // The app answered the first on its own (D-141): the replay keeps that.
+    let batched = Answer {
+        reply: InteractionReply::TextOnly,
+        source: InteractionSource::Batched,
+    };
+    assert!(h.runner().reply(id, batched.clone()));
     h.pump_until("the second question, evicted", |h| h.count(is_evicted) == 2);
     let asked: Vec<InteractionRequest> = h
         .seen
@@ -643,7 +654,10 @@ fn a_re_run_replays_every_earlier_reply() {
         "q1 was not asked again"
     );
 
-    assert!(h.runner().reply(id, InteractionReply::Pick("x".into())));
+    assert!(
+        h.runner()
+            .reply(id, Answer::user(InteractionReply::Pick("x".into())))
+    );
     h.pump_until("done", |h| h.finished(id));
     assert_eq!(h.done(id).expect("done").analysis_state, rebuilt());
     assert_eq!(
@@ -654,6 +668,21 @@ fn a_re_run_replays_every_earlier_reply() {
             InteractionReply::Pick("x".into())
         ],
         "the second run got the first reply replayed"
+    );
+    let picked = Answer::user(InteractionReply::Pick("x".into()));
+    assert_eq!(
+        h.engine.answers(),
+        [batched.clone(), batched, picked],
+        "with its source"
+    );
+    let sources: Vec<InteractionSource> = (h.done(id).expect("done").report.interactions)
+        .iter()
+        .map(|r| r.source)
+        .collect();
+    assert_eq!(
+        sources,
+        [InteractionSource::Batched, InteractionSource::User],
+        "the run's record says who answered each"
     );
 }
 
@@ -671,7 +700,10 @@ fn a_released_input_that_changed_on_disk_is_refused() {
     let id = h.submit(&p);
     h.pump_until("evicted", |h| h.count(is_evicted) == 1);
     fs::write(&p, b"edited while waiting").expect("edit");
-    assert!(h.runner().reply(id, InteractionReply::UseBest));
+    assert!(
+        h.runner()
+            .reply(id, Answer::user(InteractionReply::UseBest))
+    );
     h.pump_until("the end", |h| h.finished(id));
     assert_eq!(
         h.rows[&id],
@@ -720,7 +752,10 @@ fn a_promised_input_is_pinned_and_the_batch_still_goes_on() {
     // The file's input was released at step (2); the promise's never is.
     assert_eq!(h.runner().retained_bytes(), 2_000);
 
-    assert!(h.runner().reply(promise, InteractionReply::UseBest));
+    assert!(
+        h.runner()
+            .reply(promise, Answer::user(InteractionReply::UseBest))
+    );
     h.pump_until("the promise is repaired", |h| h.finished(promise));
     let run = h.done(promise).expect("done");
     assert_eq!(run.analysis_state, rebuilt());
@@ -1151,7 +1186,10 @@ fn a_parked_dropped_input_over_the_cap_keeps_its_bytes() {
 
     // The promise is gone by the time the examiner answers.
     fs::remove_file(&path).expect("remove");
-    assert!(h.runner().reply(id, InteractionReply::UseBest));
+    assert!(
+        h.runner()
+            .reply(id, Answer::user(InteractionReply::UseBest))
+    );
     h.pump_until("resumed from the held bytes", |h| h.finished(id));
     let run = h.done(id).expect("done");
     assert_eq!(run.analysis_state, rebuilt());
@@ -1417,7 +1455,10 @@ fn a_later_export_replays_the_answers_and_checks_the_input() {
     let mut h = Harness::new(FakeEngine::new().always_asks(), opts());
     let id = h.submit(&input);
     h.pump_until("asked", |h| h.count(is_asked) == 1);
-    assert!(h.runner().reply(id, InteractionReply::UseBest));
+    assert!(
+        h.runner()
+            .reply(id, Answer::user(InteractionReply::UseBest))
+    );
     h.pump_until("done", |h| h.finished(id));
 
     assert!(h.runner().export(id));

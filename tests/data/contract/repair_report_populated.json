@@ -149,6 +149,20 @@
       },
       "reply": "Skip",
       "source": "User"
+    },
+    {
+      "request": {
+        "kind": "FontPick",
+        "page": 4,
+        "slot": "F4",
+        "candidates": [
+          "noto-sans-bold"
+        ]
+      },
+      "reply": {
+        "Pick": "noto-sans-bold"
+      },
+      "source": "Batched"
     }
   ],
   "findings_before": [
