@@ -82,6 +82,15 @@
 //!    A dictionary there is read no further than the next `endstream` or
 //!    `endobj`, and rung (b) looks its framed `endstream`s up in a list made
 //!    once, so the sweep stays linear however many orphans a gap holds.
+//!
+//! F-07's rule (D-130):
+//! 7. **Near-miss lex** (`gaps`): once the carve is done, every run outside
+//!    the objects, orphans, xref tables, trailers and `startxref` values is
+//!    lexed in near-miss mode ([`Lexer::with_near_miss`]), and each keyword
+//!    read one byte off (`2 0 obk`, `endob]`) becomes a file-level
+//!    [`CarveNote::Lex`] of a [`LexNote::NearMissKeyword`], at most
+//!    [`MAX_NEAR_MISSES`] of them. Carved objects and orphans are never lexed
+//!    this way, and nothing the earlier rules found changes.
 // T-09 is the first caller outside the tests.
 #![cfg_attr(not(test), allow(dead_code))]
 
@@ -118,6 +127,8 @@ const CLASSIFY_CAP: usize = 64 << 10;
 /// whole carve (and never less than [`CLASSIFY_CAP`]), so a file of small
 /// deflate bombs cannot make the carve's work outgrow the file.
 const CLASSIFY_BUDGET_PER_BYTE: usize = 16;
+/// Most near-miss keywords rule 7 notes; the rest are not looked for.
+pub(crate) const MAX_NEAR_MISSES: usize = 1_000;
 /// Most entries an object stream may declare (our own bound; lopdf caps a
 /// file at the same million objects).
 pub(crate) const MAX_OBJSTM_ENTRIES: i64 = 1_000_000;
@@ -165,7 +176,8 @@ pub(crate) struct CarveReport {
     pub(crate) eof_markers: Vec<u64>,
     /// Every top-level `/Type /XRef` stream, in byte order (rule 5).
     pub(crate) xref_streams: Vec<XrefStream>,
-    /// Notes about the file rather than one object.
+    /// Notes about the file rather than one object, among them rule 7's
+    /// near-miss keywords outside every object.
     pub(crate) notes: Vec<CarveNote>,
     pub(crate) stats: CarveStats,
 }
@@ -308,7 +320,8 @@ pub(crate) enum CarveNote {
     /// A cap was reached and the rest was not carved.
     CapHit(Cap),
     /// The lexer tolerated something in the object's value. For a packed
-    /// object, `at` counts in its container's decoded data.
+    /// object, `at` counts in its container's decoded data. Among the
+    /// report's own notes it is a rule 7 near-miss keyword, at a file offset.
     Lex(LexNote),
     /// On an object stream: none of it was expanded.
     ObjStmRejected(ObjStmFault),
@@ -332,6 +345,8 @@ pub(crate) enum Cap {
     Objects,
     /// [`MAX_XREF_ROWS`].
     XrefRows,
+    /// [`MAX_NEAR_MISSES`].
+    NearMisses,
 }
 
 /// Why an object stream was not expanded.
@@ -589,6 +604,7 @@ fn carve_with(buf: &[u8], cancel: &dyn Fn() -> bool, caps: Caps) -> Result<Carve
         &mut report,
     )?;
     report.stats.rungs.add(ladder.rungs);
+    gaps::near_misses(buf, &lm, &mut poll, &mut report)?;
     Ok(report)
 }
 

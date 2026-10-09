@@ -73,8 +73,9 @@
 //!   Errors repaired in part, an `Ambiguous` one listing every survivor's
 //!   edits. A font stream whose stored bytes C7 or C8 found blank is theirs,
 //!   not C9's: it holds no zlib data to repair. A near-miss keyword the lexer
-//!   read (`C9-outside-stream`) is a Warning on its object, marked
-//!   `Metric{"salvage": "OutsideStream"}`.
+//!   read (`C9-outside-stream`) is a Warning on its object, or on its byte
+//!   span when the carver's near-miss lex found it outside every object,
+//!   marked `Metric{"salvage": "OutsideStream"}`.
 //! - None of these run on an encrypted file: its streams are ciphertext.
 //! - **OutlinedText**: a page whose content fills paths of three or more
 //!   curve segments, counted with their contours. **Type3Text**: one per
@@ -1789,11 +1790,30 @@ fn edit_list(edits: &[Edit]) -> String {
 pub(crate) const OUTSIDE_STREAM: &str = "OutsideStream";
 
 /// `C9-outside-stream`: a keyword the lexer read one byte off, in a
-/// top-level object (in a packed one it is the object stream's data). The
-/// carver does not lex in near-miss mode yet, so only a carve that carries
-/// the note gets here.
+/// top-level object (in a packed one it is the object stream's data), or
+/// outside every object, where the carver's near-miss lex (its rule 7)
+/// finds it. One outside every object is located by its byte span: the run
+/// of regular bytes from the note's offset, at least one byte.
 fn near_misses(cx: &Cx<'_>) -> Vec<Draft> {
     let mut out = Vec::new();
+    let mut warn = |at: u64, location: Location, place: String| {
+        let from = usize::try_from(at)
+            .unwrap_or(usize::MAX)
+            .min(cx.bytes.len());
+        out.push(
+            Draft::corruption(C9ZlibTampered, Severity::Warning, at, location)
+                .summary(format!(
+                    "C9-outside-stream: a keyword one byte off at byte {at} {place}"
+                ))
+                .evidence(vec![
+                    Evidence::Metric {
+                        name: "salvage".to_owned(),
+                        value: MetricValue::Text(OUTSIDE_STREAM.to_owned()),
+                    },
+                    Evidence::HexWindow(HexWindow::new(at, &cx.bytes[from..])),
+                ]),
+        );
+    };
     for o in cx
         .carve
         .objects
@@ -1804,28 +1824,30 @@ fn near_misses(cx: &Cx<'_>) -> Vec<Draft> {
             let CarveNote::Lex(LexNote::NearMissKeyword { at }) = *note else {
                 continue;
             };
-            let from = usize::try_from(at)
-                .unwrap_or(usize::MAX)
-                .min(cx.bytes.len());
             let location = Location::Object {
                 id: o.declared_id,
                 span: Some(o.span),
             };
-            out.push(
-                Draft::corruption(C9ZlibTampered, Severity::Warning, at, location)
-                    .summary(format!(
-                        "C9-outside-stream: a keyword one byte off at byte {at} in {} {} obj",
-                        o.declared_id.0, o.declared_id.1
-                    ))
-                    .evidence(vec![
-                        Evidence::Metric {
-                            name: "salvage".to_owned(),
-                            value: MetricValue::Text(OUTSIDE_STREAM.to_owned()),
-                        },
-                        Evidence::HexWindow(HexWindow::new(at, &cx.bytes[from..])),
-                    ]),
-            );
+            let (num, generation) = o.declared_id;
+            warn(at, location, format!("in {num} {generation} obj"));
         }
+    }
+    for note in &cx.carve.notes {
+        let CarveNote::Lex(LexNote::NearMissKeyword { at }) = *note else {
+            continue;
+        };
+        let from = usize::try_from(at)
+            .unwrap_or(usize::MAX)
+            .min(cx.bytes.len());
+        let run = cx.bytes[from..]
+            .iter()
+            .take_while(|&&b| lexer::is_reg(b))
+            .count();
+        let span = ByteSpan {
+            start: at,
+            end: at + run.max(1) as u64,
+        };
+        warn(at, Location::Span(span), "outside every object".to_owned());
     }
     out
 }

@@ -1,14 +1,16 @@
-//! The gap sweep (T-07 rule 6; TD §14.5): what lies between the objects.
+//! The gap sweep (T-07 rule 6; TD §14.5): what lies between the objects,
+//! and the near-miss lex over what the sweep left (rule 7, F-07).
 
 use std::ops::Range;
 
 use lopdf::{Dictionary, Object};
 
+use super::landmarks::Landmarks;
 use super::{
-    Cancelled, Cap, CarveNote, CarveReport, Classifier, Ladder, LengthSource, Orphan, Poll,
-    dict_kind, range, region_end, span,
+    Cancelled, Cap, CarveNote, CarveReport, Classifier, Ladder, LengthSource, MAX_NEAR_MISSES,
+    Orphan, Poll, dict_kind, range, region_end, span,
 };
-use crate::pdf::lexer::{self, Lexer, Tok, is_reg, is_ws};
+use crate::pdf::lexer::{self, LexNote, Lexer, Tok, is_reg, is_ws};
 
 /// A gap is read only when it holds at least this many bytes that are
 /// neither whitespace nor comments.
@@ -29,7 +31,7 @@ pub(super) fn sweep(
 ) -> Result<(), Cancelled> {
     let buf = ladder.buf;
     let mut room = max_objects.saturating_sub(report.objects.len());
-    for gap in gaps(ladder, report) {
+    for gap in gaps(buf, ladder.lm, report) {
         poll.tick()?;
         let mut pos = gap.start;
         loop {
@@ -64,10 +66,70 @@ pub(super) fn sweep(
     Ok(())
 }
 
+/// Rule 7: lexes, in near-miss mode, every run of the file outside the
+/// objects, orphans, xref tables, trailers and `startxref` values (the gaps
+/// less their orphans, which holds every unexplained span), and adds each
+/// [`LexNote::NearMissKeyword`] it reads to the report's own notes. No other
+/// lexer note is kept, and nothing the carve found changes. At most
+/// [`MAX_NEAR_MISSES`] notes are kept, then [`CarveNote::CapHit`]. `poll`
+/// ticks once per gap.
+pub(super) fn near_misses(
+    buf: &[u8],
+    lm: &Landmarks,
+    poll: &mut Poll<'_>,
+    report: &mut CarveReport,
+) -> Result<(), Cancelled> {
+    let orphans: Vec<Range<usize>> = report.orphans.iter().map(|o| range(o.span())).collect();
+    let mut found = Vec::new();
+    let mut capped = false;
+    for gap in gaps(buf, lm, report) {
+        poll.tick()?;
+        let first = orphans.partition_point(|o| o.end <= gap.start);
+        let mut from = gap.start;
+        for o in orphans[first..].iter().take_while(|o| o.start < gap.end) {
+            capped |= lex_near_misses(buf, from..o.start.max(from), &mut found);
+            from = from.max(o.end);
+        }
+        capped |= lex_near_misses(buf, from..gap.end.max(from), &mut found);
+        if capped {
+            break;
+        }
+    }
+    report.notes.extend(
+        found
+            .into_iter()
+            .map(|at| CarveNote::Lex(LexNote::NearMissKeyword { at })),
+    );
+    if capped {
+        report.notes.push(CarveNote::CapHit(Cap::NearMisses));
+    }
+    Ok(())
+}
+
+/// Adds the offset of each near-miss keyword in `buf[within]` to `found`,
+/// read with nothing past `within.end` in view. Returns whether `found`
+/// reached [`MAX_NEAR_MISSES`] with more left to read.
+fn lex_near_misses(buf: &[u8], within: Range<usize>, found: &mut Vec<u64>) -> bool {
+    if within.is_empty() {
+        return false;
+    }
+    let mut lx = Lexer::new(&buf[..within.end], within.start).with_near_miss(true);
+    while lx.next() != Tok::Eof {
+        for note in lx.take_notes() {
+            if let LexNote::NearMissKeyword { at } = note {
+                if found.len() == MAX_NEAR_MISSES {
+                    return true;
+                }
+                found.push(at);
+            }
+        }
+    }
+    false
+}
+
 /// The maximal runs of the file no object, xref table, trailer or
 /// `startxref` value covers, in byte order.
-fn gaps(ladder: &Ladder<'_>, report: &CarveReport) -> Vec<Range<usize>> {
-    let (buf, lm) = (ladder.buf, ladder.lm);
+fn gaps(buf: &[u8], lm: &Landmarks, report: &CarveReport) -> Vec<Range<usize>> {
     let mut covered: Vec<Range<usize>> = report
         .objects
         .iter()

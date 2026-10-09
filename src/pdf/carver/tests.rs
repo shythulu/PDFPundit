@@ -1,8 +1,10 @@
 //! T-05 acceptance: the carve of the goldens, the structural corruptors and
 //! the adversarial builders, the header and extent rules on hand-written
-//! bytes, the caps, cancellation and a fuzz run. T-07's are in `carver_b`.
+//! bytes, the caps, cancellation and a fuzz run. T-07's are in `carver_b`,
+//! F-07's near-miss lex in `near_miss`.
 
 mod carver_b;
+mod near_miss;
 
 use std::cell::Cell;
 

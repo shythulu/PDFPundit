@@ -1019,6 +1019,67 @@ fn a_near_miss_keyword_is_a_c9_outside_stream_warning() {
     );
 }
 
+/// The golden with page 1's header keyword one byte off (`3 0 obk`): the
+/// carve finds no object 3, and the near-miss lex reads `obk` in the gap.
+fn with_a_near_miss_header() -> (Vec<u8>, u64) {
+    let mut buf = fixtures::golden_pdf();
+    let at = find(&buf, b"3 0 obj").expect("page 1") + 4;
+    buf[at + 2] = b'k';
+    (buf, at as u64)
+}
+
+#[test]
+fn a_near_miss_keyword_outside_every_object_is_a_c9_outside_stream_warning() {
+    let (buf, at) = with_a_near_miss_header();
+    let found = findings_with(&buf, &SalvageIndex::default());
+    let c9 = of_class(&found, C9ZlibTampered);
+    assert_eq!(c9.len(), 1, "{found:#?}");
+    let f = c9[0];
+    assert_eq!(f.severity, Severity::Warning);
+    assert!(f.summary.starts_with("C9-outside-stream"), "{}", f.summary);
+    assert_eq!(
+        f.location,
+        Location::Span(ByteSpan {
+            start: at,
+            end: at + 3
+        })
+    );
+    assert_eq!(
+        metric(f, "salvage"),
+        Some(&MetricValue::Text(OUTSIDE_STREAM.into()))
+    );
+    assert!(
+        f.evidence
+            .iter()
+            .any(|e| matches!(e, Evidence::HexWindow(w) if w.at() == at)),
+        "{f:#?}"
+    );
+}
+
+#[test]
+fn a_near_miss_outside_every_object_does_not_change_the_other_findings() {
+    let (buf, _) = with_a_near_miss_header();
+    let carve = carved(&buf);
+    let graph = ObjectGraph::from_carve(&carve);
+    let mut without = carved(&buf);
+    without
+        .notes
+        .retain(|n| !matches!(n, CarveNote::Lex(LexNote::NearMissKeyword { .. })));
+    let with: Vec<(FindingKind, Location)> =
+        diagnose(&buf, &carve, &graph, &SalvageIndex::default())
+            .into_iter()
+            .filter(|f| f.class != FindingKind::Corruption(C9ZlibTampered))
+            .map(|f| (f.class, f.location))
+            .collect();
+    let other: Vec<(FindingKind, Location)> =
+        diagnose(&buf, &without, &graph, &SalvageIndex::default())
+            .into_iter()
+            .map(|f| (f.class, f.location))
+            .collect();
+    assert!(!other.is_empty());
+    assert_eq!(with, other);
+}
+
 #[test]
 fn under_a_real_salvage_the_font_corruptors_are_not_also_c9() {
     // C7 and C8 blank the zlib data, which the salvage cannot decode: the
