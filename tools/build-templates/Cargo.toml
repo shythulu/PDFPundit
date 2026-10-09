@@ -2,6 +2,7 @@
 name = "build-templates"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 # A dev-time tool for this repository's assets; never published (D-047).
 publish = false
 

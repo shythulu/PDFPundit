@@ -15,3 +15,8 @@ output and writes a run report for the case file. There is no command-line
 version. The cat is not optional.
 
 Design and plans live in `nimbalyst-local/plans/`.
+
+## License
+
+MIT, see `LICENSE`. Data compiled into the binary (fonts, glyph lists, the
+DarkBerry palette) carries its own terms, listed in `THIRD_PARTY_NOTICES.md`.

@@ -3,6 +3,7 @@
 PDFPundit's binary carries data from third parties beyond the licences its crates
 declare in their manifests. `cargo deny check licenses` (see `deny.toml`) covers the
 crates; this file covers the data compiled into them, which no manifest declares.
+PDFPundit itself is released under the MIT License (see `LICENSE`).
 
 ## Foxit standard-14 substitute fonts (via hayro-interpret 0.8.0)
 
@@ -145,9 +146,8 @@ of PDFPundit's author, shythulu, and its repository `LICENSE` is the MIT License
 copyright (c) 2026 shythulu. The same `LICENSE` credits portions "(VS Code token
 scopes and workbench structure)" to germainelry's Pixel Berry theme, MIT licensed;
 that portion covers the VS Code theme's structure only, and none of it is in the
-palette file this binary carries. The notice text, from the repository's `LICENSE`
-(the wording is to be confirmed by the author before the first public binary,
-D-091):
+palette file this binary carries. The notice text, from the DarkBerry repository's
+`LICENSE` (wording confirmed by the author on 2026-10-08, D-091):
 
 ```
 MIT License

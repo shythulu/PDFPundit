@@ -3,6 +3,7 @@ name = "pdfpundit"
 version = "0.1.0"
 edition = "2024"
 resolver = "3"
+license = "MIT"
 # Never published (D-047): a crates.io release would be a cat-free way in.
 publish = false
 

@@ -1,6 +1,6 @@
 # Dependency policy for `cargo deny` (plan §3.2, FR-g3): licences, bans, sources.
-# The licence list is unchanged by F-10. This is a policy for dependencies,
-# not the project's own licence, which is the user's decision (D-046).
+# The licence list is unchanged by F-10. The project itself is MIT (LICENSE,
+# D-046, decided 2026-10-08), which this list allows.
 # No licence exceptions: a package whose licence is not on this list fails the gate.
 
 [licenses]
@@ -19,11 +19,6 @@ allow = [
   "BSL-1.0",
   "CC0-1.0",
 ]
-
-# This crate is `publish = false` (D-047) and has no licence yet (D-046); skip it,
-# check every dependency.
-[licenses.private]
-ignore = true
 
 # Dependency gates beyond licences (F-10). A second version of any crate fails
 # the gate unless it is listed here; each skip names one exact version, so a
