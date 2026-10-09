@@ -22,9 +22,6 @@
 //! tier": where a filesystem does not support a tier it still reports a present
 //! destination as EEXIST, so "unsupported" means the name was free at that
 //! instant.
-// The shell (T-23a) wires this module and has not landed.
-// TODO(T-23a): remove this allow once the shell uses it.
-#![allow(dead_code)]
 
 use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
@@ -141,7 +138,7 @@ impl TempFile {
         let pid = std::process::id();
         for _ in 0..1_000 {
             let n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-            let path = dir.join(format!(".pdfpundit-{pid}-{n}.tmp"));
+            let path = dir.join(format!("{TEMP_PREFIX}{pid}-{n}{TEMP_SUFFIX}"));
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(file) => {
                     drop(file);
@@ -161,6 +158,7 @@ impl TempFile {
         ))
     }
 
+    #[cfg(test)]
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -187,6 +185,7 @@ impl TempFile {
         inputs: &BatchInputs,
     ) -> io::Result<(PathBuf, Placed)> {
         check_component(stem)?;
+        sweep_stale_temps(&self.dir);
         let mut file = reopen(&self.path)?;
         file.write_all(bytes)?;
         file.sync_all()?;
@@ -211,6 +210,89 @@ impl TempFile {
             ErrorKind::AlreadyExists,
             format!("every name up to {stem} ({MAX_SUFFIX}).{ext} is taken"),
         ))
+    }
+}
+
+/// The temp files' names: `.pdfpundit-<pid>-<n>.tmp`.
+const TEMP_PREFIX: &str = ".pdfpundit-";
+const TEMP_SUFFIX: &str = ".tmp";
+
+/// The pid in a temp file's name, when `name` is exactly
+/// `.pdfpundit-<pid>-<n>.tmp` with both numbers in decimal digits.
+fn temp_owner(name: &str) -> Option<u32> {
+    let rest = name.strip_prefix(TEMP_PREFIX)?.strip_suffix(TEMP_SUFFIX)?;
+    let (pid, n) = rest.split_once('-')?;
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    if !digits(pid) || !digits(n) {
+        return None;
+    }
+    pid.parse().ok()
+}
+
+/// Removes the temp files a PDFPundit that is no longer running left in
+/// `dir` (D-139): each regular file named `.pdfpundit-<pid>-<n>.tmp` whose pid
+/// is not a running process. Only `dir` itself, never a folder below it, and
+/// nothing else in it; a running process's files (this one's, another
+/// PDFPundit's) are left alone. Called at start-up on `output_dir` and before
+/// each placement on its destination. Returns how many it removed; a folder
+/// it cannot read or a file it cannot remove is skipped.
+pub fn sweep_stale_temps(dir: &Path) -> usize {
+    sweep_with(dir, &process_running)
+}
+
+fn sweep_with(dir: &Path, running: &dyn Fn(u32) -> bool) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid) = name.to_str().and_then(temp_owner) else {
+            continue;
+        };
+        // `file_type` does not follow a symlink: only our own regular files.
+        let is_file = entry.file_type().is_ok_and(|t| t.is_file());
+        if is_file && !running(pid) && fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+/// Whether `pid` names a running process. Unsure counts as running, so a
+/// file is only ever removed when its process is known to be gone.
+#[cfg(unix)]
+fn process_running(pid: u32) -> bool {
+    use rustix::io::Errno;
+    use rustix::process::{Pid, test_kill_process};
+    // Pid 0 and anything past `i32::MAX` are never a process of ours.
+    let Some(pid) = i32::try_from(pid).ok().and_then(Pid::from_raw) else {
+        return true;
+    };
+    // kill(pid, 0): ESRCH is "no such process"; EPERM is someone else's.
+    !matches!(test_kill_process(pid), Err(Errno::SRCH))
+}
+
+/// Whether `pid` names a running process: one `OpenProcess` refuses as an
+/// invalid parameter is gone, and so is one that has an exit code.
+#[cfg(windows)]
+fn process_running(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, ERROR_INVALID_PARAMETER, GetLastError, STILL_ACTIVE,
+    };
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    // SAFETY: plain calls; the handle is closed before returning.
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return GetLastError() != ERROR_INVALID_PARAMETER;
+        }
+        let mut code = 0u32;
+        let ok = GetExitCodeProcess(handle, &mut code);
+        CloseHandle(handle);
+        ok == 0 || code == STILL_ACTIVE as u32
     }
 }
 
@@ -275,11 +357,6 @@ fn check_component(name: &str) -> io::Result<()> {
     } else {
         Ok(())
     }
-}
-
-/// [`TempFile::create`] then [`TempFile::place`] in `dir`, with no batch.
-pub fn write_new(dir: &Path, stem: &str, ext: &str, bytes: &[u8]) -> io::Result<(PathBuf, Placed)> {
-    TempFile::create(dir)?.place(stem, ext, bytes, &BatchInputs::new())
 }
 
 /// Moves `tmp` onto `dst` without ever replacing an existing `dst`. Both must
@@ -409,9 +486,11 @@ fn unsupported(e: &io::Error) -> bool {
 }
 
 // ── image directories (D-060) ────────────────────────────────────────────
+// Only the Markdown export writes them, so a build without `export` has none.
 
 /// Where a set of extracted images went, and whether an identical directory
 /// already held them (nothing was written).
+#[cfg(any(test, feature = "export"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImagesDir {
     pub path: PathBuf,
@@ -421,6 +500,7 @@ pub struct ImagesDir {
 /// `<first 8 hex of sha256(input)>.images`: named from the input's bytes
 /// only, never from its file name or from what is on disk, so the same bytes
 /// give the same links under any name (D-060, amended by F-02).
+#[cfg(any(test, feature = "export"))]
 pub fn images_dir_name(input_sha256: &[u8; 32]) -> String {
     let hash: String = input_sha256[..4]
         .iter()
@@ -435,6 +515,7 @@ pub fn images_dir_name(input_sha256: &[u8; 32]) -> String {
 /// images go to `<hash> (N).images` instead. The directory is created
 /// with `create_dir` (atomic) and every child with `create_new`; there is no
 /// staging directory.
+#[cfg(any(test, feature = "export"))]
 pub fn write_images(
     dir: &Path,
     input_sha256: &[u8; 32],
@@ -485,6 +566,7 @@ pub fn write_images(
 
 /// True when `path` is a real directory (not a symlink) whose entries are
 /// exactly `files`, each a regular file with the same bytes.
+#[cfg(any(test, feature = "export"))]
 fn holds_exactly(path: &Path, files: &[(String, Vec<u8>)]) -> io::Result<bool> {
     if !fs::symlink_metadata(path)?.is_dir() {
         return Ok(false);
@@ -508,7 +590,7 @@ fn holds_exactly(path: &Path, files: &[(String, Vec<u8>)]) -> io::Result<bool> {
 }
 
 #[cfg(test)]
-pub(crate) use tests::{ScratchDir, names_in};
+pub(crate) use tests::{ScratchDir, gone_pid, names_in};
 
 #[cfg(test)]
 mod tests {
@@ -547,6 +629,11 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    /// [`TempFile::create`] then [`TempFile::place`] in `dir`, with no batch.
+    fn write_new(dir: &Path, stem: &str, ext: &str, bytes: &[u8]) -> io::Result<(PathBuf, Placed)> {
+        TempFile::create(dir)?.place(stem, ext, bytes, &BatchInputs::new())
     }
 
     pub(crate) fn names_in(dir: &Path) -> Vec<String> {
@@ -765,6 +852,97 @@ mod tests {
             .place("b.repaired", "pdf", b"x", &BatchInputs::new())
             .expect_err("vanished");
         assert_eq!(e.kind(), ErrorKind::NotFound);
+        drop(waiting);
+        assert_eq!(dir.names(), ["a.repaired.pdf"]);
+    }
+
+    #[test]
+    fn only_a_gone_processs_temp_files_in_the_folder_itself_are_swept() {
+        let dir = ScratchDir::new("place-sweep");
+        let gone = |pid: u32| pid != 7 && pid != 8;
+        for name in [
+            ".pdfpundit-5-0.tmp",
+            ".pdfpundit-5-12.tmp",
+            ".pdfpundit-7-0.tmp",
+            ".pdfpundit-8-3.tmp",
+            "pdfpundit-5-0.tmp",
+            ".pdfpundit-5-0.tmp.bak",
+            ".pdfpundit-5-x.tmp",
+            ".pdfpundit--0.tmp",
+            ".pdfpundit-5.tmp",
+            ".pdfpundit-+5-0.tmp",
+            "a.pdf",
+        ] {
+            fs::write(dir.join(name), b"x").expect("write");
+        }
+        fs::create_dir(dir.join(".pdfpundit-5-9.tmp")).expect("a folder");
+        fs::create_dir(dir.join("below")).expect("mkdir");
+        fs::write(dir.join("below/.pdfpundit-5-0.tmp"), b"x").expect("write");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(dir.join("a.pdf"), dir.join(".pdfpundit-5-4.tmp"))
+            .expect("symlink");
+
+        assert_eq!(sweep_with(dir.path(), &|pid| !gone(pid)), 2);
+        let mut kept = vec![
+            ".pdfpundit-+5-0.tmp",
+            ".pdfpundit--0.tmp",
+            ".pdfpundit-5-0.tmp.bak",
+            ".pdfpundit-5-9.tmp",
+            ".pdfpundit-5-x.tmp",
+            ".pdfpundit-5.tmp",
+            ".pdfpundit-7-0.tmp",
+            ".pdfpundit-8-3.tmp",
+            "a.pdf",
+            "below",
+            "pdfpundit-5-0.tmp",
+        ];
+        if cfg!(unix) {
+            kept.push(".pdfpundit-5-4.tmp");
+            kept.sort();
+        }
+        assert_eq!(dir.names(), kept);
+        assert_eq!(names_in(&dir.join("below")), [".pdfpundit-5-0.tmp"]);
+        assert_eq!(sweep_with(&dir.join("nowhere"), &|_| false), 0);
+    }
+
+    /// The pid of a process that has exited: a child that ran no test and
+    /// has been waited for.
+    pub(crate) fn gone_pid() -> u32 {
+        let mut child = std::process::Command::new(std::env::current_exe().expect("exe"))
+            .args(["--exact", "no such test"])
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn");
+        let pid = child.id();
+        child.wait().expect("wait");
+        pid
+    }
+
+    #[test]
+    fn a_process_that_has_exited_is_not_running_and_this_one_is() {
+        assert!(process_running(std::process::id()));
+        assert!(!process_running(gone_pid()));
+    }
+
+    #[test]
+    fn placing_sweeps_a_gone_processs_temp_files_and_keeps_its_own() {
+        let dir = ScratchDir::new("place-sweep-place");
+        let stale = format!(".pdfpundit-{}-0.tmp", gone_pid());
+        fs::write(dir.join(&stale), b"half an output").expect("write");
+        let ours = TempFile::create(dir.path()).expect("temp");
+        let waiting = TempFile::create(dir.path()).expect("temp");
+        let waiting_name = waiting.path().file_name().expect("name").to_owned();
+
+        let (path, _) = ours
+            .place("a.repaired", "pdf", b"out", &BatchInputs::new())
+            .expect("placed");
+        assert_eq!(fs::read(&path).expect("read"), b"out");
+        let names = dir.names();
+        assert!(!names.contains(&stale), "{names:?}");
+        assert!(
+            names.contains(&waiting_name.to_string_lossy().into_owned()),
+            "a live temp file stays: {names:?}"
+        );
         drop(waiting);
         assert_eq!(dir.names(), ["a.repaired.pdf"]);
     }

@@ -780,7 +780,7 @@ fn a_typed_burst_in_the_picker_is_a_drop_on_windows() {
     }
     app.tick(Duration::from_secs(20));
     assert_eq!(app.admitted.len(), 1);
-    assert_eq!(app.admitted[0].path, dropped);
+    assert_eq!(app.admitted[0].0.path, dropped);
     let Screen::Browse(picker) = &app.state.screen else {
         panic!("the picker stays open");
     };
@@ -1425,3 +1425,193 @@ fn e_on_a_pasted_pdf_writes_its_markdown_beside_it() {
 }
 
 mod fonts;
+
+// ── shell fixes (F-06) ──────────────────────────────────────────────────
+
+/// `rows` from column `x`, `w` cells wide, rows `y..y + h`.
+fn window(rows: &[String], x: usize, y: usize, w: usize, h: usize) -> Vec<String> {
+    rows[y..y + h]
+        .iter()
+        .map(|r| r.chars().skip(x).take(w).collect())
+        .collect()
+}
+
+/// Every row of `rows` outside the `w × h` window at `(x, y)` is blank.
+fn blank_around(rows: &[String], x: usize, y: usize, w: usize, h: usize) -> bool {
+    rows.iter().enumerate().all(|(row, r)| {
+        r.chars()
+            .enumerate()
+            .all(|(col, ch)| ch == ' ' || ((x..x + w).contains(&col) && (y..y + h).contains(&row)))
+    })
+}
+
+#[test]
+fn the_layout_is_centred_in_a_larger_terminal() {
+    // The full layout at 140 × 50: 14 columns and 6 rows either side. The
+    // status bar names the terminal's size, so it is compared apart.
+    let (_, exact) = started(112, 38, &config::Ui::default());
+    let (app, big) = started(140, 50, &config::Ui::default());
+    assert_eq!(app.kind, LayoutKind::Full);
+    let (exact, big) = (exact.rows(), big.rows());
+    let inside = window(&big, 14, 6, 112, 38);
+    assert_eq!(inside[..37], exact[..37]);
+    assert!(inside[37].contains("140×50"), "{}", inside[37]);
+    assert!(blank_around(&big, 14, 6, 112, 38));
+
+    // An odd margin: the extra column and row go right and below.
+    let (_, odd) = started(115, 41, &config::Ui::default());
+    assert_eq!(window(&odd.rows(), 1, 1, 112, 37), exact[..37]);
+
+    // The widget at 40 × 20.
+    let (_, exact) = started(32, 16, &config::Ui::default());
+    let (_, big) = started(40, 20, &config::Ui::default());
+    let (exact, big) = (exact.rows(), big.rows());
+    assert_eq!(window(&big, 4, 2, 32, 16), exact);
+    assert!(blank_around(&big, 4, 2, 32, 16));
+
+    // The one-line fallback stays on the first row, from the first column.
+    let (_, small) = started(31, 15, &config::Ui::default());
+    assert!(
+        small.rows()[0].starts_with(strings::FACE),
+        "{:?}",
+        small.rows()
+    );
+}
+
+#[test]
+fn a_kitty_drag_is_measured_from_the_centred_layout() {
+    let mut clock = FakeClock::new();
+    let (mut exact, mut exact_screen) = started(112, 38, &config::Ui::default());
+    script(
+        &mut exact,
+        &mut exact_screen,
+        &mut clock,
+        vec![drag(50, 20)],
+    );
+
+    // At 140 × 50 the drop zone (columns 27–84, rows 8–33) is 14 × 6 in:
+    // (30, 9) is above it, (95, 30) on the cat, (114, 26) right of it.
+    let (mut app, mut screen) = started(140, 50, &config::Ui::default());
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drag(30, 9), drag(95, 30), drag(114, 26)],
+    );
+    assert_eq!(wire(&screen), [DECLINE, ACCEPT, DECLINE].concat());
+    // The cat watches the cell it watches at 112 × 38.
+    script(&mut app, &mut screen, &mut clock, vec![drag(64, 26)]);
+    let now = Duration::from_secs(1);
+    assert_eq!(app.director.frame(now), exact.director.frame(now));
+
+    // The widget at 40 × 20, 4 × 2 in: its plate's columns 1–30 are 5–34.
+    let (mut app, mut screen) = started(40, 20, &config::Ui::default());
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![drag(2, 1), drag(14, 7), drag(35, 7)],
+    );
+    assert_eq!(wire(&screen), [DECLINE, ACCEPT, DECLINE].concat());
+}
+
+/// D-134: at 20 × 1 a refused drop's hint replaces the counts until the next
+/// key or resize.
+#[test]
+fn the_one_line_fallback_shows_a_refusal_until_a_key_or_resize() {
+    let (mut app, mut screen) = started(25, 1, &config::Ui::default());
+    let mut clock = FakeClock::new();
+    let refused = paste_of(&[Path::new("/nowhere/a.pdf")]);
+    let hint = format!("{} {}", strings::FACE, strings::TOO_SMALL_TO_EAT);
+    let first = |screen: &TestScreen| screen.rows()[0].clone();
+
+    script(&mut app, &mut screen, &mut clock, vec![refused.clone()]);
+    assert!(hint.starts_with(&first(&screen)), "{}", first(&screen));
+    script(&mut app, &mut screen, &mut clock, ticks(3));
+    assert!(
+        hint.starts_with(&first(&screen)),
+        "it stays while time passes"
+    );
+
+    script(&mut app, &mut screen, &mut clock, vec![code(KeyCode::Left)]);
+    assert_eq!(first(&screen).trim_end(), strings::FACE, "a key clears it");
+
+    script(
+        &mut app,
+        &mut screen,
+        &mut clock,
+        vec![refused, Input::Resize(25, 1)],
+    );
+    assert_eq!(app.state.hint, None, "so does a resize");
+    assert_eq!(first(&screen).trim_end(), strings::FACE);
+}
+
+/// D-132: an export whose images had to go to `(N)` says so on the hint row,
+/// which the batch view shows, as well as in the debug log.
+#[test]
+fn an_images_directory_clash_is_on_the_hint_row() {
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    finished_queue(&mut app, 2);
+    let done = |clash| JobEvent::ExportDone {
+        path: PathBuf::from("/out/f1.md"),
+        images_clash: clash,
+    };
+    app.on_job(JobId(1), done(false), 0, None);
+    assert_eq!(app.state.hint, None);
+    app.on_job(JobId(2), done(true), 0, None);
+    assert_eq!(app.state.hint, Some(strings::IMAGES_CLASH));
+    app.refresh(Duration::ZERO);
+    app.render(&mut screen, Duration::ZERO).unwrap();
+    assert!(
+        screen
+            .rows()
+            .iter()
+            .any(|r| r.contains(strings::IMAGES_CLASH)),
+        "{:#?}",
+        screen.rows()
+    );
+}
+
+/// D-132: with a log file attached, every line the loop logs, those from
+/// before it too, is on disk.
+#[test]
+fn the_debug_log_is_written_to_the_cache_dir() {
+    let dir = ScratchDir::new("app-debug-log");
+    let (mut app, _) = started(112, 38, &config::Ui::default());
+    app.log("before the file".into());
+    app.attach_log(debug_log::DebugLog::open(dir.path()).unwrap());
+    send(&mut app, paste_of(&[Path::new("/nowhere/notes.txt")]));
+    let text = std::fs::read_to_string(dir.join(debug_log::FILE)).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert!(lines[0].starts_with("--- pdfpundit "), "{text}");
+    assert_eq!(lines[1], "before the file");
+    assert!(
+        lines[2].starts_with("drop refused: ") && lines[2].contains("/nowhere/notes.txt"),
+        "{text}"
+    );
+    assert_eq!(app.debug_log.len(), 2, "the in-memory log is kept as well");
+}
+
+/// D-139: start-up sweeps `output_dir` of the temp files a PDFPundit that is
+/// no longer running left there; beside-the-input folders wait for their
+/// placements.
+#[test]
+fn start_up_sweeps_the_output_dir_of_stale_temp_files() {
+    let dir = ScratchDir::new("app-sweep");
+    let stale = format!(".pdfpundit-{}-0.tmp", crate::place::gone_pid());
+    let live = format!(".pdfpundit-{}-0.tmp", std::process::id());
+    for name in [stale.as_str(), live.as_str(), "kept.pdf"] {
+        std::fs::write(dir.join(name), b"x").unwrap();
+    }
+    let mut config = Config::default();
+    assert_eq!(sweep_output_dir(&config), None);
+    assert_eq!(dir.names().len(), 3);
+
+    config.general.output_dir = OutputDir::Dir(dir.path().to_path_buf());
+    let line = sweep_output_dir(&config).expect("a log line");
+    assert!(line.contains("removed 1 stale temp file"), "{line}");
+    let mut want = vec![live, "kept.pdf".to_owned()];
+    want.sort();
+    assert_eq!(dir.names(), want);
+    assert_eq!(sweep_output_dir(&config), None, "nothing left to remove");
+}

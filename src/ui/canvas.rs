@@ -252,6 +252,27 @@ impl Canvas {
         }
     }
 
+    /// Copies every cell of `src`, and its blinking cells, with `src`'s
+    /// top-left cell at `(x, y)` (a layout centred in a larger terminal).
+    /// What falls past this canvas's edge is dropped.
+    pub fn paste(&mut self, src: &Canvas, x: u16, y: u16) {
+        for sy in 0..src.h {
+            for sx in 0..src.w {
+                let (Some(tx), Some(ty)) = (x.checked_add(sx), y.checked_add(sy)) else {
+                    continue;
+                };
+                if tx >= self.w || ty >= self.h {
+                    continue;
+                }
+                let i = self.index(tx, ty);
+                self.cells[i] = src.cells[src.index(sx, sy)];
+                if src.blink.contains(&(sx, sy)) {
+                    self.blink.insert((tx, ty));
+                }
+            }
+        }
+    }
+
     /// generate.py's `pix` for one cell: the given pixels over what is there.
     fn pixel_pair(&mut self, x: i32, y: i32, top: Option<Rgb>, bottom: Option<Rgb>) {
         if top.is_none() && bottom.is_none() {
@@ -659,6 +680,32 @@ mod tests {
             );
         }
         assert!(c.blink.is_empty());
+    }
+
+    #[test]
+    fn a_pasted_canvas_lands_at_its_offset_blink_and_all() {
+        let red = Some(slot('R'));
+        let mut src = Canvas::new(3, 2, theme());
+        src.put(0, 0, 'a', red, None);
+        src.put(2, 1, 'b', None, red);
+        src.set_blink(2, 1);
+        let mut c = Canvas::new(5, 3, theme());
+        c.paste(&src, 1, 1);
+        let text: Vec<String> = (0..3)
+            .map(|y| (0..5).map(|x| c.get(x, y).expect("cell").ch).collect())
+            .collect();
+        assert_eq!(text, ["     ", " a   ", "   b "]);
+        assert_eq!(c.get(1, 1), src.get(0, 0));
+        assert_eq!(c.get(3, 2), src.get(2, 1));
+        assert_eq!(c.blink.iter().copied().collect::<Vec<_>>(), [(3, 2)]);
+
+        // Past the edge: dropped.
+        let mut small = Canvas::new(2, 2, theme());
+        small.paste(&src, 1, 1);
+        assert_eq!(small.get(1, 1).map(|k| k.ch), Some('a'));
+        assert!(small.blink.is_empty());
+        small.paste(&src, u16::MAX, u16::MAX);
+        assert_eq!(small.cells.len(), 4);
     }
 
     #[test]

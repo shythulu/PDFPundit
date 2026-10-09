@@ -9,9 +9,6 @@
 //! `[fonts] unreproducible` and `[repair] salvage_*` / `max_search_stream`
 //! knobs (SE Q3, D-041, D-056, D-072). `threads` and the scratch cap are not
 //! knobs because they never change output.
-// The shell (T-23b) loads the config; until it lands only the tests use this.
-// TODO(T-23b): remove this allow once the shell calls `Config::load`.
-#![allow(dead_code)]
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -248,6 +245,9 @@ impl Config {
     }
 
     /// The config as a complete `config.toml`; [`parse`] reads it back equal.
+    /// The tests' round trip is its only caller until a setup screen writes
+    /// the file (D-048).
+    #[cfg(test)]
     pub fn to_toml(&self) -> String {
         use toml::{Table, Value};
         let s = |v: &str| Value::String(v.to_string());
@@ -585,6 +585,7 @@ fn page_size(v: &toml::Value) -> Option<PageSize> {
     (w_pt > 0 && h_pt > 0).then_some(PageSize::Custom { w_pt, h_pt })
 }
 
+#[cfg(test)]
 fn page_size_name(size: PageSize) -> String {
     match size {
         PageSize::A4 => "A4".into(),
@@ -598,6 +599,7 @@ fn page_size_name(size: PageSize) -> String {
 /// and parsed, so it round-trips through [`confidence`] whenever it has at most
 /// 15 significant digits. Any other ratio (`1/3`) is only approximated and does
 /// not round-trip.
+#[cfg(test)]
 fn ratio_f64(r: Ratio) -> f64 {
     let digits = (0..=18u32).find(|&k| 10u64.checked_pow(k) == Some(r.den));
     match digits {

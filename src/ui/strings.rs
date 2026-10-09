@@ -394,6 +394,10 @@ pub const EXPORT_MARKDOWN: &str = "Export → Markdown";
 /// The hint row's word when an export cannot run: the file left the queue
 /// before it started (T-32b).
 pub const EXPORT_UNAVAILABLE: &str = "can't export that file: drop it again";
+/// The hint row's word when an export's content-named images folder already
+/// held other files, so its images and links went to a numbered one (D-125,
+/// D-132); the debug log names both folders.
+pub const IMAGES_CLASH: &str = "images went to a numbered folder: the usual one held other files";
 
 /// The last row of a findings or fonts list that has more entries than rows:
 /// how many are not shown (`{n}`).
@@ -683,6 +687,7 @@ pub const ALL: &[&str] = &[
     "Reveal in folder",
     EXPORT_MARKDOWN,
     EXPORT_UNAVAILABLE,
+    IMAGES_CLASH,
     "Re-diagnose",
     "Repair options…",
     "Copy report",

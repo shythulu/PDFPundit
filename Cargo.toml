@@ -45,8 +45,9 @@ percent-encoding = "2.3"
 
 [target.'cfg(unix)'.dependencies]
 # `event`: poll(2) for the kitty handshake's 300 ms window and the raw stdin
-# reader (T-31); code only, no new package.
-rustix = { version = "1.1.4", default-features = false, features = ["std", "stdio", "fs", "termios", "event"] }
+# reader (T-31); `process`: kill(pid, 0), whether a stale temp file's process
+# still runs (D-139). Code only, no new package.
+rustix = { version = "1.1.4", default-features = false, features = ["std", "stdio", "fs", "termios", "event", "process"] }
 # SIGWINCH for the raw stdin reader on kitty (T-31). Already in the graph
 # through crossterm; no default features, so never `extended-siginfo` (cc).
 signal-hook = { version = "0.3.18", default-features = false }
@@ -60,6 +61,9 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Console",
   # GetLocalTime, the status bar's clock (T-23a).
   "Win32_System_SystemInformation",
+  # OpenProcess and GetExitCodeProcess: whether a stale temp file's process
+  # still runs (D-139).
+  "Win32_System_Threading",
 ] }
 
 [dev-dependencies]

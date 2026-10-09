@@ -14,9 +14,6 @@
 //! The environment variables read are the ones plan §3.1 names: `HOME` (or
 //! `USERPROFILE`) and the three `XDG_*_HOME`, through [`home`] and `xdg_dirs`.
 //! They only locate the config and history, never change engine output.
-// The shell (T-23b) is the caller; until it lands only the tests use this.
-// TODO(T-23b): remove this allow once the shell resolves the dirs.
-#![allow(dead_code)]
 
 use std::path::PathBuf;
 #[cfg(all(unix, any(test, not(target_os = "macos"))))]
@@ -33,11 +30,15 @@ pub struct AppDirs {
 }
 
 /// The `ProjectDirs` qualifier, organisation and application.
+#[cfg(any(test, windows))]
 const ORG: &str = "shythulu";
+#[cfg(any(test, windows))]
 const APP: &str = "PDFPundit";
 /// macOS bundle id: qualifier, organisation, application joined by dots.
+#[cfg(any(test, target_os = "macos"))]
 const BUNDLE: &str = "dev.shythulu.PDFPundit";
 /// The XDG directory name: the application name in lower case.
+#[cfg(all(unix, any(test, not(target_os = "macos"))))]
 const XDG_NAME: &str = "pdfpundit";
 
 impl AppDirs {
