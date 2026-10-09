@@ -465,7 +465,7 @@
       "acceptance": [
         "C4 fixture rebuilds a flat /Pages with the right /Count; the MediaBox fallback chain hits each rung",
         "with_truncated_later_duplicate: the truncated later copy loses; with_duplicate_object: the later well-formed copy wins and the earlier is a shadow",
-        "dangling /Contents matched to the nearest orphan stream with delta evidence; an unmatched dangling ref becomes a Warning finding input"
+        "dangling /Contents matched to the nearest orphan stream with delta evidence; an unmatched dangling ref becomes a Warning finding input (superseded by F-08, D-133: unmatched, generation-matched and position-matched references are RepairActions in the C5 pass's report; `Reconciled::evidence()` and `Unmatched::finding_input()` were removed)"
       ],
       "depends_on": [
         "T-09"
@@ -1543,11 +1543,11 @@
         "src/jobs.rs (JobKind::ExportMarkdown)",
         "src/ui/layout/full.rs (menu item wiring)"
       ],
-      "interfaces": "`pub fn to_markdown(doc: &[PageLayout], opts: &MarkdownOptions { page_separators: bool, image_dir_name: Option<String> }) -> String` (GFM; `![](<stem>.<hash8>.images/p3-1.jpg)` for extracted DCT images whose bytes come from RepairOutcome.images; links from /Annots URI actions; the `<!-- text drawn as outlines on this page (n paths, m contours) was not extracted -->` note when ocr is off); export runs only on request; output `<stem>.md` (`<stem> (N).md` on a clash, bytes unchanged) and `<stem>.<sha256[..8]>.images/` (reused when identical, (N) only for a different existing directory, reported); destination via T-15's destination_for.",
+      "interfaces": "`pub fn to_markdown(doc: &[PageLayout], opts: &MarkdownOptions { page_separators: bool, image_dir_name: Option<String> }) -> String` (GFM; `![](<hash8>.images/p3-1.jpg)` (stem dropped by F-02, D-136) for extracted DCT images whose bytes come from RepairOutcome.images; links from /Annots URI actions; the `<!-- text drawn as outlines on this page (n paths, m contours) was not extracted -->` note when ocr is off); export runs only on request; output `<stem>.md` (`<stem> (N).md` on a clash, bytes unchanged) and `<stem>.<sha256[..8]>.images/` (reused when identical, (N) only for a different existing directory, reported); destination via T-15's destination_for.",
       "acceptance": [
         "golden Markdown for the fixture; a two-column synthetic page reads column-by-column; table rendering; the outlined-page note",
         "an existing report.md survives byte-identical and the export lands in report (2).md",
-        "two exports of one input into one folder give byte-identical .md contents and write the images directory once; a pre-existing foreign <stem>.<hash8>.images/ with different contents never captures the links (the export gets (2) and the report lists it)",
+        "two exports of one input into one folder give byte-identical .md contents and write the images directory once; a pre-existing foreign <hash8>.images/ with different contents never captures the links (the export gets (2) and the report lists it)",
         "the one-shot flow submits Repair then ExportMarkdown for the same entry",
         "the fixtures' .md passes src/engine/artefact_tests.rs's deny-list"
       ],

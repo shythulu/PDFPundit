@@ -138,10 +138,40 @@ file. The names and values are unchanged.
 The four DarkBerry themes (Blackwater, Mire, Fen, Wisp) read their colours from
 the DarkBerry palette, v0.3.0, published at https://darkberry.slacklab.ca/. The
 file is a byte-identical copy of the one vendored with the mockup
-(`nimbalyst-local/mockups/pdfpundit-ansi-bbs/darkberry-palette.json`); a test
-pins it to the hash the UI goldens were dumped with. The palette ships with no
-licence text; its terms are to be confirmed with its author before the first
-public binary (D-046).
+(`nimbalyst-local/mockups/pdfpundit-ansi-bbs/darkberry-palette.json`), and it
+carries the same 180 hex values as the DarkBerry repository's `dist/palette.json`;
+a test pins it to the hash the UI goldens were dumped with. DarkBerry is the work
+of PDFPundit's author, shythulu, and its repository `LICENSE` is the MIT License,
+copyright (c) 2026 shythulu. The same `LICENSE` credits portions "(VS Code token
+scopes and workbench structure)" to germainelry's Pixel Berry theme, MIT licensed;
+that portion covers the VS Code theme's structure only, and none of it is in the
+palette file this binary carries. The notice text, from the repository's `LICENSE`
+(the wording is to be confirmed by the author before the first public binary,
+D-091):
+
+```
+MIT License
+
+Copyright (c) 2026 shythulu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Noto Sans and Noto Serif Regular (`assets/fonts/`)
 
