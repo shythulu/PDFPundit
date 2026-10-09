@@ -15,6 +15,7 @@ Usage (Python 3, standard library only):
 See README.md in this folder for what each frame shows and why.
 """
 import copy
+import hashlib
 import html
 import json
 import math
@@ -992,7 +993,7 @@ QUEUE_A = [
     ('√', 'G', 'contract_signed.pdf', 'clean · nothing to fix', 'D', False),
     ('‼', 'M', 'thesis_ar.pdf', 'needs input · 2 fonts', 'M', True),
     ('√', 'G', 'minutes_q3.pdf', 'repaired · 1 fixed', 'w', False),
-    ('☼', 'C', 'invoice_scan.pdf', 'repairing · C9 salvage', 'C', True),
+    ('☼', 'C', 'invoice_scan.pdf', 'repairing · verifying', 'C', True),
     ('∙', 'D', 'board_deck.pdf', 'queued', 'D', False),
     ('×', 'R', 'payroll_locked.pdf', 'encrypted · decrypt first', 'R', False),
 ]
@@ -1037,24 +1038,25 @@ def frame_batch():
     header(cv, '{w}batch {D}· {c}auto-repair ON ')
     queue_box(cv, 1, 2, 64, QUEUE_A, 4, '{G}3{w}/7 done {D}·{M} 1 needs input {D}·{R} 1 failed')
 
+    # D-117: every datum here has an engine source (see ux-design.md, frame 03).
     ab = Box(cv, 1, 13, 64, 19, title='ANALYSiS » invoice_scan.pdf')
-    ab.line(14, ' {D}PDF {W}1.4 {D}· {W}6{D} pages · {W}1.1{D} MB · {w}Microsoft: Print To PDF')
-    ab.line(16, ' {G}■{w} carve {D}─ {G}■{w} diagnose {D}─ {G}■{w} plan {D}─ '
-                '{C}☼{W} repair {D}─ ∙ emit ─ ∙ verify')
+    ab.line(14, ' {D}PDF {W}1.4 {D}· {W}6{D} pages · {W}1.1{D} MB · {W}212{D} objects carved')
+    ab.line(16, ' {G}■{w} carve {G}■{w} diagnose {G}■{w} salvage {G}■{w} measure '
+                '{G}■{w} repair {C}☼{W} verify')
     cv.blink.add((next(i for i in range(W) if cv.c[16][i][0] == '☼'), 16))
-    ab.line(17, ' {D}toolpath {W}Resave {D}· structural only · keeps outlines')
+    ab.line(17, ' {D}toolpath {w}chosen after verify {D}· candidate {W}1{D} of {W}2')
     ab.sep(18)
     ab.line(19, ' {W}FiNDiNGS {D}streamed as found')
-    ab.line(20, ' {R}[ERR] {W}C9 {w}zlib stream damaged   {D}obj 14 0 · p.3 contents')
-    ab.line(21, ' {Y}[WRN] {W}C3 {w}trailer missing       {D}rebuild from carved /Root')
-    ab.line(22, ' {c}[iNF]    {w}header intact         {D}%PDF-1.4')
-    ab.line(23, ' {c}[iNF]    {w}212 objects carved    {D}6/6 pages found')
+    ab.line(20, ' {R}[ERR] {W}C9 {w}zlib stream damaged   {D}obj 14 0')
+    ab.line(21, ' {Y}[WRN] {W}C3 {w}trailer missing')
+    ab.line(22, ' {c}[iNF]    {w}text as outlines      {D}p.1')
+    ab.line(23, ' {c}[iNF]    {w}digitally signed')
     ab.sep(24)
     ab.line(25, ' {W}LOG')
-    ab.line(26, ' {D}11:42:07 {w}inflate obj 14 0: bad block at byte 2,113')
-    ab.line(27, ' {D}11:42:07 {w}resync at byte 2,176 {D}→ {G}salvaged 88%{w} of stream')
-    ab.line(28, ' {D}11:42:08 {w}rebuilding xref {D}· 212 entries')
-    e = ab.line(29, ' {D}11:42:08 {w}re-linking p.3 /Contents ')
+    ab.line(26, ' {D}11:42 {w}measuring {D}· step 4 of 4')
+    ab.line(27, ' {D}11:42 {w}repairing {D}· candidate 1 of 2')
+    ab.line(28, ' {D}11:42 {Y}warn {w}3 NaN or infinite numbers were written as 0')
+    e = ab.line(29, ' {D}11:42 {w}verifying {D}· candidate 1 of 2 ')
     cv.put(e, 29, '█', 'w')
     cv.blink.add((e, 29))
 
@@ -1123,29 +1125,29 @@ def frame_result():
     queue_box(cv, 1, 2, 50, QUEUE_B, 2, '{G}5{w}/7 done {D}·{R} 1 failed', nw=20)
 
     rb = Box(cv, 52, 2, 59, 30, title='RESULT » thesis_ar.pdf', note='{G}√ repaired')
+    # D-117: every datum here has an engine source (see ux-design.md, frame 05).
     rb.line(4, ' {D}out   {W}thesis_ar.repaired.pdf')
     rb.line(5, ' {D}in    {w}~/cases/2026-091/evidence/')
-    rb.line(6, ' {D}path  {W}TemplateAssemble {D}· 3.8 s · re-diagnosed {G}clean')
+    rb.line(6, ' {D}path  {W}TemplateAssemble {D}· re-diagnosed {G}clean')
     rb.sep(7)
     rb.line(8, ' {W}FiNDiNGS                          {D}before after')
-    rb.line(9, ' {R}[ERR] {W}C2 {w}xref table missing      {R}  ×    {G}√ {D}1,842 obj')
-    rb.line(10, ' {R}[ERR] {W}C8 {w}font resources deleted  {R}  ×    {G}√ {D}2 fonts')
-    rb.line(11, ' {Y}[WRN] {W}C6 {w}font mapping lost       {Y}  ×    {G}√ {D}12 pages')
-    rb.line(12, ' {c}[iNF]    {w}header intact           {D}  ·    ·')
+    rb.line(9, ' {R}[ERR] {W}C2 {w}xref table missing      {R}  ×    {G}√')
+    rb.line(10, ' {R}[ERR] {W}C8 {w}font resources deleted  {R}  ×    {G}√ {D}p.12')
+    rb.line(11, ' {Y}[WRN] {W}C6 {w}font mapping lost       {Y}  ×    {G}√ {D}p.12')
+    rb.line(12, ' {R}[ERR] {W}C9 {w}zlib stream damaged     {R}  ×    {G}√ {D}obj 14 0')
     rb.sep(13)
-    rb.line(14, ' {W}RECOVERY')
-    rb.line(15, ' {D}pages   {W}214{D}/{W}214')
-    cv.bar(76, 15, 26, 1.0, T['ok'])
-    rb.line(16, ' {D}text    {W}96%')
-    cv.bar(76, 16, 26, .96, T['ok'])
-    rb.line(17, ' {D}images  {W}31{D}/{W}32')
-    cv.bar(76, 17, 26, .97, T['ok'])
-    rb.line(18, ' {D}        1 unplaceable → {w}thesis_ar.images/p041-im2.jp2')
+    rb.line(14, ' {W}RECOVERY {D}kept in the output, against the input')
+    rb.line(15, ' {D}text    {W}96%')
+    cv.bar(76, 15, 26, .96, T['ok'])
+    rb.line(16, ' {D}images  {W}31{D}/{W}32')
+    cv.bar(76, 16, 26, 31 / 32, T['ok'])
+    rb.line(17, ' {w}3 streams repaired; 3 of them unique within the')
+    rb.line(18, ' {w}searched window; 0 accepted without a uniqueness check')
     rb.sep(19)
     rb.line(20, ' {W}FONTS')
     rb.line(21, ' {W}F1 {w}TimesNewRomanPSMT {D}embedded {G}intact')
     rb.line(22, ' {W}F3 {w}CIDFont+F1        {D}bundled  {C}Noto Naskh Arabic {D}(picked)')
-    rb.line(23, ' {W}F7 {w}unknown           {D}bundled  {C}Noto Sans {Y}partial{D} bold→reg')
+    rb.line(23, ' {W}F7 {w}unknown           {D}bundled  {C}Noto Sans')
     rb.sep(24)
     rb.line(25, ' ' + '  '.join([hk('o', 'open'), hk('e', 'export .md'), hk('d', 're-diagnose'), hk('c', 'copy')]))
     cv.gtext(54, 28, '─── case closed · the cat has inspected this pdf ───', [R('D'), R('m'), R('M'), R('W')], sym=True)
@@ -1425,6 +1427,405 @@ def desktop_html(widget):
 </div></div></div>"""
 
 
+# ── screens designed 2026-10-08 (ux-design.md): history, setup, help, ─────
+# ── the custody prompt and the evidence page ─────────────────────────────
+# Every datum on these screens names its source in
+# nimbalyst-local/plans/implementation/ux-design.md. Sample values only.
+
+def hex_rows(h, per=4):
+    """A hex digest in groups of 8, `per` groups to a row (sha256 = 2 rows)."""
+    g = [h[i:i + 8] for i in range(0, len(h), 8)]
+    return [' '.join(g[i:i + per]) for i in range(0, len(g), per)]
+
+
+def sample_hash(kind, text):
+    return hashlib.new(kind, text.encode()).hexdigest()
+
+
+CASE_REF, EXAMINER = '2026-091 / E-14', 'J. Okafor'
+IN_SHA = sample_hash('sha256', 'thesis_ar.pdf')
+DATA_DIR = '~/.local/share/pdfpundit/'
+CONFIG_TOML = '~/.config/pdfpundit/config.toml'
+
+HISTORY = [   # glyph, colour, name, runs, last seen (from FileSummary)
+    ('√', 'G', 'thesis_ar.pdf', 3, '2026-10-08'),
+    ('√', 'G', 'minutes_q3.pdf', 1, '2026-10-08'),
+    ('~', 'Y', 'invoice_scan.pdf', 2, '2026-10-08'),
+    ('·', 'w', 'contract_signed.pdf', 1, '2026-10-08'),
+    ('×', 'R', 'payroll_locked.pdf', 1, '2026-10-08'),
+    ('√', 'G', 'report_2024.pdf', 4, '2026-10-07'),
+    ('√', 'G', 'exhibit_e12_scan.pdf', 1, '2026-10-02'),
+    ('~', 'Y', 'ledger_fy25_q2.pdf', 2, '2026-09-30'),
+    ('√', 'G', 'board_minutes_aug.pdf', 1, '2026-09-29'),
+    ('√', 'G', 'lease_agreement_v3.pdf', 2, '2026-09-28'),
+    ('×', 'R', 'bank_stmt_0412.pdf', 1, '2026-09-27'),
+    ('√', 'G', 'witness_statement_04.pdf', 1, '2026-09-26'),
+    ('√', 'G', 'shipping_manifest_77.pdf', 3, '2026-09-26'),
+    ('~', 'Y', 'payroll_2025_redacted.pdf', 1, '2026-09-25'),
+]
+STATUS_WORD = {'√': 'repaired', '~': 'partial', '·': 'pending', '×': 'failed'}
+
+
+def frame_history(empty=False):
+    cv = Canvas(W, H)
+    header(cv, '{w}history ')
+    fb = Box(cv, 1, 2, 58, 20, title='FiLES', note='' if empty else '{W}57{D} files')
+    if not empty:
+        fb.line(3, ' ' + hk('/', 'filter by name or path', 'D'))
+        for hx_, t in ((6, 'file'), (31, 'runs'), (37, 'last seen'), (49, 'status')):
+            cv.rich(hx_, 4, '{D}' + t)
+    if empty:
+        fb.line(8, '    {w}Nothing here yet.')
+        fb.line(10, '    {D}Drop a pdf on the cat and it shows up here,')
+        fb.line(11, '    {D}with every run the cat made of it.')
+        fb.sep(19)
+        fb.line(20, ' {D}0 files · 0 runs')
+    else:
+        for i, (ic, k, name, runs, last) in enumerate(HISTORY):
+            ry = 5 + i
+            sel = i == 0
+            if sel:
+                cv.fill(2, ry, 56, 1, 'b')
+            cv.put(3, ry, ic, k)
+            nf = 'W' if sel else 'C'
+            name = name if len(name) <= 24 else name[:23] + '…'   # cut at the column, marked
+            cv.rich(6, ry, f'{{{nf}}}{name:<24} {{W}}{runs:>4}  {{{"W" if sel else "w"}}}{last}  '
+                           f'{{{"W" if sel else k}}}{STATUS_WORD[ic]}')
+        fb.sep(19)
+        fb.line(20, ' {D}57 files · 91 runs')
+        cv.rich(46, 20, '{D}↓ {W}43{D} more')
+
+    cv.pix(1, 22, cat_grid(WCAT_S, 'closed'))
+    cv.rich(32, 24, '{w}The cat never forgets')
+    cv.rich(32, 25, '{w}a pdf it has eaten.')
+    cv.rich(32, 27, '{D}kept by sha256 in')
+    cv.rich(32, 28, '{C}' + DATA_DIR)
+    cv.rich(32, 29, '{C}history/')
+    cv.rich(32, 31, '{D}forgetting a file never')
+    cv.rich(32, 32, '{D}touches what it wrote.')
+
+    if empty:
+        rb = Box(cv, 60, 2, 51, 31, title='FiLE')
+        rb.line(14, '      {D}A file you pick on the left shows its')
+        rb.line(15, '      {D}runs, findings and outputs here.')
+    else:
+        rb = Box(cv, 60, 2, 51, 31, title='FiLE » thesis_ar.pdf', note='{G}√ repaired')
+        sha = hex_rows(IN_SHA)
+        rb.line(3, ' {D}sha256 {w}' + sha[0])
+        rb.line(4, '        {w}' + sha[1])
+        rb.line(5, ' {D}path   {w}~/cases/2026-091/evidence/')
+        rb.line(6, ' {D}size   {W}2.4{D} MB · first fed {W}2026-09-26')
+        rb.sep(7)
+        rb.line(8, ' {W}RUNS {D}newest first')
+        cv.rich(81, 8, '{D}path')
+        cv.rich(98, 8, '{D}findings')
+        runs = [('2026-10-08 11:46', 'TemplateAssemble', 4, 0),
+                ('2026-10-07 16:20', 'Resave', 4, 2),
+                ('2026-09-26 14:10', 'Resave', 4, 3)]
+        for i, (when, path, a, b) in enumerate(runs):
+            ry = 9 + i
+            sel = i == 0
+            if sel:
+                cv.fill(61, ry, 49, 1, 'b')
+            cv.rich(62, ry, ('{Y}►' if sel else ' ') + f' {{{"W" if sel else "w"}}}{when} '
+                            f'{path:<16} {{W}}{a}{{D}} → {{{"G" if b == 0 else "Y"}}}{b}')
+        rb.sep(12)
+        rb.line(13, ' {W}RUN {D}2026-10-08 11:46 · engine {W}0.1.0')
+        rb.line(14, ' {D}out     {C}thesis_ar.repaired.pdf')
+        rb.line(15, ' {D}placed  {w}atomic {D}· no file was replaced')
+        rb.line(16, ' {D}config  {w}' + CONFIG_TOML)
+        rb.sep(17)
+        rb.line(18, ' {W}FiNDiNGS                          {D}before after')
+        rb.line(19, ' {R}[ERR] {W}C2 {w}xref table missing      {R}  ×    {G}√')
+        rb.line(20, ' {R}[ERR] {W}C8 {w}font resources deleted  {R}  ×    {G}√')
+        rb.line(21, ' {Y}[WRN] {W}C6 {w}font mapping lost       {Y}  ×    {G}√')
+        rb.line(22, ' {R}[ERR] {W}C9 {w}zlib stream damaged     {R}  ×    {G}√')
+        rb.sep(23)
+        rb.line(24, ' {W}ANSWERS {D}who decided each question')
+        rb.line(25, ' {W}F3 {w}Noto Naskh Arabic      {D}p.12 · {W}you')
+        rb.line(26, ' {W}F7 {w}Noto Sans              {D}p.40 · {W}best guess')
+        rb.sep(27)
+        rb.line(28, ' ' + '  '.join([hk('o', 'open'), hk('f', 'folder'), hk('e', 'export .md'),
+                                     hk('x', 'forget')]))
+    if empty:
+        cv.rich(1, 36, ' ' + '  '.join([hk('B', 'browse for pdfs'), hk('esc', 'back')]))
+    else:
+        cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'select'), hk('tab', 'runs'), hk('/', 'filter'),
+                                         hk('o', 'open'), hk('f', 'folder'), hk('x', 'forget'),
+                                         hk('esc', 'back')]))
+    statusbar(cv, ['node 1', 'history', '{G}offline'], '112×38 {c}│{W} 11:47')
+    return cv
+
+
+SETUP = [   # (label, value markup, recorded in every report, dim) or a section heading
+    'GENERAL',
+    ('output folder', '{w}beside the original', False, False),
+    ('default page size', '{D}‹ {W}A4 {D}›', True, False),
+    None,
+    'REPAIR',
+    ('auto-accept a font at', '{W}35%{D} confidence', True, False),
+    ('font candidates', '{W}5', True, False),
+    ('extract images', '{D}[{W}x{D}] {W}on', True, False),
+    ('salvage work', '{W}700,000,000{D} W', True, False),
+    ('deep salvage work', '{W}10,000,000,000{D} W', True, False),
+    ('deep salvage pool', '{W}80,000,000,000{D} W', True, False),
+    ('max search stream', '{W}4,194,304{D} bytes', True, False),
+    None,
+    'FONTS',
+    ('font source', '{D}‹ {W}bundled {D}›', True, False),
+    ('ask on unknown fonts', '{D}[{W}x{D}] {W}on', False, False),
+    ('unreproducible fonts', '{D}‹ {W}ask {D}›', True, False),
+    None,
+    'CUSTODY',
+    ('custody mode', '{D}[ ] {W}off', False, False),
+    ('hashes', '{D}[x] sha256 [x] sha1 [x] md5', False, True),
+    ('ask case details', '{D}[x] on', False, True),
+    ('custody log', '{D}data folder/custody.log', False, True),
+    None,
+    'LOOK',
+    ('theme', '{D}‹ {W}DarkBerry Blackwater {D}›', False, False),
+    ('layout', '{D}‹ {W}auto {D}› widget below 112×38', False, False),
+    ('mouse', '{D}[{W}x{D}] {W}on', False, False),
+    ('grow when needed', '{D}[{W}x{D}] {W}on', False, False),
+]
+
+
+def frame_setup():
+    cv = Canvas(W, H)
+    header(cv, '{w}setup {D}· {w}config.toml ')
+    sb = Box(cv, 1, 2, 64, 33, title='SETTiNGS', note='{D}◆ {w}changes the output')
+    ry = 3
+    for item in SETUP:
+        if item is None:
+            ry += 1
+            continue
+        if isinstance(item, str):
+            if item == 'CUSTODY':
+                cv.rich(3, ry, '{W}CUSTODY {D}chain-of-custody records ')
+                cv.rich(52, ry, '{D}mode {K/D} OFF {/K}')
+            else:
+                cv.rich(3, ry, '{W}' + item)
+            ry += 1
+            continue
+        label, value, rec, dim = item
+        sel = label == 'custody mode'
+        if sel:
+            cv.fill(2, ry, 62, 1, 'b')
+            cv.rich(3, ry, '{Y}►')
+        if rec:
+            cv.put(5, ry, '◆', 'D')
+        cv.rich(7, ry, ('{W}' if sel else '{D}' if dim else '{w}') + f'{label:<24}')
+        cv.rich(31, ry, value)
+        ry += 1
+
+    db = Box(cv, 66, 2, 45, 20, title='CUSTODY MODE', grad=T['modal'], tbg='m')
+    db.line(3, ' {W}off {D}· the default')
+    db.line(5, ' {w}When on, each batch also gets a chain-')
+    db.line(6, ' {w}of-custody record:')
+    db.line(7, ' {M}· {w}the cat asks once per batch for a')
+    db.line(8, '   {w}case reference and an examiner')
+    db.line(9, ' {M}· {w}each input is hashed before it is')
+    db.line(10, '   {w}read, and again after the run')
+    db.line(11, ' {M}· {w}each output is hashed once written')
+    db.line(12, ' {M}· {C}<name>.custody.json{w} and {C}.txt{w} land')
+    db.line(13, '   {w}beside each output')
+    db.line(14, ' {M}· {C}custody.log{w} gets one chained entry')
+    db.line(15, '   {w}per file')
+    db.line(17, ' {w}The repair itself does not change:')
+    db.line(18, ' {w}same input, same output bytes.')
+    db.line(20, ' ' + hk('space', 'turn on', 'D'))
+
+    cv.pix(73, 22, cat_grid(WCAT_S, 'closed'))
+    cv.rich(2, 35, '{D}saves to {C}' + CONFIG_TOML + ' {D}· applies to the next batch')
+    cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'move'), hk('space', 'toggle'), hk('←→', 'change'),
+                                     hk('enter', 'edit'), hk('s', 'save'), hk('r', 'default'),
+                                     hk('esc', 'back')]))
+    statusbar(cv, ['node 1', 'setup', '{G}offline'], '112×38 {c}│{W} 11:47')
+    return cv
+
+
+def frame_help():
+    cv = dimmed(frame_main(), .8)
+    pb = Box(cv, 4, 2, 104, 33, title='HELP', note='{W}PDFPuNDiT{D} v0.1',
+             grad=T['modal'], tbg='m', shadow=True)
+    for j in range(3, 34):
+        cv.put(56, j, '│', mix(R('D'), BG(), .2))
+    cv.put(56, 2, '╤', pb.col(52, 0))
+    cv.put(56, 34, '╧', pb.col(52, 32))
+
+    def keys(y, a, b=None):
+        cv.rich(7, y, hk(*a))
+        if b:
+            cv.rich(31, y, hk(*b))
+
+    cv.rich(6, 4, '{W}KEYS')
+    cv.rich(6, 5, '{D}anywhere')
+    keys(6, ('B', 'browse for pdfs'), ('H', 'history'))
+    keys(7, ('S', 'setup'), ('T', 'theme'))
+    keys(8, ('?', 'this help'), ('Q', 'quit'))
+    cv.rich(6, 10, '{D}while a batch runs')
+    keys(11, ('↑↓', 'select a file'), ('enter', 'file menu'))
+    keys(12, ('i', 'resolve ‼'), ('+', 'add files'))
+    keys(13, ('p', 'pause'), ('esc', 'close'))
+    cv.rich(6, 15, '{D}on a finished file')
+    keys(16, ('o', 'open the copy'), ('e', 'export .md'))
+    keys(17, ('d', 're-diagnose'), ('c', 'copy report'))
+    keys(18, ('v', 'evidence'))
+    cv.rich(22, 18, '{D}custody mode only')
+
+    cv.rich(6, 20, '{W}THE CAT')
+    cv.rich(6, 21, '{w}Drop pdfs on its face. It eats them,')
+    cv.rich(6, 22, '{w}repairs a copy of each one, and only')
+    cv.rich(6, 23, '{w}asks you something when it is stuck.')
+    cv.rich(6, 25, '{D}squint    {w}idle, judging you')
+    cv.rich(6, 26, '{D}chewing   {w}working')
+    cv.rich(6, 27, '{D}wide eyes {M}‼ {w}it needs you')
+    cv.rich(6, 28, '{D}burp.     {w}done')
+    cv.rich(6, 29, '{D}zoom me   {w}widget: make the tile bigger')
+    cv.rich(6, 31, '{D}Too small a terminal? It becomes a 32×16')
+    cv.rich(6, 32, '{D}cat-head widget until you enlarge it.')
+
+    cv.rich(58, 4, '{W}WHERE THiNGS GO')
+    cv.rich(58, 5, '{C}<name>.repaired.pdf  {D}beside the original,')
+    cv.rich(58, 6, '{D}                     or in {w}[general] output_dir')
+    cv.rich(58, 7, '{D}never replaces a file: it adds {w}(2){D}, {w}(3){D} …')
+    cv.rich(58, 8, '{C}<name>.md            {D}when you export {D}[{Y}e{D}]')
+    cv.rich(58, 9, '{C}<hash>.images/       {D}images it extracts')
+    cv.rich(58, 10, '{C}<name>.custody.*     {D}custody mode only')
+    cv.rich(58, 11, '{D}history  {w}' + DATA_DIR + 'history/')
+    cv.rich(58, 12, '{D}config   {w}' + CONFIG_TOML)
+
+    cv.rich(58, 14, '{W}WHAT iT PROMiSES')
+    cv.rich(58, 15, '{G}√ {w}Originals are never opened for writing.')
+    cv.rich(58, 16, '{G}√ {w}Same file, version and settings: the')
+    cv.rich(58, 17, '  {w}same output, byte for byte.')
+    cv.rich(58, 18, '{G}√ {w}No network code. It works offline.')
+    cv.rich(58, 19, '{G}√ {w}Every fix is listed in the report.')
+    cv.rich(58, 20, '{G}√ {w}No cat in any file it writes.')
+
+    cv.rich(58, 22, '{W}WHAT iT WON\'T DO')
+    cv.rich(58, 23, '{R}× {w}Open encrypted pdfs: decrypt them first.')
+    cv.rich(58, 24, '{R}× {w}Guess quietly: a guess is marked {Y}partial{w}.')
+    cv.rich(58, 25, '{R}× {w}Touch the network, ever.')
+
+    cv.rich(58, 27, '{W}CUSTODY MODE {D}off by default · setup [{Y}S{D}]')
+    cv.rich(58, 28, '{w}Hashes every input and output, asks once')
+    cv.rich(58, 29, '{w}per batch for a case reference and an')
+    cv.rich(58, 30, '{w}examiner, and writes a custody record')
+    cv.rich(58, 31, '{w}beside each output.')
+    cv.rich(58, 33, '{D}esc closes this')
+    statusbar(cv, ['node 1', '{M}help', '{G}offline'], '112×38 {c}│{W} 11:38')
+    return cv
+
+
+def field(cv, x, y, w, text, focused):
+    """A one-line text field: brackets, the text, and when focused a lightbar,
+    a ► marker and a blinking cursor."""
+    cv.put(x, y, '[', 'D')
+    cv.put(x + w - 1, y, ']', 'D')
+    if focused:
+        cv.put(x - 2, y, '►', 'Y')
+        cv.fill(x + 1, y, w - 2, 1, 'b')
+        e = cv.rich(x + 2, y, '{W/b}' + text)
+        cv.put(e, y, '█', 'w', 'b')
+        cv.blink.add((e, y))
+    else:
+        cv.rich(x + 2, y, '{w}' + text)
+
+
+def frame_custody():
+    cv = Canvas(W, H)
+    header(cv, '{w}new batch {D}· {Y}custody mode ON ')
+    cv.pix(4, 8, cat_grid(0.68, WPOSES['needs']))
+    cv.rich(8, 28, '{w}case details first. {m}then food.')
+    cv.rich(5, 31, '{D}custody mode is on in setup [{Y}S{D}]')
+
+    mb = Box(cv, 48, 2, 63, 27, title='‼ CASE DETAiLS', note='{W}once{D} per batch',
+             grad=T['modal'], tbg='m')
+    mb.line(4, ' {W}3 pdfs{w} are queued in {Y}custody mode{w}. Before the cat')
+    mb.line(5, ' {w}starts, it needs two lines for the custody records.')
+    mb.sep(6, [BG(), R('m'), R('M')])
+    mb.line(7, '   {D}case reference')
+    field(cv, 52, 8, 56, CASE_REF, True)
+    mb.line(10, '   {D}examiner')
+    field(cv, 52, 11, 56, EXAMINER, False)
+    mb.line(13, ' {D}Both may stay blank: the record then says {w}not given{D}.')
+    mb.line(14, ' {D}They go only into the custody records, never into the')
+    mb.line(15, ' {D}repaired pdf or the markdown.')
+    mb.sep(16, [BG(), R('m'), R('M')])
+    mb.line(17, ' {W}THiS BATCH')
+    mb.line(18, ' {C}report_2024.pdf  minutes_q3.pdf  thesis_ar.pdf')
+    mb.line(19, ' {D}hashes  {W}sha256 · sha1 · md5 {D}· before and after')
+    mb.line(20, ' {D}records {C}<name>.custody.json {D}and {C}.txt {D}beside each output')
+    mb.line(21, ' {D}log     {W}custody.log {D}· one chained entry per file')
+    mb.sep(22, [BG(), R('m'), R('M')])
+    cv.rich(51, 24, '{W/m} ► Start batch {/K}')
+    cv.rich(70, 24, '{D}[ {w}Cancel batch {D}]')
+    mb.line(26, ' {D}tab next field · enter start · esc cancel: nothing is lost')
+
+    hint = '·∙· the cat asks once per batch ·∙·'
+    cv.gtext((W - len(hint)) // 2, 35, hint, T['tag'], sym=True)
+    cv.rich(1, 36, ' ' + '  '.join([hk('tab', 'next field'), hk('enter', 'start batch'),
+                                     hk('esc', 'cancel batch')]))
+    statusbar(cv, ['node 1', '{Y}custody ON', '{M}case details', '{G}offline'],
+              '112×38 {c}│{W} 11:39')
+    return cv
+
+
+def frame_widget_custody():
+    cv = Canvas(WW, WH)
+    cv.pix(WCAT_X, WCAT_Y, cat_grid(WCAT_S, WPOSES['needs']))
+    cv.put(WW - 2, 0, '‼', 'M')
+    cv.blink.add((WW - 2, 0))
+    cv.rich(3, WH - 2, '{M}‼ {W}case details {D}· {W}zoom me')
+    for i in range(3, 28):
+        cv.blink.add((i, WH - 2))
+    wstatus(cv, ' {Y}PDFPuNDiT', '{Y}custody {M}‼ 3 ')
+    return cv
+
+
+def frame_evidence():
+    cv = Canvas(W, H)
+    header(cv, '{w}results {D}» {w}evidence ')
+    queue_box(cv, 1, 2, 50, QUEUE_B, 2, '{G}5{w}/7 done {D}·{R} 1 failed', nw=20)
+
+    rb = Box(cv, 52, 2, 59, 30, title='EViDENCE » thesis_ar.pdf', note='{G}√ unchanged')
+    rb.line(4, ' {D}case     {W}' + CASE_REF)
+    rb.line(5, ' {D}examiner {W}' + EXAMINER)
+    rb.sep(6)
+    out = 'thesis_ar.repaired.pdf'
+    for y0, title, name, seed in ((7, 'iNPUT ', 'thesis_ar.pdf', 'thesis_ar.pdf'),
+                                  (14, 'OUTPUT', out, out)):
+        rb.line(y0, f' {{W}}{title} {{C}}{name}')
+        s256 = hex_rows(sample_hash('sha256', seed))
+        rb.line(y0 + 1, ' {D}sha256 {w}' + s256[0])
+        rb.line(y0 + 2, '        {w}' + s256[1])
+        rb.line(y0 + 3, ' {D}sha1   {w}' + hex_rows(sample_hash('sha1', seed), 5)[0])
+        rb.line(y0 + 4, ' {D}md5    {w}' + hex_rows(sample_hash('md5', seed))[0])
+    rb.line(12, ' {D}after  {G}√ unchanged {D}· hashed again when the run ended')
+    rb.sep(13)
+    rb.sep(19)
+    rb.line(20, ' {W}WRiTTEN BESiDE iT')
+    rb.line(21, ' {C}thesis_ar.custody.json  {D}the record, for tools')
+    rb.line(22, ' {C}thesis_ar.custody.txt   {D}the record, to print')
+    rb.line(23, ' {C}' + IN_SHA[:8] + '.images/        {W}31{D} images, each hashed')
+    rb.line(24, ' {D}custody.log entry {W}58{D}, chained to entry {W}57')
+    rb.sep(25)
+    rb.line(26, ' ' + '  '.join([hk('r', 're-verify'), hk('f', 'folder'), hk('c', 'copy hashes'),
+                                 hk('tab', 'result')]))
+    cv.gtext(55, 29, '─── receipts kept · not one cat in them ───', [R('D'), R('m'), R('M'), R('W')],
+             sym=True)
+
+    cv.pix(8, 17, cat_grid(0.52, 'happy'))
+    cv.rich(5, 31, '{D}the cat kept the receipts. {m}burp.')
+    progress(cv, 32, '{w}repairing {C}board_deck.pdf', .34, '{w}batch {W}5{D}/{W}7 {D}·{R} 1 failed', .79)
+    cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'select'), hk('tab', 'result'), hk('r', 're-verify'),
+                                     hk('esc', 'back'), hk('q', 'quit')]))
+    statusbar(cv, ['batch 5/7', '{Y}custody ON', '{R}1 failed', '{G}offline'], '11:47')
+    return cv
+
+
+
 # ── page ──────────────────────────────────────────────────────────────────
 CSS = """
 *{box-sizing:border-box}
@@ -1606,6 +2007,24 @@ FRAMES = [
      frame_widget_chomp, WTITLE + ' · chomp'),
     ('<b>Frame 9</b> — in context: the widget tile on a tiled desktop, beside an editor and a shell. '
      'When a decision is needed, zooming the tile switches to the full UI.', frame_desktop, ''),
+    ('<b>Frame 10</b> — history (<b>H</b>): every file the cat has eaten, keyed by SHA-256, newest first. '
+     'The selected file shows its runs; the selected run shows its findings and who answered each question.',
+     frame_history, 'pdfpundit — 112×38 — DarkBerry Blackwater — history'),
+    ('<b>Frame 10b</b> — history with nothing in it yet.', lambda: frame_history(empty=True),
+     'pdfpundit — 112×38 — DarkBerry Blackwater — history'),
+    ('<b>Frame 11</b> — setup (<b>S</b>): every knob a user may change, saved to config.toml. ◆ marks '
+     'the settings every report records because they change the output. Custody mode is off by default.',
+     frame_setup, 'pdfpundit — 112×38 — DarkBerry Blackwater — setup'),
+    ('<b>Frame 12</b> — help (<b>?</b>): keys, what the cat does, where files go and what the app promises.',
+     frame_help, 'pdfpundit — 112×38 — DarkBerry Blackwater — help'),
+    ('<b>Frame 13</b> — custody mode is on and files were dropped: before the batch runs, the cat asks once '
+     'for a case reference and an examiner. Both may stay blank.',
+     frame_custody, 'pdfpundit — 112×38 — DarkBerry Blackwater — case details'),
+    ('<b>Frame 13b</b> — the same question in the widget: it never shows the form, it asks to be zoomed.',
+     frame_widget_custody, WTITLE),
+    ('<b>Frame 14</b> — a finished file in custody mode: the result panel\'s evidence page (<b>v</b>). Hashes '
+     'before and after, the records written beside the output, the extracted images.',
+     frame_evidence, 'pdfpundit — 112×38 — DarkBerry Blackwater — evidence'),
 ]
 
 
@@ -1645,6 +2064,13 @@ def still_frames():
     for i, c in enumerate(CHOMP):
         yield f'08b-widget-chomp-{i + 1}-{step_name(c)}', frame_widget('chomp', i), WTITLE, WIDGET_PX
     yield '09-tiled-desktop', frame_desktop(), '', DESK_PX
+    yield '10-history', frame_history(), FRAMES[11][2], FULL_PX
+    yield '10b-history-empty', frame_history(empty=True), FRAMES[12][2], FULL_PX
+    yield '11-setup', frame_setup(), FRAMES[13][2], FULL_PX
+    yield '12-help', frame_help(), FRAMES[14][2], FULL_PX
+    yield '13-custody-prompt', frame_custody(), FRAMES[15][2], FULL_PX
+    yield '13b-widget-custody', frame_widget_custody(), WTITLE, WIDGET_PX
+    yield '14-evidence', frame_evidence(), FRAMES[17][2], FULL_PX
 
 
 def render_frames(outdir=os.path.join(HERE, 'frames')):

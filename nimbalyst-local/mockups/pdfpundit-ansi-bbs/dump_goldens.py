@@ -18,8 +18,9 @@ What is dumped:
 - canvas frames: every 112x38 and 32x16 still from still_frames(), under its
   still name (01-idle, 02-drag-*, 02b-chomp-*, 03-batch, 04-font-pick,
   05-result, 06-theme-chooser, 07-widget-*, 08-widget-drop-*,
-  08b-widget-chomp-*). 09-tiled-desktop is skipped: it is HTML around the
-  07-widget-working canvas.
+  08b-widget-chomp-*, 10-history, 10b-history-empty, 11-setup, 12-help,
+  13-custody-prompt, 13b-widget-custody, 14-evidence). 09-tiled-desktop is
+  skipped: it is HTML around the 07-widget-working canvas.
 - cat grids: cat_grid() at the four scales the frames use (0.93, 0.465, 0.68,
   0.52) for every pose in POSES and WPOSES and every DRAG and CHOMP keyframe,
   both as the full layout aims it (drag-N, chomp-N) and as the widget aims it

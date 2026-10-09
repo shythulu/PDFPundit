@@ -1,7 +1,7 @@
 {
  "generator": "nimbalyst-local/mockups/pdfpundit-ansi-bbs/generate.py",
  "pinned_commit": "9439a30",
- "generate_py_sha256": "44f95eaa914f283571aa184f49eec3f2bc5abd27555251cc4112708404ef186a",
+ "generate_py_sha256": "1d043dfcdaa0d7a7bc593114a8d18746cbf21c0371a256103cffbe5ff20b5f21",
  "palette_sha256": "ead94d9988bac402828c0298cb54e64f4eae2ffd0da794e34fb7ce514d2ed230",
  "theme": "DarkBerry Blackwater",
  "scales": [
@@ -173,6 +173,34 @@
   },
   {
    "name": "08b-widget-chomp-8-burp",
+   "kind": "canvas"
+  },
+  {
+   "name": "10-history",
+   "kind": "canvas"
+  },
+  {
+   "name": "10b-history-empty",
+   "kind": "canvas"
+  },
+  {
+   "name": "11-setup",
+   "kind": "canvas"
+  },
+  {
+   "name": "12-help",
+   "kind": "canvas"
+  },
+  {
+   "name": "13-custody-prompt",
+   "kind": "canvas"
+  },
+  {
+   "name": "13b-widget-custody",
+   "kind": "canvas"
+  },
+  {
+   "name": "14-evidence",
    "kind": "canvas"
   },
   {
