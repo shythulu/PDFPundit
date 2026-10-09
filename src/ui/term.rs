@@ -17,7 +17,7 @@ use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Modifier};
 
-use super::canvas::{Canvas, printable};
+use super::canvas::{Canvas, printable, width};
 use super::color::{ColorCaps, Rgb, Snap, xterm256};
 use super::input::osc72;
 use super::theme::Theme;
@@ -408,9 +408,12 @@ impl Palette {
 
 /// The blit: every canvas cell into `buf` (`set_symbol`, the colours through
 /// `palette`, a blinking cell as `SLOW_BLINK`). Cells past either edge of
-/// `buf` are dropped. A control or bidi control character in a cell is shown
-/// as `�` ([`printable`]): [`Canvas::text`] already replaces them, and this is
-/// the second guard for a cell written some other way.
+/// `buf` are dropped. A control, bidi control or other format character in a
+/// cell is shown as `�` ([`printable`]), and so is a zero-width character,
+/// which would shift the rest of the row: [`Canvas::text`] already replaces
+/// or drops them, and this is the second guard for a cell written some other
+/// way. A wide character's second cell holds a space, which ratatui's diff
+/// skips, so the terminal draws the glyph over both (D-118).
 pub fn blit(canvas: &Canvas, buf: &mut Buffer, palette: &mut Palette) {
     let mut sym = [0u8; 4];
     for y in 0..canvas.h {
@@ -418,7 +421,11 @@ pub fn blit(canvas: &Canvas, buf: &mut Buffer, palette: &mut Palette) {
             let (Some(cell), Some(out)) = (canvas.get(x, y), buf.cell_mut((x, y))) else {
                 continue;
             };
-            out.set_symbol(printable(cell.ch).encode_utf8(&mut sym));
+            let ch = match printable(cell.ch) {
+                ch if width(ch) == 0 => '\u{fffd}',
+                ch => ch,
+            };
+            out.set_symbol(ch.encode_utf8(&mut sym));
             out.set_fg(palette.color(cell.fg));
             out.set_bg(palette.color(cell.bg));
             out.modifier = if canvas.blink.contains(&(x, y)) {
@@ -750,6 +757,40 @@ mod tests {
             assert_eq!(replaced, hostile.len() + 1, "{caps:?}");
             assert!(shown.contains("ok {R}\u{fffd}[2J"), "{shown:?}");
         }
+    }
+
+    /// A wide character reaches the terminal once, its second cell skipped
+    /// by ratatui's diff, so the next character lands two columns on; a
+    /// zero-width character put in a cell some other way is shown as `�`,
+    /// so it cannot pull the rest of the row a column left.
+    #[test]
+    fn wide_characters_take_two_columns_and_zero_width_ones_none() {
+        let t = theme();
+        let mut c = Canvas::new(7, 1, t);
+        let end = c.text(0, 0, "a中b\u{301}\u{200b}", t.roles.file, None);
+        assert_eq!(end, 5);
+        c.put(5, 0, '\u{301}', None, None);
+        c.put(6, 0, '\u{fe0f}', None, None);
+        let area = ratatui::layout::Rect::new(0, 0, 7, 1);
+        let mut buf = Buffer::empty(area);
+        blit(&c, &mut buf, &mut Palette::new(ColorCaps::TrueColor, t));
+        let sent: Vec<(u16, String)> = Buffer::empty(area)
+            .diff(&buf)
+            .into_iter()
+            .map(|(x, _, cell)| (x, cell.symbol().to_string()))
+            .collect();
+        let want: Vec<(u16, String)> = [
+            (0, "a"),
+            (1, "中"),
+            (3, "b"),
+            (4, "\u{fffd}"),
+            (5, "\u{fffd}"),
+            (6, "\u{fffd}"),
+        ]
+        .into_iter()
+        .map(|(x, s)| (x, s.to_string()))
+        .collect();
+        assert_eq!(sent, want);
     }
 
     #[test]

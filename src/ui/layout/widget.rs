@@ -14,7 +14,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use super::{Layout, WIDGET_SIZE};
-use crate::ui::canvas::{Canvas, plain_len};
+use crate::ui::canvas::{Canvas, plain_len, take_width, text_width};
 use crate::ui::cat;
 use crate::ui::color::Rgb;
 use crate::ui::director::{CHOMP, CatFrame, DRAG, Mood};
@@ -278,13 +278,18 @@ fn app_name(file: bool) -> String {
     }
 }
 
-/// `name`, cut to `max` characters with a trailing `…` when longer.
+/// `name`, cut to `max` cells with a trailing `…` when wider; a wide
+/// character that would straddle the cut is left out and a space follows
+/// the `…` in its place.
 fn clip(name: &str, max: usize) -> String {
-    if name.chars().count() <= max {
+    if text_width(name) <= max {
         return name.to_string();
     }
-    let mut out: String = name.chars().take(max.saturating_sub(1)).collect();
+    let mut out = take_width(name, max.saturating_sub(1)).to_string();
     out.push('…');
+    if text_width(&out) < max {
+        out.push(' ');
+    }
     out
 }
 
@@ -335,7 +340,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::ui::canvas::{CanvasCell, HOSTILE_NAMES};
+    use crate::ui::canvas::{CanvasCell, HOSTILE_NAMES, WIDE_NAMES, stand_in};
     use crate::ui::director::{
         CHOMP_DURS, CatEvent, CellPos, DRAG_DURS, Director, Stage, WDRAG_DOC,
     };
@@ -706,12 +711,41 @@ mod tests {
         }
     }
 
+    /// CJK, emoji and mixed-width names line up on the working status bar
+    /// and the needs-you line (D-118): every cell around the name is where
+    /// it is for a name of one-cell characters as wide, cut or not.
+    #[test]
+    fn wide_names_line_up() {
+        for (name, cells) in WIDE_NAMES {
+            let working = |n: &str| {
+                let mut vm = view(&AppState::mockup_widget_working());
+                vm.current.as_mut().expect("working").name = n.to_string();
+                draw(&WidgetLayout, WIDGET_SIZE, &vm, &resting(&vm))
+            };
+            let c = working(name);
+            c.assert_lines_up_with(&working(&stand_in(cells)), name);
+            let first = name.chars().next().expect("a name");
+            assert!(row_text(&c, 15).contains(first), "{:?}", row_text(&c, 15));
+
+            let needs = |n: &str| {
+                let mut vm = view(&AppState::mockup_widget_needs());
+                vm.needs_you.as_mut().expect("needs you").1 = n.to_string();
+                draw(&WidgetLayout, WIDGET_SIZE, &vm, &resting(&vm))
+            };
+            let c = needs(name);
+            c.assert_lines_up_with(&needs(&stand_in(cells)), name);
+            assert!(row_text(&c, 14).contains(first), "{:?}", row_text(&c, 14));
+        }
+    }
+
     #[test]
     fn clip_ends_long_names_in_an_ellipsis() {
         assert_eq!(clip("invoice_scan.pdf", 11), "invoice_sc…");
         assert_eq!(clip("thesis_ar.pdf", 15), "thesis_ar.pdf");
         assert_eq!(clip("ab", 2), "ab");
         assert_eq!(clip("abc", 2), "a…");
+        assert_eq!(clip("报告书.pdf", 6), "报告… ");
+        assert_eq!(clip("报告书.pdf", 5), "报告…");
     }
 
     /// Every word the widget and the fallback draw, in every state, comes

@@ -10,7 +10,7 @@ use crate::ui::canvas::Canvas;
 use crate::ui::strings;
 use crate::ui::theme::Theme;
 use crate::ui::view::{FindingRow, FontRow, Level};
-use crate::ui::widgets::r#box::{Panel, fit};
+use crate::ui::widgets::r#box::{Panel, fit, pad};
 
 /// A finding's tag (`[ERR]`) and its colour's slot letter.
 pub fn tag(level: Level) -> (&'static str, char) {
@@ -40,11 +40,7 @@ pub fn finding(
         }
         None => p.line(c, y, &format!(" {{{k}}}{tag}    "), theme),
     };
-    let summary = format!(
-        "{:<w$}",
-        fit(&f.summary, summary_w.saturating_sub(1)),
-        w = summary_w
-    );
+    let summary = pad(&fit(&f.summary, summary_w.saturating_sub(1)), summary_w);
     p.text(c, x, y, &summary, theme.roles.body)
 }
 
@@ -123,7 +119,7 @@ pub fn font(c: &mut Canvas, p: &Panel, y: i32, f: &FontRow, name_w: usize, theme
     let x = p.line(c, y, " ", theme);
     let x = p.text(c, x, y, &format!("{:<2} ", f.slot), slot(theme, 'W'));
     let name = f.name.as_deref().unwrap_or(strings::FONT_UNKNOWN);
-    let name = format!("{:<w$} ", fit(name, name_w), w = name_w);
+    let name = format!("{} ", pad(name, name_w));
     let x = p.text(c, x, y, &name, theme.roles.body);
     let source = |s: &str| format!("{{D}}{s:<9}");
     let markup = match &f.resolution {

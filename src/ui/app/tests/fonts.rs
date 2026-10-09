@@ -620,3 +620,28 @@ fn the_status_bar_draws_the_files_name_literally() {
     let cell = c.get(u16::try_from(at).unwrap(), 37).expect("cell");
     assert_eq!(cell.bg, app.theme.roles.lightbar);
 }
+
+/// A wide file name on the status bar and in the modal's title lines up
+/// (D-118): the whole screen equals the one drawn for a name of one-cell
+/// characters as wide, but for the name's own cells.
+#[test]
+fn a_wide_name_lines_up_on_the_status_bar() {
+    let drawn = |name: &str| {
+        let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());
+        app.state = AppState::mockup_batch();
+        app.state.batch.entries[2].name = name.into();
+        let (w, h) = app.state.term_size;
+        app.resize(w, h);
+        app.arm();
+        send(&mut app, key('i'));
+        app.refresh(Duration::ZERO);
+        app.draw(&app.shown_at(Duration::ZERO))
+    };
+    for (name, cells) in crate::ui::canvas::WIDE_NAMES {
+        let c = drawn(name);
+        c.assert_lines_up_with(&drawn(&crate::ui::canvas::stand_in(cells)), name);
+        let bar: String = (0..c.w).map(|x| c.get(x, 37).expect("cell").ch).collect();
+        let first = name.chars().next().expect("a name");
+        assert!(bar.contains(first), "{bar}");
+    }
+}

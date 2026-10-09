@@ -9,7 +9,7 @@ use crate::ui::canvas::Canvas;
 use crate::ui::strings;
 use crate::ui::theme::Theme;
 use crate::ui::view::{QueueRow, RowKind};
-use crate::ui::widgets::r#box::{Panel, fit};
+use crate::ui::widgets::r#box::{Panel, pad};
 
 /// The most rows the box shows at once (frame 03's seven files).
 pub const MAX_ROWS: usize = 7;
@@ -73,7 +73,7 @@ impl QueueBox {
             (theme.roles.file, status_colour(r, theme))
         };
         // The name and the status are data, drawn as they are.
-        let name = format!("{:<w$} ", fit(&r.name, self.name_w), w = self.name_w);
+        let name = format!("{} ", pad(&r.name, self.name_w));
         let x = p.text_over(c, self.x + 5, y, &name, name_fg);
         let detail = if self.short {
             &r.short_detail
