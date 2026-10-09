@@ -91,3 +91,62 @@ the ticket says so.
 - `README.md` usage section: what PDFPundit is (keep the existing intro), install from a release archive, run it in a terminal (`pdfpundit`; it refuses to run without one), drop or paste PDFs on the cat, `b` browse, `e` export Markdown, `T` themes, font questions (`i`, the modal keys), where outputs go (`<name>.repaired.pdf` beside the input or `[general] output_dir`, never replacing a file), config file location per platform, the widget layout below 112×38, kitty drag tracking vs the chomp elsewhere, offline and deterministic guarantees, limits (no OCR, no images in Markdown, no word lists yet). Plain, short, scannable.
 - Acceptance: `dist plan` lists exactly the chosen targets and artefacts; `dist build --artifacts=local --target aarch64-apple-darwin` produces the archive and checksum on this Mac; the unpacked binary passes the guard check and the release-strings check; `tools/crate-notices.py` output is committed, deterministic (two runs identical) and complete (every crate in the shipped graph has a section); the notices-coverage test passes; all existing gates pass. Windows and Linux archives are built only by the release workflow on hosted runners (not run in this session; say so).
 - Log for the user, do not decide: macOS code signing and notarisation (needs an Apple Developer account, about USD 99/year; unsigned archives trip Gatekeeper on first run), Windows Authenticode signing (needs a certificate), installers and a Homebrew tap, and the first release tag (`v0.1.0`). Record these as D-142 in the decision log with options and recommendations.
+
+## Follow-up tickets from the user's answers (2026-10-08)
+
+The user answered Tiers 2–4 of the decision log on 2026-10-08 (see the "Answered by the user" blocks in `decision-log.md`). These tickets build the answers that need code. Same rules as above.
+
+**G-01 A never-embedded font is a warning, not damage** · D-084 (b)
+
+- Add `FindingKind::FontNotEmbedded { font: ObjId, base_font: String }` (Info severity, `Repairability::NotApplicable`). `diagnose` emits it, instead of C7/C8, for a font whose descriptor has no `/FontFile*` key at all; a descriptor whose font program was present and is now blank or dangling stays C7/C8 (that is damage). Standard-14 names keep emitting nothing.
+- Acceptance: a Word-style `/TrueType /Arial /WinAnsiEncoding` with no `/FontFile2` gives `FontNotEmbedded` and no C7/C8 and no font question; the C7/C8 corruptor fixtures still give C7/C8; contract snapshots updated with the new variant only; the view model shows it as an info row.
+
+**G-02 "Use best" on a weak guess recovers text without substituting a font** · D-122 (b)
+
+- When the reply is `UseBest` (from a user, `a`, or `prompt_unresolved = false`) and the top candidate's dictionary hit rate is below 1/2, resolve to `TextOnly`: rebuild `/ToUnicode` from the inference so the text is recoverable, keep the original font slot, substitute no font, and mark the finding Partial with the reason "text recovered; font not confirmed". At or above 1/2, substitute as today.
+- Acceptance: a C8 fixture with a weak top hit and `UseBest` produces no substituted font program and a `/ToUnicode` that extracts the expected text; a strong hit still substitutes; the report line states which happened.
+
+**G-03 Answers the app gives itself are recorded as automatic** · D-141 (a)
+
+- Carry an answer source through the reply path (`JobRunner::reply(job, reply, source)` or a wrapper type). Record `InteractionSource::Batched` for answers carried within a font family or given by `a` (apply best to all), and `InteractionSource::Policy` for `[fonts] prompt_unresolved = false`; `User` only for an answer the user gave to that question. Update the report and run record types and the contract snapshots.
+- Acceptance: one test per source; the interaction record of a batch with a family-carried answer shows `Batched`.
+
+**G-04 Pages outside the page tree are reported** · D-112 (c)
+
+- Keep appending pages found only outside the page tree, and add a report action and an info finding "n pages not reachable from the page tree were appended" listing their object ids.
+- Acceptance: an incremental-update fixture where a page was removed from `/Kids` gets it back and the report says so; an intact file reports nothing.
+
+**G-05 Evicted jobs re-run one at a time** · D-103 (b)
+
+- When parked jobs whose analysis state was evicted get their answers, re-run them through a single resume slot, in answer order, so memory stays bounded.
+- Acceptance: with three evicted jobs answered at once, at most one re-analysis runs at a time and all three finish.
+
+**G-06 Fix V1's glyph baseline** · D-088 (a)
+
+- First run V1 over the corpus C5 files (`PDFPUNDIT_CORPUS`, ~/corpora/repdf) and record whether the hayro-fallback double count happens on real files. Then fix the baseline so a perfect repair scores retention 1 (count glyphs once per drawn run regardless of fallback font), and remove the C5 seed exclusions from the repair tests if the fix makes them pass.
+- Acceptance: the C5 seeds 2–4 pass V1 on a perfect output; a corpus C5 sample is reported in the commit message; no other selection changes on the smoke subset (re-run `bench::corpus::smoke`).
+
+**G-07 Cell widths for wide and zero-width characters** · D-118 (a)
+
+- Add `unicode-width` (MIT/Apache, pure Rust) and make `Canvas` place a wide character across two cells and drop zero-width ones (after F-03's control replacement), with truncation that never splits a wide character.
+- Acceptance: CJK and emoji file names align in the full layout, the widget and the picker; existing goldens unchanged.
+
+**G-08 T-35 review notes**
+
+- Fix the `Cargo.toml` comment that names `release.yml` (the file is `v-release.yml`). Keep dist's static CRT on Windows and record that the MSVC artefact gets `+crt-static` (so it differs from CI's release build there). Build the release-guard matrix from the dist plan input (or fail when the plan's targets differ from the guard's), so a new target cannot ship unguarded. Reword the crate-notices header to "the normal dependency graph of pdfpundit (including compile-time proc-macros)".
+- Acceptance: the guard workflow fails a synthetic plan with an extra target; comments accurate.
+
+**G-09 Word lists for C8 inference** · D-011
+
+- Fetch the Leipzig Corpora Collection news lists for English, French and Spanish (most recent year available, 1M-sentence size), take the word-frequency file, keep the 50,000 most frequent words (lower-case, NFC), and commit them as `assets/dicts/{en,fr,es}.txt` with a SHA256SUMS entry and a `fetch-assets.sh` step that re-downloads and verifies. Confirm on the download page that these downloads are CC BY 4.0 and add the attribution text to `THIRD_PARTY_NOTICES.md` (and the tests that check notices coverage). Wire them into the font inference (replace the hard-coded empty `dicts`).
+- Acceptance: C8 inference on the golden fixture auto-accepts with the dictionaries; re-run `bench::corpus::smoke` and report the per-class change (C8 especially) in the commit; update `bench/golden_smoke.csv` only if scores improve, explaining it.
+
+**G-10 Gmaps for the corpus's other open-licensed faces** · D-010 (b), after G-09
+
+- List the 44 distinct `/BaseFont` names in the REPDF originals (strip subset tags). For each family under the SIL OFL (or Apache-2.0) available from the google/fonts repository, fetch the Regular TTF at a pinned commit, generate its `.gmap` and index entry with `tools/build-templates`, and commit the gmaps and index (not the TTFs: output substitution stays Noto, D-010). Add each family's licence notice. Skip anything not OFL/Apache (e.g. Cambria) and list what was skipped.
+- Acceptance: the font index covers the new families; inference on a corpus C8 sample matches more fonts by name; re-run the smoke subset and report the change.
+
+**G-11 Per-script Tesseract scoring leg** · D-014 (Tesseract replaces Document AI)
+
+- Implement `tools/ocr-recall/engines/tesseract.py` with per-script `tessdata_best` models (eng, fra, spa, ara, hin, chi_sim), pinned by hash, routed by the page's language label like the Paddle engine. Update the nightly workflow to install Tesseract on the runner. Do not install anything system-wide on this Mac; if Tesseract is not installed locally, test with the existing pytest fakes and say the real run is the nightly job's first run.
+- Acceptance: the engine's pytest cases pass; `--engine tesseract --dry-run` works; the D-063 header stays on the output.
