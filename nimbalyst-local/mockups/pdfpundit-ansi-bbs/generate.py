@@ -1179,6 +1179,10 @@ def frame_result():
     return cv
 
 
+def frame_fontpick_on_batch():
+    return frame_fontpick(frame_batch())
+
+
 def frame_themes():
     cv = dimmed(frame_main(), .8)
     pb = Box(cv, 4, 2, 104, 33, title='THEME', note=f'{{W}}{len(THEMES)}{{D}} themes · {{W}}live preview',
@@ -1641,7 +1645,7 @@ def frame_setup():
     db.line(8, '   {w}case details, before anything runs')
     db.line(9, ' {M}· {w}inputs are hashed when read and again')
     db.line(10, '   {w}after the run; outputs once placed')
-    db.line(11, ' {M}· {w}three files beside each output:')
+    db.line(11, ' {M}· {w}three record files for every file:')
     db.line(12, '   {C}<output>.custody.json{D}, {C}.txt{D}, {C}.sha256')
     db.line(13, ' {M}· {C}custody.log{w} gets an entry when a batch')
     db.line(14, '   {w}opens, one per record, one at the end')
@@ -1704,7 +1708,7 @@ def frame_help():
     cv.rich(58, 6, '{D}                     or in {w}[general] output_dir')
     cv.rich(58, 7, '{D}never replaces a file: it adds {w}(2){D}, {w}(3){D} …')
     cv.rich(58, 8, '{C}<name>.md            {D}when you export {D}[{Y}e{D}]')
-    cv.rich(58, 9, '{C}<hash>.images/       {D}images it extracts')
+    cv.rich(58, 9, '{C}<hash8>.images/      {D}images it extracts')
     cv.rich(58, 10, '{C}<output>.custody.*   {D}custody mode only')
     cv.rich(58, 11, '{D}history  {w}' + DATA_DIR + 'history/')
     cv.rich(58, 12, '{D}config   {w}' + CONFIG_TOML)
@@ -1725,8 +1729,8 @@ def frame_help():
     cv.rich(58, 27, '{W}CUSTODY MODE {D}off by default · setup [{Y}S{D}]')
     cv.rich(58, 28, '{w}Asks once per batch for the case details,')
     cv.rich(58, 29, '{w}hashes every input and output, and writes')
-    cv.rich(58, 30, '{C}.custody.json{w}, {C}.txt{w} and {C}.sha256{w} beside each')
-    cv.rich(58, 31, '{w}output, each with an entry in {C}custody.log{w}.')
+    cv.rich(58, 30, '{C}.custody.json{w}, {C}.txt{w} and {C}.sha256{w} for every')
+    cv.rich(58, 31, '{w}file, each with an entry in {C}custody.log{w}.')
     cv.rich(58, 33, '{D}esc closes this')
     statusbar(cv, ['node 1', '{M}help', '{G}offline'], '112×38 {c}│{W} 11:38')
     return cv
@@ -1752,7 +1756,7 @@ def frame_custody():
     header(cv, '{w}new batch {D}· {Y}custody mode ON ')
     cv.pix(4, 8, cat_grid(0.68, WPOSES['needs']))
     cv.rich(8, 28, '{w}case details first. {m}then food.')
-    cv.rich(5, 31, '{D}custody mode is on in setup [{Y}S{D}]')
+    cv.rich(5, 31, '{D}custody mode is on in setup')
 
     mb = Box(cv, 48, 2, 63, 33, title='‼ CASE DETAiLS', note='{W}once{D} per batch',
              grad=T['modal'], tbg='m')
@@ -1769,17 +1773,20 @@ def frame_custody():
     mb.line(20, ' {W}THiS BATCH')
     mb.line(21, ' {C}report_2024.pdf  minutes_q3.pdf  thesis_ar.pdf')
     mb.line(22, ' {D}hashes  {W}sha256 {D}· {W}sha1 {D}· {W}md5 {D}legacy · before and after')
-    mb.line(23, ' {D}records {C}<output>.custody.json{D}, {C}.txt{D} and {C}.sha256{D} per output')
+    mb.line(23, ' {D}records {C}<output>.custody.json{D}, {C}.txt{D} and {C}.sha256{D} per file')
     mb.line(24, ' {D}log     {W}custody.log {D}· batch opened, one per record, closed')
     mb.sep(25, [BG(), R('m'), R('M')])
     # Destination is the input's own folder (output_dir = beside): schema 2.4 warns here.
     mb.line(26, ' {Y}! {W}outputs and records will be written into the evidence')
     mb.line(27, '   {W}folder {C}' + EVIDENCE_DIR)
-    mb.line(28, '   {D}set an output folder in setup [{Y}S{D}] to leave it untouched')
-    cv.rich(51, 30, '{W/m} ► Start batch {/K}')
+    mb.line(28, '   {D}set an output folder in setup to leave it untouched')
+    # Focus is on the first field, so neither button has the ►: Start is the default
+    # button (‹ › in the pill), the one enter in a field presses.
+    cv.rich(51, 30, '{W/m} ‹ Start batch › {/K}')
     cv.rich(70, 30, '{D}[ {w}Cancel batch {D}]')
-    mb.line(32, ' {D}tab next field · enter start · esc cancel batch')
-    mb.line(33, ' {D}Cancel reads and runs nothing. {C}custody.log{D} notes the count.')
+    # Custody mode gates on the name and fs::metadata only, so a path drop is not opened yet.
+    mb.line(32, ' {D}Cancel repairs nothing and writes no record. The files were')
+    mb.line(33, ' {D}listed, never opened: {C}custody.log{D} notes only the count.')
 
     hint = '·∙· the cat asks once per batch ·∙·'
     cv.gtext((W - len(hint)) // 2, 35, hint, T['tag'], sym=True)
@@ -1810,7 +1817,8 @@ def frame_evidence():
     rb = Box(cv, 52, 2, 59, 30, title='EViDENCE » thesis_ar.pdf', note='{G}√ unchanged')
     for y, label, value in ((3, 'case', CASE_REF), (4, 'examiner', EXAMINER),
                             (5, 'submission', SUBMISSION), (7, 'notes', '')):
-        rb.line(y, f' {{D}}{label:<11}' + ('{W}' + value if value else '{D}blank'))
+        # A blank prints as the .txt prints it, from the custody template, never from ALL.
+        rb.line(y, f' {{D}}{label:<11}' + ('{W}' + value if value else '{D}not provided'))
     rb.line(6, ' ' * 12 + '{D}applies to all {W}3{D} files of this batch')
     rb.sep(8)
     out = 'thesis_ar.repaired.pdf'
@@ -1831,7 +1839,7 @@ def frame_evidence():
     rb.line(24, ' {C}' + rec + '.json    {D}the record')
     rb.line(25, ' {C}' + rec + '.txt     {D}to print')
     rb.line(26, ' {C}' + rec + '.sha256  {D}for sha256sum -c')
-    rb.line(27, ' {C}' + IN_SHA[:8] + '.images/   {W}31{D} images · images.json · SHA256SUMS')
+    rb.line(27, ' {C}' + IN_SHA[:8] + '.images/   {W}32{D} images · images.json · SHA256SUMS')
     rb.line(28, ' {C}custody.log  {D}record entry {W}58{D} · batch opened at {W}55')
     rb.sep(29)
     rb.line(30, ' ' + '  '.join([hk('r', 'verify'), hk('f', 'folder'), hk('c', 'copy hashes'),
@@ -1841,7 +1849,8 @@ def frame_evidence():
     cv.rich(5, 31, '{D}the cat kept the receipts. {m}burp.')
     progress(cv, 32, '{w}repairing {C}board_deck.pdf', .34, '{w}batch {W}5{D}/{W}7 {D}·{R} 1 failed', .79)
     cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'select'), hk('tab', 'result'), hk('r', 'verify'),
-                                     hk('c', 'copy hashes'), hk('esc', 'back'), hk('q', 'quit')]))
+                                     hk('f', 'folder'), hk('c', 'copy hashes'), hk('esc', 'back'),
+                                     hk('q', 'quit')]))
     statusbar(cv, ['batch 5/7', '{Y}custody ON', '{R}1 failed', '{G}offline'], '11:47')
     return cv
 
@@ -1997,7 +2006,7 @@ def frame_drag():
 
 FRAMES = [
     ('<b>Frame 1</b> — idle. The cat is the drop target; menus and history sit to the side.',
-     lambda: frame_main(), 'pdfpundit — 112×38 — DarkBerry Blackwater'),
+     frame_main, 'pdfpundit — 112×38 — DarkBerry Blackwater'),
     ('<b>Frame 2</b> — dragging PDFs toward the cat, in kitty only (8 frames, loops). kitty\'s drag-and-drop '
      'protocol (OSC 72) reports the drag before the drop. The cat perks its ears, turns and looks up at '
      'the file, follows it down, and opens wide as it arrives. The drop ring fades in and the side panels step back. '
@@ -2011,7 +2020,7 @@ FRAMES = [
      'the runner moved on. The cat still takes more files.', frame_batch,
      'pdfpundit — 112×38 — DarkBerry Blackwater — repairing…'),
     ('<b>Frame 4</b> — resolving the parked file. Each candidate font decodes the same glyph codes '
-     'differently; only the right one reads correctly.', lambda: frame_fontpick(frame_batch()),
+     'differently; only the right one reads correctly.', frame_fontpick_on_batch,
      'pdfpundit — 112×38 — DarkBerry Blackwater — needs input'),
     ('<b>Frame 5</b> — a finished file, with the per-file menu open. The batch keeps running underneath.',
      frame_result, 'pdfpundit — 112×38 — DarkBerry Blackwater — results'),
@@ -2075,13 +2084,13 @@ def title(fn):
 
 def still_frames():
     """Every screen as a still (name, canvas or dict, title, window px), animation steps included."""
-    yield '01-idle', frame_main(), FRAMES[0][2], FULL_PX
+    yield '01-idle', frame_main(), title(frame_main), FULL_PX
     for i, d in enumerate(DRAG):
         yield f'02-drag-{i + 1}-{step_name(d)}', frame_main(i), title(frame_drag), FULL_PX
     for i, c in enumerate(CHOMP):
         yield f'02b-chomp-{i + 1}-{step_name(c)}', frame_chomp(i), title(frame_chomp_anim), FULL_PX
     yield '03-batch', frame_batch(), title(frame_batch), FULL_PX
-    yield '04-font-pick', frame_fontpick(frame_batch()), FRAMES[4][2], FULL_PX
+    yield '04-font-pick', frame_fontpick_on_batch(), title(frame_fontpick_on_batch), FULL_PX
     yield '05-result', frame_result(), title(frame_result), FULL_PX
     yield '06-theme-chooser', frame_themes(), title(frame_themes), FULL_PX
     for s, name in (('idle', 'idle'), ('working', 'working'), ('needs', 'needs-you'), ('done', 'done')):

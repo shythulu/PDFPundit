@@ -1,8 +1,8 @@
 # UX design: history, setup, help, custody prompt, evidence page, frames 03 and 05
 
-Design proposal, revision 3 of 2026-10-09. Nothing here is built yet. The frames live in `nimbalyst-local/mockups/pdfpundit-ansi-bbs/generate.py`, and their goldens in `tests/data/ui/`.
+Design proposal, revision 4 of 2026-10-09. Nothing here is built yet. The frames live in `nimbalyst-local/mockups/pdfpundit-ansi-bbs/generate.py`, and their goldens in `tests/data/ui/`.
 
-Revision 3 answers the second review: the custody screens now follow evidence schema revision 3. Revision 2 answered the first review. The review log at the end lists each finding and what changed.
+Revision 4 answers the third review. The custody prompt now says only what is true about what the app has read, its buttons have one focus marker, no screen tells two keys apart by case, and every screen says what a drop does. Revision 3 answered the second review, which aligned the custody screens with evidence schema revision 3. Revision 2 answered the first review. The review log at the end lists each finding and what changed.
 
 ## What this adds
 
@@ -18,7 +18,7 @@ Revision 3 answers the second review: the custody screens now follow evidence sc
 | `03-batch.png` | Batch view, changed | none | D-117 | `design/ux-d117` |
 | `05-result.png` | Result view, changed | none | D-117 | `design/ux-d117` |
 
-Revision 3 changed `10-history.png`, `11-setup.png`, `12-help.png`, `13-custody-prompt.png` and `14-evidence.png` on `design/ux`, and `05-result.png` again on `design/ux-d117`.
+Revision 4 changed `11-setup.png`, `12-help.png`, `13-custody-prompt.png` and `14-evidence.png` on `design/ux`. `design/ux-d117` was rebased onto it, so its 03 and 05 are unchanged from revision 3.
 
 ### Two branches, so the integration branch stays green
 
@@ -97,10 +97,41 @@ Three places take text: the custody prompt's fields, the history filter and a se
 | `esc` | Cancels the edit. In the prompt it cancels the batch |
 | `tab`, `shift-tab` | Next or previous field, where the screen has several |
 | `←→`, `home`, `end`, `backspace`, `delete` | Edit the text |
-| paste | Inserts the text. A pasted newline does not confirm |
+| paste | Inserts the text, unless the paste is a drop (see "A drop works on every screen"). A pasted newline does not confirm |
 | Every other key | Is text, including `x`, `o`, `f`, `s`, `r`, `q`, `Q`, `H`, `S`, `T`, `?` and digits |
 
 The tui-design guidance lists "global mnemonic shortcuts consume text input" as a known failure. This rule prevents it. The key dispatcher in `src/ui/app.rs` checks for a focused text field before any hotkey.
+
+### Letter keys ignore case
+
+Every letter hotkey matches both cases today: `q|Q`, `t|T`, `b|B`, `e|E`, `h|H` and `s|S` in `src/ui/app.rs` and `src/ui/layout/full.rs`. These screens keep that, so caps lock never changes what a key does. No screen gives `x` and `X` different jobs.
+
+A key listed for a screen or a menu wins over a global key while that screen or menu has focus. The global keys `B`, `H`, `S`, `T`, `?` and `Q` keep their job everywhere, with one exception: `s` on setup.
+
+| Key | Scope | Does | Why it does not clash |
+| --- | --- | --- | --- |
+| `s` | Setup | Save | `S` opens setup, and setup is already open |
+| `r` | Setup | Put the selected setting back to its default | No global `r` |
+| `r` | Evidence page | Open the Verify panel. The slow re-run is a toggle inside it, not a capital `R` | No global `r` |
+| `r` | File menu, while open | `Repair options…`, drawn as `R` on frame 05 | The menu takes every letter while it is open, so the evidence page's `r` never reaches it |
+| `f` | History, evidence page, file menu | Reveal the folder | The same job in all three |
+
+### A drop works on every screen
+
+A drop is never refused because of the screen, and it never changes the screen. The user decides when to look at the batch.
+
+| Where the drop lands | What happens |
+| --- | --- |
+| Batch, result or evidence page | The files join the queue, as today |
+| History, frames 10 and 10b; setup, frame 11 | The chomp plays on that screen's cat. The hint row says `N pdfs queued · esc to watch them`, and the status bar counts them. The screen stays |
+| Help, theme chooser, font pick | The modal stays open. The hint row, under the modal, says the same |
+| Setup with a value being edited | A kitty drop is a drop, and the edit keeps focus. A paste follows the paste rule below |
+| Forget confirmation open | The files are taken as above. The confirmation stays open and keeps its keys, so a drop never answers it |
+| Custody prompt open | The files join the pending batch, step 4 under frame 13 |
+
+With custody mode on, the files go to the pending batch instead of the queue. The hint row says `N pdfs wait for case details · esc`. The prompt opens on the batch view only: when the user leaves history or setup, or closes a modal. It never opens over setup, so a half-edited setting cannot change under a batch. The batch uses the settings saved when `Start batch` is pressed.
+
+Outside kitty, a drop arrives as a paste. A paste in which every item parses as a `.pdf` path is a drop, wherever focus is. The test is `paste.rs` on the names alone, with no file access. Any other paste into a focused field is text. So a drop on the custody prompt adds files instead of typing their paths into the case reference.
 
 ### Strings and the artefact deny-list
 
@@ -110,9 +141,10 @@ The tui-design guidance lists "global mnemonic shortcuts consume text input" as 
 | --- | --- | --- |
 | A phrase the UI draws | Yes, as drawn | `custody mode is on in setup`, `case details first.`, `the cat kept the receipts.` |
 | A keyed label | Yes, with its key | `[v] evidence`, `[r] verify` |
-| A lone label or column head | No | `examiner`, `sha256`, `case reference`, `submission reference`, `submission`, `notes`, `legacy`, `blank`, `placed`, `after` |
+| A lone label or column head | No | `examiner`, `sha256`, `case reference`, `submission reference`, `submission`, `notes`, `legacy`, `placed`, `after` |
+| A phrase a custody template also prints | No. The screen takes it from the custody template module, not from `strings.rs` | `not provided`, `applies to all N files of this batch` |
 
-The custody records use the lone labels, so putting them in `ALL` would fail every record. The custody templates are never added to `ALL` either.
+The custody records use the lone labels, so putting them in `ALL` would fail every record. The custody templates are never added to `ALL` either. A phrase the evidence page shares with a custody template is sourced from the template module and never goes into `ALL`; otherwise every `.custody.txt` would fail the artefact scan.
 
 ### The widget
 
@@ -306,6 +338,7 @@ FiLE box rows:
 | `v` | Open the selected run's evidence page, when it has a custody record |
 | `x` | Forget the file and its runs, after the confirmation below |
 | `esc` | Back to where `H` was pressed |
+| a drop | Taken; history stays open, per "A drop works on every screen". Frame 10b's `Drop a pdf on the cat` works here too |
 
 ### Forget confirmation
 
@@ -321,6 +354,7 @@ FiLE box rows:
 | --- | --- |
 | `y` | Forgets, through `HistoryStore::delete_file(sha256)` |
 | `n`, `esc`, `enter` | Keeps. `enter` keeps because `keep` is selected, so a stray `enter` loses nothing |
+| a drop | Taken, and the confirmation stays open. A drop never answers it |
 | Anything else | Nothing |
 
 ### Data sources
@@ -453,7 +487,7 @@ The schema's `[custody] case_jsonld` is not shown yet. It waits on schema Q5. Wh
 - The CUSTODY heading carries `mode OFF` in a grey pill: base text on the dim role. Grey, because off is the default and not a fault.
 - With custody off, the custody rows draw in `D`. They stay editable.
 - With custody on, the pill reads `ON` in `Y`, and every screen's status bar shows `custody ON` in `Y`.
-- Frame 11 shows custody mode selected, so the detail box explains it: the case details asked once per batch, the hashing, the three files beside each output and the log entries.
+- Frame 11 shows custody mode selected, so the detail box explains it: the case details asked once per batch, the hashing, the three record files for every file and the log entries.
 
 ### The hashes row
 
@@ -469,9 +503,10 @@ On this row, `←→` moves between `sha1` and `md5`, and `space` toggles the on
 | `space` | Toggle a `[x]` setting |
 | `←→` | Step a `‹ choice ›`; on the hashes row, move between `sha1` and `md5` |
 | `enter` | Edit a number or a path in place. Typing then follows "Typing goes to the text" |
-| `s` | Save to `config.toml` |
-| `r` | Put the selected setting back to its default |
+| `s` | Save to `config.toml`. Setup's own key: `S` opens setup elsewhere, and here it saves too |
+| `r` | Put the selected setting back to its default. Setup's own key |
 | `esc` | Back. With unsaved changes it asks: `[s] save`, `[d] discard`, `[esc] stay` |
+| a drop | Taken; setup stays open, and an open edit keeps focus. With custody on, the prompt waits until setup closes |
 
 ### Data sources
 
@@ -509,11 +544,11 @@ A modal box at x 4, y 2, 104×33 over the idle screen dimmed by 0.8. A divider a
 | Left, from x 6 | KEYS: anywhere, while a batch runs, on a finished file. THE CAT: what it does and what each pose means |
 | Right, from x 58 | WHERE THiNGS GO, WHAT iT PROMiSES, WHAT iT WON'T DO, CUSTODY MODE |
 
-Row 18 lists `[v] evidence` with `when the run has a custody record`. Row 10 lists `<output>.custody.*`, matching the schema's names. Rows 28 to 31 say the prompt asks once per batch, every input and output is hashed, and `.custody.json`, `.txt` and `.sha256` go beside each output with an entry in `custody.log`.
+Row 18 lists `[v] evidence` with `when the run has a custody record`. Row 9 lists `<hash8>.images/`, as `src/place.rs` names it. Row 10 lists `<output>.custody.*`, matching the schema's names. Rows 28 to 31 say the prompt asks once per batch, every input and output is hashed, and `.custody.json`, `.txt` and `.sha256` are written for every file, each with an entry in `custody.log`.
 
 ### Keys
 
-`esc` or `?` closes it. Nothing else.
+`esc` or `?` closes it. No other key does anything. A drop is taken and help stays open, per "A drop works on every screen".
 
 ### Data sources
 
@@ -549,7 +584,7 @@ When custody mode is on and files are dropped, get the case details once for the
 | Header | row 0 | `new batch · custody mode ON` |
 | Cat | x 4, y 8, scale 0.68, needs-you pose | Wide eyes on the viewer |
 | Cat's line | x 8, y 28 | `case details first. then food.` |
-| Reminder | x 5, y 31 | `custody mode is on in setup [S]` |
+| Reminder | x 5, y 31 | `custody mode is on in setup`, plain `D`. No `[S]`: a field always has focus here, so `S` is text |
 | CASE DETAiLS box | x 48, y 2, 63×33, modal gradient | Below |
 | Hint | row 35 | `the cat asks once per batch` |
 | Status bar | row 37 | `custody ON │ case details` |
@@ -564,23 +599,33 @@ Box rows:
 | 11 to 12 | `submission reference` and its field |
 | 13 to 14 | `authority / notes` and its field |
 | 16 to 18 | Any field may stay blank and is recorded as blank; 200 characters each; the values go only into the custody records, never into `custody.log`, the PDF or the Markdown |
-| 20 to 24 | THiS BATCH: file names, the hash algorithms, record names, log entries. No hash values: the prompt reads no file |
-| 26 to 28 | The destination warning in `Y`, when it applies: `! outputs and records will be written into the evidence folder <folder>`, then `set an output folder in setup [S] to leave it untouched`. Blank otherwise |
-| 30 | `► Start batch` and `[ Cancel batch ]` |
-| 32 | `tab next field · enter start · esc cancel batch` |
-| 33 | `Cancel reads and runs nothing. custody.log notes the count.` |
+| 20 to 24 | THiS BATCH: file names, the hash algorithms, `records <output>.custody.json, .txt and .sha256 per file`, log entries. No hash values: in custody mode a path input is not opened before its job runs |
+| 26 to 28 | The destination warning in `Y`, when it applies: `! outputs and records will be written into the evidence folder <folder>`, then `set an output folder in setup to leave it untouched` in plain `D`. Blank otherwise |
+| 30 | `‹ Start batch ›` in the modal pill at x 51, and `[ Cancel batch ]` at x 70 |
+| 32 to 33 | `Cancel repairs nothing and writes no record. The files were listed, never opened: custody.log notes only the count.` See "What the app reads before the prompt" |
+| 36 | `[tab] next field  [enter] start batch  [esc] cancel batch` |
 
-The focused field has the lightbar, a `►` at x 50 and a blinking cursor. The others have brackets only. Frame 13 leaves `authority / notes` blank, to show an empty field.
+One control has focus at a time, and only it has the `►`:
+
+| Control | Unfocused | Focused |
+| --- | --- | --- |
+| Text field | Brackets, text in `w` | `►` in `Y` at x 50, lightbar, blinking cursor |
+| `Start batch`, the default button | `‹ Start batch ›` in the pill | `►` in `Y` at x 49 and the pill in the lightbar |
+| `Cancel batch` | `[ Cancel batch ]` | `►` in `Y` at x 68 and the brackets on the lightbar |
+
+`‹ ›` marks the default button, the one `enter` in a field presses. It survives `NO_COLOR`. Frame 13 has focus on `case reference`, so neither button has a `►`. It leaves `authority / notes` blank, to show an empty field.
 
 ### Keys
 
 | Key | Does |
 | --- | --- |
-| `tab`, `shift-tab` | Next or previous field, then the buttons |
-| typing | Edits the focused field, per "Typing goes to the text" |
-| `enter` | Start the batch with what is typed |
-| `esc` | Cancel the batch: its files leave, nothing is read or repaired, no record is written, and one `batch_cancelled` entry holds the file count only (schema 2.3, 8.3) |
-| paste | Inserted as text; a pasted newline does not start the batch |
+| `tab`, `shift-tab` | Next or previous control: the four fields, then `Start batch`, then `Cancel batch`, then back to the first field |
+| typing | Edits the focused field, per "Typing goes to the text". On a button, letters do nothing |
+| `enter` in a field | Presses the default button, `Start batch` |
+| `enter` or `space` on `Start batch` | Starts the batch with what is typed |
+| `enter` or `space` on `Cancel batch` | Cancels the batch, as `esc` does. It never starts it |
+| `esc` | Cancels the batch from any control: its files leave, nothing is repaired, no record is written, and one `batch_cancelled` entry holds the file count only (schema 2.3, 8.3) |
+| paste | Text, unless every item is a `.pdf` path: then it is a drop and joins the pending batch. A pasted newline does not start the batch |
 
 The prompt cannot be skipped while `ask_case_details` is true. The user must answer it, but every field may stay blank (DA:433). Setting `ask_case_details` to false is the only way to never see it; the records then have `run.case.prompt_shown = false`.
 
@@ -590,12 +635,12 @@ A custody batch has no data model today: `BatchState` in `src/jobs.rs` is one gr
 
 | Step | What happens |
 | --- | --- |
-| 1 | Files are dropped, or added with `+` through the browse picker, while no prompt is open. The chomp plays as usual |
+| 1 | Files are dropped, or added with `+` through the browse picker, while no prompt is open. The gate admits path inputs on name and `fs::metadata` only, per "What the app reads before the prompt". The chomp plays as usual |
 | 2 | A new custody batch opens. Planned: `AppState.pending_batch` holds the files. They are not enqueued yet, so the runner cannot start them |
-| 3 | The prompt opens at once, unless another modal is open (font pick, theme chooser, help, a setup edit). Then it opens when that modal closes |
+| 3 | The prompt opens at once on the batch view. On history or setup, or with a modal open, it waits until the user is back on the batch view, per "A drop works on every screen" |
 | 4 | Files dropped while the prompt is open join the pending batch. The list updates and the question is not asked again. `+` cannot be pressed: it would be text |
 | 5 | `Start batch`: one `batch_opened` log entry, then the files are enqueued. Planned: each gets `QueueEntry.custody_batch`, holding the batch's index in `AppState.custody_batches` and its `batch_opened` log sequence number |
-| 6 | `Cancel batch`: the pending files are dropped unread, and one `batch_cancelled` entry logs how many there were |
+| 6 | `Cancel batch`: the pending files leave unrepaired, and one `batch_cancelled` entry logs how many there were. Path inputs were never opened. Kitty inputs were received whole at the drop; their bytes are discarded, and the entry counts them too |
 | 7 | Files dropped after step 5 open a new batch, back at step 2. The new prompt is pre-filled with the last batch's four values, so `enter` alone carries them over |
 
 While the prompt is open:
@@ -619,7 +664,27 @@ A new prompt after step 5 is the price of "asked once per batch": a later drop m
 | Pre-filled values | The previous batch's typed values |
 | Destination warning | `General.output_dir`, against each pending file's path. Shown when at least one file would be written into its own folder. Recorded as `run.destination.warned_at_prompt` (schema 2.4, 4.4) |
 
-The prompt reads no file. A file is first read, and hashed, when its job runs after `Start batch` (schema 2.3). Hashing at the prompt would make a cancel an unrecorded read of evidence the examiner declined to process.
+### What the app reads before the prompt
+
+Today every dropped or picked file passes `gate()` in `src/ui/input/gate.rs` before the chomp. `gate()` stats the file, then opens it and reads its first KiB for the `%PDF-` sniff. Kitty drops go further: `take_drop` in `src/ui/app.rs` reads each admitted file whole into memory before the drop completes (D-039, `JobInput::Dropped`, which keeps the path and the bytes). So as built, every file has been opened before a prompt could show. That read also comes before `started_utc` and `stat_before`, so `stat_before.accessed` can show it.
+
+Custody mode changes the gate. This is a build item.
+
+| Check | Custody off, as today | Custody on |
+| --- | --- | --- |
+| Name ends in `.pdf`, not UNC | At the drop | At the drop |
+| `fs::metadata`: a regular file, at most 4 GiB, the size warning | At the drop | At the drop. It reads no content |
+| Opens and reads | At the drop: unreadable is refused | At job start, after `stat_before`. Unreadable fails the job, and its record says so |
+| `%PDF-` sniff, `drop_sniff` | At the drop | At job start, from the same read |
+| Kitty drop read whole (D-039, `JobInput::Dropped`) | At the drop | At the drop. A file promise cannot wait, so this stays |
+
+So in custody mode:
+
+- A path input is first opened when its job runs, after `Start batch`. Its `stat_before.accessed` is untouched by PDFPundit.
+- A kitty input was received in full at the drop. Its record has `path_kind = file_promise` and no stat (schema 4.4). The prompt says so on rows 32 and 33 in place of the cancel line: `kitty sent these files whole at the drop. Cancel repairs nothing and writes no record; custody.log counts them.`
+- Hashing at the prompt stays out. It would make a cancel an unrecorded read of evidence the examiner declined to process.
+
+The schema owner needs to know two things. Schema 2.3 says the prompt never read the files, which is true only after this gate change. `batch_cancelled` needs a second count, `received`, for kitty inputs whose bytes were held and discarded. See "Flags for the schema owner".
 
 ### The submission reference
 
@@ -637,6 +702,8 @@ The widget never shows the form. It shows the needs-you pose, `‼` blinking at 
 | Many files | Names until the line is full, then `+N more` |
 | Field longer than the box | The field scrolls. At 200 characters it takes no more, and the hint says `200 characters at most` |
 | Control characters typed or pasted | Never enter the field (schema 4.1) |
+| Some or all files came by kitty drop | Rows 32 and 33 say `kitty sent N files whole at the drop` before the cancel line, and the `batch_cancelled` entry counts them as `received` |
+| A path input is unreadable | Not caught at the drop in custody mode. Its job fails at start with `unreadable`, and its record says so |
 | Outputs would go into the input's own folder | Rows 26 to 28, in `Y`, as frame 13 draws them. Source: `General.output_dir == OutputDir::Beside` and the file has a durable path, or `OutputDir::Dir` names the input's own folder. `Start batch` still works; the warning is recorded as `run.destination.warned_at_prompt = true` (schema 2.4) |
 | Several input folders affected | Row 27 says `N evidence folders` instead of one path |
 | Output folder set elsewhere | Rows 26 to 28 blank, `warned_at_prompt = false` |
@@ -655,7 +722,7 @@ Frame 05's layout, with the result panel replaced by the EViDENCE box at x 52, y
 
 | Row | Holds |
 | --- | --- |
-| 3 to 5 | `case`, `examiner`, `submission`. Labels 11 cells wide. A blank field prints `blank` in `D` |
+| 3 to 5 | `case`, `examiner`, `submission`. Labels 11 cells wide. A blank field prints `not provided` in `D`, as the `.txt` does. The phrase comes from the custody template module and stays out of `ALL` |
 | 6 | Under the submission value: `applies to all N files of this batch` |
 | 7 | `notes` |
 | 9 | `iNPUT`, the file name, and `sha1, md5: legacy` from x 92 |
@@ -666,9 +733,10 @@ Frame 05's layout, with the result panel replaced by the EViDENCE box at x 52, y
 | 21 | `placed √ same bytes as the engine made · atomic` |
 | 23 | `WRiTTEN BESiDE iT`, then `· in the input's folder` in `Y` when `run.destination.same_folder_as_input` is true |
 | 24 to 26 | `<output>.custody.json`, `.txt`, `.sha256` |
-| 27 | `<hash8>.images/`, the image count, `images.json`, `SHA256SUMS` |
+| 27 | `<hash8>.images/`, the image count, `images.json`, `SHA256SUMS`. Frame 14 counts 32: frame 05's 31 placed images and the unplaceable one, because custody mode writes every image (schema 6.1) |
 | 28 | `custody.log`, this record's entry and the batch's `batch_opened` entry |
 | 30 | `[r] verify  [f] folder  [c] copy hashes  [tab] result` |
+| 36 | Every live key: `[↑↓] select  [tab] result  [r] verify  [f] folder  [c] copy hashes  [esc] back  [q] quit` |
 
 The queue on the left is frame 05's, except `invoice_scan.pdf`, which reads `partial · C9`. Frame 05 itself moves to that row on `design/ux-d117`.
 
@@ -682,8 +750,7 @@ With `[custody] case_jsonld = true`, a row `<output>.case.jsonld  CASE/UCO view`
 | --- | --- |
 | `v` | From the result page, open this page. Works whenever the selected run has a custody record, whatever `Custody.enabled` says now |
 | `tab`, `v` | Back to the result page |
-| `r` | Verify, schema section 9: checks 1 to 4 |
-| `R` | Verify with check 5 as well: re-run the repair with the recorded settings and answers and compare `reproducible_sha256`. It takes as long as a repair |
+| `r` | Open the Verify panel, schema section 9. Checks 1 to 4 are on. `[5] also re-run` is off: it re-runs the repair with the recorded settings and answers and compares `reproducible_sha256`, which takes as long as a repair. `5` toggles it, `enter` runs, `esc` closes |
 | `f` | Reveal the output folder |
 | `c` | Copy the hashes as plain text |
 | `esc` | Back |
@@ -698,15 +765,17 @@ Verify follows schema section 9. It never changes the record.
 | 2 | Input file against `run.input_file.hashes_before` | `match`, `mismatch`, `unavailable` |
 | 3 | Each placed file against its recorded hashes | `match`, `mismatch`, `missing`, per file |
 | 4 | The log chain up to and past this entry | `intact`, `broken at seq N` |
-| 5 | Only with `R`: re-run and compare `reproducible_sha256` | `identical`, `different`, `different build`, `not_run` |
+| 5 | Only with `[5] also re-run` on: re-run and compare `reproducible_sha256` | `identical`, `different`, `different build`, `not_run` |
 
-Each Verify writes `<output>.custody.verify-<seq>.txt` beside the record and a `verify` entry in `custody.log`. The page then shows the five results in place of rows 9 to 21, with "Log head after this record" and "Log head now", each with its entry number. The WRiTTEN rows add the verify file. This result view is not drawn yet.
+Each Verify writes `<output>.custody.verify-<seq>.txt` beside the record and a `verify` entry in `custody.log`. The page then shows the five results in place of rows 9 to 21, with "Log head after this record" and "Log head now", each with its entry number. The WRiTTEN rows add the verify file. The Verify panel and this result view are not drawn yet.
+
+The re-run is a toggle, not a capital `R`, because letters ignore case: with caps lock on, `R` would start a repair-length re-run by accident. The file menu's `R` stays `Repair options…`, scoped to the open menu.
 
 ### Data sources
 
 | Shown | Source |
 | --- | --- |
-| case, examiner, submission, notes | `run.case.case_reference`, `.examiner`, `.submission_reference`, `.notes` |
+| case, examiner, submission, notes | `run.case.case_reference`, `.examiner`, `.submission_reference`, `.notes`. Null prints the template's `not provided` |
 | N in `applies to all N files` | `run.batch.count` |
 | Input sha256 | `RepairReport.input_sha256`, also `run.input_file.hashes_before.sha256` |
 | Input sha1, md5 | `run.input_file.hashes_before.sha1`, `.md5`; null closes the row |
@@ -750,12 +819,13 @@ Each Verify writes `<output>.custody.verify-<seq>.txt` beside the record and a `
 | Submission reference | One value per batch; the `.txt` prints "applies to all N files of this batch"; the item's identifier is the input SHA-256 (4.4, finding 4) | Frame 13 labels it `submission reference`. Frame 14 prints `applies to all 3 files of this batch` under it |
 | Input wording | `run.input_file`, "Input file (as received by PDFPundit)"; never called the original (4.4, 12.1) | Frame 14 says `iNPUT`. Setup says `beside each input`; help says `Inputs are never opened for writing` |
 | Destination | `run.destination`; the prompt warns when outputs go into the input's folder, recorded as `warned_at_prompt` (2.4, 4.4) | Frame 13 rows 26 to 28 warn. Frame 14 row 23 adds `· in the input's folder` |
-| Blank values | Stored as null, printed as "not provided"; the prompt should not quote it (Q13) | The prompt says `recorded as blank`. The evidence page prints `blank`, a lone label kept out of `ALL` |
+| Blank values | Stored as null, printed as "not provided"; the prompt should not quote it (Q13) | The prompt says `recorded as blank`. The evidence page prints `not provided`, taken from the custody template module and kept out of `ALL` |
 | Log entries | `batch_opened`, `record`, `batch_closed`, `batch_cancelled`, `verify` (8.3) | Setup, help and frame 13 name them |
-| Cancel | `batch_cancelled`: count only; the files are never read (2.3, 8.3) | Frame 13 row 33: `Cancel reads and runs nothing. custody.log notes the count.` The prompt shows algorithm names, never hash values |
+| Cancel | `batch_cancelled`: count only; the files are never read (2.3, 8.3) | Agrees once the custody gate change is built: path inputs are listed, never opened. Frame 13 rows 32 and 33 say so. Kitty inputs are read at the drop, so the schema needs a `received` count. The prompt shows algorithm names, never hash values |
 | Part B settings | Every setting that changes Part B, including `prompt_unresolved`, `derived_image_views`, `extract_type3_glyph_images` (3.1, 4.3) | Setup marks all of them `◆`; the last two are Planned rows |
-| Image files | Custody mode writes every image on any job (6.1) | Setup's `save unplaceable images` detail box says custody writes every image anyway. Frame 14 row 27 counts them |
-| Verify | Five checks, a `.verify-<seq>.txt` and a log entry (9) | `r` runs checks 1 to 4, `R` adds check 5, both write the file and the entry |
+| Image files | Custody mode writes every image on any job (6.1) | Setup's `save unplaceable images` detail box says custody writes every image anyway. Frame 14 row 27 counts all 32, the unplaceable one included |
+| Verify | Five checks, a `.verify-<seq>.txt` and a log entry (9) | `r` opens the Verify panel: checks 1 to 4, and check 5 behind the `[5] also re-run` toggle. Each run writes the file and the entry |
+| One record per job | Every job gets a record, named after the input when nothing was output (2.1, 2.2) | Frame 13 says `per file`; setup and help say `for every file` |
 | Field limit | 200 characters, no control characters (4.1) | The prompt stops at 200 and refuses control characters |
 | Host name | `record_host_name` setting (Q3) | A setup row, Planned |
 | Log head | Shown when the batch closes (2.3 step 8, 8.5) | Specified for the progress box; not drawn yet |
@@ -797,6 +867,12 @@ Each screen reads top to bottom, left to right, in the order the user acts: list
 | Setup list scrolling, with `↓ N more` on the box's bottom edge | New screen | Frame 11 |
 | Help screen | New screen | Frame 12 |
 | Text-field focus checked before any hotkey | Key dispatcher, `src/ui/app.rs` | Frames 10, 11, 13 |
+| Custody-mode gate: name and `fs::metadata` only; the open, the read check and the `%PDF-` sniff move to job start, after `stat_before` | `src/ui/input/gate.rs`, the job start in `src/jobs.rs` | Frame 13 rows 32 and 33 |
+| `batch_cancelled` counts kitty inputs received and discarded | `src/custody.rs`, schema 8.3 | Frame 13 kitty state |
+| A paste whose every item is a `.pdf` path is a drop, even with a field focused | `src/ui/app.rs`, `pasted` | Frames 11 and 13 |
+| A drop on history, setup, help or a modal is taken and the screen stays; the custody prompt waits for the batch view | `src/ui/app.rs` | Frames 10 to 13 |
+| Prompt buttons: one focus, `‹ ›` on the default, `enter` on a focused button presses it | New screen | Frame 13 |
+| Verify panel with the `[5] also re-run` toggle | New panel | Frame 14 |
 | Pending custody batch, held before enqueue | Planned `AppState.pending_batch` | Frame 13 |
 | Custody batch id per entry | Planned `QueueEntry.custody_batch`, indexing `AppState.custody_batches` (case values, `batch_opened` seq, state) | Frames 13, 14 |
 | Case details prompt, and the order against open modals and parked files | New screen; the enqueue in `src/ui/app.rs` | Frame 13 |
@@ -817,6 +893,14 @@ Each screen reads top to bottom, left to right, in the order the user acts: list
 | Queue short form `partial · <class>`; fixture reason `31 0 obj: unrecoverable stream`, status `C9: 31 0 obj: unrecoverable stream`, in place of `88% salvaged` | `src/ui/view.rs` `RowStatus`, `src/ui/state.rs` `mockup_result`, the view tests | Frames 05 and 14 (`design/ux-d117`) |
 | Picked font's family | Font database lookup by `font_id` | Frame 05 rows 22 and 23 (`design/ux-d117`) |
 
+## Flags for the schema owner
+
+| # | Schema text | Problem | Proposed fix |
+| --- | --- | --- | --- |
+| 1 | 2.3: "The prompt never read them" | False for the app as built: `gate()` opens every file and reads its first KiB before the prompt | True for path inputs once the custody-mode gate ships. Say so, and name kitty drops as the exception |
+| 2 | 2.3 order: `started_utc`, then `stat_before` | Today the gate's read comes earlier, so `stat_before.accessed` can show PDFPundit's own read | With the custody gate, the first open is after `stat_before`. The schema could say the stat is taken before any read by PDFPundit |
+| 3 | 8.3 `batch_cancelled`: `files` only | Kitty inputs were received whole and then discarded | Add `received`: how many of `files` were held in memory and discarded |
+
 ## Open questions for the user
 
 1. **Prompt strictness.** As designed, the prompt must be answered whenever `ask_case_details` is true, and every field may be blank, as DA:433 says. Do you also want a `require_case_details` setting that refuses an empty case reference?
@@ -828,8 +912,9 @@ Each screen reads top to bottom, left to right, in the order the user acts: list
 7. **Frame 03's info findings.** Rows 22 and 23 now use short labels for info findings, such as `text as outlines` and `digitally signed`, instead of the engine's long summary cut at 21 cells. The full summary stays in history and the report. Agreed?
 8. **The schema's questions decide what these frames draw.** Frames 11, 13 and 14 assume the schema's recommended answers: Q1 (full output name in record names), Q2 (submission reference and notes fields), Q3 (host name recorded, with a setup switch), Q5 (CASE file off by default) and Q13 (blank wording). A different answer changes those frames.
 
-9. **Custody mode and the evidence folder, schema Q16.** By default outputs go beside each input, so a custody batch writes nine or more files into the evidence folder. Frame 13 warns before the batch starts, and the record notes the warning. Should custody mode instead refuse to start until `output_dir` is set? That would make the frame 13 warning a blocking message with a `[S] setup` button.
+9. **Custody mode and the evidence folder, schema Q16.** By default outputs go beside each input, so a custody batch writes nine or more files into the evidence folder. Frame 13 warns before the batch starts, and the record notes the warning. Should custody mode instead refuse to start until `output_dir` is set? That would make the frame 13 warning a blocking message with a third button, `Open setup`, reached with `tab` like the others, not a letter key. It would open setup with the output folder row selected; `esc` from setup would return to the prompt with the batch still pending and the typed values kept.
 10. **The queue's partial label.** The result view's queue now prints `partial · C9`, the class of the first partial reason, because a real reason such as `C9: 31 0 obj: unrecoverable stream` does not fit 24 cells. The full reason goes on the hint line. Is the class code enough there?
+11. **Kitty drops in custody mode.** Kitty hands over the file's bytes at the drop, so the app reads them before the prompt. The prompt says so on screen. Is that enough, or should custody mode refuse kitty drops and ask for the picker (`B`) or a paste instead?
 
 ## Review log
 
@@ -863,3 +948,19 @@ Each screen reads top to bottom, left to right, in the order the user acts: list
 | 9 | Frame 13 caption said two fields | nit | Caption says the cat asks once for the case details, any of which may stay blank |
 | 10 | Extra blank line; titles read by index | nit | Blank line dropped. `still_frames` finds titles with `title(fn)` for every frame drawn by a named function |
 | 11 | History hotkeys left out `[e]`; blink rule too narrow | nit | `[e] export .md` on row 36. The blink rule names the widget's needs-you status line |
+
+### Third review, revision 4
+
+| # | Finding | Severity | What changed |
+| --- | --- | --- | --- |
+| 1 | "Cancel reads and runs nothing" was false: `gate()` and `take_drop` read every file before the prompt | major | Option (a). In custody mode the gate admits on name and `fs::metadata` only; the open and the `%PDF-` sniff move to job start, after `stat_before`. Kitty inputs are still read at the drop, and the prompt says so. Frame 13 rows 32 and 33: `The files were listed, never opened`. New section "What the app reads before the prompt", build items, and "Flags for the schema owner" |
+| 2 | `enter` on a focused Cancel started the batch; two `►` at once | major | `enter` in a field presses the default button; `enter` or `space` on a button presses that button. The default is `‹ Start batch ›`, without `►`. Keys table has a row for Cancel focused; a focus table names each control's look |
+| 3 | `[S]` hints on the prompt would type an `S` into the case reference | minor | Both hints are plain dim text, `in setup`. No key leaves the prompt except `esc` and the buttons |
+| 4 | Evidence footer missed `f` and the re-run; `r`/`R` by case; `R` clashed with the file menu; setup's `s` | minor | Footer lists every live key. The re-run is a `[5] also re-run` toggle in the Verify panel. New rule "Letter keys ignore case" scopes setup's `s` and `r` and the menu's `R` |
+| 5 | Evidence page printed `blank`; the `.txt` prints "not provided" | minor | The page prints `not provided`, from the custody template module, out of `ALL`. Agreement table corrected |
+| 6 | Shared template phrases had no bucket in the deny-list rule | minor | New row: a phrase a custody template also prints comes from the template module and never goes into `ALL` |
+| 7 | No drop behaviour on history, setup or help | minor | New rule "A drop works on every screen", with a drop row in the keys of history, the forget confirmation, setup and help. A paste of `.pdf` paths is a drop even with a field focused |
+| 8 | Frame 14 counted 31 images | nit | 32, the unplaceable one included |
+| 9 | "per output" for records | nit | `per file` on frame 13; `for every file` on setup and help |
+| 10 | Help said `<hash>.images/` | nit | `<hash8>.images/` |
+| 11 | `04-font-pick` title read by position | nit | Frame 4 is drawn by `frame_fontpick_on_batch`, frame 1 by `frame_main`; every still finds its title with `title()` |
