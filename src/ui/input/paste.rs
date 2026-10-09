@@ -442,7 +442,10 @@ mod tests {
             paths(r"\\?\C:\a\x.pdf \\.\D:\y.pdf", Style::Windows),
             [some(r"\\?\C:\a\x.pdf"), some(r"\\.\D:\y.pdf")]
         );
-        // On Unix `//x` is a local path.
+        // On Unix `//x` is a local path. Only there: the POSIX style reads
+        // the item with the host's `Path`, and Windows parses `//tmp/x.pdf`
+        // as the UNC share `\\tmp\x.pdf`, which has no file name (CI-01).
+        #[cfg(unix)]
         assert_eq!(paths("//tmp/x.pdf", Style::Posix), [some("//tmp/x.pdf")]);
     }
 

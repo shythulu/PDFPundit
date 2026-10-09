@@ -886,7 +886,9 @@ fn paste_of(paths: &[&Path]) -> Input {
 
 /// Runs `events` through the loop with `runner`, then the runner's events
 /// until every job that started has finished (and, when none has, until
-/// nothing comes for a second).
+/// nothing comes for a second). A tick follows each input, as in [`send`]:
+/// on Windows the collector holds a typed key until a tick finds it idle, and
+/// the runner's events are not ticks.
 fn script_with_runner(
     app: &mut App,
     screen: &mut TestScreen,
@@ -894,7 +896,7 @@ fn script_with_runner(
     rx: &Receiver<AppEvent<Input>>,
     events: Vec<Input>,
 ) {
-    let mut events = events.into_iter();
+    let mut events = events.into_iter().flat_map(|e| [e, Input::Tick]);
     let (mut started, mut finished) = (0, 0);
     let mut next = || {
         if let Some(input) = events.next() {
@@ -1133,23 +1135,54 @@ fn drop_on(x: u16, y: u16) -> Input {
 
 /// The `text/uri-list` naming `paths`.
 fn uri_list(paths: &[&Path]) -> Input {
-    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-    const KEEP: &percent_encoding::AsciiSet = &NON_ALPHANUMERIC
-        .remove(b'/')
-        .remove(b'.')
-        .remove(b'-')
-        .remove(b'_');
     let list: String = paths
         .iter()
         .map(|p| {
             let p = p.to_str().expect("a UTF-8 scratch path");
-            format!("file://{}\r\n", utf8_percent_encode(p, KEEP))
+            format!("{}\r\n", file_uri(p))
         })
         .collect();
     Input::Dnd(DndEvent::Data {
         idx: Some(1),
         data: Ok(list.into_bytes()),
     })
+}
+
+/// The `file:` URI a drag source sends for the local `path`, percent-encoded.
+/// A Windows drive path `C:\a\b` is `file:///C:/a/b` (RFC 8089, appendix E.2).
+fn file_uri(path: &str) -> String {
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    const KEEP: &percent_encoding::AsciiSet = &NON_ALPHANUMERIC
+        .remove(b'/')
+        .remove(b'.')
+        .remove(b'-')
+        .remove(b'_')
+        .remove(b':');
+    let b = path.as_bytes();
+    let drive =
+        b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && matches!(b[2], b'\\' | b'/');
+    let path = if drive {
+        format!("/{}", path.replace('\\', "/"))
+    } else {
+        path.to_owned()
+    };
+    format!("file://{}", utf8_percent_encode(&path, KEEP))
+}
+
+/// A scratch path makes a URI that reads back as the same local path, on
+/// Unix and on Windows (CI-01: `file://C:%5CUsers…` named a host `C:%5CUsers…`
+/// and was refused as another machine's file).
+#[test]
+fn a_scratch_path_makes_a_local_file_uri() {
+    use crate::ui::input::paste::{Style, from_file_uri};
+    assert_eq!(
+        from_file_uri(&file_uri("/tmp/scratch/a b.pdf"), Style::Posix),
+        Ok(PathBuf::from("/tmp/scratch/a b.pdf"))
+    );
+    assert_eq!(
+        from_file_uri(&file_uri(r"C:\Users\RUNNER~1\Temp\a b.pdf"), Style::Windows),
+        Ok(PathBuf::from("C:/Users/RUNNER~1/Temp/a b.pdf"))
+    );
 }
 
 fn at_rest(app: &App, now: Duration) -> bool {

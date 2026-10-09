@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.12.23"
