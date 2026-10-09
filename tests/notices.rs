@@ -19,12 +19,19 @@ fn notices() -> String {
 }
 
 /// Repo-relative paths with `/` separators, sorted.
+/// Every file under `dir`, skipping dot-prefixed entries. The repo tracks no
+/// dotfiles under `assets/` or `src/`, and a local OS file such as macOS's
+/// gitignored `.DS_Store` must not fail the check on one machine only.
 fn files_under(dir: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(d) = stack.pop() {
         for entry in std::fs::read_dir(&d).expect("read dir") {
-            let path = entry.expect("entry").path();
+            let entry = entry.expect("entry");
+            if entry.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
+            let path = entry.path();
             if path.is_dir() {
                 stack.push(path);
             } else {
