@@ -1686,3 +1686,63 @@ fn c8_names() {
         "the bundled database confirms no more"
     );
 }
+
+/// The font classes the smoke subset's C7 and C8 files diagnose (C8-01):
+/// every `remove_unicode_fonts` file reports C8, every `remove_fonts` file
+/// reports C7 and no C8, and neither calls a font whose program REPDF
+/// blanked "not embedded". Prints one line per file. Nothing is written.
+#[test]
+#[ignore = "needs PDFPUNDIT_CORPUS: a local REPDF clone at e547d4d"]
+fn smoke_font_classes() {
+    use crate::pdf::model::FindingKind;
+    let Some(root) = std::env::var_os("PDFPUNDIT_CORPUS") else {
+        println!("corpus: PDFPUNDIT_CORPUS is not set; skipped");
+        return;
+    };
+    let root = Path::new(&root);
+    let manifest = Manifest::pinned();
+    let mut wrong = Vec::new();
+    for path in SMOKE_SUBSET.lines() {
+        let want = match CorpusPath::parse(path).expect("a smoke path").class {
+            Some(
+                c
+                @ (CorruptionClass::C7FontStreamDeleted | CorruptionClass::C8FontResourcesDeleted),
+            ) => c,
+            _ => continue,
+        };
+        let bytes = read_checked(&manifest, root, path).unwrap_or_else(|e| panic!("{e}"));
+        let analysis = engine::analyze(&bytes, &AnalyzeOptions::default(), &mut NullProgress)
+            .expect("never cancelled");
+        let count = |c: CorruptionClass| {
+            analysis
+                .findings
+                .iter()
+                .filter(|f| f.class == FindingKind::Corruption(c))
+                .count()
+        };
+        let (c7, c8) = (
+            count(CorruptionClass::C7FontStreamDeleted),
+            count(CorruptionClass::C8FontResourcesDeleted),
+        );
+        let unembedded = analysis
+            .findings
+            .iter()
+            .filter(|f| matches!(f.class, FindingKind::FontNotEmbedded { .. }))
+            .count();
+        let ids: Vec<&str> = analysis.findings.iter().map(|f| f.id.as_str()).collect();
+        println!(
+            "{path}: C7 {c7}, C8 {c8}, not embedded {unembedded}; {}",
+            ids.join(" ")
+        );
+        // A C8 file's fonts that never had a `/ToUnicode` (Word's WinAnsi
+        // TrueType fonts) lost only their program: C7 beside the C8.
+        let right = match want {
+            CorruptionClass::C7FontStreamDeleted => c7 > 0 && c8 == 0,
+            _ => c8 > 0,
+        };
+        if !right || unembedded != 0 {
+            wrong.push(path);
+        }
+    }
+    assert!(wrong.is_empty(), "wrong font classes: {}", wrong.join(", "));
+}

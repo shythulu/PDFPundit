@@ -25,7 +25,7 @@ use lopdf::{Dictionary, Object};
 use sha2::{Digest, Sha256};
 
 use super::FontDb;
-use super::build::{BuildError, build_from_ttf, build_tounicode};
+use super::build::{BuildError, build_from_ttf, build_tounicode, build_tounicode_text};
 use super::gmap::{GmapError, GmapTable, Source};
 use crate::pdf::write::{EmitError, Writer};
 
@@ -330,6 +330,33 @@ impl Harvest {
                 Some((number(*t)?, object))
             })
             .collect()
+    }
+
+    /// This harvest with its `CIDFontType2`'s `/W` set to `w`: the input
+    /// font's widths, so the substitute draws each code in the advance the
+    /// input laid it out with (C8-01).
+    pub(crate) fn with_widths(mut self, w: Object) -> Self {
+        if let Some((_, Object::Dictionary(cid))) =
+            self.objects.iter_mut().find(|(n, _)| *n == CIDFONT)
+        {
+            cid.set("W", w);
+        }
+        self
+    }
+
+    /// This harvest with its `/ToUnicode` mapping each code to `text`, whole
+    /// (C8-01): a code whose text is several characters keeps all of them,
+    /// where the harvest's own maps each code to the one character it draws.
+    pub(crate) fn with_text(mut self, text: &BTreeMap<u16, String>) -> Self {
+        let stream = Object::Stream(lopdf::Stream::new(
+            flate_dict(vec![]),
+            flate(&build_tounicode_text(text)),
+        ));
+        match self.objects.iter_mut().find(|(n, _)| *n == TOUNICODE) {
+            Some((_, o)) => *o = stream,
+            None => self.objects.push((TOUNICODE, stream)),
+        }
+        self
     }
 }
 

@@ -250,13 +250,72 @@ impl RebuildDoc {
         &mut self,
         substitutions: &[Substitution],
         fonts: &FontDb,
+        carve: &CarveReport,
+        tree: &PageTreePlan,
     ) -> Result<(), EmitError> {
         for s in substitutions {
             let font = template::harvest_from(fonts, &s.font_id, &s.used_codes)
                 .map_err(|e| EmitError::Write(format!("font {}: {e}", s.font_id)))?;
+            let font = match self.input_widths(carve, tree, s.page, s.slot.as_bytes()) {
+                Some(w) => font.with_widths(w),
+                None => font,
+            };
             self.substitute(vec![(s.page, s.slot.as_bytes().to_vec())], font);
         }
         Ok(())
+    }
+
+    /// The `/W` of the font the page at `page` (its index in `tree`)
+    /// selects with `slot`, a C6 re-link over its resources: the font's own,
+    /// or its first descendant `CIDFont`'s, through references and an array
+    /// object of its own. A substituted font takes it, so its glyphs advance
+    /// as the input laid them out (C8-01). `None` when the slot names no
+    /// font, or the font no `/W` array.
+    pub(crate) fn input_widths(
+        &self,
+        carve: &CarveReport,
+        tree: &PageTreePlan,
+        page: u32,
+        slot: &[u8],
+    ) -> Option<Object> {
+        let plan = tree.pages.get(usize::try_from(page).ok()?)?;
+        let font = match self.relinks.get(&plan.id).and_then(|m| m.get(slot)) {
+            Some(&f) => f,
+            None => {
+                (self.font_map(carve, plan.resources.as_ref()).into_iter())
+                    .find(|(s, _)| s == slot)?
+                    .1
+            }
+        };
+        // A value, or the carved value its reference names.
+        let value = |v: &Object| -> Option<Object> {
+            let Object::Reference(id) = v else {
+                return Some(v.clone());
+            };
+            match &carve
+                .objects
+                .get(match self.remap.target(*id)? {
+                    Held::Object(at) => at,
+                    Held::Orphan(_) => return None,
+                })?
+                .body
+            {
+                Body::Primitive(p) => Some(p.clone()),
+                Body::Dict(d) => Some(Object::Dictionary(d.clone())),
+                _ => None,
+            }
+        };
+        let Object::Dictionary(top) = value(&Object::Reference(font))? else {
+            return None;
+        };
+        let cid = match top.get(b"DescendantFonts").ok().and_then(&value) {
+            Some(Object::Array(a)) => match value(a.first()?)? {
+                Object::Dictionary(d) => d,
+                _ => return None,
+            },
+            _ => top,
+        };
+        value(cid.get(b"W").ok()?).filter(|w| matches!(w, Object::Array(_)))
     }
 }
 
@@ -271,7 +330,9 @@ impl RebuildDoc {
 /// [`emit_doc`] of the passes' [`RebuildDoc`], substituted through the same
 /// [`RebuildDoc::substitute`], which takes only the streams the C9 pass
 /// swapped. The two give the same bytes for the same substitutions whenever
-/// the C9 pass swapped every salvaged stream, or none changed.
+/// the C9 pass swapped every salvaged stream, or none changed, and no C7
+/// code's text is several characters: the pass keeps such a text whole,
+/// which a [`Substitution`]'s one `char` per code cannot carry.
 pub(crate) fn emit_template_assemble(
     carve: &CarveReport,
     graph: &ObjectGraph,
@@ -283,7 +344,7 @@ pub(crate) fn emit_template_assemble(
 ) -> Result<Vec<u8>, EmitError> {
     let mut doc = RebuildDoc::new(remap.clone());
     doc.swapped.extend(ctx.salvage.by_obj.keys().copied());
-    doc.assemble(substitutions, fonts)?;
+    doc.assemble(substitutions, fonts, carve, page_tree)?;
     emit_doc(doc, carve, graph, page_tree, ctx)
 }
 
@@ -440,16 +501,19 @@ impl RebuildDoc {
             if !set.insert(id) {
                 continue;
             }
-            let Some(Body::Dict(d) | Body::Stream { dict: d, .. }) = held(id).map(|o| &o.body)
-            else {
-                continue;
-            };
-            for key in FONT_PARTS {
-                let mut refs = Vec::new();
-                if let Ok(v) = d.get(key) {
-                    references(v, &mut refs);
+            match held(id).map(|o| &o.body) {
+                Some(Body::Dict(d) | Body::Stream { dict: d, .. }) => {
+                    for key in FONT_PARTS {
+                        let mut refs = Vec::new();
+                        if let Ok(v) = d.get(key) {
+                            references(v, &mut refs);
+                        }
+                        queue.extend(refs);
+                    }
                 }
-                queue.extend(refs);
+                // `/DescendantFonts` in an array object of its own.
+                Some(Body::Primitive(a @ Object::Array(_))) => references(a, &mut queue),
+                _ => {}
             }
         }
         // Keep whatever something outside the set (and outside the pages'
@@ -486,12 +550,16 @@ impl RebuildDoc {
             if !set.contains(&id) || !reach.insert(id) {
                 continue;
             }
-            if let Some(Body::Dict(d) | Body::Stream { dict: d, .. }) = held(id).map(|o| &o.body) {
-                for key in FONT_PARTS {
-                    if let Ok(v) = d.get(key) {
-                        references(v, &mut queue);
+            match held(id).map(|o| &o.body) {
+                Some(Body::Dict(d) | Body::Stream { dict: d, .. }) => {
+                    for key in FONT_PARTS {
+                        if let Ok(v) = d.get(key) {
+                            references(v, &mut queue);
+                        }
                     }
                 }
+                Some(Body::Primitive(a @ Object::Array(_))) => references(a, &mut queue),
+                _ => {}
             }
         }
         for id in reach {

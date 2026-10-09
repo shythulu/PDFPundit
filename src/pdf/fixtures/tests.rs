@@ -473,30 +473,58 @@ fn assert_blanked(label: &str, g: &[u8], out: &[u8], spans: &[Range<usize>]) {
     }
 }
 
+/// Where object `id` sits in `pdf`, from its header through `endobj`.
+fn whole_object(pdf: &[u8], id: u32) -> Range<usize> {
+    let header = format!("\n{id} 0 obj");
+    let at = find(pdf, header.as_bytes()).expect("object header") + 1;
+    at..at + find(&pdf[at..], b"endobj").expect("endobj") + 6
+}
+
+/// Where the entry `/<key> <id> 0 R` sits in `pdf` (it must occur once).
+fn entry(pdf: &[u8], key: &str, id: u32) -> Range<usize> {
+    let text = format!("/{key} {id} 0 R");
+    let at = find(pdf, text.as_bytes()).expect("the entry");
+    assert_eq!(
+        rfind(pdf, text.as_bytes()),
+        Some(at),
+        "{text} is not unique"
+    );
+    at..at + text.len()
+}
+
 #[test]
-fn c7_blanks_the_font_program_in_place() {
+fn c7_blanks_the_program_entry_and_object_in_place() {
+    // REPDF's measured C7 (C8-01): the `/FontFile2 N G R` entry and the
+    // whole program object, header through `endobj`.
     for (label, g) in goldens() {
         let doc = load_strict(&g);
         let descriptor = deref(&doc, cidfont(&doc).get(b"FontDescriptor").unwrap())
             .as_dict()
             .unwrap();
-        let font = data_range(&g, &doc, stream_id(descriptor, b"FontFile2"));
+        let font = stream_id(descriptor, b"FontFile2");
         let out = corrupt(CorruptionClass::C7FontStreamDeleted, &g, 0);
-        assert_blanked(label, &g, &out, &[font]);
+        let spans = [entry(&g, "FontFile2", font), whole_object(&g, font)];
+        assert_blanked(label, &g, &out, &spans);
     }
 }
 
 #[test]
-fn c8_blanks_the_font_program_and_tounicode_in_place() {
+fn c8_also_blanks_the_tounicode_entry_and_object_in_place() {
     for (label, g) in goldens() {
         let doc = load_strict(&g);
         let descriptor = deref(&doc, cidfont(&doc).get(b"FontDescriptor").unwrap())
             .as_dict()
             .unwrap();
-        let font = data_range(&g, &doc, stream_id(descriptor, b"FontFile2"));
-        let cmap = data_range(&g, &doc, stream_id(type0(&doc), b"ToUnicode"));
+        let font = stream_id(descriptor, b"FontFile2");
+        let cmap = stream_id(type0(&doc), b"ToUnicode");
         let out = corrupt(CorruptionClass::C8FontResourcesDeleted, &g, 0);
-        assert_blanked(label, &g, &out, &[font, cmap]);
+        let spans = [
+            entry(&g, "FontFile2", font),
+            whole_object(&g, font),
+            entry(&g, "ToUnicode", cmap),
+            whole_object(&g, cmap),
+        ];
+        assert_blanked(label, &g, &out, &spans);
     }
 }
 

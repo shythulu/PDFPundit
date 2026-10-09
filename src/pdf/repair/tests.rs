@@ -173,6 +173,14 @@ fn classes_in(output: &[u8]) -> Vec<CorruptionClass> {
     corruption_classes(&analysed(output.to_vec()).findings)
 }
 
+/// `output` has a font with no program: a font the pass kept as found. The
+/// output names no program where REPDF's C7 and C8 blanked the entry, so it
+/// re-diagnoses as not embedded, not as C7 (C8-01).
+fn unembedded_in(output: &[u8]) -> bool {
+    (analysed(output.to_vec()).findings.iter())
+        .any(|f| matches!(f.class, FindingKind::FontNotEmbedded { .. }))
+}
+
 /// V1 passes: no page went blank and no count fell below the baseline's.
 /// `0/0` (the baseline had none of a thing) passes.
 fn passes_v1(v1: &Retention) -> bool {

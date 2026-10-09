@@ -19,9 +19,10 @@
 //! **C7** (the program is lost, `/ToUnicode` survives): each code is decoded
 //! through the `/ToUnicode` alone (T-27c's first rung) to its true text; that
 //! text is the per-document dictionary T-28's [`infer`] scores with, and the
-//! codes' characters are the `/ToUnicode` the output gets. A code whose
-//! text is several characters (a ligature, a combining sequence) keeps its
-//! first, and the pass is `Partial` saying how many. **C8** (the
+//! codes' texts are the `/ToUnicode` the output gets. A code whose text is
+//! several characters (a ligature, a conjunct, a combining sequence) keeps
+//! it whole in the `/ToUnicode`, but the font draws only its first
+//! character's glyph, and the pass is `Partial` saying how many. **C8** (the
 //! `/ToUnicode` is lost too): the database is tried by name first
 //! ([`by_name`]), and a name match is used only when the `CIDFont`'s
 //! surviving `/W` confirms that the codes are that font's glyph ids
@@ -94,6 +95,7 @@ use crate::engine::{
     RepairAction, SubstituteChoice, ToUnicodeState, Toolpath, UnreproduciblePolicy,
 };
 use crate::pdf::carver::Body;
+use crate::pdf::diagnose::type0_parent;
 use crate::pdf::fontdb::FontDb;
 use crate::pdf::fontdb::build::IndexEntry;
 use crate::pdf::fontdb::decode::decode_codes;
@@ -213,7 +215,7 @@ impl RepairPass for FontPrograms {
                 ctx.notes.partial.push((self.0, t.finding.location));
             }
             // The recovered font keeps its lost program beside its new
-            // /ToUnicode: the output re-diagnoses it as C7 (repair.rs docs).
+            // /ToUnicode: the output may re-diagnose it as C7 (repair.rs docs).
             if recovers {
                 (ctx.notes.partial_as).push((C7FontStreamDeleted, t.finding.location));
             }
@@ -295,12 +297,7 @@ fn targets<'f>(ctx: &RepairCtx<'_>, findings: &'f [Finding], c8: bool) -> Vec<Ta
         let Some(user) = user else {
             continue;
         };
-        let top = ctx
-            .graph
-            .referrers(user)
-            .iter()
-            .find(|e| e.path.first_key() == Some(&b"DescendantFonts"[..]))
-            .map_or(user, |e| e.from);
+        let top = type0_parent(ctx.graph, user).unwrap_or(user);
         if out.iter().any(|t| t.top == top) {
             continue;
         }
@@ -802,6 +799,7 @@ fn true_text(t: &Target<'_>) -> TrueText {
             let mut chars = d.text.chars();
             if let Some(c) = chars.next() {
                 out.used.entry(*code).or_insert(c);
+                out.text.entry(*code).or_insert_with(|| d.text.clone());
                 if chars.next().is_some() {
                     several.insert(*code);
                 }
@@ -810,22 +808,23 @@ fn true_text(t: &Target<'_>) -> TrueText {
         }
         out.words.push(' ');
     }
-    out.truncated = several.len();
+    out.several = several.len();
     out
 }
 
 /// C7's reading of a slot through its surviving `/ToUnicode`.
 #[derive(Default)]
 struct TrueText {
-    /// Each code's character: the first of its text.
+    /// Each code's character: the first of its text, the one the
+    /// substituted font draws.
     used: BTreeMap<u16, char>,
+    /// Each code's whole text: what the output's `/ToUnicode` maps it to.
+    text: BTreeMap<u16, String>,
     /// The slot's text, a space at every token break and after every run.
     words: String,
-    /// How many codes' text is several characters (a ligature, a combining
-    /// sequence): the rebuilt `/ToUnicode` keeps
-    /// only the first (the [`Substitution`](crate::pdf::emit::Substitution)
-    /// interface maps a code to one `char`).
-    truncated: usize,
+    /// How many codes' text is several characters (a ligature, a conjunct,
+    /// a combining sequence): the substituted font draws only the first.
+    several: usize,
 }
 
 /// The database font `/BaseFont` `name` names (RR change #3): the subset
@@ -1169,13 +1168,27 @@ fn apply(
     };
     match choice {
         Choice::Font { id, why, kind } => {
-            let (used, truncated) = if c8 {
-                (read_through(ctx.fonts, &id, &t.codes()), 0)
+            let (used, text, several) = if c8 {
+                (read_through(ctx.fonts, &id, &t.codes()), None, 0)
             } else {
                 let text = true_text(t);
-                (text.used, text.truncated)
+                let whole = (text.several > 0).then_some(text.text);
+                (text.used, whole, text.several)
             };
-            match harvest_from(ctx.fonts, &id, &used) {
+            // A C7 code whose text is several characters keeps all of them.
+            let harvested = harvest_from(ctx.fonts, &id, &used).map(|h| match &text {
+                Some(t) => h.with_text(t),
+                None => h,
+            });
+            // The input's widths lay the text out where it was.
+            let widths = t.slots.first().and_then(|(page, slot)| {
+                (ctx.doc).input_widths(ctx.carve, ctx.page_tree, *page, slot)
+            });
+            let harvested = harvested.map(|h| match widths {
+                Some(w) => h.with_widths(w),
+                None => h,
+            });
+            match harvested {
                 Ok(font) => {
                     ctx.doc.substitute(t.slots.clone(), font);
                     let program = ctx.fonts.program_of(&id).unwrap_or(&id).to_owned();
@@ -1211,12 +1224,13 @@ fn apply(
                         });
                     }
                     // A code whose /ToUnicode text is several characters
-                    // keeps its first (`TrueText::truncated`).
-                    if truncated > 0 {
+                    // keeps it whole, but its glyph is its first character's
+                    // (`TrueText::several`).
+                    if several > 0 {
                         let lost = format!(
-                            "the rebuilt /ToUnicode keeps only the first character of \
-                             {truncated} codes whose surviving /ToUnicode text is several \
-                             characters"
+                            "{several} codes whose /ToUnicode text is several characters are \
+                             drawn with the glyph of their first; the /ToUnicode keeps their \
+                             text whole"
                         );
                         let msg = format!("{} {} obj: {lost}", t.descriptor.0, t.descriptor.1);
                         ctx.sink.log(LogLevel::Warn, msg);
