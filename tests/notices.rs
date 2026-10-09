@@ -239,10 +239,13 @@ fn every_asset_is_named_in_the_notices() {
 fn every_shipped_include_target_is_named_in_the_notices() {
     let notices = notices();
     let targets = shipped_include_targets();
-    // The scan sees the bundled fonts and the palette; an empty or tiny set
-    // means it broke, not that the notices are complete.
+    // The scan sees the bundled fonts, the word lists and the palette; an
+    // empty or tiny set means it broke, not that the notices are complete.
     for known in [
         "assets/fonts/NotoSans-Regular.ttf",
+        "assets/dicts/en.txt",
+        "assets/dicts/fr.txt",
+        "assets/dicts/es.txt",
         "assets/theme/darkberry-palette.json",
     ] {
         assert!(
@@ -278,6 +281,33 @@ fn the_notices_quote_every_bundled_licence_text() {
         assert!(
             notices.contains(&format!("```\n{}\n```", text.trim_end_matches('\n'))),
             "THIRD_PARTY_NOTICES.md does not quote {file} verbatim"
+        );
+    }
+}
+
+/// The word lists are CC BY 4.0 (G-09): their section names the licence, the
+/// source corpora and the changes made, which attribution requires.
+#[test]
+fn the_word_lists_carry_their_attribution() {
+    let notices = notices();
+    let at = notices
+        .find("## Leipzig Corpora Collection word lists")
+        .expect("a word-list section");
+    let section = &notices[at..];
+    let section = &section[..section[3..].find("\n## ").map_or(section.len(), |e| e + 3)];
+    for needle in [
+        "https://creativecommons.org/licenses/by/4.0/",
+        "Creative Commons Attribution 4.0",
+        "https://wortschatz.uni-leipzig.de/en/usage",
+        "eng_news_2025_1M",
+        "fra_news_2024_1M",
+        "spa_news_2024_1M",
+        "Changes made",
+        "tools/cut-wordlist.py",
+    ] {
+        assert!(
+            section.contains(needle),
+            "the word-list section lacks {needle}"
         );
     }
 }

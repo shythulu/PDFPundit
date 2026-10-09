@@ -138,9 +138,9 @@ jobs:
           echo "release binary clean"
 
   # THIRD_PARTY_CRATES.md is generated from Cargo.lock over the shipped graph;
-  # regenerating it must change nothing (T-35). The release archive checker's
-  # and guard matrix's self-tests run here too, so a broken one shows before a
-  # tag does.
+  # regenerating it must change nothing (T-35). The release archive checker's,
+  # guard matrix's and word-list cutter's (G-09) self-tests run here too, so a
+  # broken one shows before a tag does.
   release-files:
     runs-on: ubuntu-latest
     steps:
@@ -152,6 +152,7 @@ jobs:
           python3 -I tools/crate-notices.py --self-test
           python3 -I tools/check-release-archive.py --self-test
           python3 -I tools/release-guard-matrix.py --self-test
+          python3 -I tools/cut-wordlist.py --self-test
       - name: regenerate and diff THIRD_PARTY_CRATES.md
         run: |
           cargo fetch --locked

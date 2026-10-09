@@ -5,8 +5,11 @@
 //! TrueType program and `.gmap`, each checked against the index's hashes when
 //! the database is loaded. Template PDFs are built from them on first use
 //! through [`template::build`] and kept for the life of the database. The
-//! bundled database is compiled in with `include_bytes!` and has no word list
-//! (D-011): its fonts are scored with [`dict::EmptyDictionary`].
+//! bundled database is compiled in with `include_bytes!` and carries the
+//! bundled word lists ([`dict::bundled`], G-09) that C8 inference scores its
+//! fonts against; any other database carries none until
+//! [`FontDb::with_word_lists`] gives it some, and its fonts are scored with
+//! [`dict::EmptyDictionary`].
 
 pub mod build;
 
@@ -39,6 +42,9 @@ use template::TemplateError;
 pub(crate) struct FontDb {
     sha256: [u8; 32],
     fonts: Vec<DbFont>,
+    /// The general word lists inference scores these fonts against. Not in
+    /// the hash: the hash names the fonts, and the lists are compiled in.
+    word_lists: &'static [dict::FrequencyList],
 }
 
 /// One font of a [`FontDb`], already checked against its index entry.
@@ -76,6 +82,7 @@ impl FontDb {
     /// process. A debug build reads them from the directory
     /// `PDFPUNDIT_ASSETS` names instead, when it is set and loads (D-051);
     /// the report's `font_db_sha256` records which database was used.
+    /// Either way it carries the bundled word lists ([`dict::bundled`]).
     pub(crate) fn bundled() -> Arc<FontDb> {
         static DB: OnceLock<Arc<FontDb>> = OnceLock::new();
         DB.get_or_init(|| {
@@ -83,11 +90,26 @@ impl FontDb {
             if let Some(dir) = std::env::var_os("PDFPUNDIT_ASSETS")
                 && let Ok(db) = FontDb::from_dir(std::path::Path::new(&dir))
             {
-                return Arc::new(db);
+                return Arc::new(db.with_word_lists(dict::bundled()));
             }
-            Arc::new(FontDb::compiled_in())
+            Arc::new(FontDb::compiled_in().with_word_lists(dict::bundled()))
         })
         .clone()
+    }
+
+    /// This database, scoring inference against `lists` instead of the
+    /// lists it had. The hash is unchanged.
+    pub(crate) fn with_word_lists(self, lists: &'static [dict::FrequencyList]) -> FontDb {
+        FontDb {
+            word_lists: lists,
+            ..self
+        }
+    }
+
+    /// The general word lists inference scores these fonts against; empty
+    /// for a database built from bytes.
+    pub(crate) fn word_lists(&self) -> &'static [dict::FrequencyList] {
+        self.word_lists
     }
 
     /// No fonts; its hash is the SHA-256 of no bytes.
@@ -95,6 +117,7 @@ impl FontDb {
         FontDb {
             sha256: Sha256::digest([]).into(),
             fonts: Vec::new(),
+            word_lists: &[],
         }
     }
 
@@ -222,6 +245,7 @@ impl FontDb {
         Ok(FontDb {
             sha256: sha256.finalize().into(),
             fonts,
+            word_lists: &[],
         })
     }
 }
@@ -261,6 +285,12 @@ impl std::fmt::Debug for FontDb {
             .field(
                 "fonts",
                 &self.fonts.iter().map(|f| &f.entry.id).collect::<Vec<_>>(),
+            )
+            .field(
+                "word_lists",
+                &(self.word_lists.iter())
+                    .map(dict::Dictionary::lang)
+                    .collect::<Vec<_>>(),
             )
             .finish()
     }
