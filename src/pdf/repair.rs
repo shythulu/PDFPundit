@@ -202,9 +202,10 @@ pub(crate) struct RepairCtx<'a> {
     pub(crate) toolpath: Toolpath,
     pub(crate) opts: &'a RepairOptions,
     pub(crate) fonts: &'a FontDb,
-    /// The general word lists the C8 pass scores inference against; none
-    /// ships (D-011), so repair passes none and the scorer uses the empty
-    /// dictionary.
+    /// The general word lists the C8 pass scores inference against: the font
+    /// database's ([`FontDb::word_lists`]; the bundled database carries the
+    /// bundled en, fr and es lists, G-09). With none the scorer uses the
+    /// empty dictionary.
     pub(crate) dicts: &'a [&'a dyn WordList],
     /// Where the font passes ask (D-020). They record every question and
     /// its answer in [`PassNotes::interactions`], policy answers included.
@@ -1152,6 +1153,9 @@ pub(crate) fn generate_and_validate(
     let assembles = schedule
         .iter()
         .any(|(c, s)| FONT_CLASSES.contains(c) && matches!(s, Scheduled::Run(..)));
+    let dicts: Vec<&dyn WordList> = (fonts.word_lists().iter())
+        .map(|l| l as &dyn WordList)
+        .collect();
     let mut built: Vec<Built> = Vec::new();
     let mut interactions = Vec::new();
     for (i, &toolpath) in plan.candidates.iter().enumerate() {
@@ -1180,7 +1184,7 @@ pub(crate) fn generate_and_validate(
             toolpath,
             opts,
             fonts,
-            dicts: &[],
+            dicts: &dicts,
             ask: &mut *ask,
             sink: &mut *sink,
             notes: PassNotes::default(),

@@ -466,6 +466,37 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
+## Leipzig Corpora Collection word lists (`assets/dicts/`)
+
+Font inference for damaged fonts (corruption class C8) compiles in three word
+lists, each adapted from a news corpus of the Leipzig Corpora Collection
+(Wortschatz Leipzig, Leipzig University, https://wortschatz.uni-leipzig.de/):
+
+| File | Corpus | Source |
+|---|---|---|
+| `assets/dicts/en.txt` | `eng_news_2025_1M` (English news, 2025, 1M sentences) | https://downloads.wortschatz-leipzig.de/corpora/eng_news_2025_1M.tar.gz |
+| `assets/dicts/fr.txt` | `fra_news_2024_1M` (French news, 2024, 1M sentences) | https://downloads.wortschatz-leipzig.de/corpora/fra_news_2024_1M.tar.gz |
+| `assets/dicts/es.txt` | `spa_news_2024_1M` (Spanish news, 2024, 1M sentences) | https://downloads.wortschatz-leipzig.de/corpora/spa_news_2024_1M.tar.gz |
+
+Licence: the project's terms of usage (https://wortschatz.uni-leipzig.de/en/usage)
+state that "The text corpora offered for download are made available under the
+Creative Commons licence CC BY": Creative Commons Attribution 4.0
+International, https://creativecommons.org/licenses/by/4.0/. The material is
+provided as is, without warranties of any kind.
+
+Changes made: only each corpus's word-frequency file (`*-words.txt`) is used.
+Each word is NFC-normalised and lower-cased; tokens that are not words (numbers,
+punctuation, anything other than letters joined by apostrophes or hyphens) are
+dropped; the counts of words that become equal are summed; and the 50,000 most
+frequent words are kept, one `word count` line each. `tools/cut-wordlist.py`
+makes the cut and `fetch-assets.sh` re-downloads the corpora and checks the
+result against the committed files' SHA-256.
+
+The collection's reference publication: D. Goldhahn, T. Eckart and U. Quasthoff,
+"Building Large Monolingual Dictionaries at the Leipzig Corpora Collection: From
+100 to 200 Languages", in Proceedings of the Eighth International Conference on
+Language Resources and Evaluation (LREC 2012).
+
 ## Library test fixtures (`tests/data/`)
 
 The library's public `pdf::fixtures` module, which the tests and
@@ -496,6 +527,9 @@ above that covers it. `tests/notices.rs` fails if one is missing here.
 | `assets/gmaps/NotoSerif-Regular.gmap` | Noto Sans and Noto Serif Regular (generated) |
 | `assets/fontindex.json` | Noto Sans and Noto Serif Regular (generated) |
 | `assets/licenses/OFL-Noto.txt` | Noto Sans and Noto Serif Regular (the licence text; not compiled in) |
+| `assets/dicts/en.txt` | Leipzig Corpora Collection word lists |
+| `assets/dicts/fr.txt` | Leipzig Corpora Collection word lists |
+| `assets/dicts/es.txt` | Leipzig Corpora Collection word lists |
 | `tests/data/NotoSans-Regular-subset.ttf` | Library test fixtures |
 | `tests/data/tiny.jpg` | Library test fixtures |
 | `Foxit*.pfb`, `cmaps.brotli`, `CGATS001Compat-v2-micro.icc`, `LAB.icc` | compiled in by the hayro crates: Foxit fonts, Adobe CMaps, ICC profiles |

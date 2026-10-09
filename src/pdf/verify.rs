@@ -67,7 +67,8 @@
 //! **V2, plausibility** of the output's extracted text: unmapped glyphs and
 //! glyphs that map to U+FFFD over all glyphs, and the share of letter-bearing
 //! tokens whose letters are all of one script ([`plausibility`]).
-//! `dictionary_hit` is `None`: no word list ships (D-011).
+//! `dictionary_hit` is `None`: the bundled word lists (G-09) feed font
+//! inference only, and V2 does not score against them.
 // T-13a is the first caller outside the tests.
 #![cfg_attr(not(test), allow(dead_code))]
 
@@ -153,7 +154,7 @@ pub struct Plausibility {
     pub unmapped_glyph: Ratio,
     pub fffd: Ratio,
     pub script_consistency: Ratio,
-    /// `None` without a dictionary (D-011).
+    /// `None`: V2 scores against no word list (D-011, G-09).
     pub dictionary_hit: Option<Ratio>,
 }
 

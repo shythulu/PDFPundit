@@ -16,7 +16,7 @@ use crate::engine::{
 use crate::pdf::emit::{EmitCtx, Substitution, emit_doc, emit_template_assemble};
 use crate::pdf::fixtures::TEST_FONT;
 use crate::pdf::fontdb::build::{IndexEntry, build_from_ttf};
-use crate::pdf::fontdb::dict::FrequencyList;
+use crate::pdf::fontdb::dict::{self, FrequencyList};
 use crate::pdf::fontdb::gmap::{self, GmapRecord, GmapTable};
 use crate::pdf::model::{FileMeta, InteractionKind};
 use crate::pdf::text::{ExtractOptions, extract_text};
@@ -591,6 +591,61 @@ fn c8_with_a_cidfont_name_goes_to_inference() {
     assert_eq!(text_of(&ran.output), golden_text());
 }
 
+// ── the bundled word lists (G-09, D-011) ─────────────────────────────────
+
+/// The bundled en, fr and es lists, as the passes take them.
+fn bundled_lists() -> Vec<&'static dyn WordList> {
+    (dict::bundled().iter())
+        .map(|l| l as &dyn WordList)
+        .collect()
+}
+
+#[test]
+fn c8_inference_on_the_golden_auto_accepts_with_the_bundled_lists() {
+    let input = c8_unnamed();
+    let mut ask = Scripted::new(Vec::new());
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &test_db(),
+        &RepairOptions::default(),
+        &mut ask,
+        &bundled_lists(),
+    );
+    assert!(ask.asked.is_empty(), "{:?}", ask.asked);
+    let lines = provenance(&ran.notes);
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with(&format!("auto-accepted {RIGHT}"))),
+        "{lines:?}"
+    );
+    assert_eq!(ran.report.outcome, PassOutcome::Fixed, "{lines:?}");
+    assert!(
+        actions(&ran.report)[0].starts_with(&format!("font program substituted: {RIGHT}")),
+        "{:?}",
+        ran.report
+    );
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
+#[test]
+fn repair_scores_c8_inference_with_the_databases_word_lists() {
+    // The same file without lists asks (G-02's engine test below); with the
+    // bundled lists on the database it auto-accepts, through the facade.
+    let bytes = renamed(&corrupt(C8FontResourcesDeleted, &golden_pdf(), 0));
+    let db = test_db().with_word_lists(dict::bundled());
+    let mut ask = Scripted::new(Vec::new());
+    let out = through_engine(&bytes, &db, &RepairOptions::default(), &mut ask);
+    assert!(ask.asked.is_empty(), "{:?}", ask.asked);
+    assert!(out.report.interactions.is_empty());
+    assert_eq!(text_of(&out.output.expect("an output")), golden_text());
+    let c8 = (out.report.passes.iter())
+        .find(|p| p.class == C8FontResourcesDeleted)
+        .expect("the C8 pass");
+    assert_eq!(c8.outcome, PassOutcome::Fixed);
+}
+
 // ── UseBest on a weak C8 guess (G-02, D-122 (b)) ─────────────────────────
 
 /// The C8 fixture with a `CIDFont+F1` name, so the slot goes to inference.
@@ -624,7 +679,8 @@ fn top_hit(ask: &Scripted) -> Ratio {
 
 #[test]
 fn use_best_on_a_weak_c8_guess_recovers_text_without_substituting_a_font() {
-    // No word list (as in production): the top candidate's hit is 0.
+    // No word list (a database built from bytes carries none): the top
+    // candidate's hit is 0.
     let input = c8_unnamed();
     let mut ask = Scripted::new(vec![InteractionReply::UseBest]);
     let ran = run_pass(

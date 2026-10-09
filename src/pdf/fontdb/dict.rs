@@ -1,12 +1,14 @@
 //! Word lists the inference scorer matches decoded text against (T-28, TD
 //! §18.2, FR-05).
 //!
-//! No list is bundled (D-011: the FrequencyWords lists are CC BY-SA 4.0), so
-//! the bundled database scores with [`EmptyDictionary`]. [`FrequencyList`]
-//! reads the FR-05 format, so a permissively licensed list in that format can
-//! be dropped in later without code changes, and [`FrequencyList::from_text`]
-//! turns a surviving `/ToUnicode`'s true text into the per-document
-//! dictionary (TD §5.2).
+//! [`bundled`] holds the general lists the C8 pass scores with (G-09,
+//! D-011): `assets/dicts/{en,fr,es}.txt`, the 50,000 most frequent words of
+//! the Leipzig Corpora Collection's 1M-sentence news corpora (CC BY 4.0;
+//! `THIRD_PARTY_NOTICES.md`), cut by `tools/cut-wordlist.py` and pinned by
+//! `fetch-assets.sh`. [`FrequencyList`] reads the FR-05 format those files
+//! are in, and [`FrequencyList::from_text`] turns a surviving `/ToUnicode`'s
+//! true text into the per-document dictionary (TD §5.2). A database with no
+//! lists scores with [`EmptyDictionary`].
 //!
 //! Every word is stored the way the scorer looks it up: [`normalize`]d (NFC,
 //! lowercase) and stripped of leading and trailing characters that are not
@@ -15,7 +17,34 @@
 // T-30 (the C7/C8 passes) is the first caller outside the tests.
 #![cfg_attr(not(test), allow(dead_code))]
 
+use std::sync::OnceLock;
+
 use crate::bench::metrics::{Lang, normalize};
+
+/// The bundled lists' files, in the order [`bundled`] returns them.
+const BUNDLED: [(Lang, &[u8]); 3] = [
+    (Lang::En, include_bytes!("../../../assets/dicts/en.txt")),
+    (Lang::Fr, include_bytes!("../../../assets/dicts/fr.txt")),
+    (Lang::Es, include_bytes!("../../../assets/dicts/es.txt")),
+];
+
+/// The lines of each bundled file (the cut's size).
+const BUNDLED_WORDS: usize = 50_000;
+
+/// The bundled English, French and Spanish lists, in that order, parsed once
+/// per process.
+pub(crate) fn bundled() -> &'static [FrequencyList] {
+    static LISTS: OnceLock<Vec<FrequencyList>> = OnceLock::new();
+    LISTS.get_or_init(|| {
+        BUNDLED
+            .iter()
+            .map(|&(lang, bytes)| {
+                // The tests check the committed files parse.
+                FrequencyList::from_bytes(lang, bytes).expect("the bundled word lists parse")
+            })
+            .collect()
+    })
+}
 
 /// A word list for one language.
 pub(crate) trait Dictionary {
@@ -30,8 +59,8 @@ pub(crate) trait Dictionary {
     fn bigram_millinats(&self, a: char, b: char) -> Option<i32>;
 }
 
-/// No words: never contains, prefix 0, no bigrams. What the bundled database
-/// scores with until D-011 finds a permissive list.
+/// No words: never contains, prefix 0, no bigrams. What a database with no
+/// word lists scores with.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct EmptyDictionary;
 
@@ -222,6 +251,54 @@ mod tests {
         assert!(!d.contains("the"));
         assert_eq!(d.longest_prefix("the"), 0);
         assert_eq!(d.bigram_millinats('的', '一'), None);
+    }
+
+    #[test]
+    fn the_bundled_lists_are_english_french_and_spanish() {
+        let lists = bundled();
+        assert!(std::ptr::eq(lists, bundled()), "parsed once");
+        let langs: Vec<Lang> = lists.iter().map(Dictionary::lang).collect();
+        assert_eq!(langs, [Lang::En, Lang::Fr, Lang::Es]);
+        for ((lang, bytes), list) in BUNDLED.iter().zip(lists) {
+            let text = std::str::from_utf8(bytes).unwrap();
+            let words: Vec<&str> = text.lines().map(|l| l.split_once(' ').unwrap().0).collect();
+            assert_eq!(words.len(), BUNDLED_WORDS, "{lang:?}");
+            for w in &words {
+                assert_eq!(normalize(w), *w, "{lang:?}: {w} is not lowercase NFC");
+            }
+            // Edge apostrophes are stripped on load (`l'` is `l`), so a few
+            // words merge.
+            assert!(
+                list.len() <= BUNDLED_WORDS && list.len() > 49_000,
+                "{}",
+                list.len()
+            );
+        }
+        let [en, fr, es] = lists else { panic!() };
+        for w in ["the", "quick", "brown", "jumps", "lazy", "golden", "page"] {
+            assert!(en.contains(w), "en: {w}");
+        }
+        for w in ["le", "garçon", "mangé", "crème", "cœur", "été", "c’est"] {
+            assert!(fr.contains(w), "fr: {w}");
+        }
+        for w in ["el", "niño", "año", "también"] {
+            assert!(es.contains(w), "es: {w}");
+        }
+    }
+
+    /// `fetch-assets.sh` re-downloads and re-cuts the lists and checks them
+    /// against these hashes; the committed files must be the pinned ones.
+    #[test]
+    fn fetch_assets_pins_the_bundled_lists() {
+        use sha2::{Digest, Sha256};
+        const SCRIPT: &str = include_str!("../../../fetch-assets.sh");
+        for (lang, bytes) in BUNDLED {
+            let hex: String = Sha256::digest(bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            assert!(SCRIPT.contains(&hex), "{lang:?}: {hex} is not pinned");
+        }
     }
 
     #[test]

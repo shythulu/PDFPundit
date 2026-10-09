@@ -42,6 +42,30 @@ fn bundled_db_lists_the_bundled_fonts_and_its_hash_is_stable() {
 }
 
 #[test]
+fn only_the_bundled_db_carries_the_bundled_word_lists() {
+    use dict::Dictionary;
+    let db = FontDb::bundled();
+    assert!(std::ptr::eq(db.word_lists(), dict::bundled()));
+    let langs: Vec<_> = db.word_lists().iter().map(|l| l.lang()).collect();
+    assert_eq!(
+        langs,
+        [
+            crate::bench::metrics::Lang::En,
+            crate::bench::metrics::Lang::Fr,
+            crate::bench::metrics::Lang::Es
+        ]
+    );
+    assert!(FontDb::compiled_in().word_lists().is_empty());
+    assert!(FontDb::empty().word_lists().is_empty());
+    let (index, gmap) = one_font();
+    let built = load(&index, TEST_FONT, &gmap).unwrap();
+    assert!(built.word_lists().is_empty());
+    let with = built.clone().with_word_lists(dict::bundled());
+    assert_eq!(with.word_lists().len(), 3);
+    assert_eq!(with.sha256(), built.sha256(), "the lists are not hashed");
+}
+
+#[test]
 fn the_assets_directory_loads_as_the_compiled_in_db() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
     let db = FontDb::from_dir(&dir).expect("assets/ loads");
