@@ -1851,9 +1851,10 @@ fn page_font_entry(pdf: &[u8], rng: &mut SplitMix64) -> Range<usize> {
 
 /// C7/C8 as REPDF induces them (C8-01, measured over all 200 of its C7 and
 /// C8 files: every changed byte is 0x20 and sits in one of these): each
-/// `/FontFile2 N G R` entry of a top-level dictionary, plus each
-/// `/ToUnicode N G R` entry when `tounicode`, from its slash through its
-/// `R`; then each object those entries name, from its header through
+/// `/FontFile2 N G R` entry of a top-level dictionary or of a dictionary
+/// written inline in one (a print producer's descriptor, OBS-0001), plus
+/// each `/ToUnicode N G R` entry when `tounicode`, from its slash through
+/// its `R`; then each object those entries name, from its header through
 /// `endobj`, in object-number order.
 fn font_resources(pdf: &[u8], tounicode: bool) -> Vec<Range<usize>> {
     let doc = load(pdf);
@@ -1867,9 +1868,11 @@ fn font_resources(pdf: &[u8], tounicode: bool) -> Vec<Range<usize>> {
     for (&(id, _), object) in &doc.objects {
         let Ok(d) = object.as_dict() else { continue };
         for &key in keys {
-            if let Ok(Object::Reference(target)) = d.get(key) {
-                spans.push(entry_span(pdf, &doc, id, key));
-                named.push(target.0);
+            let mut targets = Vec::new();
+            references_under(&Object::Dictionary(d.clone()), key, &mut targets);
+            for (nth, target) in targets.into_iter().enumerate() {
+                spans.push(entry_span(pdf, &doc, id, key, nth));
+                named.push(target);
             }
         }
     }
@@ -1880,12 +1883,34 @@ fn font_resources(pdf: &[u8], tounicode: bool) -> Vec<Range<usize>> {
     spans
 }
 
-/// The `/<key> N G R` entry in object `id`, from its slash through its `R`.
-fn entry_span(pdf: &[u8], doc: &Document, id: u32, key: &[u8]) -> Range<usize> {
+/// The object number of each `/<key> N G R` entry in `v` and in the
+/// dictionaries and arrays written inline in it.
+fn references_under(v: &Object, key: &[u8], out: &mut Vec<u32>) {
+    match v {
+        Object::Dictionary(d) => {
+            for (k, v) in d.iter() {
+                match v {
+                    Object::Reference((n, _)) if k == key => out.push(*n),
+                    _ => references_under(v, key, out),
+                }
+            }
+        }
+        Object::Array(a) => a.iter().for_each(|v| references_under(v, key, out)),
+        _ => {}
+    }
+}
+
+/// The `nth` `/<key> N G R` entry in object `id`, in byte order, from its
+/// slash through its `R`.
+fn entry_span(pdf: &[u8], doc: &Document, id: u32, key: &[u8], nth: usize) -> Range<usize> {
     let span = object_span(pdf, doc, id);
     let mut slashed = b"/".to_vec();
     slashed.extend_from_slice(key);
-    let start = span.start + find(&pdf[span.clone()], &slashed).expect("the entry's key");
+    let mut from = span.start;
+    for _ in 0..nth {
+        from += find(&pdf[from..span.end], &slashed).expect("the entry's key") + 1;
+    }
+    let start = from + find(&pdf[from..span.end], &slashed).expect("the entry's key");
     let end = start + find(&pdf[start..span.end], b"R").expect("the entry's reference") + 1;
     start..end
 }
