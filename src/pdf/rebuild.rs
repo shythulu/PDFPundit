@@ -31,14 +31,17 @@
 //!      kind ([`Want`], TD's table), the unclaimed orphan of that kind
 //!      nearest that referrer in bytes, ties to the earlier; when no orphan
 //!      of the kind is left, the nearest unclaimed shadow of it (TD: shadows
-//!      stay unreferenced "unless step 3 claims them"). The match carries
-//!      `Evidence::Metric{"matched_by_position_delta"}`, the candidate's
-//!      start less the referrer's;
-//!    - (c) else each reference to it is [`Unmatched`], a Warning finding
-//!      input (the object may be genuinely gone), and [`IdRemap::rewrite`]
-//!      turns it into `null`, since its number may now be a fresh object's.
-//!      A dangling `/Parent`, or a catalog's dangling `/Pages`, is not
-//!      reported: the flat page tree replaces those links.
+//!      stay unreferenced "unless step 3 claims them"). The match records
+//!      the candidate's start less the referrer's ([`MatchedBy::Position`]);
+//!    - (c) else each reference to it is [`Unmatched`] (the object may be
+//!      genuinely gone), and [`IdRemap::rewrite`] turns it into `null`,
+//!      since its number may now be a fresh object's. A dangling `/Parent`,
+//!      or a catalog's dangling `/Pages`, is not reported: the flat page
+//!      tree replaces those links.
+//!
+//!    Every match and every unmatched reference is a report action
+//!    ([`Reconciled::what`], [`Unmatched::what`]; D-133): a repair to a
+//!    reference is reported, never hidden.
 //!
 //! [`rebuild_page_tree`] then lays every page under one flat `/Pages` node,
 //! in document order (the catalog's tree, else each surviving root `/Pages`
@@ -60,7 +63,7 @@ use lopdf::{Dictionary, Object};
 use crate::engine::PageSize;
 use crate::pdf::carver::{Body, CarveReport, Orphan};
 use crate::pdf::graph::{KeyPath, MAX_TREE_DEPTH, ObjectGraph, PathSeg, winning_copies};
-use crate::pdf::model::{ByteSpan, Evidence, Location, MetricValue, ObjId, ObjectKind, Severity};
+use crate::pdf::model::{ByteSpan, ObjId, ObjectKind};
 
 /// A carved object the output can hold: an index into
 /// [`CarveReport::objects`] or into [`CarveReport::orphans`].
@@ -101,25 +104,44 @@ pub(crate) struct Reconciled {
 }
 
 impl Reconciled {
-    /// What the report records for the match.
-    pub(crate) fn evidence(&self) -> Vec<Evidence> {
-        let metric = match self.by {
-            MatchedBy::Generation { generation } => Evidence::Metric {
-                name: "matched_by_generation".into(),
-                value: MetricValue::Int(i64::from(generation)),
-            },
-            MatchedBy::Position { delta } => Evidence::Metric {
-                name: "matched_by_position_delta".into(),
-                value: MetricValue::Int(delta),
-            },
+    /// The report's line for the match (module docs, step 3): what the
+    /// reference named, the object every reference to that id now names in
+    /// `written` (the numbering the repair passes left), and how it was
+    /// matched. A match whose object `written` no longer holds reads as
+    /// [`Unmatched::what`]: its references are written as `null`.
+    pub(crate) fn what(&self, carve: &CarveReport, written: &IdRemap) -> String {
+        let (n, g) = self.missing;
+        let path = path_text(&self.path);
+        let Some(to) = written.number(self.missing) else {
+            return format!("{path} names {n} {g} R, which no carved object matches: {NULLED}");
         };
-        vec![
-            Evidence::ObjectRef(self.missing),
-            Evidence::Text(path_text(&self.path)),
-            metric,
-        ]
+        let how = match self.by {
+            MatchedBy::Generation { generation } => {
+                format!("matched by generation: {n} {generation} obj, the same number")
+            }
+            MatchedBy::Position { delta } => {
+                let candidate = match self.target {
+                    Held::Orphan(_) => "headerless object".to_owned(),
+                    Held::Object(at) => {
+                        let (sn, sg) = carve.objects[at].declared_id;
+                        format!("losing copy of {sn} {sg} obj")
+                    }
+                };
+                format!(
+                    "matched by position: the nearest {candidate} of the kind it names, \
+                     {delta} bytes from the referrer"
+                )
+            }
+        };
+        format!(
+            "{path} names {n} {g} R, which no carved object carries: every reference to it \
+             re-linked to {to} 0 obj, {how}"
+        )
     }
 }
+
+/// How the report says a reference was written as `null`.
+const NULLED: &str = "written as null";
 
 /// A reference to an id nothing could be matched to.
 #[derive(Debug, Clone, PartialEq)]
@@ -131,33 +153,13 @@ pub(crate) struct Unmatched {
     pub(crate) missing: ObjId,
 }
 
-/// The parts of a [`crate::pdf::model::Finding`] an [`Unmatched`] reference
-/// supplies; diagnosis gives it its id, class and repairability.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct FindingInput {
-    pub(crate) severity: Severity,
-    pub(crate) location: Location,
-    pub(crate) summary: String,
-    pub(crate) evidence: Vec<Evidence>,
-}
-
 impl Unmatched {
-    /// A Warning: the object may be genuinely gone.
-    pub(crate) fn finding_input(&self) -> FindingInput {
+    /// The report's line for the reference: the object may be genuinely
+    /// gone, and [`IdRemap::rewrite`] writes the reference as `null`.
+    pub(crate) fn what(&self) -> String {
         let (n, g) = self.missing;
         let path = path_text(&self.path);
-        FindingInput {
-            severity: Severity::Warning,
-            location: Location::Object {
-                id: self.from,
-                span: self.from_span,
-            },
-            summary: format!(
-                "{path} of {} {} obj names {n} {g} R, which no carved object matches",
-                self.from.0, self.from.1
-            ),
-            evidence: vec![Evidence::ObjectRef(self.missing), Evidence::Text(path)],
-        }
+        format!("{path} names {n} {g} R, which no carved object matches: {NULLED}")
     }
 }
 

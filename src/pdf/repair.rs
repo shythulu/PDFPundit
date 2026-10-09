@@ -79,10 +79,22 @@
 //! orphan, which has none, by the number the rebuild gave it; a finding
 //! about the whole file by `(0, 0)`.
 //!
+//! **References** (D-133). The rebuild re-links every dangling reference it
+//! can match and writes the rest as `null` (T-10, [`crate::pdf::rebuild`],
+//! step 3), whichever passes run. Each such repair is a [`RepairAction`] on
+//! the referrer: the reference, what it now names and how it was matched,
+//! or that it was written as `null`. A referrer the output leaves out (a
+//! cut object the C10 pass dropped) is not listed. The actions go in the C5
+//! pass's report (a stripped header is what step 3 repairs), else the C10
+//! pass's (a cut file loses what its references name), else the first
+//! report in pass order, each only when its pass ran; with none run, the
+//! first report. No output byte changes: the rebuild did this before it
+//! was reported.
+//!
 //! A `Partial` pass excuses its findings' locations from verification's
-//! "clean for the targeted classes" (D-074): the locations the pass left
-//! partial when it names them ([`PassNotes::partial`]), every finding of
-//! its class otherwise.
+//! "clean for the targeted classes" (D-074), for findings of its own class
+//! only (D-137): the locations the pass left partial when it names them
+//! ([`PassNotes::partial`]), every finding of its class otherwise.
 //!
 //! **Selection** (SE Q2; fixed tiers in v1, D-008). Candidates compare
 //! lexicographically by [`compare`]:
@@ -1133,8 +1145,10 @@ pub(crate) fn generate_and_validate(
             sink: &mut *sink,
             notes: PassNotes::default(),
         };
-        let passes = run_passes(&schedule, &mut ctx)?;
+        let mut passes = run_passes(&schedule, &mut ctx)?;
         let pass_notes = std::mem::take(&mut ctx.notes);
+        let references = reference_actions(input.carve, &remap, doc.remap());
+        report_references(&mut passes, references);
         interactions.extend(pass_notes.interactions.iter().cloned());
         let (targeted, partial) = targets(&passes, &schedule, &pass_notes, doc.remap());
         let mut emit = EmitCtx {
@@ -1321,15 +1335,58 @@ fn run_passes(
     Ok(reports)
 }
 
+/// The rebuild's repairs to references (module docs, "References"): each
+/// match `plan` made, in the order it made them, then each reference it
+/// could not match, in the referrers' byte order. `written` is the
+/// numbering the passes left; a reference whose referrer it no longer holds
+/// is not in the output and is not listed.
+fn reference_actions(carve: &CarveReport, plan: &IdRemap, written: &IdRemap) -> Vec<RepairAction> {
+    let kept = |from: ObjId| written.number(from).is_some();
+    let matched = (plan.reconciled().iter())
+        .filter(|r| kept(r.from))
+        .map(|r| RepairAction {
+            object: r.from,
+            what: r.what(carve, written),
+            grade: None,
+        });
+    let nulled = (plan.unmatched().iter())
+        .filter(|u| kept(u.from))
+        .map(|u| RepairAction {
+            object: u.from,
+            what: u.what(),
+            grade: None,
+        });
+    matched.chain(nulled).collect()
+}
+
+/// The classes whose pass reports the rebuild's repairs to references, in
+/// order of preference (module docs, "References").
+const REFERENCE_OWNERS: [CorruptionClass; 2] = [C5ObjectTagStripped, C10Truncated];
+
+/// Appends `actions` to the report that carries them (module docs,
+/// "References"): C5's, else C10's, else the first in pass order, each
+/// only when its pass ran; with none run, the first report.
+fn report_references(reports: &mut [PassReport], actions: Vec<RepairAction>) {
+    let ran = |p: &PassReport| !matches!(p.outcome, PassOutcome::Skipped(_));
+    let owner = (REFERENCE_OWNERS.iter())
+        .find_map(|&c| reports.iter().position(|p| p.class == c && ran(p)))
+        .or_else(|| reports.iter().position(ran))
+        .or((!reports.is_empty()).then_some(0));
+    if let Some(i) = owner {
+        reports[i].actions.extend(actions);
+    }
+}
+
 /// The classes verification targets (every pass that ran and did not skip
-/// itself), and the output locations each `Partial` one left partial: those
-/// it listed in `notes`, or else all of its findings'.
+/// itself), and the output locations each `Partial` one left partial, each
+/// with its pass's class (D-137): those it listed in `notes`, or else all
+/// of its findings'.
 fn targets(
     reports: &[PassReport],
     schedule: &[(CorruptionClass, Scheduled)],
     notes: &PassNotes,
     remap: &IdRemap,
-) -> (Vec<CorruptionClass>, Vec<Location>) {
+) -> (Vec<CorruptionClass>, Vec<(CorruptionClass, Location)>) {
     let mut targeted = Vec::new();
     let mut partial = Vec::new();
     for (report, (_, scheduled)) in reports.iter().zip(schedule) {
@@ -1348,7 +1405,12 @@ fn targets(
                 } else {
                     listed
                 };
-                partial.extend(locations.into_iter().filter_map(|l| in_output(l, remap)));
+                let class = report.class;
+                partial.extend(
+                    (locations.into_iter())
+                        .filter_map(|l| in_output(l, remap))
+                        .map(|l| (class, l)),
+                );
             }
             PassOutcome::Fixed => {}
         }
