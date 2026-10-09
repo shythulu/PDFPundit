@@ -1423,3 +1423,5 @@ fn e_on_a_pasted_pdf_writes_its_markdown_beside_it() {
     assert_eq!(dir.names(), ["memo.md", "memo.pdf", "memo.repaired.pdf"]);
     assert!(runner.shutdown(Duration::from_secs(5)));
 }
+
+mod fonts;

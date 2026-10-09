@@ -1,9 +1,6 @@
 //! UI state (T-20): everything the screen is drawn from. The loop owns one
 //! [`AppState`] and fills it from job events, the history store, `Resize` and
 //! the wall clock; [`super::view::view`] turns it into what the layouts draw.
-// The loop (T-23a) and the modals (T-24) build these.
-// TODO(T-23a, T-24): remove this allow once they do.
-#![allow(dead_code)]
 
 use crate::jobs::BatchState;
 use crate::library::HistorySummary;

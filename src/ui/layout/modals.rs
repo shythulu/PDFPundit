@@ -7,7 +7,6 @@
 //! does, and draws its box on top. The status bar row is the screen's, not
 //! the modal's: the loop redraws it after the modal with
 //! [`strings::RESOLVING_FILE`] or [`strings::CHOOSING_THEME`] as its state.
-#![cfg_attr(not(test), allow(dead_code))]
 
 use super::FULL_SIZE;
 use crate::engine::{FontPickRequest, FontSlot, InteractionReply, Ratio, ToUnicodeState};
@@ -127,9 +126,16 @@ pub struct FontPickModal<'a> {
     pub file: &'a str,
     /// The slot the question is about, as the analysis listed it.
     pub slot: Option<&'a FontSlot>,
-    /// Which of the file's font questions this is and how many it has, from
-    /// 1; `None` leaves the count out.
+    /// Which of the parked font questions this is and how many there are,
+    /// from 1; `None` leaves the count out.
     pub question: Option<(usize, usize)>,
+    /// More than one question is parked: the keys row offers "best for all".
+    pub all: bool,
+    /// The question is about a font no bundled font reproduces, for this
+    /// reason (the engine's text, drawn literally): its options are
+    /// substitutes with no score or preview, `b` takes the generic one, and
+    /// Skip leaves the font as found rather than keeping a best guess.
+    pub unreproducible: Option<&'a str>,
 }
 
 /// What a key does in the font pick.
@@ -139,6 +145,9 @@ pub enum FontPickAction {
     Select(usize),
     /// Answer the question.
     Reply(InteractionReply),
+    /// Answer every parked font question with the best guess ("apply best
+    /// to all", TD:469-471).
+    BestForAll,
     /// Close the modal; the file stays parked and the question stays open.
     Later,
     /// The key does nothing here.
@@ -185,6 +194,8 @@ impl<'a> FontPickModal<'a> {
             file: &entry.name,
             slot: at.map(|i| lost[i]),
             question: at.map(|i| (i + 1, lost.len())),
+            all: false,
+            unreproducible: None,
         }
     }
 
@@ -208,7 +219,11 @@ impl<'a> FontPickModal<'a> {
         // The title is drawn with blanks where the file's name goes, then the
         // name over them as literal text, cut to leave the top edge between
         // the title and the note.
-        let label = strings::PICK_A_FONT;
+        let label = if self.unreproducible.is_some() {
+            strings::SUBSTITUTE_A_FONT
+        } else {
+            strings::PICK_A_FONT
+        };
         let name_x = x + 3 + 1 + to_i32(label.chars().count()) + 1;
         let limit = match &note {
             Some(n) => x + w - 4 - (to_i32(plain_len(n)) + 2) - 1,
@@ -237,20 +252,35 @@ impl<'a> FontPickModal<'a> {
                 }
                 None => None,
             };
-            if let Some(why) = why {
-                b.line(c, y + 3, &format!(" {why}"), theme);
+            match (self.unreproducible, why) {
+                (Some(reason), _) => {
+                    let at = b.line(c, y + 3, " ", theme);
+                    let room = usize::try_from(x + w - 2 - at).unwrap_or(0);
+                    c.text(at, y + 3, &fit(reason, room), r.body, None);
+                }
+                (None, Some(why)) => {
+                    b.line(c, y + 3, &format!(" {why}"), theme);
+                }
+                (None, None) => {}
             }
-            b.line(
-                c,
-                y + 4,
-                &format!(" {}", strings::PICK_THE_CANDIDATE),
-                theme,
-            );
+            let ask = if self.unreproducible.is_some() {
+                strings::PICK_A_SUBSTITUTE
+            } else {
+                strings::PICK_THE_CANDIDATE
+            };
+            b.line(c, y + 4, &format!(" {ask}"), theme);
         });
 
         let sep = [r.bg, r.accent, r.needs_input];
         b.sep(c, y + 5, Some(&sep), theme);
-        for (hx, head) in HEAD_XS.into_iter().zip(strings::CANDIDATE_COLUMNS) {
+        // A substitute has no score, fit, confidence or preview.
+        let plain = self.unreproducible.is_some();
+        let heads = if plain { 1 } else { HEAD_XS.len() };
+        for (hx, head) in HEAD_XS
+            .into_iter()
+            .zip(strings::CANDIDATE_COLUMNS)
+            .take(heads)
+        {
             c.text(hx, y + 6, head, r.dim, None);
         }
         let shown = req.candidates.len().min(CANDIDATES);
@@ -269,6 +299,9 @@ impl<'a> FontPickModal<'a> {
             c.rich(NAME_X - 2, ry, mark, None, theme);
             let family = format!("{:<NAME_W$}", fit(&cand.family, NAME_W));
             c.text(NAME_X, ry, &family, name_fg, None);
+            if plain {
+                continue;
+            }
             vu(c, METER.0, ry, METER.1, cand.score, theme);
             let k = if sel { 'W' } else { 'D' };
             let numbers = format!(
@@ -295,15 +328,29 @@ impl<'a> FontPickModal<'a> {
 
         b.sep(c, SOURCE_Y - 1, Some(&sep), theme);
         b.line(c, SOURCE_Y, &format!(" {}", strings::FONT_SOURCE), theme);
-        let buttons = [
-            strings::PICK_BUTTON,
-            strings::USE_BEST_BUTTON,
-            strings::SKIP_BUTTON,
-        ];
+        let buttons = if plain {
+            [
+                strings::PICK_BUTTON,
+                strings::USE_GENERIC_BUTTON,
+                strings::LEAVE_BUTTON,
+            ]
+        } else {
+            [
+                strings::PICK_BUTTON,
+                strings::USE_BEST_BUTTON,
+                strings::SKIP_BUTTON,
+            ]
+        };
         for (bx, button) in BUTTON_XS.into_iter().zip(buttons) {
             c.rich(bx, BUTTONS_Y, button, None, theme);
         }
-        c.rich(KEYS_AT.0, KEYS_AT.1, strings::FONT_PICK_KEYS, None, theme);
+        let keys = match (plain, self.all) {
+            (false, false) => strings::FONT_PICK_KEYS,
+            (false, true) => strings::FONT_PICK_KEYS_ALL,
+            (true, false) => strings::SUBSTITUTE_KEYS,
+            (true, true) => strings::SUBSTITUTE_KEYS_ALL,
+        };
+        c.rich(KEYS_AT.0, KEYS_AT.1, keys, None, theme);
     }
 
     /// `slot F3 (CIDFont+F1) · first seen p.12 · 418 glyph codes · language
@@ -335,7 +382,8 @@ impl<'a> FontPickModal<'a> {
             parts.push((r.heading, s.glyph_count.to_string()));
             parts.push((r.dim, format!(" {}", strings::GLYPH_CODES)));
         }
-        if let Some(lang) = req.candidates.first().map(|c| c.language.as_str()) {
+        let lang = req.candidates.first().map(|c| c.language.as_str());
+        if let Some(lang) = lang.filter(|l| !l.is_empty()) {
             let name = strings::LANGUAGES
                 .iter()
                 .find(|(code, _)| *code == lang)
@@ -351,7 +399,8 @@ impl<'a> FontPickModal<'a> {
     /// (stopping at either end), Enter picks the one under it, `b` takes the
     /// best guess (the loop applies it to the file's other open question too:
     /// "use best for both"), `s` skips (the best guess, the finding marked
-    /// partial, TD §5.3), Esc closes the modal and leaves the file parked.
+    /// partial, TD §5.3), `a` takes the best guess for every parked question
+    /// ("apply best to all"), Esc closes the modal and leaves the file parked.
     /// `tab` would switch the font source the modal draws, but v1 has only the
     /// bundled fonts (system fonts wait on M5, D-035), so the model has no key
     /// for it.
@@ -366,6 +415,7 @@ impl<'a> FontPickModal<'a> {
             }
             (ModalKey::Char('b' | 'B'), _, _) => FontPickAction::Reply(InteractionReply::UseBest),
             (ModalKey::Char('s' | 'S'), _, _) => FontPickAction::Reply(InteractionReply::Skip),
+            (ModalKey::Char('a' | 'A'), _, _) => FontPickAction::BestForAll,
             (ModalKey::Esc, _, _) => FontPickAction::Later,
             _ => FontPickAction::Ignore,
         }
@@ -792,7 +842,7 @@ mod tests {
 
     #[test]
     fn font_pick_keys() {
-        use FontPickAction::{Ignore, Later, Reply, Select};
+        use FontPickAction::{BestForAll, Ignore, Later, Reply, Select};
         use ModalKey::{Char, Down, Enter, Esc, Up};
         let req = mockup_request();
         let pick = |id: &str| Reply(InteractionReply::Pick(id.into()));
@@ -811,6 +861,8 @@ mod tests {
             (1, Char('s'), Reply(InteractionReply::Skip)),
             (1, Char('S'), Reply(InteractionReply::Skip)),
             (1, Esc, Later),
+            (1, Char('a'), BestForAll),
+            (1, Char('A'), BestForAll),
             (1, Char('q'), Ignore),
             (1, Char('T'), Ignore),
         ] {
@@ -834,6 +886,7 @@ mod tests {
             assert_eq!(FontPickModal::key(&none, 0, key), Ignore, "{key:?}");
         }
         assert_eq!(FontPickModal::key(&none, 0, Esc), Later);
+        assert_eq!(FontPickModal::key(&none, 0, Char('a')), BestForAll);
         assert_eq!(
             FontPickModal::key(&none, 0, Char('b')),
             Reply(InteractionReply::UseBest)
@@ -992,6 +1045,8 @@ mod tests {
             file: "a.pdf",
             slot: None,
             question: None,
+            all: false,
+            unreproducible: None,
         };
         let mut other = req.clone();
         other.candidates[0].language = "ur".into();
@@ -1007,6 +1062,57 @@ mod tests {
             row_text(&c, 6).trim_matches(|ch| ch == ' ' || ch == '║'),
             ""
         );
+    }
+
+    /// With more than one question parked, the keys row offers "best for
+    /// all" in place of the parked note.
+    #[test]
+    fn the_keys_row_offers_best_for_all_when_asked() {
+        let entry = mockup_entry();
+        let req = mockup_request();
+        let mut modal = FontPickModal::for_entry(&entry, &req);
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        assert!(row_text(&c, 30).contains("(file stays parked)"));
+        modal.all = true;
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        let row = row_text(&c, 30);
+        assert!(row.contains("· a best for all ·"), "{row:?}");
+        assert_eq!(row.chars().nth(103), Some('║'), "inside the box");
+    }
+
+    /// A font no bundled font reproduces: its own title, the engine's reason
+    /// on the why line, no meters or best-guess mark, and Skip says it
+    /// leaves the font as found.
+    #[test]
+    fn an_unreproducible_font_says_what_skip_does() {
+        let entry = mockup_entry();
+        let mut req = mockup_request();
+        for c in &mut req.candidates {
+            c.preview = String::new();
+        }
+        let mut modal = FontPickModal::for_entry(&entry, &req);
+        modal.unreproducible = Some("no {font} maps every character");
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        let all: Vec<String> = (0..38).map(|y| row_text(&c, y)).collect();
+        let text = all.join("\n");
+        assert!(text.contains("SUBSTiTUTE A FONT »"), "{text}");
+        assert!(!text.contains("PiCK A FONT"), "{text}");
+        assert!(row_text(&c, 6).contains("no {font} maps every character"));
+        assert!(text.contains("leaves the font as found"), "{text}");
+        assert!(text.contains("Generic for both"), "{text}");
+        assert!(text.contains("s leave as found"), "{text}");
+        for gone in ["best guess", "keeps best guess", "score", "conf", "preview"] {
+            assert!(!text.contains(gone), "{gone:?} in {text}");
+        }
+        modal.all = true;
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        let row = row_text(&c, 30);
+        assert!(row.contains("· a best for all ·"), "{row:?}");
+        assert_eq!(row.chars().nth(103), Some('║'), "inside the box");
     }
 
     /// Live preview: the chooser is drawn in the theme under the cursor, the
@@ -1129,6 +1235,12 @@ mod tests {
             strings::USE_BEST_BUTTON,
             strings::SKIP_BUTTON,
             strings::FONT_PICK_KEYS,
+            strings::FONT_PICK_KEYS_ALL,
+            strings::PICK_A_SUBSTITUTE,
+            strings::USE_GENERIC_BUTTON,
+            strings::LEAVE_BUTTON,
+            strings::SUBSTITUTE_KEYS,
+            strings::SUBSTITUTE_KEYS_ALL,
             strings::COLOUR_SUPPORT,
             strings::PALETTE_SOURCE,
             strings::THEME_KEYS,
@@ -1148,6 +1260,7 @@ mod tests {
         }
         for s in [
             strings::PICK_A_FONT,
+            strings::SUBSTITUTE_A_FONT,
             strings::BEST_GUESS,
             strings::LANGUAGE_GUESS,
             strings::RESOLVING_FILE,

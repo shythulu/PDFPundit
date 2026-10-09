@@ -143,6 +143,8 @@ pub const NOT_YET: &str = "·∙· not yet ·∙·";
 
 /// The font pick's title, before the file's name.
 pub const PICK_A_FONT: &str = "PiCK A FONT »";
+/// The title when no bundled font reproduces the slot's font.
+pub const SUBSTITUTE_A_FONT: &str = "SUBSTiTUTE A FONT »";
 /// Which of the file's font questions this is: the first `{n}` this one, the
 /// second how many.
 pub const N_OF_M: &str = "{n} of {n}";
@@ -159,6 +161,9 @@ pub const WHY_NO_TOUNICODE: &str =
     "{w}No {W}/ToUnicode{w} survives, so each preview is decoded through its own candidate.";
 /// What the cat asks.
 pub const PICK_THE_CANDIDATE: &str = "{w}Pick the candidate whose preview {W}reads correctly{w}.";
+/// What the cat asks when no bundled font reproduces the slot's font.
+pub const PICK_A_SUBSTITUTE: &str =
+    "{w}Pick a {W}substitute{w}, or skip to leave the font as found.";
 /// The candidate table's column heads.
 pub const CANDIDATE_COLUMNS: [&str; 4] = ["candidate", "score", "fit", "conf"];
 /// The top-ranked candidate's mark.
@@ -172,9 +177,22 @@ pub const FONT_SOURCE: &str = "{D}font source  {C}(•){W} bundled sister fonts 
 pub const PICK_BUTTON: &str = "{W/m} ► Pick {/K}";
 pub const USE_BEST_BUTTON: &str = "{D}[ {W}Use best for both {D}]";
 pub const SKIP_BUTTON: &str = "{D}[ {w}Skip {D}]{D} keeps best guess, marks finding {Y}partial";
+/// The buttons that differ when no bundled font reproduces the slot's font:
+/// `b` takes the generic substitute, Skip leaves the font as it is.
+pub const USE_GENERIC_BUTTON: &str = "{D}[ {W}Generic for both {D}]";
+pub const LEAVE_BUTTON: &str = "{D}[ {w}Skip {D}]{D} leaves the font as found";
 /// The font pick's keys.
 pub const FONT_PICK_KEYS: &str =
     "{D}↑↓ candidate · enter pick · b best for both · s skip · esc later (file stays parked)";
+/// The font pick's keys while more than one question is parked.
+pub const FONT_PICK_KEYS_ALL: &str =
+    "{D}↑↓ candidate · enter pick · b best for both · a best for all · s skip · esc later";
+/// The keys when no bundled font reproduces the slot's font, alone and
+/// with more than one question parked.
+pub const SUBSTITUTE_KEYS: &str =
+    "{D}↑↓ substitute · enter pick · b generic · s leave as found · esc later (file stays parked)";
+pub const SUBSTITUTE_KEYS_ALL: &str =
+    "{D}↑↓ substitute · enter pick · b generic · a best for all · s leave as found · esc later";
 /// A candidate's language label (T-28's `Lang` labels) as the slot line
 /// names it; any other label is shown as it is.
 pub const LANGUAGES: [(&str, &str); 6] = [
@@ -584,6 +602,13 @@ pub const ALL: &[&str] = &[
     "Use best for both",
     "keeps best guess, marks finding partial",
     "↑↓ candidate · enter pick · b best for both · s skip · esc later (file stays parked)",
+    "↑↓ candidate · enter pick · b best for both · a best for all · s skip · esc later",
+    SUBSTITUTE_A_FONT,
+    "Pick a substitute, or skip to leave the font as found.",
+    "Generic for both",
+    "leaves the font as found",
+    "↑↓ substitute · enter pick · b generic · s leave as found · esc later (file stays parked)",
+    "↑↓ substitute · enter pick · b generic · a best for all · s leave as found · esc later",
     RESOLVING_FILE,
     "{n} themes · live preview",
     "+ load theme file…",

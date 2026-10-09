@@ -37,6 +37,18 @@
 //! export follows its repair (the "repair → export" one-shot); asked later,
 //! the runner runs it on its own.
 //!
+//! Font questions (F-01, GG §1): a job that asks parks, and its question
+//! stays in its queue row while the batch goes on. The full layout's NEEDS
+//! iNPUT panel offers `[i] resolve now`, which opens the font pick on the
+//! first parked question, and `[l] later`, which leaves it parked. Each
+//! answer goes to the runner's [`JobRunner::reply`], so the job resumes and
+//! writes its output, and the modal moves on to the next parked question;
+//! `esc` closes it with the job still parked; `a` answers every parked
+//! question with the best guess. `[fonts] prompt_unresolved = false`
+//! answers every question with the best guess as it comes, and an answer
+//! holds for the rest of its font family in that file (see `questions`).
+//! The widget never shows a question (D5): it keeps its `‼` and "zoom me".
+//!
 //! The loop owns the [`AppState`], the [`Director`], the runner and the history
 //! store. It hands every job event to the runner first and then to the state,
 //! records each finished repair in the store and refills the history summary
@@ -45,6 +57,7 @@
 //! resize asks sooner.
 
 mod clock;
+mod questions;
 
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{self, Write};
@@ -68,7 +81,7 @@ use super::input::paste::{PathCandidate, paths_from_paste};
 use super::input::{DndEvent, Input, InputSource};
 use super::layout::browse::{self, BrowseAction, BrowseKey, BrowseState};
 use super::layout::full::{self, FileAction, FullLayout, MenuKey};
-use super::layout::modals::{ModalKey, ThemeAction, ThemeChooser};
+use super::layout::modals::{FontPickAction, FontPickModal, ModalKey, ThemeAction, ThemeChooser};
 use super::layout::widget::{OneLine, WidgetLayout};
 use super::layout::{FULL_SIZE, Layout, LayoutKind, LayoutPin, choose};
 use super::state::{AppState, Screen};
@@ -76,15 +89,19 @@ use super::strings;
 use super::term::{self, Surface};
 use super::theme::Theme;
 use super::view::{self, ViewModel};
+use super::widgets::r#box::fit;
 use super::widgets::lightbar;
 use crate::appdirs::AppDirs;
 use crate::config::{self, Config, OutputDir};
-use crate::engine::{AnalyzeOptions, Engine, Pdfpundit, RepairOptions};
+use crate::engine::{
+    AnalyzeOptions, Engine, InteractionReply, InteractionRequest, Pdfpundit, RepairOptions,
+};
 use crate::jobs::{
     AppEvent, EntryState, JobEvent, JobId, JobInput, JobKind, JobRunner, QueueEntry, RunnerOptions,
 };
 use crate::library::{FileEntry, HistoryStore, JsonStore, RunRecord};
 use crate::panic_guard;
+use questions::Answers;
 
 /// The loop's tick: the cat animates at about 60 frames a second.
 const TICK: Duration = Duration::from_millis(16);
@@ -151,7 +168,7 @@ fn shell() -> io::Result<()> {
     }
 
     let mut app = App::new(&config.ui, caps, config_path);
-    app.warn_above = runner_options(&config).analyze.max_file_bytes;
+    app.configure(&config);
     app.log(format!(
         "handshake: kitty {}, {} bytes discarded",
         handshake.kitty, handshake.discarded
@@ -342,6 +359,7 @@ fn event_loop<E: Engine + 'static>(
         if let Some(r) = runner.as_deref_mut() {
             app.submit_drops(now, &mut |input| r.submit(input));
             app.request_exports(&mut |id| r.export(id));
+            app.send_replies(&mut |id, reply| r.reply(id, reply));
         }
         app.refresh(now);
         if app.quit {
@@ -368,6 +386,8 @@ struct Shown {
     theme: usize,
     kind: LayoutKind,
     screen: Screen,
+    /// The question the font pick shows, if it is open.
+    question: Option<InteractionRequest>,
 }
 
 /// The UI's state machine: inputs and job events in, frames and terminal
@@ -397,6 +417,13 @@ pub(crate) struct App {
     /// Jobs whose Markdown export was asked for, for
     /// [`App::request_exports`].
     exports: Vec<JobId>,
+    /// `[fonts] prompt_unresolved`: false answers every font question with
+    /// the best guess, without asking.
+    prompt_unresolved: bool,
+    /// Answers to parked questions, for [`App::send_replies`].
+    replies: Vec<(JobId, InteractionReply)>,
+    /// What the user has answered, per file.
+    answers: Answers,
     /// The kitty drag-and-drop protocol (T-31).
     dnd: DndSession,
     /// Path candidates the one-line fallback refused (D-064).
@@ -445,6 +472,9 @@ impl App {
             warn_above: AnalyzeOptions::default().max_file_bytes,
             admitted: Vec::new(),
             exports: Vec::new(),
+            prompt_unresolved: true,
+            replies: Vec::new(),
+            answers: Answers::default(),
             dnd: DndSession::default(),
             refused_too_small: 0,
             browse_from: std::env::current_dir()
@@ -475,6 +505,13 @@ impl App {
         }
     }
 
+    /// What the app takes from the configuration beyond `[ui]`: the drop
+    /// size it warns above and `[fonts] prompt_unresolved`.
+    fn configure(&mut self, config: &Config) {
+        self.warn_above = runner_options(config).analyze.max_file_bytes;
+        self.prompt_unresolved = config.fonts.prompt_unresolved;
+    }
+
     fn log(&mut self, line: String) {
         if self.debug_log.len() == LOG_LINES {
             self.debug_log.pop_front();
@@ -500,6 +537,11 @@ impl App {
         // The per-file menu is the full layout's: a shrink closes it.
         if self.kind != LayoutKind::Full {
             self.state.file_menu = None;
+        }
+        // The widget never shows a question (D5): a shrink closes the font
+        // pick as Esc would, the job still parked.
+        if self.kind != LayoutKind::Full && matches!(self.state.screen, Screen::FontPick { .. }) {
+            self.state.screen = Screen::Main;
         }
         self.director.set_stage(match self.kind {
             LayoutKind::Full => Stage::Full,
@@ -735,6 +777,10 @@ impl App {
             self.chooser_key(k.code, selected);
             return;
         }
+        if let Screen::FontPick { entry, selected } = self.state.screen {
+            self.font_pick_key(k.code, entry, selected);
+            return;
+        }
         // A one-off hint lasts until the next key.
         self.state.hint = None;
         if matches!(self.state.screen, Screen::Browse(_)) {
@@ -766,6 +812,14 @@ impl App {
                     self.ask_export(i);
                 }
             }
+            // The NEEDS iNPUT panel's keys (frame 03): resolve the first
+            // parked question now, or later (the job stays parked).
+            KeyCode::Char('i' | 'I') if self.kind == LayoutKind::Full => {
+                if let Some(entry) = self.next_parked(0) {
+                    self.state.screen = Screen::FontPick { entry, selected: 0 };
+                }
+            }
+            KeyCode::Char('l' | 'L') if self.kind == LayoutKind::Full => {}
             KeyCode::Char(c) => {
                 full::menu_key(&mut self.state, c);
             }
@@ -804,6 +858,100 @@ impl App {
                 self.state.screen = Screen::Main;
             }
             ThemeAction::Ignore => {}
+        }
+    }
+
+    /// The font pick's keys (T-24's keyboard model): each answer goes to the
+    /// runner and the modal moves on to the next parked question; `b`'s
+    /// best guess holds for the file's later questions too ("use best for
+    /// both"); `a` answers every parked question with the best guess; Esc
+    /// closes it with the job still parked.
+    fn font_pick_key(&mut self, code: KeyCode, entry: usize, selected: usize) {
+        let key = match code {
+            KeyCode::Up => ModalKey::Up,
+            KeyCode::Down => ModalKey::Down,
+            KeyCode::Enter => ModalKey::Enter,
+            KeyCode::Esc => ModalKey::Esc,
+            KeyCode::Char(c) => ModalKey::Char(c),
+            _ => return,
+        };
+        let Some(request) = self.parked_request(entry) else {
+            self.state.screen = Screen::Main;
+            return;
+        };
+        let view = questions::pick_view(request);
+        match FontPickModal::key(&view, selected, key) {
+            FontPickAction::Select(selected) => {
+                self.state.screen = Screen::FontPick { entry, selected };
+            }
+            FontPickAction::Reply(reply) => {
+                let whole_file = key == ModalKey::Char('b') || key == ModalKey::Char('B');
+                self.answer(entry, reply, whole_file);
+                self.show_next_question(entry);
+            }
+            FontPickAction::BestForAll => {
+                while let Some(i) = self.next_parked(0) {
+                    self.answer(i, InteractionReply::UseBest, true);
+                }
+                self.state.screen = Screen::Main;
+            }
+            FontPickAction::Later => self.state.screen = Screen::Main,
+            FontPickAction::Ignore => {}
+        }
+    }
+
+    /// Queue row `i`'s parked question, if it has one.
+    fn parked_request(&self, i: usize) -> Option<&InteractionRequest> {
+        match &self.state.batch.entries.get(i)?.state {
+            EntryState::WaitingOnUser(request) => Some(request),
+            _ => None,
+        }
+    }
+
+    /// The first parked row at or after `from`, else the first one.
+    fn next_parked(&self, from: usize) -> Option<usize> {
+        let n = self.state.batch.entries.len();
+        (from..n)
+            .chain(0..from.min(n))
+            .find(|&i| self.parked_request(i).is_some())
+    }
+
+    /// The font pick on the parked question after row `after`, or closed
+    /// when none is left.
+    fn show_next_question(&mut self, after: usize) {
+        self.state.screen = match self.next_parked(after + 1) {
+            Some(entry) => Screen::FontPick { entry, selected: 0 },
+            None => Screen::Main,
+        };
+    }
+
+    /// Answers row `i`'s parked question with `reply` (for the whole file
+    /// with `whole_file`): remembered for the file's later questions, sent
+    /// to the runner by [`App::send_replies`], and the row is repairing again.
+    fn answer(&mut self, i: usize, reply: InteractionReply, whole_file: bool) {
+        let Some(request) = self.parked_request(i).cloned() else {
+            return;
+        };
+        let reply = questions::reply_for(&request, reply);
+        let entry = &mut self.state.batch.entries[i];
+        self.answers
+            .record(entry.job, entry, &request, &reply, whole_file);
+        self.replies.push((entry.job, reply));
+        entry.state = EntryState::Repairing {
+            phase: None,
+            done: 0,
+            total: None,
+        };
+    }
+
+    /// The answers given since the last call, each passed to `reply` (the
+    /// runner's [`JobRunner::reply`]). One the runner refuses (the job is no
+    /// longer parked: it was cancelled) is logged.
+    pub(crate) fn send_replies(&mut self, reply: &mut dyn FnMut(JobId, InteractionReply) -> bool) {
+        for (id, answer) in std::mem::take(&mut self.replies) {
+            if !reply(id, answer) {
+                self.log(format!("font question: job {} is not parked", id.0));
+            }
         }
     }
 
@@ -978,8 +1126,36 @@ impl App {
             }
             // The reply sender is dropped here: answers go through the
             // runner, and a kept clone would keep a cancelled job waiting.
+            // A question already answered (`prompt_unresolved = false`, or
+            // the file's earlier answer for its family) is answered at once;
+            // any other parks in the row until the user answers it. The
+            // engine records such an answer as the user's (its contract has
+            // no answer source yet), so the log names each one and where it
+            // came from.
             JobEvent::NeedsInteraction { request, .. } => {
-                entry.state = EntryState::WaitingOnUser(request);
+                let known = if self.prompt_unresolved {
+                    self.answers
+                        .known(id, entry, &request)
+                        .map(|(r, o)| (r, o.to_string()))
+                } else {
+                    let why = "[fonts] prompt_unresolved = false (best guess)";
+                    Some((InteractionReply::UseBest, why.to_owned()))
+                };
+                match known {
+                    Some((reply, from)) => {
+                        let reply = questions::reply_for(&request, reply);
+                        let (page, slot) = questions::asked_at(&request);
+                        let line = format!(
+                            "font question: {}: slot {slot} on p.{} answered {reply:?} \
+                             without asking, from {from}",
+                            entry.name,
+                            u64::from(page) + 1
+                        );
+                        self.replies.push((id, reply));
+                        self.log(line);
+                    }
+                    None => entry.state = EntryState::WaitingOnUser(request),
+                }
             }
             JobEvent::AnalyzeDone(result) => {
                 let result = *result;
@@ -990,6 +1166,7 @@ impl App {
             JobEvent::RepairDone(run) => {
                 entry.run = Some(*run);
                 entry.state = EntryState::Done;
+                self.answers.forget(id);
                 self.finish(i);
                 self.record(id, i, unix, store);
             }
@@ -1008,10 +1185,12 @@ impl App {
             }
             JobEvent::Failed { error, panicked } => {
                 entry.state = EntryState::Failed { error, panicked };
+                self.answers.forget(id);
                 self.finish(i);
             }
             JobEvent::Cancelled => {
                 entry.state = EntryState::Cancelled;
+                self.answers.forget(id);
                 self.finish(i);
             }
             JobEvent::Evicted { .. } | JobEvent::WaitingForYou { .. } => {}
@@ -1086,6 +1265,13 @@ impl App {
     /// The view model again, and what follows from it: the cat's mood, and
     /// the widget's one resize request when a file first needs the user.
     pub(crate) fn refresh(&mut self, now: Duration) {
+        // The font pick follows its question: one that went away (its job
+        // was cancelled) gives way to the next parked one, or to the batch.
+        if let Screen::FontPick { entry, .. } = self.state.screen
+            && self.parked_request(entry).is_none()
+        {
+            self.show_next_question(entry);
+        }
         self.vm = view::view(&self.state);
         if self.vm.mood != self.mood {
             self.mood = self.vm.mood;
@@ -1119,12 +1305,16 @@ impl App {
             theme: self.theme_index,
             kind: self.kind,
             screen: self.state.screen.clone(),
+            question: match self.state.screen {
+                Screen::FontPick { entry, .. } => self.parked_request(entry).cloned(),
+                _ => None,
+            },
         }
     }
 
-    /// The canvas for `shown`: the layout, then the theme chooser over the
-    /// full layout or the browse picker over either layout while it is open,
-    /// with the full layout's status bar saying so.
+    /// The canvas for `shown`: the layout, then the theme chooser or the font
+    /// pick over the full layout, or the browse picker over either layout,
+    /// while it is open, with the full layout's status bar saying so.
     fn draw(&self, shown: &Shown) -> Canvas {
         let (w, h) = shown.size;
         let mut c = Canvas::new(w, h, &self.theme);
@@ -1133,6 +1323,11 @@ impl App {
             (LayoutKind::Full, Screen::Themes { selected }) => {
                 ThemeChooser::draw(&mut c, Theme::all(), *selected);
                 modal_status(&mut c, &shown.vm, strings::CHOOSING_THEME, &self.theme);
+            }
+            (LayoutKind::Full, Screen::FontPick { entry, selected }) => {
+                if let Some(request) = &shown.question {
+                    self.draw_font_pick(&mut c, *entry, *selected, request, &shown.vm);
+                }
             }
             (kind, Screen::Browse(picker)) => {
                 browse::draw(&mut c, picker, kind, &self.theme);
@@ -1144,11 +1339,52 @@ impl App {
         }
         c
     }
+
+    /// The font pick over row `entry`'s question: "n of m" counts the parked
+    /// questions, and the status bar names the file.
+    fn draw_font_pick(
+        &self,
+        c: &mut Canvas,
+        entry: usize,
+        selected: usize,
+        request: &InteractionRequest,
+        vm: &ViewModel,
+    ) {
+        let parked: Vec<usize> = (0..self.state.batch.entries.len())
+            .filter(|&i| self.parked_request(i).is_some())
+            .collect();
+        let at = parked.iter().position(|&i| i == entry).unwrap_or(0);
+        let e = &self.state.batch.entries[entry];
+        let view = questions::pick_view(request);
+        let mut modal = FontPickModal::for_entry(e, &view);
+        modal.question = Some((at + 1, parked.len().max(1)));
+        modal.all = parked.len() > 1;
+        if let InteractionRequest::FontUnreproducible(r) = request {
+            modal.unreproducible = Some(&r.reason);
+        }
+        modal.draw(c, &view, selected, &self.theme);
+        // The file's name is drawn as literal text over blanks, never read
+        // as markup.
+        let name = fit(&e.name, RESOLVING_NAME_W);
+        let blanks = " ".repeat(name.chars().count());
+        let (state, _) = strings::RESOLVING_FILE
+            .split_once("{file}")
+            .unwrap_or((strings::RESOLVING_FILE, ""));
+        let x = modal_status(c, vm, &format!("{state}{blanks}"), &self.theme);
+        let x = x + i32::try_from(state.chars().count()).unwrap_or(0);
+        let r = &self.theme.roles;
+        let fg = self.theme.slot('M').unwrap_or(r.heading);
+        c.text(x, i32::from(FULL_SIZE.1) - 1, &name, fg, Some(r.lightbar));
+    }
 }
 
+/// The most of a file's name the status bar shows while its question is up.
+const RESOLVING_NAME_W: usize = 40;
+
 /// The full layout's status bar while a modal is up (T-24): the modal's state
-/// takes the place of the batch's and the queue count.
-fn modal_status(c: &mut Canvas, vm: &ViewModel, state: &str, theme: &Theme) {
+/// takes the place of the batch's and the queue count. Returns the column
+/// the state starts at.
+fn modal_status(c: &mut Canvas, vm: &ViewModel, state: &str, theme: &Theme) -> i32 {
     let sb = &vm.status_bar;
     let mut parts = vec![
         strings::NODE_N.replace("{n}", &sb.node.to_string()),
@@ -1165,7 +1401,8 @@ fn modal_status(c: &mut Canvas, vm: &ViewModel, state: &str, theme: &Theme) {
         right.push_str(&format!(" {{c}}│{{W}} {h:02}:{m:02}"));
     }
     let (w, h) = FULL_SIZE;
-    lightbar::status_bar(c, i32::from(h) - 1, i32::from(w), &parts, &right, theme);
+    let starts = lightbar::status_bar(c, i32::from(h) - 1, i32::from(w), &parts, &right, theme);
+    starts.get(1).copied().unwrap_or(0)
 }
 
 /// The whole of `path`, if it is at most `limit` bytes.
