@@ -658,12 +658,85 @@ fn a_raw_read_that_runs_out_keeps_nothing() {
     assert_eq!(salvage_inflate(cut, &under_work()), Salvage::Unrecoverable);
 }
 
-/// An unsearched raw-deflate stream: `decoded()` gives the raw decode's
-/// prefix, as a searched `Prefix` would have kept, not an empty zlib decode.
+/// F-04 (D-128): 59 streams of noise. Almost every one is rejected at the
+/// zlib header, so the ladder searches it as zlib and then reads it as raw
+/// deflate, and noise often decodes a few bytes as raw deflate before it
+/// fails. Those bytes are a guess: no stream whose header was rejected comes
+/// out `Prefix`.
 #[test]
-fn an_unsearched_raw_stream_decodes_in_raw_mode() {
-    let (data, m) = damaged_raw_deflate();
-    let streams = Streams(vec![((1, 0), flate_dict(), m.clone())]);
+fn noise_never_keeps_a_raw_guess() {
+    let (mut rejected, mut raw_decoded) = (0, 0);
+    for seed in 1..=59u64 {
+        let m = noise(64 + 31 * seed as usize, seed);
+        if !matches!(read(&m), Read::Header { .. }) {
+            continue;
+        }
+        rejected += 1;
+        if raw_fallback(&m).is_some() {
+            raw_decoded += 1;
+        }
+        let s = salvage_inflate(&m, &under_work());
+        assert!(!matches!(s, Salvage::Prefix { .. }), "seed {seed}: {s:?}");
+    }
+    assert!(rejected >= 50, "{rejected} rejected");
+    assert!(raw_decoded >= 10, "{raw_decoded} raw decodes");
+}
+
+/// A raw-deflate stream of stored blocks whose last block header is invalid
+/// (`LEN` 0, `NLEN` not its complement): T-06 rejects its zlib header, and
+/// the raw read decodes every data byte, then fails within
+/// [`RAW_END_SLACK`] of the input's end.
+fn raw_failing_at_its_end() -> (Vec<u8>, Vec<u8>) {
+    let data = sample(1_000, 23);
+    let mut m = vec![0x00];
+    let len = data.len() as u16;
+    m.extend_from_slice(&len.to_le_bytes());
+    m.extend_from_slice(&(!len).to_le_bytes());
+    m.extend_from_slice(&data);
+    m.extend_from_slice(&[0x01, 0x00, 0x00, 0x00, 0x00]);
+    assert!(matches!(read(&m), Read::Header { .. }));
+    let b = baseline(&m, Mode::Raw, false);
+    assert_eq!(b.end, End::Failed);
+    assert!(b.consumed + RAW_END_SLACK >= m.len(), "{}", b.consumed);
+    assert_eq!(b.out, data);
+    (data, m)
+}
+
+/// A raw-deflate search that found nothing keeps the raw read's output as a
+/// `Prefix` only when the read failed within [`RAW_END_SLACK`] of the end;
+/// short of that it is `Unrecoverable`. A zlib read keeps its prefix as
+/// before.
+#[test]
+fn a_raw_search_with_no_survivor_keeps_only_a_read_to_the_end() {
+    let concluded = |mode, k| {
+        let plan = Plan {
+            windows: [Vec::new(), Vec::new()],
+            localizer: None,
+            check: None,
+            widen: None,
+        };
+        let damage = Damage::Error { k };
+        let p = Pending::new(mode, damage, b"abc".to_vec(), 100, plan, false);
+        p.conclude(0, true).salvage
+    };
+    let kept = |in_used| Salvage::Prefix {
+        data: b"abc".to_vec(),
+        in_used,
+        in_total: 100,
+    };
+    assert_eq!(concluded(Mode::Raw, 100), kept(100));
+    assert_eq!(concluded(Mode::Raw, 98), kept(98));
+    assert_eq!(concluded(Mode::Raw, 97), Salvage::Unrecoverable);
+    assert_eq!(concluded(Mode::Raw, 7), Salvage::Unrecoverable);
+    assert_eq!(concluded(Mode::Zlib, 7), kept(7));
+}
+
+/// An unsearched raw-deflate stream whose raw read fails at its end:
+/// `decoded()` gives that read's output, the stream's own bytes.
+#[test]
+fn an_unsearched_raw_stream_read_to_its_end_decodes_in_raw_mode() {
+    let (data, m) = raw_failing_at_its_end();
+    let streams = Streams(vec![((1, 0), flate_dict(), m)]);
     let tiny = SalvageBudget {
         max_search_stream: 16,
         ..under_work()
@@ -674,10 +747,30 @@ fn an_unsearched_raw_stream_decodes_in_raw_mode() {
         Salvage::Unsearched { .. }
     ));
     let got = index.decoded(&streams, (1, 0), DEFAULT_CAP).unwrap();
-    let want = baseline(&m, Mode::Raw, false).out;
-    assert!(!want.is_empty());
-    assert_eq!(got.as_ref(), want.as_slice());
-    assert!(want.len() < data.len());
+    assert_eq!(got.as_ref(), data.as_slice());
+}
+
+/// An unsearched raw-deflate stream whose raw read fails short of its end:
+/// that read is a guess, and a searched stream would keep none of it, so
+/// `decoded()` gives no bytes.
+#[test]
+fn an_unsearched_raw_guess_decodes_to_nothing() {
+    let (_, m) = damaged_raw_deflate();
+    let streams = Streams(vec![((1, 0), flate_dict(), m.clone())]);
+    let tiny = SalvageBudget {
+        max_search_stream: 16,
+        ..under_work()
+    };
+    let index = salvage_all(&streams, &tiny, threads(1), 1 << 30, &|| false).unwrap();
+    assert!(matches!(
+        index.by_obj[&(1, 0)].salvage,
+        Salvage::Unsearched { .. }
+    ));
+    let guess = baseline(&m, Mode::Raw, false);
+    assert!(!guess.out.is_empty());
+    assert!(guess.consumed + RAW_END_SLACK < m.len());
+    let got = index.decoded(&streams, (1, 0), DEFAULT_CAP).unwrap();
+    assert!(got.is_empty());
 }
 
 /// The zlib header `78 01` damaged to `78 1D` (FCHECK fails): restoring the
