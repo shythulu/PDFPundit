@@ -83,7 +83,7 @@ Where a fix ticket closed an item, the row says so.
 | T-32b | Markdown emitter and export action | merged-partial | f896ea1 | Page notes use input page indices (wrong page after a C4 rebuild); a re-export of a vanished file promise marks a repaired row Failed (review notes). Fixed by F-02: `!` and every other Markdown- or HTML-starting character is escaped, and the images directory is `<hash8>.images` (D-136) | Re-export re-runs the repair in memory (D-125) |
 | T-33 | Custody mode (M6b) | not started | none | Everything | Blocked in the plan on the schema (D-016); the audit found the schema is determinable from DA M6b, so only the prompt screen waits on the user; D-141 (answer sources) should land first |
 | T-34 | OCR (M9) | not started | none | Everything | Blocked in the plan: model delivery (D-050) |
-| T-35 | Release packaging, docs, notices | not started | none | Everything | Blocked in the plan: licence (D-046) and the Smudge likeness (D-065); the DarkBerry palette licence is settled (D-091, MIT) |
+| T-35 | Release packaging, docs, notices | not started | none | Everything | Blocked in the plan on the Smudge likeness (D-065); the licence is MIT (D-046, 2026-10-08); the DarkBerry palette licence is settled (D-091, MIT) |
 
 ## Audit fix round (F-01…F-10)
 
@@ -124,7 +124,7 @@ What is not there:
 
 - No binary has run on Windows or Linux. Every Windows path (console flush, collector, ConPTY guard case, `SHGetKnownFolderPath`, `MoveFileExW`, junction handling, the stale-temp pid check) and every Linux leg (glibc generate.py, placement tiers, app dirs) is compile-checked only (D-058).
 - No CI run has ever happened; `cargo deny`, the purity gate on the Linux and Windows targets, the ui-goldens job, the assets job and both corpus jobs have only been run by hand on the authoring Mac where they could be.
-- No word lists, so C8 inference never auto-accepts (D-011); no system fonts (fontique, M5); no custody mode (T-33); no OCR (T-34); no release artefact, licence file, or `license` field (T-35, D-046); no history, setup, error or export screens (D-048).
+- No word lists, so C8 inference never auto-accepts (D-011); no system fonts (fontique, M5); no custody mode (T-33); no OCR (T-34); no release artefact (T-35, D-046); no history, setup, error or export screens (D-048).
 - Markdown export carries no images (D-114).
 - The repaired file resurrects pages an incremental update had deleted (D-112) and keeps the old `/Pages` nodes (D-086); both are visible to a forensic reader.
 - C9 value damage outside Flate streams (array elements, dictionary values, bare numbers) is not detected; only keyword damage outside every object is (D-130).
@@ -227,6 +227,6 @@ These live in the session's scratch folder on the authoring Mac and in `~/corpor
 2. Untrack the two `.DS_Store` files and ignore the pattern (D-078).
 3. Fix the one defect still marked "before any release": the `i64` overflow in `widths_fit` (T-13b). The unescaped `!` is fixed (F-02).
 4. Push, and read the first CI run as the measurement for every Windows and Linux leg (D-058), the ui-goldens ubuntu leg (D-055), the corpus smoke golden (D-077), the new deny checks (D-138) and the nightly OCR job (D-067).
-5. Answer the decision log's tiered summary: Tier 1 before any push or binary (D-079, D-078, D-046, D-065, D-091), Tier 2 the built-and-flagged behaviour (D-128, D-084, D-122, D-131, D-141, D-130, D-127, D-112, D-088, D-118, D-005/D-103, D-062, D-030, D-053 and the restating defaults), Tier 3 the at-risk plan choices (D-001, D-003, D-004, D-021, D-045, D-050, D-117, D-048), Tier 4 scope and claims (D-010, D-011, D-014, D-025, D-042, D-063, D-070, D-016, D-114).
+5. Answer the decision log's tiered summary: Tier 1 before any push or binary (D-065; D-079, D-078, D-046 and D-091 were answered on 2026-10-08), Tier 2 the built-and-flagged behaviour (D-128, D-084, D-122, D-131, D-141, D-130, D-127, D-112, D-088, D-118, D-005/D-103, D-062, D-030, D-053 and the restating defaults), Tier 3 the at-risk plan choices (D-001, D-003, D-004, D-021, D-045, D-050, D-117, D-048), Tier 4 scope and claims (D-010, D-011, D-014, D-025, D-042, D-063, D-070, D-016, D-114).
 6. Follow-up tickets the audit and the fix round named, none needing a user answer: D-141 (answer source on the reply path, before T-33), D-090 (the mockup's 16-colour map), D-114 (image extraction), D-088 (V1 baseline, after a corpus C5 run), D-086, D-085, D-083, D-076 (`sin_cos`), the `widths_fit` overflow, and the F-05, F-07 and F-09 residuals above.
-7. T-33 (custody schema, draftable from DA M6b; the prompt screen needs a frame), T-34 (OCR) and T-35 (release) wait on D-016's frame, D-050, and D-046/D-065.
+7. T-33 (custody schema, draftable from DA M6b; the prompt screen needs a frame), T-34 (OCR) and T-35 (release) wait on D-016's frame, D-050, and D-065.
