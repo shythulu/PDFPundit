@@ -1,5 +1,407 @@
 [
   {
+    "id": "AbrilFatface-Regular",
+    "family": "Abril Fatface",
+    "postscript_name": "AbrilFatface-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSerif-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "5971d4a3758a922a9fedc7f6fb825a96341a2e718c45a4b2c9a6b417c8c4dbe9",
+    "gmap_sha256": "94d434b88f61233d7e76956243bad0116235a998f45347921e4020928ee77f7b",
+    "flags": 32,
+    "bbox": [
+      -181,
+      -291,
+      1131,
+      1058
+    ],
+    "italic_angle": 0,
+    "ascent": 1058,
+    "descent": -291,
+    "cap_height": 700
+  },
+  {
+    "id": "ArchivoBlack-Regular",
+    "family": "Archivo Black",
+    "postscript_name": "ArchivoBlack-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "dd9a89a019b4849f66ab75455fe7bdf931311042cbb0f0f97acc061539703180",
+    "gmap_sha256": "3140755c04f5b9ae16fef60b6ac897ccd39fcbeea7dfec073ae2ef293c4778d7",
+    "flags": 32,
+    "bbox": [
+      -232,
+      -267,
+      1704,
+      957
+    ],
+    "italic_angle": 0,
+    "ascent": 878,
+    "descent": -210,
+    "cap_height": 688
+  },
+  {
+    "id": "Batang-Regular",
+    "family": "Batang",
+    "postscript_name": "Batang-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSerif-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "0929031e799b2feadda22208c58f503515e6f8fa2eaba75acd2e6847d73fc54b",
+    "gmap_sha256": "a1597ce05db8bd36e5809ffa9ad3caab1e5b5abed8fdef55b1763a0a57c4c3e5",
+    "flags": 32,
+    "bbox": [
+      0,
+      -154,
+      1000,
+      862
+    ],
+    "italic_angle": 0,
+    "ascent": 1132,
+    "descent": -281,
+    "cap_height": 0
+  },
+  {
+    "id": "Belgrano-Regular",
+    "family": "Belgrano",
+    "postscript_name": "Belgrano-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSerif-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "5bf095dfbc56718bea7d74c0b30c36413714aaf8833d2cb012b604b64fd383d9",
+    "gmap_sha256": "9f65c873aadf3ec585c8b6ced40b144eddfa5c28fc4460df1fa2857daa60c125",
+    "flags": 32,
+    "bbox": [
+      -106,
+      -279,
+      1314,
+      990
+    ],
+    "italic_angle": 0,
+    "ascent": 990,
+    "descent": -278,
+    "cap_height": 706
+  },
+  {
+    "id": "BigShoulders-Thin",
+    "family": "Big Shoulders",
+    "postscript_name": "BigShoulders-Thin",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "4b4b24aa6f799aa73cdcd5b6fa840cbcbbb38b81fa9fa82c25126a4530c1ba44",
+    "gmap_sha256": "bfa9c30e6490e3b4d9127edc7ec1f37eceadd339ad3c92ffc7882ea995a099f3",
+    "flags": 32,
+    "bbox": [
+      -127,
+      -205,
+      1098,
+      1061
+    ],
+    "italic_angle": 0,
+    "ascent": 985,
+    "descent": -214,
+    "cap_height": 800
+  },
+  {
+    "id": "Biryani-Regular",
+    "family": "Biryani",
+    "postscript_name": "Biryani-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Deva",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "hi"
+    ],
+    "sha256": "0b846b4f8600e7943a3a86a2f7ce04c20daa7d2cdad74c951edcc8e07c367116",
+    "gmap_sha256": "3b6426dcdf6c34286c80962d5a3401f1cebd675d4e03e98f727ef51baef7ea92",
+    "flags": 32,
+    "bbox": [
+      -1271,
+      -592,
+      2230,
+      1109
+    ],
+    "italic_angle": 0,
+    "ascent": 1109,
+    "descent": -656,
+    "cap_height": 758
+  },
+  {
+    "id": "BricolageGrotesque-96ptExtraBold",
+    "family": "Bricolage Grotesque",
+    "postscript_name": "BricolageGrotesque-96ptExtraBold",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682",
+    "gmap_sha256": "933ef761b31aa0cfa4eea5f98529325df801a797f37c0187a8e9b0f168715f24",
+    "flags": 32,
+    "bbox": [
+      -202,
+      -338,
+      1365,
+      1057
+    ],
+    "italic_angle": 0,
+    "ascent": 930,
+    "descent": -270,
+    "cap_height": 660
+  },
+  {
+    "id": "Cormorant-Light",
+    "family": "Cormorant",
+    "postscript_name": "Cormorant-Light",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSerif-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "8f12cb21f05b61649192eaff13eeeb1b5619bc524feeae672fb916974259a076",
+    "gmap_sha256": "a2f0e3b3a230816d35fbfeaa1d4eb7442bb269bf06172a8123fb55bd8a3567d2",
+    "flags": 32,
+    "bbox": [
+      -102,
+      -283,
+      1453,
+      924
+    ],
+    "italic_angle": 0,
+    "ascent": 924,
+    "descent": -287,
+    "cap_height": 625
+  },
+  {
+    "id": "Harmattan-Regular",
+    "family": "Harmattan",
+    "postscript_name": "Harmattan-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Arab",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "ar"
+    ],
+    "sha256": "5fbaafc51ad21663729b168afaff5f28d3e3087f1fc736ada32d7cd99674c0e0",
+    "gmap_sha256": "81e99da1953f0fa1aa6240b72a8b54d1f9736e3d8fd1fb28e100e1039ad3a23b",
+    "flags": 32,
+    "bbox": [
+      -535,
+      -638,
+      7661,
+      1041
+    ],
+    "italic_angle": 0,
+    "ascent": 1057,
+    "descent": -645,
+    "cap_height": 542
+  },
+  {
+    "id": "Hind-Regular",
+    "family": "Hind",
+    "postscript_name": "Hind-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Deva",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "hi"
+    ],
+    "sha256": "01de158022f53077b52303e46de3b0ab5fb245222a7ffe25a2a57fdd9e969162",
+    "gmap_sha256": "294054bc3b3f1c0ad288ca5e8a81347bae13d0c0130ef6f8be855ea1fdaccedf",
+    "flags": 32,
+    "bbox": [
+      -425,
+      -440,
+      2147,
+      1003
+    ],
+    "italic_angle": 0,
+    "ascent": 1055,
+    "descent": -546,
+    "cap_height": 679
+  },
+  {
+    "id": "Marhey-Light",
+    "family": "Marhey",
+    "postscript_name": "Marhey-Light",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Arab",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "ar"
+    ],
+    "sha256": "19c30686157ec965797fae8c8feb7bb142b082217227562d1a809c067df447e9",
+    "gmap_sha256": "a3bc7b79c6ecdfc3145a18f1c82328ae687b3649b81e6bae2081611b8057e4a2",
+    "flags": 32,
+    "bbox": [
+      -116,
+      -700,
+      1569,
+      1102
+    ],
+    "italic_angle": 0,
+    "ascent": 1100,
+    "descent": -640,
+    "cap_height": 750
+  },
+  {
+    "id": "Merriweather-Light",
+    "family": "Merriweather",
+    "postscript_name": "Merriweather-Light",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSerif-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "d0ed0e359e396af7ad05e73dffd11a3a4c326ea0d0283c56bd9361cb2cc86a96",
+    "gmap_sha256": "b32d2f388f7898de63eb5eba19ac14b70bf9fdc70ad4548abedc591fb7f54c14",
+    "flags": 32,
+    "bbox": [
+      -350,
+      -480,
+      1392,
+      1206
+    ],
+    "italic_angle": 0,
+    "ascent": 984,
+    "descent": -273,
+    "cap_height": 743
+  },
+  {
+    "id": "Mukta-Regular",
+    "family": "Mukta",
+    "postscript_name": "Mukta-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Deva",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "hi"
+    ],
+    "sha256": "2958e4af564507df2a856164df6f9978dacb03f999a4f34a0c269dc8a4de9688",
+    "gmap_sha256": "7c0a3725623db53055774d9e826a35c98a056be01e184225ece17a5dbb708c28",
+    "flags": 32,
+    "bbox": [
+      -691,
+      -508,
+      2005,
+      1130
+    ],
+    "italic_angle": 0,
+    "ascent": 1130,
+    "descent": -532,
+    "cap_height": 630
+  },
+  {
+    "id": "Nobile-Regular",
+    "family": "Nobile",
+    "postscript_name": "Nobile-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "fc2eab24ea3dbe7f5d80324fa5c5d3ea5098175755c3218e3d54cec4355987f2",
+    "gmap_sha256": "242970b90a59c92feb1b58f0fd6fdb69e8b875e36e65a3270a1fda19c25c6d35",
+    "flags": 32,
+    "bbox": [
+      -104,
+      -301,
+      1356,
+      1148
+    ],
+    "italic_angle": 0,
+    "ascent": 845,
+    "descent": -282,
+    "cap_height": 770
+  },
+  {
     "id": "NotoSans-Regular",
     "family": "Noto Sans",
     "postscript_name": "NotoSans-Regular",
@@ -32,6 +434,33 @@
     "cap_height": 714
   },
   {
+    "id": "NotoSansKR-Thin",
+    "family": "Noto Sans KR",
+    "postscript_name": "NotoSansKR-Thin",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "es"
+    ],
+    "sha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+    "gmap_sha256": "6a49a09e28d884c08560422ea60512cdef55bd51295ac59391b2b015e36dfbe1",
+    "flags": 32,
+    "bbox": [
+      -991,
+      -1050,
+      2930,
+      1810
+    ],
+    "italic_angle": 0,
+    "ascent": 1160,
+    "descent": -288,
+    "cap_height": 733
+  },
+  {
     "id": "NotoSerif-Regular",
     "family": "Noto Serif",
     "postscript_name": "NotoSerif-Regular",
@@ -62,5 +491,267 @@
     "ascent": 1069,
     "descent": -293,
     "cap_height": 714
+  },
+  {
+    "id": "OpenSans-Regular",
+    "family": "Open Sans",
+    "postscript_name": "OpenSans-Regular",
+    "base_font_aliases": [
+      "OpenSansRoman"
+    ],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "36643644f318a812aab2d2ed3bb98f8cf0872527f835fe9398d95fe6b9adb878",
+    "gmap_sha256": "7f1ab0489041d258e26ad4617aca244d5ebf44964eb7ca58257d90fce3b6c1a8",
+    "flags": 32,
+    "bbox": [
+      -548,
+      -271,
+      1201,
+      1047
+    ],
+    "italic_angle": 0,
+    "ascent": 1068,
+    "descent": -292,
+    "cap_height": 713
+  },
+  {
+    "id": "Oswald-Regular",
+    "family": "Oswald",
+    "postscript_name": "Oswald-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+    "gmap_sha256": "f895e044f88a4148062eac780a80f16b69e0a4a836295b213e6e1cf2b2d260db",
+    "flags": 32,
+    "bbox": [
+      -197,
+      -287,
+      1223,
+      1297
+    ],
+    "italic_angle": 0,
+    "ascent": 1193,
+    "descent": -289,
+    "cap_height": 810
+  },
+  {
+    "id": "PlayfairDisplay-Regular",
+    "family": "Playfair Display",
+    "postscript_name": "PlayfairDisplay-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSerif-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+    "gmap_sha256": "ac0bff095cd8750b0e051a6bafba8ff61e2d9722e228caf90581be79de33c373",
+    "flags": 32,
+    "bbox": [
+      -267,
+      -241,
+      1211,
+      1159
+    ],
+    "italic_angle": 0,
+    "ascent": 1082,
+    "descent": -251,
+    "cap_height": 708
+  },
+  {
+    "id": "Poppins-Regular",
+    "family": "Poppins",
+    "postscript_name": "Poppins-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Deva",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "hi"
+    ],
+    "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+    "gmap_sha256": "6aea0a75b628a4f6440e8bc94a065559e7f0c5abc8ca7a23f6b1f4d8122f6608",
+    "flags": 32,
+    "bbox": [
+      -531,
+      -572,
+      2567,
+      1065
+    ],
+    "italic_angle": 0,
+    "ascent": 1050,
+    "descent": -350,
+    "cap_height": 698
+  },
+  {
+    "id": "Prompt-Regular",
+    "family": "Prompt",
+    "postscript_name": "Prompt-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "sha256": "dbd497803cec3caffbc6b7f599ca6fed8beea0ed7e0ad1e098130c5ebbc4fd42",
+    "gmap_sha256": "3c66aaf430b394aa45ae41a8f41d6ed5ac60b94a7781fa25b321a15259b43d48",
+    "flags": 32,
+    "bbox": [
+      -607,
+      -368,
+      1244,
+      1061
+    ],
+    "italic_angle": 0,
+    "ascent": 1090,
+    "descent": -422,
+    "cap_height": 714
+  },
+  {
+    "id": "Rubik-Light",
+    "family": "Rubik",
+    "postscript_name": "Rubik-Light",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Arab",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "ar"
+    ],
+    "sha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88",
+    "gmap_sha256": "09f780ca673fe77908104cdb96188334fedb3b5f309db5a58857187d8a78600a",
+    "flags": 32,
+    "bbox": [
+      -191,
+      -466,
+      1595,
+      1066
+    ],
+    "italic_angle": 0,
+    "ascent": 935,
+    "descent": -250,
+    "cap_height": 700
+  },
+  {
+    "id": "Tajawal-Regular",
+    "family": "Tajawal",
+    "postscript_name": "Tajawal-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Arab",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "ar"
+    ],
+    "sha256": "6882892da3e03527d5db2bbab3b48bde6ef2e878a43f522d1a4eebda90010a19",
+    "gmap_sha256": "6d9fdcbeae13d5ffb5299e51ed92419c0186de689cf2cb5e5d7b7427f6a5c63f",
+    "flags": 32,
+    "bbox": [
+      -93,
+      -375,
+      1402,
+      995
+    ],
+    "italic_angle": 0,
+    "ascent": 643,
+    "descent": -357,
+    "cap_height": 633
+  },
+  {
+    "id": "Teko-Light",
+    "family": "Teko",
+    "postscript_name": "Teko-Light",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Deva",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "fr",
+      "es",
+      "hi"
+    ],
+    "sha256": "d1321889f262bbbff632e7976349853399cd097b6f382d4b19790c915c13c1ae",
+    "gmap_sha256": "128c137148c862401cfb7439a8ce47346b80166300826dba8585caab0c4b3210",
+    "flags": 32,
+    "bbox": [
+      -353,
+      -373,
+      1523,
+      833
+    ],
+    "italic_angle": 0,
+    "ascent": 958,
+    "descent": -475,
+    "cap_height": 622
+  },
+  {
+    "id": "ZCOOLXiaoWei-Regular",
+    "family": "ZCOOL XiaoWei",
+    "postscript_name": "ZCOOLXiaoWei-Regular",
+    "base_font_aliases": [],
+    "drawn_with": "NotoSans-Regular",
+    "scripts": [
+      "Hani",
+      "Latn"
+    ],
+    "languages": [
+      "en",
+      "zh"
+    ],
+    "sha256": "a42b620140f493db42f741351dfbf343c0936d58588ee8004b8b2a218d997ff1",
+    "gmap_sha256": "5336c7e4b994c29fa79b38a76dd5208802414645b6c5cdbc79fa1618da8893ed",
+    "flags": 32,
+    "bbox": [
+      -32,
+      -210,
+      1010,
+      859
+    ],
+    "italic_angle": 0,
+    "ascent": 880,
+    "descent": -120,
+    "cap_height": 660
   }
 ]

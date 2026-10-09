@@ -4,6 +4,8 @@ assets/fontindex.json -text
 assets/gmaps/*.gmap -text
 assets/fonts/*.ttf -text
 assets/licenses/OFL-Noto.txt -text
+# Fetched by hash (fetch-assets.sh), some with CRLF line endings (G-10).
+assets/licenses/ofl/*.txt -text
 assets/dicts/*.txt -text
 # The Markdown export golden is compared byte for byte (T-32b).
 tests/data/export/*.md -text

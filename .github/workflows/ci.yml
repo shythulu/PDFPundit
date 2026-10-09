@@ -105,13 +105,16 @@ jobs:
         run: tools/check-ui-goldens.sh
 
   # Generated font assets are committed; regenerating them must change nothing
-  # (D-021 amended, T-29).
+  # (D-021 amended, T-29). The google/fonts extras' programs are not committed
+  # (G-10): fetched by hash first, so every .gmap is regenerated, not kept.
   assets:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: fetch the google/fonts extras
+        run: sh fetch-assets.sh --fonts
       - name: tool tests
         run: cargo test --locked --release -p build-templates
       - name: regenerate and diff assets

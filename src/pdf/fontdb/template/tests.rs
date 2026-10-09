@@ -32,8 +32,9 @@ const OFL_NOTO: &[u8] = include_bytes!("../../../../assets/licenses/OFL-Noto.txt
 const OFL_NOTO_SHA256: &str = "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a";
 
 /// The bundled database's hash with the committed assets. It changes only
-/// when `tools/build-templates` writes different assets.
-const BUNDLED_SHA256: &str = "a33819310fd6c59ce673c411e0bfc4c82040e9ab02d949a1a8de46d5db8aee05";
+/// when `tools/build-templates` writes different assets (last: G-10's
+/// `.gmap`-only fonts).
+const BUNDLED_SHA256: &str = "94ec53a6190061fa76f6efa471fbf177879a94d1240a8e21b0e06abd5b2a680a";
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -52,16 +53,23 @@ fn load_strict(bytes: &[u8]) -> Document {
     Document::load_mem_with_options(bytes, opts).expect("strict lopdf load")
 }
 
+/// The bundled fonts that carry a program (the two Noto fonts), each with
+/// its program.
+fn programs() -> Vec<(&'static BundledFont, &'static [u8])> {
+    BUNDLED.iter().filter_map(|f| Some((f, f.ttf?))).collect()
+}
+
 fn gmap_of(font: &BundledFont) -> GmapTable<'static> {
     GmapTable::new(font.gmap).expect("bundled gmap loads")
 }
 
 #[test]
 fn bundled_assets_have_the_pinned_hashes() {
-    for (font, &(id, len, sha)) in BUNDLED.iter().zip(&PINNED) {
+    assert_eq!(programs().len(), PINNED.len());
+    for ((font, ttf), &(id, len, sha)) in programs().into_iter().zip(&PINNED) {
         assert_eq!(font.id, id);
-        assert_eq!(font.ttf.len(), len, "{id}");
-        assert_eq!(hex(&Sha256::digest(font.ttf)), sha, "{id}");
+        assert_eq!(ttf.len(), len, "{id}");
+        assert_eq!(hex(&Sha256::digest(ttf)), sha, "{id}");
     }
     assert_eq!(hex(&Sha256::digest(OFL_NOTO)), OFL_NOTO_SHA256);
 }
@@ -73,7 +81,16 @@ fn bundled_fonts_follow_the_index() {
     let bundled: Vec<&str> = BUNDLED.iter().map(|f| f.id).collect();
     assert_eq!(ids, bundled);
     for (entry, font) in index.iter().zip(&BUNDLED) {
-        assert_eq!(entry.sha256, hex(&Sha256::digest(font.ttf)), "{}", entry.id);
+        // A font indexed with `drawn_with` carries no program (G-10).
+        assert_eq!(
+            font.ttf.is_none(),
+            entry.drawn_with.is_some(),
+            "{}",
+            entry.id
+        );
+        if let Some(ttf) = font.ttf {
+            assert_eq!(entry.sha256, hex(&Sha256::digest(ttf)), "{}", entry.id);
+        }
         assert_eq!(
             entry.gmap_sha256,
             hex(&Sha256::digest(font.gmap)),
@@ -88,7 +105,8 @@ fn bundled_fonts_follow_the_index() {
 #[test]
 fn committed_assets_match_the_builder() {
     for (entry, font) in index().into_iter().zip(&BUNDLED) {
-        let (mut built, gmap) = build_from_ttf(font.ttf).expect("bundled font builds");
+        let Some(ttf) = font.ttf else { continue };
+        let (mut built, gmap) = build_from_ttf(ttf).expect("bundled font builds");
         built.base_font_aliases = entry.base_font_aliases.clone();
         assert_eq!(built, entry, "{}", font.id);
         assert!(gmap == font.gmap, "{}: committed gmap is stale", font.id);
@@ -97,8 +115,8 @@ fn committed_assets_match_the_builder() {
 
 #[test]
 fn gmap_entry_count_equals_the_cmap_count() {
-    for font in &BUNDLED {
-        let cmap = FontRef::new(font.ttf).unwrap().charmap().mappings().count();
+    for (font, ttf) in programs() {
+        let cmap = FontRef::new(ttf).unwrap().charmap().mappings().count();
         assert_eq!(cmap, 2_965, "{}", font.id);
         assert_eq!(gmap_of(font).len(), cmap, "{}", font.id);
     }
@@ -106,7 +124,7 @@ fn gmap_entry_count_equals_the_cmap_count() {
 
 #[test]
 fn bundled_fonts_map_the_three_latin_blocks() {
-    for font in &BUNDLED {
+    for (font, _) in programs() {
         let gids = cmap_gids(&gmap_of(font));
         let missing: Vec<char> = LATIN_COVERAGE
             .iter()
@@ -119,9 +137,9 @@ fn bundled_fonts_map_the_three_latin_blocks() {
 
 #[test]
 fn template_reloads_strictly_with_the_full_font() {
-    for font in &BUNDLED {
+    for (font, ttf) in programs() {
         let gmap = gmap_of(font);
-        let doc = load_strict(&build(font.ttf, &gmap).unwrap());
+        let doc = load_strict(&build(ttf, &gmap).unwrap());
         assert_eq!(doc.version, "1.7");
         assert_eq!(doc.get_pages().len(), 1);
 
@@ -150,9 +168,9 @@ fn template_reloads_strictly_with_the_full_font() {
             .as_stream()
             .unwrap();
         let length1 = program.dict.get(b"Length1").unwrap().as_i64().unwrap();
-        assert_eq!(usize::try_from(length1).unwrap(), font.ttf.len());
+        assert_eq!(usize::try_from(length1).unwrap(), ttf.len());
         let plain = program.decompressed_content().unwrap();
-        assert!(plain == font.ttf, "{}: FontFile2 is the full font", font.id);
+        assert!(plain == ttf, "{}: FontFile2 is the full font", font.id);
 
         // The page's font resource is the harvested subtree's root.
         let page = doc.get_dictionary(doc.get_pages()[&1]).unwrap();
@@ -184,9 +202,9 @@ fn parsed_widths(w: &[Object]) -> BTreeMap<u16, u16> {
 
 #[test]
 fn widths_and_tounicode_come_from_the_gmap() {
-    for font in &BUNDLED {
+    for (font, ttf) in programs() {
         let gmap = gmap_of(font);
-        let doc = load_strict(&build(font.ttf, &gmap).unwrap());
+        let doc = load_strict(&build(ttf, &gmap).unwrap());
         let cid = doc.get_dictionary((CIDFONT, 0)).unwrap();
         let w = parsed_widths(cid.get(b"W").unwrap().as_array().unwrap());
         let want: BTreeMap<u16, u16> = gmap
@@ -246,8 +264,8 @@ fn render_page(bytes: Vec<u8>) -> (bool, usize) {
 
 #[test]
 fn template_renders_in_hayro() {
-    for font in &BUNDLED {
-        let (inked, warnings) = render_page(build(font.ttf, &gmap_of(font)).unwrap());
+    for (font, ttf) in programs() {
+        let (inked, warnings) = render_page(build(ttf, &gmap_of(font)).unwrap());
         assert!(inked, "{}: the page paints nothing", font.id);
         assert_eq!(warnings, 0, "{}: hayro warned", font.id);
     }
@@ -255,17 +273,17 @@ fn template_renders_in_hayro() {
 
 #[test]
 fn template_is_the_same_on_every_build() {
-    let font = &BUNDLED[0];
-    let a = build(font.ttf, &gmap_of(font)).unwrap();
-    assert_eq!(a, build(font.ttf, &gmap_of(font)).unwrap());
+    let (font, ttf) = programs()[0];
+    let a = build(ttf, &gmap_of(font)).unwrap();
+    assert_eq!(a, build(ttf, &gmap_of(font)).unwrap());
     assert_eq!(a, bundled(font.id).unwrap());
 }
 
 #[test]
 fn page_draws_the_coverage_lines() {
-    let font = &BUNDLED[1];
+    let (font, ttf) = programs()[1];
     let gmap = gmap_of(font);
-    let doc = load_strict(&build(font.ttf, &gmap).unwrap());
+    let doc = load_strict(&build(ttf, &gmap).unwrap());
     let content = doc
         .get_object((CONTENTS, 0))
         .unwrap()
@@ -292,11 +310,17 @@ fn bundled_templates_are_built_once() {
         bundled("Helvetica"),
         Err(BundledError::Unknown("Helvetica".into()))
     );
+    for font in BUNDLED.iter().filter(|f| f.ttf.is_none()) {
+        assert_eq!(
+            bundled(font.id),
+            Err(BundledError::NoProgram(font.id.into()))
+        );
+    }
 }
 
 #[test]
 fn a_font_the_builder_refuses_gives_no_template() {
-    let gmap = gmap_of(&BUNDLED[0]);
+    let gmap = gmap_of(programs()[0].0);
     assert!(matches!(
         build(b"not a font", &gmap),
         Err(TemplateError::Font(BuildError::Parse(_)))
@@ -438,4 +462,41 @@ fn harvest_from_the_database_matches_its_template() {
         harvest_from(&db, "NoSuchFont", &used),
         Err(HarvestError::Unknown(_))
     ));
+}
+
+/// A `.gmap`-only font is drawn with the program its entry names (G-10): its
+/// codes, read through its own `.gmap`, are mapped to that program's glyphs.
+#[test]
+fn harvest_from_a_gmap_only_font_draws_with_its_program_font() {
+    let db = FontDb::bundled();
+    let (entry, program) = db
+        .entries()
+        .into_iter()
+        .find_map(|e| Some((e, e.drawn_with.as_deref()?)))
+        .expect("a .gmap-only font is bundled");
+    let own = db.gmap(&entry.id).unwrap();
+    // Two of the font's own codes, read through its own .gmap.
+    let used: BTreeMap<u16, char> = own
+        .records()
+        .iter()
+        .filter(|r| r.unicode().is_ascii_alphabetic())
+        .take(2)
+        .map(|r| (r.gid(), r.unicode()))
+        .collect();
+    assert_eq!(used.len(), 2);
+    let font = harvest_from(&db, &entry.id, &used).unwrap();
+    let direct = harvest(
+        db.template(program).unwrap().unwrap(),
+        &db.gmap(program).unwrap(),
+        &used,
+    )
+    .unwrap();
+    assert_eq!(font, direct);
+    let objects = font.numbered(1);
+    let type0 = objects[0].1.as_dict().unwrap();
+    assert_eq!(
+        type0.get(b"BaseFont").unwrap().as_name().unwrap(),
+        program.as_bytes(),
+        "the output names the font that draws it"
+    );
 }

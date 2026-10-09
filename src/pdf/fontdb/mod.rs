@@ -3,7 +3,10 @@
 //! [`FontDb`] is the database repair draws replacement fonts from (T-28, D-021):
 //! an index (`fontindex.json`'s format, [`IndexEntry`]) and, per font, its
 //! TrueType program and `.gmap`, each checked against the index's hashes when
-//! the database is loaded. Template PDFs are built from them on first use
+//! the database is loaded. A font indexed with `drawn_with` has a `.gmap` and
+//! no program (D-010 (b), G-10): C8's name matching reads its glyph map (not
+//! inference, [`FontDb::inference_gmaps`]), and an output draws its glyphs
+//! with the program of the font `drawn_with` names ([`FontDb::program_of`]). Template PDFs are built from them on first use
 //! through [`template::build`] and kept for the life of the database. The
 //! bundled database is compiled in with `include_bytes!` and carries the
 //! bundled word lists ([`dict::bundled`], G-09) that C8 inference scores its
@@ -53,7 +56,8 @@ pub(crate) struct FontDb {
 #[derive(Clone)]
 struct DbFont {
     entry: IndexEntry,
-    ttf: Cow<'static, [u8]>,
+    /// `None` for a font indexed with `drawn_with`.
+    ttf: Option<Cow<'static, [u8]>>,
     gmap: Cow<'static, [u8]>,
     template: OnceLock<Result<Vec<u8>, TemplateError>>,
 }
@@ -63,9 +67,11 @@ struct DbFont {
 #[cfg_attr(not(test), allow(dead_code))]
 impl FontDb {
     /// A database from an index (`fontindex.json`'s format) and a blob
-    /// lookup that answers `<id>.ttf` and `<id>.gmap` for every indexed font.
+    /// lookup that answers `<id>.gmap` for every indexed font and `<id>.ttf`
+    /// for every font not indexed with `drawn_with`.
     ///
-    /// Refuses an index that is not a JSON array of entries or repeats an id
+    /// Refuses an index that is not a JSON array of entries, repeats an id or
+    /// has a `drawn_with` that names no font with a program
     /// ([`FontDbError::BadIndex`]), a blob the lookup lacks
     /// ([`FontDbError::MissingBlob`]), a blob whose SHA-256 is not the
     /// index's ([`FontDbError::HashMismatch`]), and a `.gmap` that does not
@@ -142,21 +148,35 @@ impl FontDb {
         self.font(id).and_then(|f| GmapTable::new(&f.gmap).ok())
     }
 
-    /// Every font's glyph map, in index order: what [`score::infer`]'s
-    /// `gmap_of` looks fonts up in.
-    pub(crate) fn gmaps(&self) -> Vec<(&str, GmapTable<'_>)> {
+    /// The glyph map of every font with a program, in index order: what
+    /// [`score::infer`]'s `gmap_of` looks fonts up in and what a slot's
+    /// coverage is measured against. A `.gmap`-only font is left out: it is
+    /// matched by its name alone (G-10), because a glyph order that happens
+    /// to agree with a subset's reads its text with confidence and no
+    /// evidence that the font is the one the file used.
+    pub(crate) fn inference_gmaps(&self) -> Vec<(&str, GmapTable<'_>)> {
         self.fonts
             .iter()
+            .filter(|f| f.ttf.is_some())
             .filter_map(|f| Some((f.entry.id.as_str(), GmapTable::new(&f.gmap).ok()?)))
             .collect()
     }
 
-    /// Font `id`'s template PDF, built on first use and kept.
+    /// The id of the font whose program draws font `id`'s glyphs in an
+    /// output: `id` itself, or the font its index entry's `drawn_with` names.
+    pub(crate) fn program_of(&self, id: &str) -> Option<&str> {
+        let entry = &self.font(id)?.entry;
+        Some(entry.drawn_with.as_deref().unwrap_or(&entry.id))
+    }
+
+    /// Font `id`'s template PDF, built on first use and kept; `None` for a
+    /// font with no program in the database.
     pub(crate) fn template(&self, id: &str) -> Option<Result<&[u8], TemplateError>> {
         let font = self.font(id)?;
+        let ttf = font.ttf.as_ref()?;
         let built = font.template.get_or_init(|| {
             let gmap = GmapTable::new(&font.gmap).expect("checked on load");
-            template::build(&font.ttf, &gmap)
+            template::build(ttf, &gmap)
         });
         Some(built.as_ref().map(Vec::as_slice).map_err(Clone::clone))
     }
@@ -172,7 +192,7 @@ impl FontDb {
                     .is_some_and(|ext| ext.starts_with('.'))
             })?;
             match &name[font.id.len()..] {
-                ".ttf" => Some(font.ttf),
+                ".ttf" => font.ttf,
                 ".gmap" => Some(font.gmap),
                 _ => None,
             }
@@ -184,7 +204,8 @@ impl FontDb {
     }
 
     /// `dir/fontindex.json`, `dir/fonts/<id>.ttf` and `dir/gmaps/<id>.gmap`:
-    /// the layout of `assets/`.
+    /// the layout of `assets/` (a font indexed with `drawn_with` has no
+    /// `.ttf`).
     #[cfg(any(debug_assertions, test))]
     fn from_dir(dir: &std::path::Path) -> Result<FontDb, FontDbError> {
         let read = |path: std::path::PathBuf| {
@@ -230,17 +251,35 @@ impl FontDb {
                     entry.id
                 )));
             }
-            let ttf = checked_blob(blobs, &format!("{}.ttf", entry.id), &entry.sha256)?;
+            let ttf = match entry.drawn_with {
+                None => Some(checked_blob(
+                    blobs,
+                    &format!("{}.ttf", entry.id),
+                    &entry.sha256,
+                )?),
+                Some(_) => None,
+            };
             let gmap_name = format!("{}.gmap", entry.id);
             let gmap = checked_blob(blobs, &gmap_name, &entry.gmap_sha256)?;
             GmapTable::new(gmap).map_err(|e| FontDbError::BadIndex(format!("{gmap_name}: {e}")))?;
             sha256.update(gmap);
             fonts.push(DbFont {
                 entry,
-                ttf: keep(ttf),
+                ttf: ttf.map(keep),
                 gmap: keep(gmap),
                 template: OnceLock::new(),
             });
+        }
+        for font in &fonts {
+            let Some(by) = &font.entry.drawn_with else {
+                continue;
+            };
+            if !fonts.iter().any(|f| &f.entry.id == by && f.ttf.is_some()) {
+                return Err(FontDbError::BadIndex(format!(
+                    "font {} is drawn with {by}, which has no program in the database",
+                    font.entry.id
+                )));
+            }
         }
         Ok(FontDb {
             sha256: sha256.finalize().into(),

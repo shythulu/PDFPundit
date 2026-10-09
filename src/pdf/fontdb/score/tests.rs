@@ -86,7 +86,7 @@ fn run_infer(
     dicts: &[&dyn Dictionary],
     tounicode: Option<&dyn Dictionary>,
 ) -> (Vec<Candidate>, InferenceTrace) {
-    let gmaps = db.gmaps();
+    let gmaps = db.inference_gmaps();
     let lookup = |id: &str| gmaps.iter().find(|(i, _)| *i == id).map(|(_, g)| g);
     infer(codes, &db.entries(), &lookup, dicts, tounicode)
 }

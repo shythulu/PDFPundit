@@ -1559,3 +1559,130 @@ fn ocr() {
 fn full() {
     harness(Mode::Full);
 }
+
+/// One `CIDFontType2` of a corpus C8 file, as C8's name path takes it with
+/// one database: `Some(Ok(id))` confirmed, `Some(Err(id, why))` matched but
+/// rejected, `None` no name match.
+type NameHit = Option<Result<String, (String, String)>>;
+
+/// The bundled database with only its fonts that carry a program: the two
+/// Noto fonts, as before G-10.
+fn programs_only() -> FontDb {
+    use crate::pdf::fontdb::build::IndexEntry;
+    use crate::pdf::fontdb::template::{BUNDLED, BUNDLED_INDEX};
+    let entries: Vec<IndexEntry> = serde_json::from_slice(BUNDLED_INDEX).expect("index parses");
+    let kept: Vec<&IndexEntry> = entries.iter().filter(|e| e.drawn_with.is_none()).collect();
+    let index = serde_json::to_vec(&kept).expect("index serialises");
+    let blob = |name: &str| -> Option<&'static [u8]> {
+        let (id, ext) = name.rsplit_once('.')?;
+        let font = BUNDLED.iter().find(|f| f.id == id)?;
+        match ext {
+            "ttf" => font.ttf,
+            "gmap" => Some(font.gmap),
+            _ => None,
+        }
+    };
+    FontDb::from_bytes(&index, &blob).expect("the Noto fonts load")
+}
+
+/// `doc`'s object a reference names, else the object itself.
+fn follow<'d>(doc: &'d lopdf::Document) -> impl Fn(&'d lopdf::Object) -> Option<&'d lopdf::Object> {
+    move |v| match v {
+        lopdf::Object::Reference(id) => doc.objects.get(id),
+        other => Some(other),
+    }
+}
+
+/// The C8 name path over every `remove_unicode_fonts` file (G-10): each
+/// `CIDFontType2`'s `/BaseFont` matched by name, and the match checked
+/// against every code its `/W` gives a width, with the bundled database and
+/// with its two Noto fonts alone. Prints one row per `/BaseFont` name and
+/// fails unless the bundled database confirms more fonts. Nothing is
+/// written.
+#[test]
+#[ignore = "needs PDFPUNDIT_CORPUS: a local REPDF clone at e547d4d"]
+fn c8_names() {
+    use crate::pdf::repair::name_match;
+    use lopdf::Object;
+    let Some(root) = std::env::var_os("PDFPUNDIT_CORPUS") else {
+        println!("corpus: PDFPUNDIT_CORPUS is not set; skipped");
+        return;
+    };
+    let root = Path::new(&root);
+    let manifest = Manifest::pinned();
+    let dbs = [programs_only(), (*FontDb::bundled()).clone()];
+    // name → (fonts, per database: confirmed, a matched id, a rejection).
+    let mut rows = BTreeMap::<String, (u32, [(u32, Option<String>, Option<String>); 2])>::new();
+    let paths = manifest
+        .entries
+        .iter()
+        .map(|e| &e.path)
+        .filter(|p| p.ends_with("_remove_unicode_fonts.pdf"));
+    for path in paths {
+        let bytes = read_checked(&manifest, root, path).unwrap_or_else(|e| panic!("{e}"));
+        let Ok(doc) = lopdf::Document::load_mem(&bytes) else {
+            println!("c8_names: {path} does not load; skipped");
+            continue;
+        };
+        let resolve = follow(&doc);
+        for object in doc.objects.values() {
+            let Object::Dictionary(d) = object else {
+                continue;
+            };
+            let is_cid = d.get(b"Subtype").and_then(Object::as_name).ok() == Some(b"CIDFontType2");
+            let Some(name) = (d.get(b"BaseFont").and_then(Object::as_name).ok())
+                .filter(|_| is_cid)
+                .map(|n| String::from_utf8_lossy(n).into_owned())
+            else {
+                continue;
+            };
+            let key = match name.split_once('+') {
+                Some((tag, rest)) if tag.len() == 6 => rest.to_owned(),
+                _ => name.clone(),
+            };
+            let row = rows.entry(key).or_default();
+            row.0 += 1;
+            for (db, cell) in dbs.iter().zip(row.1.iter_mut()) {
+                let hit: NameHit = name_match(db, &name, d, &resolve)
+                    .map(|(id, checked)| checked.map(|_| id.clone()).map_err(|why| (id, why)));
+                match hit {
+                    Some(Ok(id)) => {
+                        cell.0 += 1;
+                        cell.1 = Some(id);
+                    }
+                    Some(Err((id, why))) => {
+                        cell.1.get_or_insert(id);
+                        cell.2.get_or_insert(why);
+                    }
+                    None => {}
+                }
+            }
+        }
+    }
+    println!("C8 name path over the corpus's remove_unicode_fonts files (G-10)");
+    println!(
+        "name | CIDFonts | Noto only: confirmed | bundled: confirmed, matched | first rejection"
+    );
+    let mut totals = [0u32; 2];
+    for (name, (n, cells)) in &rows {
+        totals[0] += cells[0].0;
+        totals[1] += cells[1].0;
+        println!(
+            "{name} | {n} | {} | {}, {} | {}",
+            cells[0].0,
+            cells[1].0,
+            cells[1].1.as_deref().unwrap_or("-"),
+            cells[1].2.as_deref().unwrap_or("-")
+        );
+    }
+    let fonts: u32 = rows.values().map(|r| r.0).sum();
+    println!(
+        "confirmed by name: {} of {fonts} CIDFonts with the Noto fonts alone, {} with the \
+         bundled database",
+        totals[0], totals[1]
+    );
+    assert!(
+        totals[1] > totals[0],
+        "the bundled database confirms no more"
+    );
+}

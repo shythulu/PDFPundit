@@ -139,6 +139,9 @@ mod fonts;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+pub(crate) use fonts::name_match;
+
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 

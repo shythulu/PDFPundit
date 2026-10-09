@@ -22,9 +22,10 @@ use super::gmap::{self, GmapRecord, Source};
 
 /// One font of the bundled database: a `fontindex.json` entry (TD §5.1).
 ///
-/// [`build_from_ttf`] fills every field but `base_font_aliases`, which is
-/// curated rather than read from the font: `tools/build-templates` sets it.
-/// Template PDFs are built at run time (D-021), so no template path is kept.
+/// [`build_from_ttf`] fills every field but `base_font_aliases` and
+/// `drawn_with`, which are curated rather than read from the font:
+/// `tools/build-templates` sets them. Template PDFs are built at run time
+/// (D-021), so no template path is kept.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexEntry {
     /// The database key, the font's PostScript name.
@@ -35,12 +36,20 @@ pub struct IndexEntry {
     pub postscript_name: String,
     /// `/BaseFont` names this font stands in for (e.g. `Helvetica`).
     pub base_font_aliases: Vec<String>,
+    /// For a font the database holds only the `.gmap` of (D-010 (b)): the id
+    /// of the database font whose program draws its glyphs in an output.
+    /// `None` (left out of the JSON) for a font whose program is in the
+    /// database.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drawn_with: Option<String>,
     /// ISO 15924 codes of the scripts the font covers, sorted.
     pub scripts: Vec<String>,
     /// Labels (`en`, `fr`, `es`, `ar`, `hi`, `zh`) of the languages whose
     /// letters the font maps, in that order.
     pub languages: Vec<String>,
-    /// Lowercase hex SHA-256 of the font file.
+    /// Lowercase hex SHA-256 of the font file. For a font indexed with
+    /// `drawn_with`, the file its `.gmap` was built from, which the database
+    /// does not hold.
     pub sha256: String,
     /// Lowercase hex SHA-256 of the `.gmap` built with this entry.
     pub gmap_sha256: String,
@@ -159,6 +168,7 @@ pub fn build_from_ttf(bytes: &[u8]) -> Result<(IndexEntry, Vec<u8>), BuildError>
         family,
         postscript_name,
         base_font_aliases: Vec::new(),
+        drawn_with: None,
         scripts,
         languages: languages.iter().map(|l| l.label.to_owned()).collect(),
         sha256: sha256_hex(bytes),

@@ -1,8 +1,9 @@
 //! Font inference scorer and resolution policy (T-28, TD §5.2 and §18.2, SE Q3,
 //! D-009).
 //!
-//! [`infer`] decodes a font slot's codes through every database font's glyph
-//! map and scores the text against word lists; [`resolve`] turns the ranked
+//! [`infer`] decodes a font slot's codes through every glyph map `gmap_of`
+//! gives (the database fonts with a program,
+//! [`FontDb::inference_gmaps`]) and scores the text against word lists; [`resolve`] turns the ranked
 //! candidates into a [`FontDecision`]. Everything is integer: scores are
 //! fixed point ×1000 and every fraction is an exact [`Ratio`], so a ranking is
 //! the same on every platform. No hash container is iterated.
@@ -591,12 +592,13 @@ fn script_of(c: char) -> Option<&'static str> {
 
 // ── coverage, families, ratios ───────────────────────────────────────────
 
-/// Every font of `fonts` with the share of `needed` (control characters
-/// skipped) its `.gmap` maps, best first, then by id.
+/// Every font of `fonts` with a program (a `.gmap`-only font cannot draw)
+/// with the share of `needed` (control characters skipped) its `.gmap` maps,
+/// best first, then by id.
 fn coverage<'f>(fonts: &'f FontDb, needed: &[u32]) -> Vec<(Ratio, &'f IndexEntry)> {
     let needed: Vec<u32> = needed.iter().copied().filter(|&c| !is_control(c)).collect();
     let mut out: Vec<(Ratio, &IndexEntry)> = fonts
-        .gmaps()
+        .inference_gmaps()
         .into_iter()
         .filter_map(|(id, gmap)| {
             let mapped: BTreeSet<u32> = gmap
