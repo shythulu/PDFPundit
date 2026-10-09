@@ -61,6 +61,9 @@ sha2 = "0.11"
 thiserror = "2.0"
 similar = "3"
 unicode-normalization = "0.1"
+# Terminal cell widths in the canvas (D-118, G-07); already in the graph
+# through ratatui, so the canvas and the blit's diff agree on every width.
+unicode-width = "0.2.2"
 libm = "0.2.16"
 ratatui = "0.30.2"
 crossterm = "0.29.0"

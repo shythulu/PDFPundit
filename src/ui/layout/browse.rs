@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 use super::modals::{modal_style, step_back};
 use super::{FULL_SIZE, LayoutKind, WIDGET_SIZE};
-use crate::ui::canvas::{BoxStyle, Boxed, Canvas, plain_len};
+use crate::ui::canvas::{BoxStyle, Boxed, Canvas, plain_len, take_width_back, text_width};
 use crate::ui::fs::{self, Entry, Filter};
 use crate::ui::strings;
 use crate::ui::theme::Theme;
@@ -333,17 +333,21 @@ fn room_of(n: i32) -> usize {
     usize::try_from(n).unwrap_or(0)
 }
 
-/// `s`, cut to `max` characters from the left with a leading `…` when longer.
+/// `s`, cut to `max` cells from the left with a leading `…` when wider; a
+/// wide character that would straddle the cut is left out and a space ends
+/// the text in its place, so a cut text always takes `max` cells.
 fn fit_left(s: &str, max: usize) -> String {
-    let n = s.chars().count();
-    if n <= max {
+    if text_width(s) <= max {
         return s.to_string();
     }
     if max == 0 {
         return String::new();
     }
     let mut out = String::from('…');
-    out.extend(s.chars().skip(n - (max - 1)));
+    out.push_str(take_width_back(s, max - 1));
+    if text_width(&out) < max {
+        out.push(' ');
+    }
     out
 }
 
@@ -660,6 +664,48 @@ mod tests {
         assert_eq!(one, blank);
     }
 
+    /// CJK, emoji and mixed-width folder and file names, and a folder path
+    /// holding one, line up in both pickers (D-118): every cell around them
+    /// is where it is for names of one-cell characters as wide, cut or not.
+    #[test]
+    fn wide_names_line_up() {
+        for (name, cells) in crate::ui::canvas::WIDE_NAMES {
+            let with = |n: &str| {
+                let mut s = sample();
+                s.entries = vec![
+                    Entry {
+                        name: format!("d{n}").into(),
+                        is_dir: true,
+                        size: 0,
+                    },
+                    Entry {
+                        name: n.into(),
+                        is_dir: false,
+                        size: 12,
+                    },
+                ];
+                s.cursor = 1;
+                s.cwd = PathBuf::from(format!("/case/{n}"));
+                s
+            };
+            for (kind, size) in [
+                (LayoutKind::Full, (112, 38)),
+                (LayoutKind::Widget, (32, 16)),
+            ] {
+                let drawn = |s: &BrowseState| {
+                    let mut c = Canvas::new(size.0, size.1, theme());
+                    draw(&mut c, s, kind, theme());
+                    c
+                };
+                let c = drawn(&with(name));
+                c.assert_lines_up_with(&drawn(&with(&crate::ui::canvas::stand_in(cells))), name);
+                let first = name.chars().next().expect("a name");
+                let rows: Vec<String> = (0..c.h).map(|y| row_text(&c, y)).collect();
+                assert!(rows.iter().any(|r| r.contains(first)), "{kind:?} {name:?}");
+            }
+        }
+    }
+
     /// Hostile folder and file names, and a folder path holding one, are
     /// drawn as they are in both pickers, controls and bidi controls as `�`.
     #[test]
@@ -703,6 +749,10 @@ mod tests {
         assert_eq!(fit_left("/a/b/c", 10), "/a/b/c");
         assert_eq!(fit_left("/evidence/case-2291", 8), "…se-2291");
         assert_eq!(fit_left("abc", 0), "");
+        assert_eq!(fit_left("/案件/报告书", 8), "…/报告书");
+        assert_eq!(fit_left("/案件/报告书", 9), "…/报告书 ");
+        assert_eq!(fit_left("/案件/报告书", 6), "…告书 ");
+        assert_eq!(fit_left("/案件/报告书", 12), "/案件/报告书");
         let mut s = sample();
         s.cwd = PathBuf::from(format!("/{}/last-folder", "x".repeat(200)));
         let mut c = Canvas::new(112, 38, theme());

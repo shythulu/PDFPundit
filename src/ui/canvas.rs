@@ -9,6 +9,11 @@
 //! of a pixel pair, and writing text over one first resets its background, as
 //! the mockup does. No layout writes `'▀'` as text.
 //!
+//! A wide character (CJK, most emoji; [`width`] 2) takes its cell and the one
+//! after it, which holds a space: the terminal draws the glyph over both.
+//! Writing over either half removes the whole character, and one that would
+//! cross the edge or a clip is drawn as a space instead (D-118).
+//!
 //! Colours come from the [`Theme`] by the mockup's slot letters (`'K'` the
 //! background, `'M'` needs-input, …; [`Theme::slot`]) or as plain [`Rgb`]s.
 //! Every gradient position is `f64`, as in the mockup (eng-r2-q8). Writes
@@ -16,6 +21,9 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use std::collections::BTreeSet;
+
+use unicode_normalization::UnicodeNormalization;
+use unicode_width::UnicodeWidthChar;
 
 use super::cat::CellGrid;
 use super::color::{Rgb, mix, ramp};
@@ -98,6 +106,20 @@ impl Canvas {
         Some(&mut self.cells[i])
     }
 
+    /// [`Canvas::cell_mut`] for a cell about to get a new character: if it is
+    /// the second half of a wide character, that character gives way to a
+    /// space, so its glyph does not cover the new one.
+    fn claim(&mut self, x: i32, y: i32) -> Option<&mut CanvasCell> {
+        let (cx, cy) = self.at(x, y)?;
+        if cx > 0 {
+            let left = self.index(cx - 1, cy);
+            if width(self.cells[left].ch) == 2 {
+                self.cells[left].ch = ' ';
+            }
+        }
+        self.cell_mut(x, y)
+    }
+
     /// Marks `(x, y)` as blinking, if it is on the canvas.
     pub fn set_blink(&mut self, x: i32, y: i32) {
         if let Some(pos) = self.at(x, y) {
@@ -107,10 +129,30 @@ impl Canvas {
 
     /// Writes `ch` at `(x, y)`, recolouring the foreground and background
     /// that are given and keeping the others. Text over a pixel pair gets the
-    /// canvas background first.
+    /// canvas background first. A wide `ch` also takes the next cell (a space
+    /// in the same colours), or is written as a space when that cell is past
+    /// the edge or the clip.
     pub fn put(&mut self, x: i32, y: i32, ch: char, fg: Option<Rgb>, bg: Option<Rgb>) {
+        let wide = width(ch) == 2;
+        let room = self.at(x.saturating_add(1), y).is_some();
+        let ch = if wide && !room { ' ' } else { ch };
+        self.put_one(x, y, ch, fg, bg, true);
+        if wide && room {
+            // The second half: not `claim`ed, its left neighbour is `ch`.
+            self.put_one(x + 1, y, ' ', fg, bg, false);
+        }
+    }
+
+    /// One cell of [`Canvas::put`]; `claim` blanks a wide character whose
+    /// second half this cell is.
+    fn put_one(&mut self, x: i32, y: i32, ch: char, fg: Option<Rgb>, bg: Option<Rgb>, claim: bool) {
         let canvas_bg = self.bg;
-        let Some(cell) = self.cell_mut(x, y) else {
+        let cell = if claim {
+            self.claim(x, y)
+        } else {
+            self.cell_mut(x, y)
+        };
+        let Some(cell) = cell else {
             return;
         };
         if cell.ch == HALF {
@@ -168,13 +210,20 @@ impl Canvas {
     /// each cell's background): no markup, so a `{` in untrusted text such as
     /// a file's name is drawn, not read as a colour. Every string from a file
     /// name, a path, a PDF, a font name or a finding is drawn with this. A
-    /// control or bidi control character is drawn as `�` ([`printable`]), so
-    /// none reaches a cell. Returns the column after the last character.
+    /// control, bidi control or other format character is drawn as `�`
+    /// ([`printable`]), so none reaches a cell. Cells are counted as the
+    /// terminal counts them ([`width`]): the text is composed (NFC) first, so
+    /// a decomposed accent joins its letter, then a wide character takes two
+    /// cells and a zero-width one is dropped. Returns the column after the
+    /// last character.
     pub fn text(&mut self, x: i32, y: i32, text: &str, fg: Rgb, bg: Option<Rgb>) -> i32 {
         let mut cx = x;
-        for ch in text.chars() {
-            self.put(cx, y, printable(ch), Some(fg), bg);
-            cx += 1;
+        for ch in text.nfc().map(printable) {
+            let n = width(ch);
+            if n > 0 {
+                self.put(cx, y, ch, Some(fg), bg);
+                cx = cx.saturating_add(to_i32(n));
+            }
         }
         cx
     }
@@ -278,7 +327,7 @@ impl Canvas {
         if top.is_none() && bottom.is_none() {
             return;
         }
-        let Some(cell) = self.cell_mut(x, y) else {
+        let Some(cell) = self.claim(x, y) else {
             return;
         };
         let (under_top, under_bottom) = if cell.ch == HALF {
@@ -525,19 +574,86 @@ fn markup(text: &str) -> Vec<Piece> {
 }
 
 /// `ch`, or `�` in place of a character a terminal would act on rather than
-/// draw: a C0 or C1 control or DEL (an escape sequence starts with one), or
-/// a bidi control (U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), which
-/// reorders what follows it (`invoice\u{202E}fdp.exe.pdf`).
+/// draw, or would draw as nothing: a C0 or C1 control or DEL (an escape
+/// sequence starts with one); a format character (general category Cf),
+/// among them the bidi controls (U+200E, U+200F, U+202A–U+202E,
+/// U+2066–U+2069), which reorder what follows them
+/// (`invoice\u{202E}fdp.exe.pdf`), the soft hyphen, the zero-width space and
+/// joiners and the BOM; or the line and paragraph separators (D-118).
 pub fn printable(ch: char) -> char {
-    let bidi = matches!(
-        ch,
-        '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
-    );
-    if ch.is_control() || bidi {
+    if ch.is_control() || is_format(ch) || matches!(ch, '\u{2028}' | '\u{2029}') {
         '\u{fffd}'
     } else {
         ch
     }
+}
+
+/// Whether `ch` is a format character: Unicode 16's general category Cf,
+/// listed here because no crate in the graph exposes general categories.
+fn is_format(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{ad}'
+            | '\u{600}'..='\u{605}'
+            | '\u{61c}'
+            | '\u{6dd}'
+            | '\u{70f}'
+            | '\u{890}'..='\u{891}'
+            | '\u{8e2}'
+            | '\u{180e}'
+            | '\u{200b}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2060}'..='\u{2064}'
+            | '\u{2066}'..='\u{206f}'
+            | '\u{feff}'
+            | '\u{fff9}'..='\u{fffb}'
+            | '\u{110bd}'
+            | '\u{110cd}'
+            | '\u{13430}'..='\u{1343f}'
+            | '\u{1bca0}'..='\u{1bca3}'
+            | '\u{1d173}'..='\u{1d17a}'
+            | '\u{e0001}'
+            | '\u{e0020}'..='\u{e007f}'
+    )
+}
+
+/// How many cells `ch` takes in a terminal once [`printable`] has replaced
+/// it: 2 for a wide character (CJK, most emoji), 0 for a zero-width one (a
+/// combining mark, a variation selector), 1 otherwise. The blit's diff counts
+/// cells with the same `unicode-width` tables, so the two always agree.
+pub fn width(ch: char) -> usize {
+    printable(ch).width().unwrap_or(1)
+}
+
+/// How many cells [`Canvas::text`] takes to draw `text`.
+pub fn text_width(text: &str) -> usize {
+    text.nfc().map(width).sum()
+}
+
+/// The longest start of `text` that takes at most `max` cells, never ending
+/// in half a wide character.
+pub fn take_width(text: &str, max: usize) -> &str {
+    let mut used = 0;
+    for (i, ch) in text.char_indices() {
+        used += width(ch);
+        if used > max {
+            return &text[..i];
+        }
+    }
+    text
+}
+
+/// The longest end of `text` that takes at most `max` cells, never starting
+/// with half a wide character.
+pub fn take_width_back(text: &str, max: usize) -> &str {
+    let mut used = 0;
+    for (i, ch) in text.char_indices().rev() {
+        used += width(ch);
+        if used > max {
+            return &text[i + ch.len_utf8()..];
+        }
+    }
+    text
 }
 
 /// How many cells `text` takes once its markup is removed (generate.py's
@@ -596,6 +712,92 @@ impl Canvas {
             );
         }
     }
+
+    /// Panics unless every cell's character takes exactly the cells the
+    /// canvas gives it ([`width`]): no zero-width character, and every wide
+    /// one followed, on its own row, by the space that holds its second cell.
+    /// A canvas that passes lines up in a terminal as it does here.
+    #[track_caller]
+    pub(crate) fn assert_aligned(&self) {
+        for y in 0..self.h {
+            let mut x = 0;
+            while x < self.w {
+                let ch = self.get(x, y).expect("cell").ch;
+                match width(ch) {
+                    1 => x += 1,
+                    2 => {
+                        let tail = self.get(x + 1, y).map(|c| c.ch);
+                        assert_eq!(tail, Some(' '), "({x}, {y}): {ch:?} has no second cell");
+                        x += 2;
+                    }
+                    n => panic!("({x}, {y}): {ch:?} takes {n} cells"),
+                }
+            }
+        }
+    }
+
+    /// Panics unless `self`, drawn with wide or mixed-width names, equals
+    /// `base`, the same view drawn with names as wide ([`stand_in`]), in
+    /// every cell but the names' own: a cell may differ only where `base`
+    /// holds [`STAND_IN`], `…` or a space and `self` a character of `chars`,
+    /// `…` or a space. The layout around a name is then where it would be for
+    /// a name of one-cell characters, and the canvas lines up
+    /// ([`Canvas::assert_aligned`]).
+    #[track_caller]
+    pub(crate) fn assert_lines_up_with(&self, base: &Canvas, chars: &str) {
+        assert_eq!((self.w, self.h), (base.w, base.h));
+        self.assert_aligned();
+        let mut bad = Vec::new();
+        for y in 0..self.h {
+            for x in 0..self.w {
+                let (got, want) = (self.get(x, y).expect("cell"), base.get(x, y).expect("cell"));
+                if got == want {
+                    continue;
+                }
+                let name_cell = matches!(want.ch, '…' | ' ') || want.ch == STAND_IN;
+                let wide_cell = matches!(got.ch, '…' | ' ') || chars.contains(got.ch);
+                if !(name_cell && wide_cell) {
+                    bad.push(format!("({x}, {y}) {:?} where {:?}", got.ch, want.ch));
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{} cells moved:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
+    }
+}
+
+/// File names of wide and mixed-width characters, each with the cells a
+/// terminal gives it: CJK, emoji, a mix that puts a wide character on odd and
+/// even cut positions, and long versions that every layout must cut.
+/// [`stand_in`] gives each a name of the same width to compare it with.
+#[cfg(test)]
+pub(crate) const WIDE_NAMES: [(&str, usize); 6] = [
+    ("报告书.pdf", 10),
+    ("📄📎.pdf", 8),
+    ("a证据b😀c.pdf", 13),
+    (
+        "调查报告调查报告调查报告调查报告调查报告调查报告调查报告调查报告.pdf",
+        68,
+    ),
+    (
+        "x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄x📄.pdf",
+        58,
+    ),
+    ("证x", 3),
+];
+
+/// The one-cell character [`stand_in`] names are made of; no layout draws it.
+#[cfg(test)]
+pub(crate) const STAND_IN: char = '¤';
+
+/// A name `cells` wide, all [`STAND_IN`].
+#[cfg(test)]
+pub(crate) fn stand_in(cells: usize) -> String {
+    STAND_IN.to_string().repeat(cells)
 }
 
 /// Names a hostile file can carry (markup, ESC, a CSI sequence, BEL, the C1
@@ -943,7 +1145,7 @@ mod tests {
         replaced.extend(['\u{200e}', '\u{200f}']);
         replaced.extend('\u{202a}'..='\u{202e}');
         replaced.extend('\u{2066}'..='\u{2069}');
-        let kept = "a{R}é€\u{a0}\u{200d}\u{2010}\u{202f}\u{2065}";
+        let kept = "a{R}é€\u{a0}\u{2010}\u{202f}";
         for ch in replaced {
             let mut c = Canvas::new(3, 1, t);
             let end = c.text(0, 0, &format!("a{ch}b"), t.roles.file, None);
@@ -957,6 +1159,146 @@ mod tests {
         c.text(0, 0, kept, t.roles.file, None);
         let row: String = c.cells.iter().map(|c| c.ch).collect();
         assert_eq!(row, kept);
+    }
+
+    /// The characters of row `y`.
+    fn row(c: &Canvas, y: u16) -> String {
+        (0..c.w).map(|x| c.get(x, y).expect("cell").ch).collect()
+    }
+
+    /// Every format character (Cf), the line and paragraph separators and
+    /// the bidi controls are drawn as `�` in one cell (D-118): the soft
+    /// hyphen, U+061C, the zero-width space and joiners, the BOM, the tag
+    /// characters.
+    #[test]
+    fn text_replaces_format_characters_and_separators() {
+        let t = theme();
+        let hidden = [
+            '\u{ad}',
+            '\u{600}',
+            '\u{61c}',
+            '\u{6dd}',
+            '\u{70f}',
+            '\u{890}',
+            '\u{8e2}',
+            '\u{180e}',
+            '\u{200b}',
+            '\u{200c}',
+            '\u{200d}',
+            '\u{2028}',
+            '\u{2029}',
+            '\u{2060}',
+            '\u{2064}',
+            '\u{206a}',
+            '\u{206f}',
+            '\u{feff}',
+            '\u{fff9}',
+            '\u{fffb}',
+            '\u{110bd}',
+            '\u{110cd}',
+            '\u{13430}',
+            '\u{1343f}',
+            '\u{1bca0}',
+            '\u{1d173}',
+            '\u{e0001}',
+            '\u{e0020}',
+            '\u{e007f}',
+        ];
+        for ch in hidden {
+            assert_eq!(printable(ch), '\u{fffd}', "U+{:04X}", u32::from(ch));
+            let mut c = Canvas::new(3, 1, t);
+            let end = c.text(0, 0, &format!("a{ch}b"), t.roles.file, None);
+            assert_eq!(row(&c, 0), "a\u{fffd}b", "U+{:04X}", u32::from(ch));
+            assert_eq!(end, 3);
+        }
+        // Their neighbours are drawn as they are.
+        for ch in ['\u{ac}', '\u{ae}', '\u{2027}', '\u{202f}', '\u{fffc}'] {
+            assert_eq!(printable(ch), ch, "U+{:04X}", u32::from(ch));
+        }
+    }
+
+    /// A wide character (CJK, most emoji) takes its cell and the one after
+    /// it, which holds a space in the same colours; the next character starts
+    /// after both, and the returned column counts cells, not characters.
+    #[test]
+    fn a_wide_character_takes_two_cells() {
+        let t = theme();
+        let red = slot('R');
+        let mut c = Canvas::new(8, 1, t);
+        let end = c.text(0, 0, "a中📄b", red, Some(slot('b')));
+        assert_eq!(row(&c, 0), "a中 📄 b  ");
+        assert_eq!(end, 6);
+        for x in 0..6 {
+            let cell = c.get(x, 0).expect("cell");
+            assert_eq!((cell.fg, cell.bg), (red, slot('b')), "column {x}");
+        }
+        c.assert_aligned();
+        assert_eq!(text_width("a中📄b"), 6);
+        for (name, cells) in WIDE_NAMES {
+            assert_eq!(text_width(name), cells, "{name:?}");
+        }
+        assert_eq!((width('中'), width('a'), width('\u{301}')), (2, 1, 0));
+    }
+
+    /// Zero-width characters (combining marks with no precomposed form,
+    /// variation selectors) take no cell and are dropped; a decomposed
+    /// accent is composed first (`e` + U+0301 is `é`), so a name the file
+    /// system stores decomposed keeps its accent.
+    #[test]
+    fn zero_width_characters_are_dropped_after_composing() {
+        let t = theme();
+        let mut c = Canvas::new(6, 1, t);
+        let end = c.text(0, 0, "q\u{301}\u{fe0f}x", t.roles.file, None);
+        assert_eq!(row(&c, 0), "qx    ");
+        assert_eq!(end, 2);
+        let mut c = Canvas::new(6, 1, t);
+        let end = c.text(0, 0, "cafe\u{301}!", t.roles.file, None);
+        assert_eq!(row(&c, 0), "café! ");
+        assert_eq!(end, 5);
+        assert_eq!(text_width("cafe\u{301}!"), 5);
+        assert_eq!(text_width("q\u{301}\u{fe0f}x"), 2);
+        c.assert_aligned();
+    }
+
+    /// A wide character with one cell left before the canvas edge or a clip
+    /// is never split: that cell gets a space and nothing lands past it.
+    #[test]
+    fn a_wide_character_at_the_edge_is_not_split() {
+        let t = theme();
+        let mut c = Canvas::new(3, 1, t);
+        let end = c.text(0, 0, "ab中", t.roles.file, Some(slot('b')));
+        assert_eq!(row(&c, 0), "ab ");
+        assert_eq!(c.get(2, 0).map(|k| k.bg), Some(slot('b')));
+        assert_eq!(end, 4);
+        c.assert_aligned();
+        let mut c = Canvas::new(5, 1, t);
+        c.clipped(3, 1, |c| c.text(0, 0, "ab中中", t.roles.file, None));
+        assert_eq!(row(&c, 0), "ab   ");
+        c.assert_aligned();
+        // A raw `put` keeps to the same rule.
+        let mut c = Canvas::new(2, 1, t);
+        c.put(1, 0, '中', None, None);
+        assert_eq!(row(&c, 0), "  ");
+    }
+
+    /// Writing over either half of a wide character removes all of it: a
+    /// write over its second cell blanks the first, so the terminal never
+    /// draws a wide glyph over the new cell.
+    #[test]
+    fn writing_over_half_a_wide_character_removes_it() {
+        let t = theme();
+        let mut c = Canvas::new(4, 1, t);
+        c.text(0, 0, "中中", t.roles.file, None);
+        c.put(1, 0, 'x', None, None);
+        assert_eq!(row(&c, 0), " x中 ");
+        c.assert_aligned();
+        c.pix(3, 0, &[[Some(slot('R'))]]);
+        assert_eq!(row(&c, 0), format!(" x {HALF}"));
+        c.assert_aligned();
+        c.text(0, 0, "中", t.roles.file, None);
+        c.put(0, 0, 'y', None, None);
+        assert_eq!(row(&c, 0), format!("y  {HALF}"));
+        c.assert_aligned();
     }
 
     #[test]

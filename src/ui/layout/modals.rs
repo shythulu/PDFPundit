@@ -11,11 +11,11 @@
 use super::FULL_SIZE;
 use crate::engine::{FontPickRequest, FontSlot, InteractionReply, Ratio, ToUnicodeState};
 use crate::jobs::QueueEntry;
-use crate::ui::canvas::{BoxStyle, Boxed, Canvas, HALF, plain_len};
+use crate::ui::canvas::{BoxStyle, Boxed, Canvas, HALF, plain_len, text_width};
 use crate::ui::color::{Rgb, mix, ramp};
 use crate::ui::strings;
 use crate::ui::theme::Theme;
-use crate::ui::widgets::r#box::fit;
+use crate::ui::widgets::r#box::{fit, pad};
 
 /// A key as the modals read it; the loop maps the terminal's keys onto it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -231,7 +231,7 @@ impl<'a> FontPickModal<'a> {
         };
         let room = usize::try_from(limit - 2 - name_x).unwrap_or(0);
         let name = fit(self.file, room);
-        let title = format!("{label} {}", " ".repeat(name.chars().count()));
+        let title = format!("{label} {}", " ".repeat(text_width(&name)));
         let b = c.boxed(
             x,
             y,
@@ -297,7 +297,7 @@ impl<'a> FontPickModal<'a> {
                 ("  ", r.body)
             };
             c.rich(NAME_X - 2, ry, mark, None, theme);
-            let family = format!("{:<NAME_W$}", fit(&cand.family, NAME_W));
+            let family = pad(&cand.family, NAME_W);
             c.text(NAME_X, ry, &family, name_fg, None);
             if plain {
                 continue;
@@ -528,7 +528,7 @@ impl ThemeChooser {
                 ("  ", r.body)
             };
             c.rich(6, ry, mark, None, th);
-            let name = format!("{:<22} ", fit(t.name, 22));
+            let name = format!("{} ", pad(t.name, 22));
             let e = c.text(8, ry, &name, fg, None);
             if t.name == default {
                 c.text(e, ry, strings::DEFAULT_MARK, r.hotkey, None);
@@ -661,7 +661,7 @@ mod tests {
     use super::*;
     use crate::engine::{FontCandidate, InteractionRequest, InteractionRequestId};
     use crate::jobs::EntryState;
-    use crate::ui::canvas::{CanvasCell, HALF};
+    use crate::ui::canvas::{CanvasCell, HALF, printable};
     use crate::ui::color::Rgb;
     use crate::ui::goldens::{self, Golden, GoldenCell};
     use crate::ui::layout::FULL_SIZE;
@@ -779,10 +779,10 @@ mod tests {
     }
 
     /// The previews are drawn as terminal text, one character a cell from the
-    /// span's left edge in its colours. The golden replaces each embedded
-    /// span's cells with the placeholder text (its placeholder policy, D-055):
-    /// the drawn previews are checked, replaced the same way, and then every
-    /// cell must equal the golden's.
+    /// span's left edge in its colours (a format character as `�`). The
+    /// golden replaces each embedded span's cells with the placeholder text
+    /// (its placeholder policy, D-055): the drawn previews are checked,
+    /// replaced the same way, and then every cell must equal the golden's.
     #[test]
     fn font_pick_matches_the_golden_with_the_placeholder_policy() {
         let golden = goldens::load("04-font-pick");
@@ -810,7 +810,9 @@ mod tests {
             for i in 0..span.w {
                 let (x, y) = (span.x + i, span.y);
                 let cell = c.get(x, y).expect("cell");
-                let drawn = text.get(usize::from(i)).copied().unwrap_or(' ');
+                // The mojibake preview's soft hyphen is a format character,
+                // drawn as `�` (D-118).
+                let drawn = text.get(usize::from(i)).copied().map_or(' ', printable);
                 assert_eq!(
                     (cell.ch, cell.fg.0, cell.bg.0),
                     (drawn, span.fg.0, span.bg.0),
@@ -823,6 +825,32 @@ mod tests {
             }
         }
         c.assert_matches(&golden);
+    }
+
+    /// CJK, emoji and mixed-width text in the font question (the file's
+    /// name, the candidates' families and their previews, which carry
+    /// decoded PDF text) lines up (D-118): every cell around it is where it
+    /// is for text of one-cell characters as wide, cut or not.
+    #[test]
+    fn wide_text_in_the_font_question_lines_up() {
+        for (name, cells) in crate::ui::canvas::WIDE_NAMES {
+            let drawn = |n: &str| {
+                let mut entry = mockup_entry();
+                entry.name = n.to_string();
+                let mut req = mockup_request();
+                for cand in &mut req.candidates {
+                    cand.family = n.to_string();
+                    cand.preview = n.repeat(4);
+                }
+                let mut c = canvas_of(&goldens::load("03-batch"));
+                FontPickModal::for_entry(&entry, &req).draw(&mut c, &req, 1, theme());
+                c
+            };
+            let c = drawn(name);
+            c.assert_lines_up_with(&drawn(&crate::ui::canvas::stand_in(cells)), name);
+            let first = name.chars().next().expect("a name");
+            assert!(row_text(&c, 14).contains(first), "{:?}", row_text(&c, 14));
+        }
     }
 
     fn one_candidate(id: &str, family: &str, preview: &str) -> FontCandidate {

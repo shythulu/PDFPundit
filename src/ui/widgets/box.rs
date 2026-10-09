@@ -2,7 +2,7 @@
 //! panels draw it (double-line border along the theme's border gradient),
 //! whose lines never write past its right border.
 
-use crate::ui::canvas::{BoxStyle, Boxed, Canvas};
+use crate::ui::canvas::{BoxStyle, Boxed, Canvas, take_width, text_width};
 use crate::ui::color::Rgb;
 use crate::ui::theme::Theme;
 
@@ -69,7 +69,7 @@ pub fn panel_plain(c: &mut Canvas, x: i32, y: i32, w: i32, h: i32, theme: &Theme
 }
 
 /// Draws a box styled `style` titled `title`, a space and `name`, the name
-/// drawn as it is (a file's name is not markup) and cut to `max` characters;
+/// drawn as it is (a file's name is not markup) and cut to `max` cells;
 /// just `title` when there is no name.
 pub fn named(
     c: &mut Canvas,
@@ -81,7 +81,7 @@ pub fn named(
     theme: &Theme,
 ) -> Panel {
     let name = fit(name, max);
-    let n = name.chars().count();
+    let n = text_width(&name);
     // The name's cells are held by spaces, then written over.
     let shown = if n == 0 {
         title.to_string()
@@ -113,7 +113,7 @@ impl Panel {
         let b = &self.0;
         let room = usize::try_from(b.w - 6).unwrap_or(0);
         let text = fit(text, room);
-        let n = i32::try_from(text.chars().count()).unwrap_or(0);
+        let n = i32::try_from(text_width(&text)).unwrap_or(0);
         let total = n + 4;
         let x0 = b.x + (b.w - total).div_euclid(2);
         let j = b.h - 1;
@@ -126,15 +126,30 @@ impl Panel {
     }
 }
 
-/// `s`, cut to `max` characters with a trailing `…` when longer.
+/// `s`, cut to `max` cells ([`text_width`]) with a trailing `…` when wider.
+/// A wide character that would straddle the cut is left out and a space
+/// follows the `…` in its place, so a cut text always takes `max` cells,
+/// whatever its characters' widths.
 pub fn fit(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
+    if text_width(s) <= max {
         return s.to_string();
     }
-    let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
+    let mut out = take_width(s, max.saturating_sub(1)).to_string();
     if max > 0 {
         out.push('…');
     }
+    if text_width(&out) < max {
+        out.push(' ');
+    }
+    out
+}
+
+/// [`fit`], then spaces up to `w` cells: a fixed-width column. (`format!`'s
+/// `{:<w$}` counts characters, not cells.)
+pub fn pad(s: &str, w: usize) -> String {
+    let mut out = fit(s, w);
+    let n = text_width(&out);
+    out.extend(std::iter::repeat_n(' ', w.saturating_sub(n)));
     out
 }
 
@@ -177,5 +192,28 @@ mod tests {
         assert_eq!(fit("a_very_long_file_name_indeed.pdf", 10), "a_very_lo…");
         assert_eq!(fit("abc", 1), "…");
         assert_eq!(fit("abc", 0), "");
+    }
+
+    /// Widths are cells: a wide character counts two and is never cut in
+    /// half, a zero-width one counts nothing.
+    #[test]
+    fn fit_and_pad_count_cells() {
+        assert_eq!(fit("报告书.pdf", 10), "报告书.pdf");
+        assert_eq!(fit("报告书.pdf", 9), "报告书.p…");
+        assert_eq!(fit("报告书.pdf", 6), "报告… ");
+        assert_eq!(fit("报告书.pdf", 5), "报告…");
+        assert_eq!(fit("报告书.pdf", 4), "报… ");
+        assert_eq!(fit("📄", 1), "…");
+        assert_eq!(fit("cafe\u{301}", 4), "cafe\u{301}");
+        assert_eq!(pad("报告", 6), "报告  ");
+        assert_eq!(pad("报告书.pdf", 6), "报告… ");
+        assert_eq!(pad("ab", 1), "…");
+        for (name, _) in crate::ui::canvas::WIDE_NAMES {
+            for w in 0..80 {
+                let want = text_width(name).min(w);
+                assert_eq!(text_width(&fit(name, w)), want, "{name:?} in {w}");
+                assert_eq!(text_width(&pad(name, w)), w, "{name:?} in {w}");
+            }
+        }
     }
 }

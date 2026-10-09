@@ -79,7 +79,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use super::canvas::Canvas;
+use super::canvas::{Canvas, text_width};
 use super::color::ColorCaps;
 use super::director::{CatEvent, CatFrame, CellPos, Director, Mood, Stage};
 #[cfg(windows)]
@@ -1474,7 +1474,7 @@ impl App {
         // The file's name is drawn as literal text over blanks, never read
         // as markup.
         let name = fit(&e.name, RESOLVING_NAME_W);
-        let blanks = " ".repeat(name.chars().count());
+        let blanks = " ".repeat(text_width(&name));
         let (state, _) = strings::RESOLVING_FILE
             .split_once("{file}")
             .unwrap_or((strings::RESOLVING_FILE, ""));

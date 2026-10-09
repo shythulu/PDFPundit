@@ -33,7 +33,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use super::{FULL_SIZE, Layout};
-use crate::ui::canvas::{BoxStyle, Canvas, plain_len};
+use crate::ui::canvas::{BoxStyle, Canvas, plain_len, take_width, text_width};
 use crate::ui::cat;
 use crate::ui::color::{Rgb, mix, ramp};
 use crate::ui::director::{CHOMP, CRUMBS, CRUMBS_AT, CatFrame};
@@ -634,14 +634,14 @@ fn draw_result(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
 }
 
 /// `text` broken at spaces into at most `rows` lines of at most `w`
-/// characters; a word longer than a line, or text left over after the last
-/// line, is cut with `…`.
+/// cells; a word longer than a line, or text left over after the last line,
+/// is cut with `…`.
 fn wrap(text: &str, w: usize, rows: usize) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut cur = String::new();
     for word in text.split_whitespace() {
-        let n = cur.chars().count();
-        if n > 0 && n + 1 + word.chars().count() > w {
+        let n = text_width(&cur);
+        if n > 0 && n + 1 + text_width(word) > w {
             lines.push(std::mem::take(&mut cur));
         }
         if !cur.is_empty() {
@@ -656,7 +656,7 @@ fn wrap(text: &str, w: usize, rows: usize) -> Vec<String> {
     let mut lines: Vec<String> = lines.into_iter().take(rows).map(|l| fit(&l, w)).collect();
     if over && let Some(last) = lines.last_mut() {
         // Room for the `…` after the line, or in place of its last character.
-        let head: String = last.chars().take(w.saturating_sub(1)).collect();
+        let head = take_width(last, w.saturating_sub(1));
         *last = format!("{}…", head.trim_end_matches('…'));
     }
     lines
@@ -1026,7 +1026,7 @@ mod tests {
     use crate::engine::{C9Summary, FontResolutionKind, Location};
     use crate::jobs::{EntryState, QueueEntry};
     use crate::library::{HistorySummary, RecentRow, RecentStatus};
-    use crate::ui::canvas::{HALF, HOSTILE_NAMES};
+    use crate::ui::canvas::{HALF, HOSTILE_NAMES, WIDE_NAMES, stand_in};
     use crate::ui::director::{
         CHOMP_DURS, CatEvent, CellPos, DRAG, DRAG_DOC, DRAG_DURS, Director, Mood,
     };
@@ -1709,6 +1709,11 @@ mod tests {
         assert_eq!(wrap("aa bbbb", 4, 1), ["aa…"]);
         assert_eq!(wrap("abcdefgh", 5, 2), ["abcd…"]);
         assert_eq!(wrap("", 5, 2), Vec::<String>::new());
+        // Lines are measured in cells: a wide character takes two.
+        assert_eq!(wrap("报告 书书书", 5, 2), ["报告", "书书…"]);
+        assert_eq!(wrap("报告 书书", 5, 1), ["报告…"]);
+        assert_eq!(wrap("书书书", 4, 1), ["书… "]);
+        assert_eq!(wrap("a报 告", 5, 2), ["a报", "告"]);
     }
 
     /// Which screen is up: the main one with no files and during every
@@ -1816,6 +1821,53 @@ mod tests {
                 assert!(
                     rows.iter().any(|r| r.contains(&format!(" » {shown} "))),
                     "{name:?}: the panel title"
+                );
+            }
+        }
+    }
+
+    /// `app` with every file name, finding summary and font name set to
+    /// `name`, and LAST CALLERS holding `name` alone.
+    fn named_everywhere(mut app: AppState, name: &str) -> AppState {
+        app.history.recent = vec![RecentRow {
+            name: name.to_string(),
+            status: RecentStatus::Repaired,
+        }];
+        for e in &mut app.batch.entries {
+            e.name = name.to_string();
+            for f in &mut e.findings {
+                f.summary = name.to_string();
+            }
+            for f in &mut e.font_resolutions {
+                f.base_font = Some(name.to_string());
+            }
+        }
+        app
+    }
+
+    /// CJK, emoji and mixed-width names line up in every view (D-118): each
+    /// wide character takes two cells, and every cell around the names is
+    /// where it is for a name of one-cell characters as wide, cut or not.
+    #[test]
+    fn wide_names_line_up_in_every_view() {
+        for (name, cells) in WIDE_NAMES {
+            for app in [
+                AppState::mockup_idle(),
+                AppState::mockup_batch(),
+                AppState::mockup_result(),
+            ] {
+                let draw_with = |n: &str| {
+                    let vm = view(&named_everywhere(app.clone(), n));
+                    draw(FULL_SIZE, &vm, &resting(&vm))
+                };
+                let c = draw_with(name);
+                c.assert_lines_up_with(&draw_with(&stand_in(cells)), name);
+                let rows: Vec<String> = (0..c.h).map(|y| row_text(&c, y)).collect();
+                let first = name.chars().next().expect("a name");
+                assert!(
+                    rows.iter().any(|r| r.contains(first)),
+                    "{name:?} is drawn:\n{}",
+                    rows.join("\n")
                 );
             }
         }
