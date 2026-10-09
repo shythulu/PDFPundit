@@ -424,12 +424,12 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// the batch (GG §1). Answer a question only with [`JobRunner::reply`], never
 /// on the [`JobEvent::NeedsInteraction`] event's own sender (see there).
 ///
-/// A reply resumes the parked job immediately, beside the active one. Resumed
-/// jobs are not limited in number: each one starts when the user answers it,
-/// and the user answers one question at a time, so they overlap the active job
-/// only as fast as someone types. Queueing them instead would turn "a reply
-/// resumes immediately" into "a reply waits for an earlier reply's job". A
-/// resumed job counts against `parked_cap` again only if it parks again.
+/// A reply to a job whose thread still waits resumes it in place at once,
+/// beside the active one. A reply to an evicted job queues its re-run for the
+/// one resume slot, in answer order: the next re-run starts when the one in
+/// the slot ends or parks again, so replies to many evicted jobs never start
+/// many salvages at once (D-103). A resumed job counts against `parked_cap`
+/// again only if it parks again.
 ///
 /// When parked jobs hold more than `parked_cap` bytes the runner
 /// reclaims memory, never refusing a job (D-005, the recommended default): it
@@ -461,6 +461,12 @@ pub struct JobRunner<E: Engine> {
     pending: VecDeque<JobId>,
     /// The one job the sequential batch is running; resumed jobs run beside it.
     active: Option<JobId>,
+    /// Evicted jobs whose answers came, waiting for the resume slot in answer
+    /// order (D-103).
+    resumes: VecDeque<JobId>,
+    /// The one evicted job re-running now; the slot frees when it ends or
+    /// parks again.
+    resuming: Option<JobId>,
     /// Threads that were cancelled or finished, kept for `shutdown` to join.
     retired: Vec<JoinHandle<()>>,
     next_id: u64,
@@ -568,6 +574,8 @@ impl<E: Engine + 'static> JobRunner<E> {
             jobs: BTreeMap::new(),
             pending: VecDeque::new(),
             active: None,
+            resumes: VecDeque::new(),
+            resuming: None,
             retired: Vec::new(),
             next_id: 1,
             waiting_reported: 0,
@@ -695,8 +703,8 @@ impl<E: Engine + 'static> JobRunner<E> {
     /// Answers a parked job's question with `reply` and who gave it (the
     /// user, or the app on its own: D-141). A job whose thread is still
     /// waiting gets the answer at once; an evicted one re-runs Analyze and
-    /// Repair with every answer so far replayed, sources and all. False when
-    /// the job is not parked.
+    /// Repair with every answer so far replayed, sources and all, once the
+    /// resume slot is free (D-103). False when the job is not parked.
     pub fn reply(&mut self, id: JobId, reply: Answer) -> bool {
         let Some(job) = self.jobs.get_mut(&id) else {
             return false;
@@ -716,10 +724,12 @@ impl<E: Engine + 'static> JobRunner<E> {
             }
             job.rebuilt = true;
             job.state = StateHandle::default();
-            self.spawn(id);
+            job.stage = Stage::Pending;
+            self.resumes.push_back(id);
         }
         self.send(id, JobEvent::Resumed);
         self.report_waiting(id);
+        self.start_resume();
         true
     }
 
@@ -785,6 +795,7 @@ impl<E: Engine + 'static> JobRunner<E> {
     pub fn shutdown(mut self, grace: Duration) -> bool {
         let deadline = Instant::now() + grace;
         self.pending.clear();
+        self.resumes.clear();
         let mut threads = std::mem::take(&mut self.retired);
         for job in self.jobs.values_mut() {
             if let Some(run) = job.run.take() {
@@ -835,6 +846,31 @@ impl<E: Engine + 'static> JobRunner<E> {
                 self.spawn(id);
                 return;
             }
+        }
+    }
+
+    /// Starts the next queued re-run of an evicted job if the resume slot is
+    /// free.
+    fn start_resume(&mut self) {
+        if self.resuming.is_some() {
+            return;
+        }
+        while let Some(id) = self.resumes.pop_front() {
+            if self.jobs.contains_key(&id) {
+                self.resuming = Some(id);
+                self.spawn(id);
+                return;
+            }
+        }
+    }
+
+    /// Frees whichever slot job `id` held, the batch's or the resume slot.
+    fn leave_slots(&mut self, id: JobId) {
+        if self.active == Some(id) {
+            self.active = None;
+        }
+        if self.resuming == Some(id) {
+            self.resuming = None;
         }
     }
 
@@ -895,13 +931,12 @@ impl<E: Engine + 'static> JobRunner<E> {
             request,
             reply: Some(reply),
         };
-        if self.active == Some(id) {
-            self.active = None;
-        }
+        self.leave_slots(id);
         self.send(id, JobEvent::Parked);
         self.report_waiting(id);
         self.reclaim();
         self.start_next();
+        self.start_resume();
     }
 
     /// Job `id` has ended. Unless it was cancelled, an export asked for too
@@ -925,12 +960,11 @@ impl<E: Engine + 'static> JobRunner<E> {
                 self.export(id);
             }
         }
-        if self.active == Some(id) {
-            self.active = None;
-        }
+        self.leave_slots(id);
         self.retired.retain(|t| !t.is_finished());
         self.report_waiting(id);
         self.start_next();
+        self.start_resume();
     }
 
     /// Brings the parked jobs back under `parked_cap` (D-005, lead-r4-fr1).
@@ -1392,6 +1426,7 @@ pub(crate) use fake::{FakeEngine, FakeProfile, FakeStep};
 /// reading PDFs.
 #[cfg(test)]
 mod fake {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -1437,6 +1472,18 @@ mod fake {
         repaired_states: Mutex<Vec<StateHandle>>,
         images: Vec<(String, Vec<u8>)>,
         font_slots: Vec<FontSlot>,
+        /// `analyze` calls running now, and the most there ever were.
+        analyzing: AtomicUsize,
+        most_analyzing: AtomicUsize,
+    }
+
+    /// Counts one `analyze` call as running until it is dropped.
+    struct Analyzing<'a>(&'a AtomicUsize);
+
+    impl Drop for Analyzing<'_> {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::AcqRel);
+        }
     }
 
     impl Default for FakeEngine {
@@ -1451,6 +1498,8 @@ mod fake {
                 repaired_states: Mutex::new(Vec::new()),
                 images: Vec::new(),
                 font_slots: Vec::new(),
+                analyzing: AtomicUsize::new(0),
+                most_analyzing: AtomicUsize::new(0),
             }
         }
     }
@@ -1519,6 +1568,11 @@ mod fake {
         /// Every answer the fake has received, with its source, in order.
         pub(crate) fn answers(&self) -> Vec<Answer> {
             self.replies.lock().expect("replies lock").clone()
+        }
+
+        /// The most `analyze` calls that ever ran at once.
+        pub(crate) fn most_concurrent_analyses(&self) -> usize {
+            self.most_analyzing.load(Ordering::Acquire)
         }
 
         /// The question `always_asks` puts.
@@ -1621,6 +1675,9 @@ mod fake {
             if (self.panics_when)(bytes) {
                 panic!("fake engine panic");
             }
+            let now = self.analyzing.fetch_add(1, Ordering::AcqRel) + 1;
+            self.most_analyzing.fetch_max(now, Ordering::AcqRel);
+            let _running = Analyzing(&self.analyzing);
             let findings = self.run(&self.analyze_steps, sink, None, &mut Vec::new())?;
             let profile = (self.profile)(bytes);
             let input_sha256: [u8; 32] = Sha256::digest(bytes).into();
