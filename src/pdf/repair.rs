@@ -83,10 +83,19 @@
 //!
 //! **References** (D-133). The rebuild re-links every dangling reference it
 //! can match and writes the rest as `null` (T-10, [`crate::pdf::rebuild`],
-//! step 3), whichever passes run. Each such repair is a [`RepairAction`] on
-//! the referrer: the reference, what it now names and how it was matched,
-//! or that it was written as `null`. A referrer the output leaves out (a
-//! cut object the C10 pass dropped) is not listed. The actions go in the C5
+//! step 3), whichever passes run; a reference whose object a pass dropped
+//! (the C10 pass's cut objects) is written as `null` too. Each such repair
+//! is a [`RepairAction`] on the referrer, one per reference: the reference,
+//! what it now names and how it was matched, or that it was written as
+//! `null`. Where the referrer is a page and the reference is a whole
+//! `/Resources`, `/MediaBox`, `/CropBox` or `/Rotate` value, the page's
+//! pinned attribute replaces it, and the action says with what (an
+//! ancestor's value, the MediaBox chain's, the value read in place, or the
+//! key removed). A referrer the output leaves out is not listed. Known
+//! limit: a font subtree template assembly replaces is dropped while the
+//! output is written, after the actions are made, so a reference to it
+//! from outside the replaced font is written as `null` unlisted. The
+//! actions go in the C5
 //! pass's report (a stripped header is what step 3 repairs), else the C10
 //! pass's (a cut file loses what its references name), else the first
 //! report in pass order, each only when its pass ran; with none run, the
@@ -132,7 +141,7 @@ use crate::pdf::carver::{Body, CarveReport, Orphan, carve};
 use crate::pdf::diagnose::{OUTSIDE_STREAM, orphan_fonts};
 use crate::pdf::emit::{EmitCtx, EmitNotes, RebuildDoc, emit_doc};
 use crate::pdf::fontdb::dict::Dictionary as WordList;
-use crate::pdf::graph::{ObjectGraph, winning_copies};
+use crate::pdf::graph::{KeyPath, ObjectGraph, winning_copies};
 use crate::pdf::lexer;
 use crate::pdf::meta::info_object;
 use crate::pdf::model::{
@@ -140,7 +149,8 @@ use crate::pdf::model::{
     MetricValue, ObjId, Ratio, Repairability,
 };
 use crate::pdf::rebuild::{
-    BoxSource, CatalogPlan, Held, IdRemap, PageTreePlan, plan_ids, rebuild_page_tree,
+    BoxSource, CatalogPlan, Held, IdRemap, PagePlan, PageTreePlan, dropped_refs, plan_ids,
+    rebuild_page_tree,
 };
 use crate::pdf::streams::salvage::{CarveSource, Grade, Salvage, SalvageIndex};
 use crate::pdf::streams::{DEFAULT_CAP, content_ops};
@@ -1161,7 +1171,7 @@ pub(crate) fn generate_and_validate(
         };
         let mut passes = run_passes(&schedule, &mut ctx)?;
         let pass_notes = std::mem::take(&mut ctx.notes);
-        let references = reference_actions(input.carve, &remap, doc.remap());
+        let references = reference_actions(input.carve, input.graph, &remap, &tree, &doc);
         report_references(&mut passes, references);
         interactions.extend(pass_notes.interactions.iter().cloned());
         let (targeted, partial) = targets(&passes, &schedule, &pass_notes, doc.remap());
@@ -1350,27 +1360,49 @@ fn run_passes(
 }
 
 /// The rebuild's repairs to references (module docs, "References"): each
-/// match `plan` made, in the order it made them, then each reference it
-/// could not match, in the referrers' byte order. `written` is the
-/// numbering the passes left; a reference whose referrer it no longer holds
-/// is not in the output and is not listed.
-fn reference_actions(carve: &CarveReport, plan: &IdRemap, written: &IdRemap) -> Vec<RepairAction> {
+/// reference to an id `plan` matched, by match in the order it made them;
+/// then each reference it could not match, in the referrers' byte order;
+/// then each reference whose object a pass dropped. `doc` holds what the
+/// passes left; a reference whose referrer it no longer holds is not in
+/// the output and is not listed. `tree` must come from `plan`.
+fn reference_actions(
+    carve: &CarveReport,
+    graph: &ObjectGraph,
+    plan: &IdRemap,
+    tree: &PageTreePlan,
+    doc: &RebuildDoc,
+) -> Vec<RepairAction> {
+    let written = doc.remap();
+    let pages: BTreeMap<u32, (u32, &PagePlan)> = (tree.pages.iter().enumerate())
+        .map(|(i, p)| (p.id, (u32::try_from(i).unwrap_or(u32::MAX), p)))
+        .collect();
+    // What the output page holds at `path`, when `from` is a page and
+    // `path` an attribute pinned on it.
+    let pinned = |from: ObjId, path: &KeyPath| {
+        let n = written.number(from)?;
+        let &(index, page) = pages.get(&n)?;
+        page.pinned(path, doc.rebuilds_resources(index, n))
+    };
     let kept = |from: ObjId| written.number(from).is_some();
-    let matched = (plan.reconciled().iter())
-        .filter(|r| kept(r.from))
-        .map(|r| RepairAction {
-            object: r.from,
-            what: r.what(carve, written),
-            grade: None,
-        });
+    let action = |object: ObjId, what: String| RepairAction {
+        object,
+        what,
+        grade: None,
+    };
+    let matched = (plan.reconciled().iter()).flat_map(|r| {
+        (r.refs.iter())
+            .filter(|(from, _)| kept(*from))
+            .map(move |(from, path)| {
+                action(*from, r.what(path, carve, written, pinned(*from, path)))
+            })
+    });
     let nulled = (plan.unmatched().iter())
         .filter(|u| kept(u.from))
-        .map(|u| RepairAction {
-            object: u.from,
-            what: u.what(),
-            grade: None,
-        });
-    matched.chain(nulled).collect()
+        .map(|u| action(u.from, u.what(pinned(u.from, &u.path))));
+    let dropped = dropped_refs(carve, graph, plan, written)
+        .into_iter()
+        .map(|d| action(d.from, d.what(pinned(d.from, &d.path))));
+    matched.chain(nulled).chain(dropped).collect()
 }
 
 /// The classes whose pass reports the rebuild's repairs to references, in

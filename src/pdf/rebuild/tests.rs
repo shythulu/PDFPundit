@@ -2,8 +2,7 @@
 //! `(num, gen)`, fresh numbers for orphans, the generation fallback before
 //! positional matching, nearest-orphan matching with its delta, the report
 //! lines for a match and for an unmatched reference (F-08), the flat page
-//! tree of the C4
-//! fixture and each rung of the MediaBox chain.
+//! tree of the C4 fixture and each rung of the MediaBox chain.
 
 use std::collections::BTreeSet;
 
@@ -85,11 +84,16 @@ fn headerless(data: &str) -> Part {
 
 const CONTENT: &str = "BT /F1 12 Tf 72 720 Td (Hello, orphan) Tj ET";
 
+/// The report line for the reference a match was made for.
+fn line(r: &Reconciled, carve: &CarveReport, remap: &IdRemap) -> String {
+    r.what(&r.path, carve, remap, None)
+}
+
 /// The delta a positional match's report line states.
 fn stated_delta(r: &Reconciled, carve: &CarveReport, remap: &IdRemap) -> Option<i64> {
-    let what = r.what(carve, remap);
+    let what = line(r, carve, remap);
     let (_, tail) = what.split_once("matched by position: ")?;
-    let (head, _) = tail.split_once(" bytes from the referrer")?;
+    let (head, _) = tail.split_once(" bytes from ")?;
     head.rsplit(", ").next()?.parse().ok()
 }
 
@@ -327,10 +331,19 @@ fn the_generation_fallback_comes_before_positional_matching() {
     assert_eq!(rec[0].missing, (5, 1));
     assert_eq!(rec[0].target, Held::Object(1));
     assert_eq!(rec[0].by, MatchedBy::Generation { generation: 0 });
+    assert_eq!(rec[0].refs, [(id(1), rec[0].path.clone())]);
     assert_eq!(
-        rec[0].what(&carve, &remap),
-        "/Contents names 5 1 R, which no carved object carries: every reference to it \
-         re-linked to 5 0 obj, matched by generation: 5 0 obj, the same number"
+        line(&rec[0], &carve, &remap),
+        "/Contents names 5 1 R, which no carved object carries: re-linked to output \
+         object 5, matched by generation: 5 0 obj, the same number"
+    );
+    // A pass that then drops the matched object leaves a null, said so.
+    let mut written = remap.clone();
+    written.forget(Held::Object(1));
+    assert_eq!(
+        line(&rec[0], &carve, &written),
+        "/Contents names 5 1 R, which no carved object carries: matched by generation: \
+         5 0 obj, the same number, then dropped by a repair pass: written as null"
     );
     assert_eq!(remap.number((5, 1)), Some(5));
     assert_eq!(
@@ -431,7 +444,7 @@ fn an_unmatched_dangling_reference_is_reported_and_becomes_null() {
     assert_eq!(un[0].from_span, Some(carve.objects[0].span));
     assert_eq!(un[0].missing, id(9));
     assert_eq!(
-        un[0].what(),
+        un[0].what(None),
         "/Contents names 9 0 R, which no carved object matches: written as null"
     );
 
@@ -455,10 +468,11 @@ fn a_shadow_is_claimed_only_when_no_orphan_of_the_kind_is_left() {
     assert_eq!(rec.len(), 2);
     assert_eq!(rec[0].target, Held::Orphan(0), "the orphan first");
     assert_eq!(rec[1].target, Held::Object(0), "then the shadow");
-    let what = rec[1].what(&carve, &remap);
+    let what = line(&rec[1], &carve, &remap);
     assert!(
         what.contains(
-            "re-linked to 7 0 obj, matched by position: the nearest losing copy of 5 0 obj"
+            "re-linked to output object 7, matched by position: the nearest losing copy of \
+             5 0 obj"
         ),
         "{what}"
     );
@@ -478,11 +492,10 @@ fn c5_references_to_the_stripped_object_find_its_orphan() {
         let (carve, graph, remap) = planned(&damaged);
         // A missing id only the page tree links to is neither matched nor
         // reported; every other one is one or the other.
-        let winners = winning_copies(&carve);
         let missing: BTreeSet<ObjId> = graph
             .dangling_refs()
             .iter()
-            .filter(|(from, path, _)| !page_tree_owns(&carve, &winners, *from, path))
+            .filter(|(from, path, _)| !page_tree_owns(&carve, &remap, *from, path))
             .map(|d| d.2)
             .collect();
         for r in remap.reconciled() {
