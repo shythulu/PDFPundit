@@ -62,6 +62,13 @@
 //! to what is left out become `null`. Everything else is written as Resave
 //! writes it.
 //!
+//! Recovered text (G-02, D-122): a font a pass keeps as found but gives a
+//! new `/ToUnicode` ([`RebuildDoc::set_tounicode`]) is written as carved
+//! with its `/ToUnicode` pointing at a new CMap stream, numbered after the
+//! harvested subtrees in the order the pass set them. Its program and every
+//! slot that names it stay as they are; the CMap it had, if any, is still
+//! written but no longer named by it.
+//!
 //! Reals (rule 6, D-075): lopdf holds a real as `f32`, so a carved real that
 //! does not survive `f32` is changed in the output. Each such token in an
 //! object written is counted ([`EmitNotes::reals_narrowed`]) and the report
@@ -155,6 +162,9 @@ pub(crate) struct RebuildDoc {
     /// Each harvested font subtree and the `(page index, slot)`s it serves
     /// (module docs, "Template assembly").
     assembled: Vec<(Vec<PageSlot>, Harvest)>,
+    /// Each font kept as found that gets a new `/ToUnicode`, and the codes
+    /// it maps (module docs, "Recovered text").
+    tounicodes: Vec<(Held, BTreeMap<u16, char>)>,
 }
 
 impl RebuildDoc {
@@ -166,6 +176,7 @@ impl RebuildDoc {
             swapped: BTreeSet::new(),
             relinks: BTreeMap::new(),
             assembled: Vec::new(),
+            tounicodes: Vec::new(),
         }
     }
 
@@ -215,6 +226,20 @@ impl RebuildDoc {
         match self.assembled.iter_mut().find(|(_, f)| *f == font) {
             Some((served, _)) => served.extend(slots),
             None => self.assembled.push((slots, font)),
+        }
+    }
+
+    /// Gives the input font `font`, kept as found, a `/ToUnicode` over
+    /// `used` (code → character) in place of the one it names, if any
+    /// (module docs, "Recovered text"). A second call for one font replaces
+    /// the first; a font the output does not hold is left alone.
+    pub(crate) fn set_tounicode(&mut self, font: ObjId, used: BTreeMap<u16, char>) {
+        let Some(held) = self.remap.target(font) else {
+            return;
+        };
+        match self.tounicodes.iter_mut().find(|(h, _)| *h == held) {
+            Some((_, map)) => *map = used,
+            None => self.tounicodes.push((held, used)),
         }
     }
 
@@ -287,8 +312,9 @@ pub(crate) fn emit_doc(
 ) -> Result<Vec<u8>, EmitError> {
     ctx.notes = EmitNotes::default();
     doc.drop_replaced(carve, graph, page_tree);
-    let assembled = doc.write_assembled(page_tree)?;
-    doc.copy_carved(carve, page_tree, &assembled, ctx);
+    let (assembled, next) = doc.write_assembled(page_tree)?;
+    let tounicodes = doc.write_tounicodes(next)?;
+    doc.copy_carved(carve, page_tree, &assembled, &tounicodes, ctx);
     doc.write_page_tree(page_tree);
     let info = info_object(ctx.bytes, carve, graph)
         .and_then(|at| doc.remap.number_of(Held::Object(at)))
@@ -311,8 +337,8 @@ type Assembled = BTreeMap<u32, BTreeMap<Vec<u8>, u32>>;
 
 impl RebuildDoc {
     /// The harvested subtrees, numbered after the page tree; where each
-    /// slot points.
-    fn write_assembled(&mut self, tree: &PageTreePlan) -> Result<Assembled, EmitError> {
+    /// slot points, and the first number after them.
+    fn write_assembled(&mut self, tree: &PageTreePlan) -> Result<(Assembled, u32), EmitError> {
         let mut out = Assembled::new();
         let mut next = tree.pages_id.max(tree.root).saturating_add(1);
         for (slots, font) in std::mem::take(&mut self.assembled) {
@@ -329,6 +355,23 @@ impl RebuildDoc {
                 out.entry(page).or_default().insert(slot, next);
             }
             next += count;
+        }
+        Ok((out, next))
+    }
+
+    /// The recovered `/ToUnicode` streams, numbered from `next` on; the
+    /// number each font's points at (module docs, "Recovered text").
+    fn write_tounicodes(&mut self, mut next: u32) -> Result<BTreeMap<Held, u32>, EmitError> {
+        let mut out = BTreeMap::new();
+        for (held, used) in std::mem::take(&mut self.tounicodes) {
+            if next > MAX_OBJECT_NUMBER {
+                return Err(EmitError::Write(format!(
+                    "a recovered /ToUnicode would pass object number {MAX_OBJECT_NUMBER}"
+                )));
+            }
+            self.w.add(next, template::tounicode_stream(&used));
+            out.insert(held, next);
+            next += 1;
         }
         Ok(out)
     }
@@ -489,6 +532,7 @@ impl RebuildDoc {
         carve: &CarveReport,
         tree: &PageTreePlan,
         assembled: &Assembled,
+        tounicodes: &BTreeMap<Held, u32>,
         ctx: &mut EmitCtx<'_>,
     ) {
         let pages: BTreeMap<u32, (u32, &PagePlan)> = (tree.pages.iter().enumerate())
@@ -536,6 +580,11 @@ impl RebuildDoc {
             };
             self.remap.rewrite(&mut object);
             if let Object::Dictionary(d) = &mut object {
+                // The new CMap carries an output number already: set after
+                // the rewrite.
+                if let Some(&cmap) = tounicodes.get(&held) {
+                    d.set("ToUnicode", Object::Reference((cmap, 0)));
+                }
                 if let Some(&(index, page)) = pages.get(&n) {
                     self.pin_page(d, page, tree.pages_id, carve, assembled.get(&index));
                 } else if n == tree.root && matches!(tree.catalog, CatalogPlan::Reuse(_)) {

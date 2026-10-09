@@ -392,13 +392,7 @@ pub(crate) fn harvest(
             .clone();
         objects.push((n, object));
     }
-    objects.push((
-        TOUNICODE,
-        Object::Stream(lopdf::Stream::new(
-            flate_dict(vec![]),
-            flate(&build_tounicode(used)),
-        )),
-    ));
+    objects.push((TOUNICODE, tounicode_stream(used)));
 
     let own = used
         .iter()
@@ -428,6 +422,16 @@ pub(crate) fn harvest(
         ));
     }
     Ok(Harvest { objects })
+}
+
+/// A `/ToUnicode` stream over `used` (code → character), Flate-compressed
+/// as every stream a [`Harvest`] adds: what a harvest carries, and what a
+/// font kept as found gets when only its text is recovered (G-02).
+pub(crate) fn tounicode_stream(used: &BTreeMap<u16, char>) -> Object {
+    Object::Stream(lopdf::Stream::new(
+        flate_dict(vec![]),
+        flate(&build_tounicode(used)),
+    ))
 }
 
 // ── the bundled fonts ────────────────────────────────────────────────────

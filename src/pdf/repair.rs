@@ -105,7 +105,11 @@
 //! A `Partial` pass excuses its findings' locations from verification's
 //! "clean for the targeted classes" (D-074), for findings of its own class
 //! only (D-137): the locations the pass left partial when it names them
-//! ([`PassNotes::partial`]), every finding of its class otherwise.
+//! ([`PassNotes::partial`]), every finding of its class otherwise. One
+//! exception, named by the pass that makes it ([`PassNotes::partial_as`]):
+//! a C8 font whose text the C8 pass recovered without a font (G-02) keeps
+//! its lost program beside its new `/ToUnicode`, which re-diagnoses as C7
+//! at that font, and the C8 pass's `Partial` excuses that C7 finding there.
 //!
 //! **Selection** (SE Q2; fixed tiers in v1, D-008). Candidates compare
 //! lexicographically by [`compare`]:
@@ -214,6 +218,10 @@ pub(crate) struct PassNotes {
     /// The input locations a `Partial` pass left partial, by class (module
     /// docs). A class with none listed excuses all of its findings.
     pub(crate) partial: Vec<(CorruptionClass, Location)>,
+    /// Input locations a `Partial` pass left in a state the output's
+    /// re-diagnosis reports under another class, with that class (module
+    /// docs): excused for that class at that location only.
+    pub(crate) partial_as: Vec<(CorruptionClass, Location)>,
     /// Every font question asked and its answer, and every answer a policy
     /// gave without asking, in order (D-020, D-073).
     pub(crate) interactions: Vec<InteractionRecord>,
@@ -1462,6 +1470,9 @@ fn targets(
         }
         targeted.push(report.class);
     }
+    partial.extend(
+        (notes.partial_as.iter()).filter_map(|(class, l)| Some((*class, in_output(l, remap)?))),
+    );
     (targeted, partial)
 }
 

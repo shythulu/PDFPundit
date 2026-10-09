@@ -586,6 +586,236 @@ fn c8_with_a_cidfont_name_goes_to_inference() {
     assert_eq!(text_of(&ran.output), golden_text());
 }
 
+// ── UseBest on a weak C8 guess (G-02, D-122 (b)) ─────────────────────────
+
+/// The C8 fixture with a `CIDFont+F1` name, so the slot goes to inference.
+fn c8_unnamed() -> Input {
+    let input = analysed(renamed(&corrupt(C8FontResourcesDeleted, &golden_pdf(), 0)));
+    assert_eq!(input.classes(), [C8FontResourcesDeleted]);
+    input
+}
+
+/// `PRINT_NAME` as a name token: the padding ends it.
+const PRINT_BASE_FONT: &[u8] = b"CIDFont+F1";
+
+/// The font dictionary page `page`'s `/F1` names in `doc`.
+fn f1_font(doc: &Document, page: u32) -> Dictionary {
+    let page_id = doc.get_pages()[&(page + 1)];
+    let page = doc.get_dictionary(page_id).unwrap();
+    let resources = page.get(b"Resources").unwrap().as_dict().unwrap();
+    let fonts = resources.get(b"Font").unwrap().as_dict().unwrap();
+    let id = fonts.get(b"F1").unwrap().as_reference().unwrap();
+    doc.get_dictionary(id).unwrap().clone()
+}
+
+/// The one `FontPick` asked, and its top candidate's hit.
+fn top_hit(ask: &Scripted) -> Ratio {
+    let [InteractionRequest::FontPick(req)] = &ask.asked[..] else {
+        panic!("{:?}", ask.asked)
+    };
+    assert_eq!(req.candidates[0].font_id, RIGHT, "the best first");
+    req.candidates[0].score
+}
+
+#[test]
+fn use_best_on_a_weak_c8_guess_recovers_text_without_substituting_a_font() {
+    // No word list (as in production): the top candidate's hit is 0.
+    let input = c8_unnamed();
+    let mut ask = Scripted::new(vec![InteractionReply::UseBest]);
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &db_of(&[RIGHT]),
+        &RepairOptions::default(),
+        &mut ask,
+        &[],
+    );
+    assert!(top_hit(&ask) < Ratio { num: 1, den: 2 });
+
+    assert_eq!(
+        ran.report.outcome,
+        PassOutcome::Partial("text recovered; font not confirmed".to_owned())
+    );
+    let what = actions(&ran.report);
+    assert_eq!(what.len(), 1, "{what:?}");
+    assert!(
+        what[0].starts_with("text recovered, no font substituted: /ToUnicode rebuilt over")
+            && what[0].contains(RIGHT),
+        "{what:?}"
+    );
+    assert!(!what[0].contains("font program substituted"), "{what:?}");
+    let rec = record(&ran.notes);
+    assert_eq!(
+        (rec.reply.clone(), rec.source),
+        (InteractionReply::UseBest, InteractionSource::UseBest)
+    );
+    assert_eq!(ran.notes.resolutions.len(), 2);
+    assert!(
+        (ran.notes.resolutions.iter()).all(|(_, _, r)| r.kind == FontResolutionKind::TextOnly),
+        "{:?}",
+        ran.notes.resolutions
+    );
+
+    // No font program was substituted: each page's /F1 is the font as found,
+    // still without a program, now with a /ToUnicode.
+    let doc = load_strict(&ran.output);
+    for page in 0..2 {
+        let font = f1_font(&doc, page);
+        assert_eq!(
+            font.get(b"BaseFont").unwrap().as_name().unwrap(),
+            PRINT_BASE_FONT,
+            "page {page}"
+        );
+    }
+    let classes = classes_in(&ran.output);
+    assert!(classes.contains(&C7FontStreamDeleted), "{classes:?}");
+    assert!(!classes.contains(&C8FontResourcesDeleted), "{classes:?}");
+    // The rebuilt /ToUnicode extracts the text.
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
+#[test]
+fn use_best_on_a_strong_c8_guess_still_substitutes() {
+    // The 50-word list confirms the top candidate (hit ≥ 1/2); the options
+    // keep it from auto-accepting, so the question is asked.
+    let input = c8_unnamed();
+    let english = english();
+    let mut ask = Scripted::new(vec![InteractionReply::UseBest]);
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &db_of(&[RIGHT]),
+        &always_ask(),
+        &mut ask,
+        &[&english],
+    );
+    assert!(top_hit(&ask) >= Ratio { num: 1, den: 2 });
+    assert!(
+        matches!(&ran.report.outcome, PassOutcome::Partial(why)
+            if why.starts_with("best candidate substituted unconfirmed")),
+        "{:?}",
+        ran.report
+    );
+    let what = actions(&ran.report);
+    assert!(
+        what[0].starts_with(&format!(
+            "font program substituted: {RIGHT}; /ToUnicode rebuilt"
+        )),
+        "{what:?}"
+    );
+    assert!(ran.notes.resolutions.iter().all(|(_, _, r)| matches!(
+        &r.kind,
+        FontResolutionKind::Picked { font_id, .. } if font_id == RIGHT
+    )));
+    let doc = load_strict(&ran.output);
+    assert_ne!(
+        f1_font(&doc, 0)
+            .get(b"BaseFont")
+            .unwrap()
+            .as_name()
+            .unwrap(),
+        PRINT_BASE_FONT
+    );
+    assert!(!classes_in(&ran.output).contains(&C7FontStreamDeleted));
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
+#[test]
+fn a_weak_c8_guess_under_use_best_reaches_the_engine_report() {
+    let bytes = renamed(&corrupt(C8FontResourcesDeleted, &golden_pdf(), 0));
+    let mut ask = Scripted::new(vec![InteractionReply::UseBest]);
+    let out = through_engine(
+        &bytes,
+        &db_of(&[RIGHT]),
+        &RepairOptions::default(),
+        &mut ask,
+    );
+    assert_eq!(ask.asked.len(), 1);
+    let output = out.output.expect("an output");
+    assert_eq!(text_of(&output), golden_text());
+    let doc = load_strict(&output);
+    assert_eq!(
+        f1_font(&doc, 0)
+            .get(b"BaseFont")
+            .unwrap()
+            .as_name()
+            .unwrap(),
+        PRINT_BASE_FONT
+    );
+    let c8 = (out.report.passes.iter())
+        .find(|p| p.class == C8FontResourcesDeleted)
+        .expect("the C8 pass");
+    assert_eq!(
+        c8.outcome,
+        PassOutcome::Partial("text recovered; font not confirmed".to_owned())
+    );
+    assert!(
+        c8.actions[0]
+            .what
+            .starts_with("text recovered, no font substituted"),
+        "{:?}",
+        c8.actions
+    );
+}
+
+/// `two_fonts` renamed, with both font programs blank and page 2's font's
+/// `/ToUnicode` blank too: a C7 font on page 1 and a C8 font on page 2.
+fn c7_and_c8() -> Input {
+    let doc = Document::load_mem(&renamed(&two_fonts())).unwrap();
+    let mut objects: BTreeMap<u32, Object> = (doc.objects.iter())
+        .map(|(&(n, _), o)| (n, o.clone()))
+        .collect();
+    for n in [8, 18, 19] {
+        let Object::Stream(s) = objects.get_mut(&n).unwrap() else {
+            panic!("object {n} is a stream")
+        };
+        s.dict.remove(b"Filter");
+        s.set_content(b"    ".to_vec());
+    }
+    let mut w = Writer::with_version("1.7");
+    for (n, o) in objects {
+        w.add(n, o);
+    }
+    w.trailer((1, 0), [7; 32], None);
+    let input = analysed(w.finish().unwrap());
+    assert_eq!(
+        input.classes(),
+        [C7FontStreamDeleted, C8FontResourcesDeleted]
+    );
+    input
+}
+
+#[test]
+fn a_recovered_c8_font_beside_a_c7_font_still_verifies() {
+    // The recovered font has a /ToUnicode and no program, so the output's
+    // re-diagnosis calls it C7: the C8 pass's Partial must excuse that.
+    let input = c7_and_c8();
+    let opts = RepairOptions::default();
+    let plan = plan(&input.findings, &input.carve, &input.graph, &opts);
+    let mut ask = Scripted::new(vec![InteractionReply::UseBest, InteractionReply::UseBest]);
+    let g = generate_and_validate(
+        &input.view(),
+        &plan,
+        &opts,
+        &db_of(&[RIGHT]),
+        &mut ask,
+        &mut NullProgress,
+    )
+    .unwrap();
+    assert_eq!(
+        g.chosen,
+        Some(Toolpath::TemplateAssemble),
+        "{:?}",
+        g.candidates
+    );
+    assert!(chosen(&g).verification.v0.all_pass(), "{:?}", chosen(&g));
+    assert_eq!(
+        pass(&g, C8FontResourcesDeleted).outcome,
+        PassOutcome::Partial("text recovered; font not confirmed".to_owned())
+    );
+    assert_eq!(text_of(g.output.as_ref().unwrap()), golden_text());
+}
+
 // ── the questions ────────────────────────────────────────────────────────
 
 /// The C7 fixture's pass under `opts` and `replies`.
