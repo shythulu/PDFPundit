@@ -1119,7 +1119,12 @@ impl App {
                 }
                 _ => {}
             },
-            JobEvent::Finding(f) => entry.findings.push(f),
+            // A finding told again under its id replaces the row: a
+            // provisional C9 finding, graded once the salvage ends (F-09).
+            JobEvent::Finding(f) => match entry.findings.iter_mut().find(|e| e.id == f.id) {
+                Some(row) => *row = f,
+                None => entry.findings.push(f),
+            },
             JobEvent::Log(level, msg) => {
                 let line = format!("{}: {level:?}: {msg}", entry.name);
                 self.log(line);

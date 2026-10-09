@@ -10,7 +10,7 @@ use std::sync::mpsc::{self, Receiver};
 use crossterm::event::{KeyEventState, MouseButton, MouseEvent, MouseEventKind};
 
 use super::*;
-use crate::engine::{AnalysisStateUse, InteractionRequest, LogLevel};
+use crate::engine::{AnalysisStateUse, Finding, InteractionRequest, LogLevel};
 use crate::jobs::{FakeEngine, JobInput, QueueEntry};
 use crate::library::RecentStatus;
 use crate::panic_guard::{self, SharedWriter};
@@ -286,7 +286,27 @@ fn job_events_fill_the_queue_rows() {
     let thesis = AppState::mockup_result().batch.entries[2].clone();
     let finding = thesis.findings[0].clone();
     app.on_job(one, JobEvent::Finding(finding.clone()), 5, None);
-    assert_eq!(app.state.batch.entries[0].findings, [finding]);
+    assert_eq!(
+        app.state.batch.entries[0].findings,
+        std::slice::from_ref(&finding)
+    );
+    // A finding told again under its id (a provisional C9 finding, graded
+    // once the salvage ends, F-09) replaces the row; a new id adds one.
+    let graded = Finding {
+        summary: "graded".into(),
+        ..finding.clone()
+    };
+    app.on_job(one, JobEvent::Finding(graded.clone()), 5, None);
+    assert_eq!(
+        app.state.batch.entries[0].findings,
+        std::slice::from_ref(&graded)
+    );
+    let next = Finding {
+        id: format!("{}-next", finding.id),
+        ..finding.clone()
+    };
+    app.on_job(one, JobEvent::Finding(next.clone()), 5, None);
+    assert_eq!(app.state.batch.entries[0].findings, [graded, next]);
 
     ask(&mut app, 1);
     assert!(matches!(

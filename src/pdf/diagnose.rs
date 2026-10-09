@@ -75,7 +75,9 @@
 //!   not C9's: it holds no zlib data to repair. A near-miss keyword the lexer
 //!   read (`C9-outside-stream`) is a Warning on its object, or on its byte
 //!   span when the carver's near-miss lex found it outside every object,
-//!   marked `Metric{"salvage": "OutsideStream"}`.
+//!   marked `Metric{"salvage": "OutsideStream"}`. Before the salvage search
+//!   runs, analysis tells each stream's C9 finding from the cheap probe as
+//!   [`provisional`], `Metric{"salvage": "Pending"}` (F-09).
 //! - None of these run on an encrypted file: its streams are ciphertext.
 //! - **OutlinedText**: a page whose content fills paths of three or more
 //!   curve segments, counted with their contours. **Type3Text**: one per
@@ -1788,6 +1790,40 @@ fn edit_list(edits: &[Edit]) -> String {
 /// The `Metric{"salvage"}` of a `C9-outside-stream` finding: it names no
 /// stream, so no [`SalvageIndex`] entry is behind it.
 pub(crate) const OUTSIDE_STREAM: &str = "OutsideStream";
+
+/// The `Metric{"salvage"}` of a provisional C9 finding.
+pub(crate) const PENDING: &str = "Pending";
+
+/// `findings` as analysis tells them before its salvage search runs
+/// (F-09): diagnosed over the cheap probe's index, with every C9 finding on
+/// a stream marked provisional. Its summary says the salvage is in
+/// progress, its only evidence is `Metric{"salvage": "Pending"}` and its
+/// repair is unknown yet. Ids, places and every other finding are as given;
+/// a `C9-outside-stream` finding reads no stream and stays as it is.
+pub(crate) fn provisional(mut findings: Vec<Finding>) -> Vec<Finding> {
+    for f in &mut findings {
+        let Location::Object { id, .. } = f.location else {
+            continue;
+        };
+        let outside = f.evidence.iter().any(|e| {
+            matches!(e, Evidence::Metric { name, value: MetricValue::Text(t) }
+                if name == "salvage" && t == OUTSIDE_STREAM)
+        });
+        if f.class != FindingKind::Corruption(C9ZlibTampered) || outside {
+            continue;
+        }
+        f.summary = format!(
+            "the Flate data of {} {} obj is damaged: salvage in progress",
+            id.0, id.1
+        );
+        f.evidence = vec![Evidence::Metric {
+            name: "salvage".to_owned(),
+            value: MetricValue::Text(PENDING.to_owned()),
+        }];
+        f.repair = Repairability::Partial("not yet known: the salvage is in progress".to_owned());
+    }
+    findings
+}
 
 /// `C9-outside-stream`: a keyword the lexer read one byte off, in a
 /// top-level object (in a packed one it is the object stream's data), or

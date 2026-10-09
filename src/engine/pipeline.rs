@@ -3,13 +3,20 @@
 //! generate-and-validate, emit and verify.
 //!
 //! **Analysis** runs four phases, each named to the [`Progress`] sink:
-//! `"carving"` (the carve and the object graph), `"salvage"` (every Flate
-//! stream's C9 outcome under the budget), `"diagnosing"` (findings, each
-//! streamed as found, and file metadata) and `"measuring"` (the text
-//! baseline, its paint counts and the font slots). Cancellation is polled
-//! inside the carve and the salvage and between phases. What it built is
-//! kept in the result's [`StateHandle`], with the salvage budget it ran
-//! under.
+//! `"carving"` (the carve and the object graph), `"diagnosing"` (the cheap
+//! probe, every Flate stream inflated once under no search work; the
+//! findings over it, each told at once, every damaged stream's C9 finding
+//! [`provisional`]; and file metadata), `"salvage"` (every Flate stream's C9
+//! outcome under the budget, and the findings over it: each one that
+//! differs from what was told, a graded C9 finding above all, is told
+//! again under its id) and `"measuring"` (the text baseline, its paint
+//! counts and the font slots). So a C9 file shows its findings before any
+//! salvage work is charged (F-09). The result's findings are the ones over
+//! the budgeted salvage, as if the probe had never run; when every stream
+//! inflated clean or is over the size limit, the probe is that salvage and
+//! no second search or diagnosis runs. Cancellation is polled inside the
+//! carve and both salvages and between phases. What it built is kept in
+//! the result's [`StateHandle`], with the salvage budget it ran under.
 //!
 //! **Repair** reuses that state when it is present, was built from the same
 //! bytes (by SHA-256) and under the salvage budget `opts` names; otherwise it
@@ -40,10 +47,10 @@ use super::{
     AnalysisResult, AnalysisState, AnalysisStateUse, AnalyzeOptions, AnalyzeStats, Cancelled,
     CarveSummary, FontDb, Interact, InteractionReply, InteractionRequest, InteractionRequestId,
     LogLevel, OutcomeStatus, Progress, RepairOptions, RepairOutcome, RepairPlan, RepairReport,
-    SIGNED_NOTE, StateHandle, XrefKind,
+    SIGNED_NOTE, SalvageBudget, StateHandle, XrefKind,
 };
 use crate::pdf::carver::{Body, CarveNote, CarveReport, Orphan, carve};
-use crate::pdf::diagnose::diagnose;
+use crate::pdf::diagnose::{diagnose, provisional};
 use crate::pdf::graph::{ObjectGraph, winning_copies};
 use crate::pdf::meta::file_meta;
 use crate::pdf::model::{ByteSpan, CorruptionClass, Finding, FindingKind, ObjId};
@@ -53,7 +60,7 @@ use crate::pdf::streams::salvage::{CarveSource, Salvage, SalvageIndex, salvage_a
 use crate::pdf::verify::{Baseline, baseline, classify_only};
 
 /// Analysis's phases, in order.
-const PHASES: [&str; 4] = ["carving", "salvage", "diagnosing", "measuring"];
+const PHASES: [&str; 4] = ["carving", "diagnosing", "salvage", "measuring"];
 
 fn phase(sink: &mut dyn Progress, index: usize) -> Result<(), Cancelled> {
     if sink.cancelled() {
@@ -89,25 +96,40 @@ pub(super) fn analyze(
         carve(bytes, &|| poll.cancelled())?
     };
     let graph = ObjectGraph::from_carve(&carve);
+    let source = CarveSource::new(&carve, bytes);
 
     phase(sink, 1)?;
-    let salvage = {
+    let probe = {
         let poll: &dyn Progress = &*sink;
-        salvage_all(
-            &CarveSource::new(&carve, bytes),
-            &opts.salvage_budget,
-            opts.threads,
-            opts.scratch_cap,
-            &|| poll.cancelled(),
-        )?
+        let budget = probe_budget(&opts.salvage_budget);
+        salvage_under(&source, &budget, opts, &|| poll.cancelled())?
     };
-
-    phase(sink, 2)?;
-    let findings = diagnose(bytes, &carve, &graph, &salvage);
-    for f in &findings {
+    let probed = diagnose(bytes, &carve, &graph, &probe);
+    let told = provisional(probed.clone());
+    for f in &told {
         sink.finding(f);
     }
     let meta = file_meta(bytes, &carve, &graph);
+
+    phase(sink, 2)?;
+    let (salvage, findings) = if settled(&probe) {
+        (probe, probed)
+    } else {
+        // Its kept bytes are not held beside the search's.
+        drop(probe);
+        let salvage = {
+            let poll: &dyn Progress = &*sink;
+            salvage_under(&source, &opts.salvage_budget, opts, &|| poll.cancelled())?
+        };
+        let findings = diagnose(bytes, &carve, &graph, &salvage);
+        (salvage, findings)
+    };
+    let told: BTreeMap<&str, &Finding> = told.iter().map(|f| (f.id.as_str(), f)).collect();
+    for f in &findings {
+        if told.get(f.id.as_str()) != Some(&f) {
+            sink.finding(f);
+        }
+    }
 
     phase(sink, 3)?;
     // Repair computes this baseline again inside `generate_and_validate`, a
@@ -140,6 +162,42 @@ pub(super) fn analyze(
         stats,
         input_sha256,
         state: StateHandle::new(state),
+    })
+}
+
+/// The cheap probe's budget (F-09): `budget` with no search work, so every
+/// Flate stream is inflated once and classified and no candidate is tried
+/// (D-074's zero budget). The size limit stays, so a stream over it is
+/// `Unsearched` here as it is under `budget`.
+fn probe_budget(budget: &SalvageBudget) -> SalvageBudget {
+    SalvageBudget {
+        work: 0,
+        deep_work: 0,
+        deep_pool: 0,
+        ..*budget
+    }
+}
+
+/// Every Flate stream of `source` salvaged under `budget`, on the threads
+/// and within the scratch `opts` gives.
+fn salvage_under(
+    source: &CarveSource<'_>,
+    budget: &SalvageBudget,
+    opts: &AnalyzeOptions,
+    cancel: &dyn Fn() -> bool,
+) -> Result<SalvageIndex, Cancelled> {
+    salvage_all(source, budget, opts.threads, opts.scratch_cap, cancel)
+}
+
+/// Whether the probe is already what the budgeted salvage gives: every
+/// stream inflated clean or is over the size limit. Both are decided before
+/// any search, whatever the work budget.
+fn settled(probe: &SalvageIndex) -> bool {
+    (probe.by_obj.values()).all(|e| {
+        matches!(
+            e.salvage,
+            Salvage::Clean { .. } | Salvage::Unsearched { .. }
+        )
     })
 }
 
@@ -386,9 +444,10 @@ mod tests {
 
     use super::*;
     use crate::engine::{
-        FontCandidate, FontPickRequest, InteractionRequestId, Ratio, SubstituteChoice,
-        UnreproducibleRequest,
+        FontCandidate, FontPickRequest, InteractionRequestId, NullProgress, Ratio,
+        SubstituteChoice, UnreproducibleRequest,
     };
+    use crate::pdf::fixtures::{corrupt, golden_pdf};
 
     /// Answers from a script, in order, and keeps what it was asked.
     struct Scripted {
@@ -413,6 +472,68 @@ mod tests {
                 .pop_front()
                 .unwrap_or_else(|| panic!("an unscripted question: {req:?}")))
         }
+    }
+
+    /// The findings and salvage index of the pipeline before F-09: the whole
+    /// salvage search under the budget, then one diagnosis.
+    fn salvage_first(bytes: &[u8], opts: &AnalyzeOptions) -> (Vec<Finding>, SalvageIndex) {
+        let carve = carve(bytes, &|| false).expect("never cancelled");
+        let graph = ObjectGraph::from_carve(&carve);
+        let salvage = salvage_all(
+            &CarveSource::new(&carve, bytes),
+            &opts.salvage_budget,
+            opts.threads,
+            opts.scratch_cap,
+            &|| false,
+        )
+        .expect("never cancelled");
+        (diagnose(bytes, &carve, &graph, &salvage), salvage)
+    }
+
+    fn assert_as_salvage_first(bytes: &[u8], opts: &AnalyzeOptions, what: &str) {
+        let (findings, salvage) = salvage_first(bytes, opts);
+        let got = analyze(bytes, opts, &mut NullProgress).expect("never cancelled");
+        assert_eq!(got.findings, findings, "{what}");
+        let state = got.state.0.as_ref().expect("a state");
+        assert_eq!(state.salvage, salvage, "{what}");
+        assert_eq!(got.stats.salvage_work_total, salvage.work_total, "{what}");
+    }
+
+    #[test]
+    fn the_analysis_is_what_salvaging_first_gave() {
+        let golden = golden_pdf();
+        let opts = AnalyzeOptions::default();
+        assert_as_salvage_first(&golden, &opts, "golden");
+        for class in CorruptionClass::ALL {
+            let bytes = corrupt(class, &golden, 0);
+            assert_as_salvage_first(&bytes, &opts, &format!("{class:?}"));
+        }
+        // A second C9 seed damages other streams.
+        let bytes = corrupt(CorruptionClass::C9ZlibTampered, &golden, 1);
+        assert_as_salvage_first(&bytes, &opts, "C9 seed 1");
+        // Every damaged stream over the search limit: the probe is final.
+        let mut small = AnalyzeOptions::default();
+        small.salvage_budget.max_search_stream = 1;
+        let bytes = corrupt(CorruptionClass::C9ZlibTampered, &golden, 0);
+        assert_as_salvage_first(&bytes, &small, "C9 unsearched");
+    }
+
+    #[test]
+    fn the_probe_charges_no_salvage_work() {
+        let bytes = corrupt(CorruptionClass::C9ZlibTampered, &golden_pdf(), 0);
+        let opts = AnalyzeOptions::default();
+        let carve = carve(&bytes, &|| false).expect("never cancelled");
+        let source = CarveSource::new(&carve, &bytes);
+        let probe = salvage_under(&source, &probe_budget(&opts.salvage_budget), &opts, &|| {
+            false
+        })
+        .expect("never cancelled");
+        let damaged = (probe.by_obj.values())
+            .filter(|e| !matches!(e.salvage, Salvage::Clean { .. }))
+            .count();
+        assert!(damaged > 0);
+        assert_eq!(probe.work_total, 0);
+        assert!(!settled(&probe));
     }
 
     #[test]

@@ -87,7 +87,9 @@ pub enum JobEvent {
         done: u64,
         total: Option<u64>,
     },
-    /// Streamed as discovered.
+    /// Streamed as discovered. A finding whose id was streamed before
+    /// replaces it: analysis tells each damaged stream's C9 finding as
+    /// provisional before its salvage search, then graded (F-09).
     Finding(Finding),
     Log(LogLevel, String),
     /// The job is blocked on a question. Answer it only through
@@ -163,7 +165,8 @@ pub struct QueueEntry {
     pub state: EntryState,
     /// `AnalysisResult.meta`; `None` until the analysis finishes.
     pub meta: Option<FileMeta>,
-    /// Streamed by [`JobEvent::Finding`] during analysis, then replaced by
+    /// Streamed by [`JobEvent::Finding`] during analysis (one under an id
+    /// already here replaces it), then replaced by
     /// `AnalysisResult.findings` on [`JobEvent::AnalyzeDone`]. A repair's
     /// before and after lists are in `run`'s report.
     pub findings: Vec<Finding>,

@@ -67,6 +67,90 @@ impl Progress for Counter {
     }
 }
 
+/// What a sink was told, in order.
+#[derive(Debug, Clone, PartialEq)]
+enum Told {
+    Phase(&'static str),
+    Finding(Finding),
+}
+
+/// A sink that keeps every phase and finding in order, and cancels from
+/// the first finding on when `cancel_on_finding` is set.
+#[derive(Default)]
+struct Recorder {
+    told: Vec<Told>,
+    cancel_on_finding: bool,
+}
+
+impl Recorder {
+    fn phases(&self) -> Vec<&'static str> {
+        (self.told.iter())
+            .filter_map(|t| match t {
+                Told::Phase(name) => Some(*name),
+                Told::Finding(_) => None,
+            })
+            .collect()
+    }
+
+    /// The findings told before the phase `name` began, and those after.
+    fn findings_around(&self, name: &str) -> (Vec<&Finding>, Vec<&Finding>) {
+        let at = (self.told.iter())
+            .position(|t| matches!(t, Told::Phase(p) if *p == name))
+            .unwrap_or(self.told.len());
+        let (before, after) = self.told.split_at(at);
+        (findings_of(before), findings_of(after))
+    }
+
+    /// The findings as a queue row keeps them: a finding whose id was told
+    /// before replaces it.
+    fn shown(&self) -> Vec<Finding> {
+        let mut out: Vec<Finding> = Vec::new();
+        for t in &self.told {
+            let Told::Finding(f) = t else { continue };
+            match out.iter_mut().find(|o| o.id == f.id) {
+                Some(o) => *o = f.clone(),
+                None => out.push(f.clone()),
+            }
+        }
+        out
+    }
+}
+
+impl Progress for Recorder {
+    fn phase(&mut self, name: &'static str, _index: u32, _total: u32) {
+        self.told.push(Told::Phase(name));
+    }
+    fn progress(&mut self, _done: u64, _total: Option<u64>) {}
+    fn finding(&mut self, f: &Finding) {
+        self.told.push(Told::Finding(f.clone()));
+    }
+    fn log(&mut self, _level: LogLevel, _msg: String) {}
+    fn cancelled(&self) -> bool {
+        self.cancel_on_finding && (self.told.iter()).any(|t| matches!(t, Told::Finding(_)))
+    }
+}
+
+/// The findings among `told`, in order.
+fn findings_of(told: &[Told]) -> Vec<&Finding> {
+    (told.iter())
+        .filter_map(|t| match t {
+            Told::Finding(f) => Some(f),
+            Told::Phase(_) => None,
+        })
+        .collect()
+}
+
+/// A finding's `Metric{"salvage"}`, if it has one.
+fn salvage_metric(f: &Finding) -> Option<&str> {
+    f.evidence.iter().find_map(|e| match e {
+        Evidence::Metric {
+            name,
+            value: MetricValue::Text(t),
+        } if name == "salvage" => Some(t.as_str()),
+        _ => None,
+    })
+}
+
 /// Answers from a script, in order; a question past its end is a failure.
 struct Scripted {
     replies: VecDeque<InteractionReply>,
@@ -409,7 +493,7 @@ fn repair_after_analysis_reuses_its_state_and_never_salvages_again() {
     let mut sink = Counter::default();
     let analysis = analyze(&bytes, &AnalyzeOptions::default(), &mut sink).unwrap();
     assert_eq!(sink.salvages(), 1);
-    assert_eq!(sink.findings, analysis.findings.len());
+    assert!(sink.findings >= analysis.findings.len());
     let state = analysis.state.0.as_ref().expect("a state");
     assert_eq!(state.input_sha256, analysis.input_sha256);
 
@@ -568,6 +652,86 @@ fn the_recorded_settings_and_replies_replay_to_the_same_output_and_report() {
     assert_eq!(back, first.report);
 }
 
+// ── streamed findings (F-09) ─────────────────────────────────────────────
+
+/// The ids of the C9 findings on a stream (not `C9-outside-stream`).
+fn stream_c9_ids<'f>(findings: impl IntoIterator<Item = &'f Finding>) -> Vec<String> {
+    (findings.into_iter())
+        .filter(|f| f.class == FindingKind::Corruption(C9ZlibTampered))
+        .filter(|f| salvage_metric(f) != Some("OutsideStream"))
+        .map(|f| f.id.clone())
+        .collect()
+}
+
+#[test]
+fn findings_arrive_before_any_salvage_work_on_a_c9_file() {
+    let bytes = corrupt(C9ZlibTampered, &golden_pdf(), 0);
+    let analysis = analysed(&bytes);
+    let graded = stream_c9_ids(&analysis.findings);
+    assert!(!graded.is_empty(), "{:#?}", analysis.findings);
+
+    // Cancelled from the first finding on: the salvage search never starts,
+    // and every finding was already told.
+    let mut sink = Recorder {
+        cancel_on_finding: true,
+        ..Recorder::default()
+    };
+    let r = analyze(&bytes, &AnalyzeOptions::default(), &mut sink);
+    assert_eq!(r, Err(Cancelled));
+    assert_eq!(sink.phases(), ["carving", "diagnosing"]);
+    let told = sink.shown();
+    assert_eq!(stream_c9_ids(&told), graded, "one per damaged stream");
+    for f in (told.iter()).filter(|f| graded.contains(&f.id)) {
+        assert_eq!(salvage_metric(f), Some("Pending"), "{f:#?}");
+        assert!(f.summary.ends_with("salvage in progress"), "{f:#?}");
+    }
+    // The structural and info findings are told as the analysis has them.
+    let others = |fs: &[Finding]| -> Vec<Finding> {
+        (fs.iter())
+            .filter(|f| !graded.contains(&f.id))
+            .cloned()
+            .collect()
+    };
+    assert_eq!(others(&told), others(&analysis.findings));
+}
+
+#[test]
+fn graded_c9_findings_replace_the_provisional_ones() {
+    let bytes = corrupt(C9ZlibTampered, &golden_pdf(), 0);
+    let mut sink = Recorder::default();
+    let analysis = analyze(&bytes, &AnalyzeOptions::default(), &mut sink).unwrap();
+    assert_eq!(
+        sink.phases(),
+        ["carving", "diagnosing", "salvage", "measuring"]
+    );
+    let (before, after) = sink.findings_around("salvage");
+    let provisional = stream_c9_ids(before.iter().copied());
+    assert!(!provisional.is_empty());
+    // After the search, each provisional finding is told again, graded.
+    assert_eq!(stream_c9_ids(after.iter().copied()), provisional);
+    for f in &after {
+        assert_ne!(salvage_metric(f), Some("Pending"), "{f:#?}");
+    }
+    // A row that replaces by id ends with the analysis's findings.
+    assert_eq!(sink.shown(), analysis.findings);
+}
+
+#[test]
+fn a_file_with_no_damaged_stream_tells_each_finding_once() {
+    let golden = golden_pdf();
+    for (class, bytes) in [
+        (C2XrefMissing, corrupt(C2XrefMissing, &golden, 0)),
+        (C6FontMapLost, golden_c6_with_orphan()),
+    ] {
+        let mut sink = Recorder::default();
+        let analysis = analyze(&bytes, &AnalyzeOptions::default(), &mut sink).unwrap();
+        let (before, after) = sink.findings_around("salvage");
+        assert!(after.is_empty(), "{class:?}: {after:#?}");
+        let before: Vec<Finding> = before.into_iter().cloned().collect();
+        assert_eq!(before, analysis.findings, "{class:?}");
+    }
+}
+
 // ── analysis ─────────────────────────────────────────────────────────────
 
 #[test]
@@ -577,7 +741,7 @@ fn the_golden_s_analysis_is_clean_and_filled_in() {
     let a = analyze(&bytes, &AnalyzeOptions::default(), &mut sink).unwrap();
     assert_eq!(
         sink.phases,
-        ["carving", "salvage", "diagnosing", "measuring"]
+        ["carving", "diagnosing", "salvage", "measuring"]
     );
     assert!(classes(&a.findings).is_empty(), "{:#?}", a.findings);
     assert_eq!(a.meta.version.as_deref(), Some("1.7"));
