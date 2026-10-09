@@ -374,6 +374,78 @@ fn a_finished_repair_is_recorded_and_the_history_read_again() {
     assert_eq!(runs[0].analysis_state, AnalysisStateUse::Reused);
 }
 
+/// F-05: a run a newer build wrote is skipped with a line in the debug log.
+#[test]
+fn a_run_from_a_newer_build_is_logged_when_a_repair_is_recorded() {
+    let dir = ScratchDir::new("app-history-newer");
+    let mut store = JsonStore::open_at(dir.join("history")).unwrap();
+    let mut app = App::new(
+        &config::Ui::default(),
+        ColorCaps::TrueColor,
+        PathBuf::from("/cfg/config.toml"),
+    );
+    let template = AppState::mockup_result().batch.entries[2].clone();
+    let run = template.run.clone().unwrap();
+    let repair = |name: &str| JobEvent::Started {
+        kind: JobKind::Repair {
+            passes: None,
+            state: Default::default(),
+        },
+        name: name.into(),
+        file: None,
+    };
+    for job in [1, 2] {
+        let mut row = template.clone();
+        row.run = None;
+        row.state = EntryState::Queued;
+        row.job = JobId(job);
+        app.state.batch.entries.push(row);
+    }
+
+    app.on_job(JobId(1), repair("thesis_ar.pdf"), 100, Some(&mut store));
+    app.on_job(
+        JobId(1),
+        JobEvent::RepairDone(Box::new(run.clone())),
+        160,
+        Some(&mut store),
+    );
+    // A newer build appends a run in a shape this one does not know.
+    let hex: String = run
+        .report
+        .input_sha256
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let record = dir
+        .join("history")
+        .join("files")
+        .join(format!("{hex}.json"));
+    let mut json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&record).unwrap()).unwrap();
+    json["runs"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({ "version": 2, "new": true }));
+    std::fs::write(&record, serde_json::to_vec_pretty(&json).unwrap()).unwrap();
+    assert!(!app.debug_log.iter().any(|l| l.contains("newer version")));
+
+    app.on_job(JobId(2), repair("thesis_ar.pdf"), 200, Some(&mut store));
+    app.on_job(
+        JobId(2),
+        JobEvent::RepairDone(Box::new(run.clone())),
+        260,
+        Some(&mut store),
+    );
+    let logged: Vec<&String> = app
+        .debug_log
+        .iter()
+        .filter(|l| l.starts_with("history: ") && l.contains("format version 2"))
+        .collect();
+    assert_eq!(logged.len(), 1, "{:?}", app.debug_log);
+    assert_eq!(store.runs_for(&run.report.input_sha256).unwrap().len(), 2);
+    assert_eq!(app.state.history.runs, 2);
+}
+
 #[test]
 fn the_loop_drives_the_runner_to_a_finished_row() {
     let dir = ScratchDir::new("app-runner");
