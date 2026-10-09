@@ -1628,7 +1628,7 @@
     {
       "id": "T-35",
       "title": "Release packaging (cargo-dist), docs, notices completeness",
-      "goal": "BLOCKED on D-065 (D-046 was decided on 2026-10-08: MIT) (the Smudge likeness: a legal check before the first public binary). When unblocked: pin cargo-dist-version, re-run the eng-r4-fr3 RUSTFLAGS probe on every dist upgrade, complete THIRD_PARTY_NOTICES.md, README with usage.",
+      "goal": "UNBLOCKED on 2026-10-08 (D-046: MIT; D-065: ship the likeness as designed) (the Smudge likeness: a legal check before the first public binary). When unblocked: pin cargo-dist-version, re-run the eng-r4-fr3 RUSTFLAGS probe on every dist upgrade, complete THIRD_PARTY_NOTICES.md, README with usage.",
       "paths": [
         "Cargo.toml [workspace.metadata.dist]",
         "THIRD_PARTY_NOTICES.md",
@@ -1637,7 +1637,7 @@
       ],
       "interfaces": "Not yet specified beyond plan §7; `publish = false` stays; the shipped binary carries no cfg to drop.",
       "acceptance": [
-        "none until D-065 resolves; then: `dist build` produces artifacts for the three targets and the release-strings/guard tests pass on the dist-built binary"
+        "unblocked; then: `dist build` produces artifacts for the three targets and the release-strings/guard tests pass on the dist-built binary"
       ],
       "depends_on": [
         "T-23b"
