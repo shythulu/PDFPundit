@@ -1,0 +1,48 @@
+# The release gate (T-35). v-release.yml, which `dist generate` writes, calls
+# this after building the archives (`global-artifacts-jobs` in Cargo.toml), and
+# its host job publishes nothing unless every leg here passes. Each archive is
+# checked on its own target's runner, because the guard check runs the binary:
+# checksum, exact contents, no dev-only switch, and the terminal refusal.
+# Nothing here sets RUSTFLAGS (AGENTS.md "Build").
+name: Release guard
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            archive: pdfpundit-aarch64-apple-darwin.tar.xz
+          - runner: ubuntu-22.04
+            archive: pdfpundit-x86_64-unknown-linux-gnu.tar.xz
+          - runner: windows-2022
+            archive: pdfpundit-x86_64-pc-windows-msvc.zip
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Fetch the built archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: artifacts-build-local-*
+          path: distrib/
+          merge-multiple: true
+      - name: checker self-test
+        run: python -I tools/check-release-archive.py --self-test
+      - name: guard, release strings, contents and checksum
+        run: python -I tools/check-release-archive.py distrib/${{ matrix.archive }}

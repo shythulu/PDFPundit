@@ -6,6 +6,10 @@ license = "MIT"
 # A dev-time tool for this repository's assets; never published (D-047).
 publish = false
 
+# Not packaged by cargo-dist (T-35): only `pdfpundit` ships.
+[package.metadata.dist]
+dist = false
+
 [dependencies]
 pdfpundit = { path = "../.." }
 serde_json = "1.0.151"
