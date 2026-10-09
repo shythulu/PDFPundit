@@ -170,8 +170,10 @@ pub fn golden_pdf_objstm() -> Vec<u8> {
 ///   its `/Pages` type through its `/Count` value;
 /// - C5: one seeded `N 0 obj` header and its EOL deleted (exactly 8 bytes);
 /// - C6: the `/Font` entry of a seeded page's `/Resources` deleted;
-/// - C7: every `/FontFile2` stream's data overwritten with 0x20 in place;
-/// - C8: C7, and every `/ToUnicode` stream's data overwritten the same way;
+/// - C7: every `/FontFile2 N G R` entry and every object such an entry names
+///   (header through `endobj`) overwritten with 0x20 in place, so the
+///   descriptor keeps a blank run where its entry was;
+/// - C8: C7, and every `/ToUnicode N G R` entry and its object the same way;
 /// - C9: single bytes replaced in place, as [`corrupt_with_log`] describes;
 /// - C10: truncated to 70.0% of its length (rounded down).
 ///
@@ -247,8 +249,8 @@ pub fn corrupt_with_log(
         CorruptionClass::C4PageTreeBroken => delete(pdf, page_tree_span(pdf, &mut rng)),
         CorruptionClass::C5ObjectTagStripped => delete(pdf, object_header(pdf, &mut rng)),
         CorruptionClass::C6FontMapLost => delete(pdf, page_font_entry(pdf, &mut rng)),
-        CorruptionClass::C7FontStreamDeleted => blank(pdf, &font_streams(pdf, false)),
-        CorruptionClass::C8FontResourcesDeleted => blank(pdf, &font_streams(pdf, true)),
+        CorruptionClass::C7FontStreamDeleted => blank(pdf, &font_resources(pdf, false)),
+        CorruptionClass::C8FontResourcesDeleted => blank(pdf, &font_resources(pdf, true)),
         CorruptionClass::C9ZlibTampered => {
             let log = c9_replacements(pdf, &mut rng);
             let mut out = pdf.to_vec();
@@ -1751,24 +1753,6 @@ fn object_span(pdf: &[u8], doc: &Document, id: u32) -> Range<usize> {
     start..end
 }
 
-/// The data bytes of stream `id`: after `stream` and its EOL, `/Length` long.
-fn stream_data(pdf: &[u8], doc: &Document, id: u32) -> Range<usize> {
-    let span = object_span(pdf, doc, id);
-    let kw = span.start + find(&pdf[span.clone()], b"stream").expect("stream keyword") + 6;
-    let start = match &pdf[kw..] {
-        [b'\r', b'\n', ..] => kw + 2,
-        [b'\n' | b'\r', ..] => kw + 1,
-        _ => panic!("no EOL after stream keyword in object {id}"),
-    };
-    let len = doc
-        .get_object((id, 0))
-        .and_then(Object::as_stream)
-        .expect("stream object")
-        .content
-        .len();
-    start..start + len
-}
-
 /// C4: a seeded 45–128 byte span covering the page-tree node from `/Pages` (its
 /// `/Type` value) through its `/Count` value, after the header lines.
 fn page_tree_span(pdf: &[u8], rng: &mut SplitMix64) -> Range<usize> {
@@ -1865,26 +1849,45 @@ fn page_font_entry(pdf: &[u8], rng: &mut SplitMix64) -> Range<usize> {
     key..end
 }
 
-/// C7/C8: the data of every `/FontFile2` stream, plus every `/ToUnicode` stream
-/// when `tounicode`, in object-number order.
-fn font_streams(pdf: &[u8], tounicode: bool) -> Vec<Range<usize>> {
+/// C7/C8 as REPDF induces them (C8-01, measured over all 200 of its C7 and
+/// C8 files: every changed byte is 0x20 and sits in one of these): each
+/// `/FontFile2 N G R` entry of a top-level dictionary, plus each
+/// `/ToUnicode N G R` entry when `tounicode`, from its slash through its
+/// `R`; then each object those entries name, from its header through
+/// `endobj`, in object-number order.
+fn font_resources(pdf: &[u8], tounicode: bool) -> Vec<Range<usize>> {
     let doc = load(pdf);
-    let mut ids = Vec::new();
-    for object in doc.objects.values() {
+    let keys: &[&[u8]] = if tounicode {
+        &[b"FontFile2", b"ToUnicode"]
+    } else {
+        &[b"FontFile2"]
+    };
+    let mut spans = Vec::new();
+    let mut named = Vec::new();
+    for (&(id, _), object) in &doc.objects {
         let Ok(d) = object.as_dict() else { continue };
-        if let Ok(Object::Reference(id)) = d.get(b"FontFile2") {
-            ids.push(id.0);
-        }
-        if tounicode && let Ok(Object::Reference(id)) = d.get(b"ToUnicode") {
-            ids.push(id.0);
+        for &key in keys {
+            if let Ok(Object::Reference(target)) = d.get(key) {
+                spans.push(entry_span(pdf, &doc, id, key));
+                named.push(target.0);
+            }
         }
     }
-    ids.sort_unstable();
-    ids.dedup();
-    assert!(!ids.is_empty(), "no font streams to blank");
-    ids.into_iter()
-        .map(|id| stream_data(pdf, &doc, id))
-        .collect()
+    named.sort_unstable();
+    named.dedup();
+    assert!(!named.is_empty(), "no font streams to blank");
+    spans.extend(named.into_iter().map(|id| object_span(pdf, &doc, id)));
+    spans
+}
+
+/// The `/<key> N G R` entry in object `id`, from its slash through its `R`.
+fn entry_span(pdf: &[u8], doc: &Document, id: u32, key: &[u8]) -> Range<usize> {
+    let span = object_span(pdf, doc, id);
+    let mut slashed = b"/".to_vec();
+    slashed.extend_from_slice(key);
+    let start = span.start + find(&pdf[span.clone()], &slashed).expect("the entry's key");
+    let end = start + find(&pdf[start..span.end], b"R").expect("the entry's reference") + 1;
+    start..end
 }
 
 // ---------------------------------------------------------------------------

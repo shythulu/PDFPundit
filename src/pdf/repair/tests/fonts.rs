@@ -416,6 +416,7 @@ fn c7_under_use_best_is_substituted_and_reads_as_the_golden() {
     let output = g.output.clone().unwrap();
     assert_eq!(text_of(&output), golden_text());
     assert!(!classes_in(&output).contains(&C7FontStreamDeleted));
+    assert!(!unembedded_in(&output));
 
     // The report lists the substitution and the database it came from.
     let analysis = AnalysisResult {
@@ -452,6 +453,79 @@ fn c7_under_use_best_is_substituted_and_reads_as_the_golden() {
         &r.kind,
         FontResolutionKind::Picked { font_id, .. } if font_id == RIGHT
     )));
+}
+
+/// The golden with its Type0 font's `/DescendantFonts` in an array object
+/// of its own (20), as save-as producers write it.
+fn indirect_descendants() -> Vec<u8> {
+    rewrite_golden(|objects| {
+        let type0 = objects.get_mut(&5).unwrap().as_dict_mut().unwrap();
+        let descendants = type0.get(b"DescendantFonts").unwrap().clone();
+        type0.set("DescendantFonts", Object::Reference((20, 0)));
+        objects.insert(20, descendants);
+    })
+}
+
+#[test]
+fn a_font_under_an_indirect_descendant_array_is_substituted() {
+    let input = analysed(corrupt(C7FontStreamDeleted, &indirect_descendants(), 0));
+    assert_eq!(input.classes(), [C7FontStreamDeleted]);
+    let (g, _) = run_db(&input, &test_db(), &RepairOptions::default());
+    assert_eq!(g.chosen, Some(Toolpath::TemplateAssemble));
+    let output = g.output.clone().unwrap();
+    assert_eq!(text_of(&output), golden_text());
+    assert!(!unembedded_in(&output));
+    let [(_, _, resolution), ..] = &g.resolutions[..] else {
+        panic!("no slot resolved: {:?}", g.resolutions)
+    };
+    assert!(
+        matches!(&resolution.kind, FontResolutionKind::Picked { font_id, .. } if font_id == RIGHT),
+        "{resolution:?}"
+    );
+}
+
+#[test]
+fn a_substituted_font_keeps_the_input_widths() {
+    // The input's /W lays the text out: the substitute draws in the same
+    // advances (C8-01), so text positions, and the text extraction reads
+    // from them, stay the input's.
+    let widened = rewrite_golden(|objects| {
+        let cid = objects.get_mut(&6).unwrap().as_dict_mut().unwrap();
+        let Ok(Object::Array(w)) = cid.get_mut(b"W") else {
+            panic!("the golden's /W")
+        };
+        for item in w.iter_mut() {
+            if let Object::Array(run) = item {
+                for v in run.iter_mut() {
+                    *v = Object::Integer(v.as_i64().unwrap() + 100);
+                }
+            }
+        }
+    });
+    let input_w = Document::load_mem(&widened).unwrap().objects[&(6, 0)]
+        .as_dict()
+        .unwrap()
+        .get(b"W")
+        .unwrap()
+        .clone();
+    for class in [C7FontStreamDeleted, C8FontResourcesDeleted] {
+        let input = analysed(corrupt(class, &widened, 0));
+        let ran = run_pass(
+            &input,
+            class,
+            &test_db(),
+            &RepairOptions::default(),
+            &mut UseBest,
+            &[],
+        );
+        let doc = load_strict(&ran.output);
+        let font = f1_font(&doc, 0);
+        let descendants = font.get(b"DescendantFonts").unwrap().as_array().unwrap();
+        let cid = doc
+            .get_dictionary(descendants[0].as_reference().unwrap())
+            .unwrap();
+        assert_eq!(cid.get(b"W").unwrap(), &input_w, "{}", class.code());
+    }
 }
 
 #[test]
@@ -821,7 +895,7 @@ fn use_best_on_a_weak_c8_guess_recovers_text_without_substituting_a_font() {
         );
     }
     let classes = classes_in(&ran.output);
-    assert!(classes.contains(&C7FontStreamDeleted), "{classes:?}");
+    assert!(unembedded_in(&ran.output), "{classes:?}");
     assert!(!classes.contains(&C8FontResourcesDeleted), "{classes:?}");
     // The rebuilt /ToUnicode extracts the text.
     assert_eq!(text_of(&ran.output), golden_text());
@@ -870,6 +944,7 @@ fn use_best_on_a_strong_c8_guess_still_substitutes() {
         PRINT_BASE_FONT
     );
     assert!(!classes_in(&ran.output).contains(&C7FontStreamDeleted));
+    assert!(!unembedded_in(&ran.output));
     assert_eq!(text_of(&ran.output), golden_text());
 }
 
@@ -1087,11 +1162,7 @@ fn font_pick_replies_give_the_documented_outcomes() {
             "{reply:?}: {:?}",
             ran.notes.resolutions
         );
-        assert_eq!(
-            classes_in(&ran.output).contains(&C7FontStreamDeleted),
-            case.kept,
-            "{reply:?}"
-        );
+        assert_eq!(unembedded_in(&ran.output), case.kept, "{reply:?}");
         // The /ToUnicode text survives whichever font draws it.
         assert_eq!(text_of(&ran.output), golden_text(), "{reply:?}");
     }
@@ -1224,7 +1295,7 @@ fn font_unreproducible_replies_give_the_documented_outcomes() {
             .all(|(_, _, r)| r.kind == FontResolutionKind::TextOnly)
     );
     // The font is kept as found, and its /ToUnicode text with it.
-    assert!(classes_in(&ran.output).contains(&C7FontStreamDeleted));
+    assert!(unembedded_in(&ran.output));
     assert_eq!(text_of(&ran.output), golden_text());
 }
 
@@ -1605,6 +1676,7 @@ fn assembled_tounicode_covers_exactly_the_used_codes_in_small_blocks() {
         .collect();
     assert_eq!(fonts.len(), 1);
     assert!(!classes_in(&out).contains(&C7FontStreamDeleted));
+    assert!(!unembedded_in(&out));
     // It renders in hayro, with no fallback font: page 2 has no image, so
     // its ink is the substituted font's glyphs.
     let pdf = hayro::hayro_syntax::Pdf::new(out.clone()).expect("hayro loads it");
@@ -1886,7 +1958,7 @@ fn a_font_this_version_cannot_substitute_is_kept_and_partial() {
     };
     assert!(why.contains("/Type0 Identity-H fonts only"), "{why}");
     assert!(ran.notes.interactions.is_empty());
-    assert!(classes_in(&ran.output).contains(&C7FontStreamDeleted));
+    assert!(unembedded_in(&ran.output));
 }
 
 #[test]
@@ -1937,7 +2009,7 @@ fn a_name_match_whose_glyphs_differ_is_rejected_and_never_reported_fixed() {
 }
 
 #[test]
-fn a_code_with_several_characters_makes_c7_partial() {
+fn a_code_with_several_characters_keeps_its_text_and_makes_c7_partial() {
     let input = analysed(corrupt(C7FontStreamDeleted, &combining_tounicode(), 0));
     assert_eq!(input.classes(), [C7FontStreamDeleted]);
     let ran = run_pass(
@@ -1951,11 +2023,16 @@ fn a_code_with_several_characters_makes_c7_partial() {
     let PassOutcome::Partial(why) = &ran.report.outcome else {
         panic!("{:?}", ran.report)
     };
-    let lost = "keeps only the first character of 1 codes";
-    assert!(why.contains(lost), "{why}");
+    let drawn = "1 codes whose /ToUnicode text is several characters are drawn with the \
+                 glyph of their first";
+    assert!(why.contains(drawn), "{why}");
     let what = actions(&ran.report);
     assert!(what[0].starts_with(&format!("font program substituted: {RIGHT}")));
-    assert!(what[0].contains(lost), "{what:?}");
+    assert!(what[0].contains(drawn), "{what:?}");
+    // The output's /ToUnicode keeps the whole text (C8-01): the combining
+    // acute is still there.
+    let text = text_of(&ran.output).concat();
+    assert!(text.contains('\u{301}'), "{text}");
 }
 
 #[test]

@@ -116,8 +116,11 @@
 //! ([`PassNotes::partial`]), every finding of its class otherwise. One
 //! exception, named by the pass that makes it ([`PassNotes::partial_as`]):
 //! a C8 font whose text the C8 pass recovered without a font (G-02) keeps
-//! its lost program beside its new `/ToUnicode`, which re-diagnoses as C7
-//! at that font, and the C8 pass's `Partial` excuses that C7 finding there.
+//! its lost program beside its new `/ToUnicode`. Where the input still
+//! names a blank program stream, that re-diagnoses as C7 at that font, and
+//! the C8 pass's `Partial` excuses that C7 finding there; where the entry
+//! was blanked too (REPDF's C8, C8-01), the output names no program and
+//! re-diagnoses as not embedded, which is no corruption.
 //!
 //! **Selection** (SE Q2; fixed tiers in v1, D-008). Candidates compare
 //! lexicographically by [`compare`]:

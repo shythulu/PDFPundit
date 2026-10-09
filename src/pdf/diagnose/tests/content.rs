@@ -90,7 +90,6 @@ fn page_with(parent: u32, resources: &str, contents: u32) -> String {
 
 /// The golden's objects.
 const DESCRIPTOR: ObjId = (7, 0);
-const TOUNICODE: ObjId = (9, 0);
 const CIDFONT: ObjId = (6, 0);
 const CONTENT: ObjId = (11, 0);
 
@@ -434,24 +433,11 @@ fn an_inline_type3_font_gives_no_type3_text() {
 
 // ── C7 / C8 ─────────────────────────────────────────────────────────────
 
-#[test]
-fn the_c7_corruptor_yields_c7_at_the_descriptor() {
-    let golden = fixtures::golden_pdf();
-    let buf = fixtures::corrupt(C7FontStreamDeleted, &golden, 0);
-    let found = findings(&buf);
-    assert_eq!(found.len(), 1, "{found:#?}");
-    let f = &found[0];
-    assert_eq!(f.class, FindingKind::Corruption(C7FontStreamDeleted));
-    assert_eq!(f.severity, Severity::Error);
-    assert!(matches!(
-        f.location,
-        Location::Object { id: DESCRIPTOR, .. }
-    ));
-    assert_eq!(refs(f), vec![DESCRIPTOR]);
-    let Some(MetricValue::Int(n)) = metric(f, "fontfile_bytes") else {
-        panic!("{f:#?}");
+/// The descriptor's blank run: its `blanked_bytes` metric and its window.
+fn blank_run(f: &Finding) -> (i64, &HexWindow) {
+    let Some(MetricValue::Int(n)) = metric(f, "blanked_bytes") else {
+        panic!("no blanked_bytes: {f:#?}");
     };
-    assert!(*n > 0);
     let window = f
         .evidence
         .iter()
@@ -459,8 +445,36 @@ fn the_c7_corruptor_yields_c7_at_the_descriptor() {
             Evidence::HexWindow(w) => Some(w),
             _ => None,
         })
-        .expect("the data head");
+        .expect("the blank run");
+    (*n, window)
+}
+
+#[test]
+fn the_c7_corruptor_yields_c7_at_the_descriptor() {
+    // REPDF's C7 blanks the `/FontFile2` entry and the program object: the
+    // descriptor has no `/FontFile*` key, but a blank run where it was.
+    let golden = fixtures::golden_pdf();
+    let buf = fixtures::corrupt(C7FontStreamDeleted, &golden, 0);
+    let found = findings(&buf);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    let f = &found[0];
+    assert_eq!(f.class, FindingKind::Corruption(C7FontStreamDeleted));
+    assert_eq!(f.severity, Severity::Error);
+    let Location::Object {
+        id: DESCRIPTOR,
+        span: Some(span),
+    } = f.location
+    else {
+        panic!("{f:#?}");
+    };
+    assert_eq!(refs(f), vec![DESCRIPTOR]);
+    let entry_at = find(&golden, b"/FontFile2 ").expect("the golden's entry");
+    let entry_len = find(&golden[entry_at..], b"R").expect("its reference") + 1;
+    let (n, window) = blank_run(f);
+    assert!(n >= entry_len as i64, "{n} < {entry_len}");
+    assert!(span.start <= window.at() && window.at() <= entry_at as u64);
     assert!(window.bytes().iter().all(|&b| b == 0x20));
+    assert!(f.summary.contains("overwritten"), "{}", f.summary);
     assert_eq!(
         f.repair,
         Repairability::Interactive(InteractionKind::FontPick)
@@ -476,11 +490,278 @@ fn the_c8_corruptor_yields_c8_and_not_c7() {
     let f = &found[0];
     assert_eq!(f.class, FindingKind::Corruption(C8FontResourcesDeleted));
     assert_eq!(f.severity, Severity::Error);
-    assert_eq!(refs(f), vec![DESCRIPTOR, TOUNICODE]);
-    assert!(metric(f, "fontfile_bytes").is_some());
+    assert!(matches!(
+        f.location,
+        Location::Object { id: DESCRIPTOR, .. }
+    ));
+    assert_eq!(refs(f), vec![DESCRIPTOR]);
+    assert!(blank_run(f).0 > 0);
     assert_eq!(
         f.repair,
         Repairability::Interactive(InteractionKind::FontPick)
+    );
+}
+
+#[test]
+fn a_program_whose_stored_bytes_are_blank_is_c7() {
+    // The entry survives and names a stream whose data is all 0x20.
+    let buf = font_file(
+        "/BaseFont /Garamond /ToUnicode 7 0 R ",
+        "/FontName /Garamond /FontFile2 8 0 R ",
+        &[
+            obj(
+                7,
+                &stream_body("", "begincmap 1 beginbfchar <01> <0041> endbfchar endcmap"),
+            ),
+            obj(8, &stream_body("", &" ".repeat(40))),
+        ],
+    );
+    let found = findings(&buf);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    let f = &found[0];
+    assert_eq!(f.class, FindingKind::Corruption(C7FontStreamDeleted));
+    assert!(f.summary.contains("blank"), "{}", f.summary);
+    assert!(metric(f, "fontfile_bytes").is_some());
+}
+
+/// `buf` with every occurrence of `text` overwritten with 0x20.
+fn overwrite(buf: &[u8], text: &str) -> Vec<u8> {
+    let mut out = buf.to_vec();
+    let needle = text.as_bytes();
+    let mut from = 0;
+    while let Some(i) = find(&out[from..], needle) {
+        out[from + i..from + i + needle.len()].fill(b' ');
+        from += i + needle.len();
+    }
+    assert!(from > 0, "{text:?} is not in the file");
+    out
+}
+
+/// `buf` with object `n` overwritten with 0x20, header through `endobj`.
+fn blank_object(buf: &[u8], n: u32) -> Vec<u8> {
+    let at = find(buf, format!("\n{n} 0 obj").as_bytes()).expect("the object") + 1;
+    let end = at + find(&buf[at..], b"endobj").expect("endobj") + 6;
+    let mut out = buf.to_vec();
+    out[at..end].fill(b' ');
+    out
+}
+
+/// A print-producer file (OBS-0001): Type0 font 5 holds its `CIDFont` and
+/// that font's descriptor inline, one entry per line; 6 is the program, 7
+/// the `/ToUnicode`. `descriptor` replaces the descriptor's entries.
+fn inline_font(descriptor: &str) -> Vec<u8> {
+    let type0 = format!(
+        "<<\n/BaseFont /CIDFont+F1\n/DescendantFonts [<<\n/BaseFont /CIDFont+F1\n\
+         /CIDSystemInfo << /Ordering (Identity) /Registry (Adobe) /Supplement 0 >>\n\
+         /FontDescriptor <<\n{descriptor}>>\n/Subtype /CIDFontType2\n/Type /Font\n\
+         /W [1 [500]]\n>> ]\n/Encoding /Identity-H\n/Subtype /Type0\n/ToUnicode 7 0 R\n\
+         /Type /Font\n>>"
+    );
+    classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3], 1)),
+            obj(3, &page_with(2, "<< /Font << /F1 5 0 R >> >>", 4)),
+            obj(4, &stream_body("", "BT /F1 12 Tf <0001> Tj ET")),
+            obj(5, &type0),
+            obj(6, &stream_body("", "true and the rest of a font program")),
+            obj(
+                7,
+                &stream_body(
+                    "",
+                    "begincmap 1 beginbfchar <0001> <0041> endbfchar endcmap",
+                ),
+            ),
+        ],
+        "",
+    )
+}
+
+const INLINE_DESCRIPTOR: &str = "/Ascent 1068\n/Descent -292\n/Flags 6\n\
+     /FontBBox [0 0 1000 1000]\n/FontFile2 6 0 R\n/FontName /CIDFont+F1\n/ItalicAngle 0\n\
+     /StemV 0\n/Type /FontDescriptor\n";
+
+#[test]
+fn an_intact_inline_descriptor_gives_no_finding() {
+    assert_eq!(findings(&inline_font(INLINE_DESCRIPTOR)), vec![]);
+}
+
+#[test]
+fn repdf_c8_on_an_inline_descriptor_is_c8_at_its_font() {
+    // REPDF's C8 on a print file: both entries and both objects blanked.
+    let original = inline_font(INLINE_DESCRIPTOR);
+    let mut buf = overwrite(&original, "/FontFile2 6 0 R");
+    buf = overwrite(&buf, "/ToUnicode 7 0 R");
+    buf = blank_object(&blank_object(&buf, 6), 7);
+    let found = findings(&buf);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    let f = &found[0];
+    assert_eq!(f.class, FindingKind::Corruption(C8FontResourcesDeleted));
+    assert!(matches!(f.location, Location::Object { id: (5, 0), .. }));
+    let entry_at = find(&original, b"/FontFile2 6 0 R").expect("the entry") as u64;
+    let (n, window) = blank_run(f);
+    assert_eq!(n, "/FontFile2 6 0 R".len() as i64);
+    assert_eq!(window.at(), entry_at);
+    assert_eq!(
+        f.repair,
+        Repairability::Interactive(InteractionKind::FontPick)
+    );
+}
+
+#[test]
+fn repdf_c7_on_an_inline_descriptor_is_c7_at_its_font() {
+    let buf = blank_object(
+        &overwrite(&inline_font(INLINE_DESCRIPTOR), "/FontFile2 6 0 R"),
+        6,
+    );
+    let found = findings(&buf);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(found[0].class, FindingKind::Corruption(C7FontStreamDeleted));
+    assert!(matches!(
+        found[0].location,
+        Location::Object { id: (5, 0), .. }
+    ));
+}
+
+#[test]
+fn an_inline_descriptor_that_never_had_a_program_is_not_embedded() {
+    let never = INLINE_DESCRIPTOR.replace("/FontFile2 6 0 R\n", "");
+    let found = findings(&inline_font(&never));
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(
+        found[0].class,
+        FindingKind::FontNotEmbedded {
+            font: (5, 0),
+            base_font: "CIDFont+F1".into(),
+        }
+    );
+}
+
+/// A save-as-producer file (OBS-0002): Type0 font 5 names its `CIDFont` 9
+/// through the array object 8 (`/DescendantFonts 8 0 R`), and descriptor 6
+/// is an object of its own, written compactly; 10 is the program, 7 the
+/// `/ToUnicode`.
+fn indirect_descendants() -> Vec<u8> {
+    classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3], 1)),
+            obj(3, &page_with(2, "<< /Font << /F1 5 0 R >> >>", 4)),
+            obj(4, &stream_body("", "BT /F1 12 Tf <0001> Tj ET")),
+            obj(
+                5,
+                "<</Type/Font/Subtype/Type0/BaseFont/BCDEEE+Cambria/Encoding/Identity-H\
+                 /DescendantFonts 8 0 R/ToUnicode 7 0 R>>",
+            ),
+            obj(
+                6,
+                "<</Type/FontDescriptor/FontName/BCDEEE+Cambria/Flags 32/ItalicAngle 0\
+                 /FontBBox[ -1475 -222 2868 778] /FontFile2 10 0 R>>",
+            ),
+            obj(
+                7,
+                &stream_body(
+                    "",
+                    "begincmap 1 beginbfchar <0001> <0041> endbfchar endcmap",
+                ),
+            ),
+            obj(8, "[ 9 0 R] "),
+            obj(
+                9,
+                "<</Type/Font/Subtype/CIDFontType2/BaseFont/BCDEEE+Cambria\
+                 /CIDSystemInfo<</Registry(Adobe)/Ordering(Identity)/Supplement 0>>\
+                 /FontDescriptor 6 0 R/W[1[500]]>>",
+            ),
+            obj(10, &stream_body("", "true and the rest of a font program")),
+        ],
+        "",
+    )
+}
+
+#[test]
+fn repdf_c7_under_an_indirect_descendant_array_is_c7_not_c8() {
+    // The `/ToUnicode` is on the Type0 parent, found through array 8.
+    let original = indirect_descendants();
+    assert_eq!(findings(&original), vec![]);
+    let buf = blank_object(&overwrite(&original, "/FontFile2 10 0 R"), 10);
+    let found = findings(&buf);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(found[0].class, FindingKind::Corruption(C7FontStreamDeleted));
+    assert!(matches!(
+        found[0].location,
+        Location::Object { id: (6, 0), .. }
+    ));
+
+    let c8 = blank_object(&overwrite(&buf, "/ToUnicode 7 0 R"), 7);
+    let found = findings(&c8);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(
+        found[0].class,
+        FindingKind::Corruption(C8FontResourcesDeleted)
+    );
+}
+
+#[test]
+fn a_null_tounicode_is_lost_as_an_absent_one_is() {
+    // A rebuilt file writes a reference to a lost object as `null`.
+    let text = String::from_utf8(indirect_descendants()).expect("ascii");
+    let original = text.replace("/ToUnicode 7 0 R", "/ToUnicode null ");
+    let buf = blank_object(&overwrite(original.as_bytes(), "/FontFile2 10 0 R"), 10);
+    let found = findings(&buf);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(
+        found[0].class,
+        FindingKind::Corruption(C8FontResourcesDeleted)
+    );
+}
+
+#[test]
+fn a_standard_encoded_simple_font_needs_no_tounicode_so_its_lost_program_is_c7() {
+    // Word's WinAnsi TrueType fonts never carry a `/ToUnicode`: their text
+    // decodes through the encoding, so only the program is lost. A simple
+    // font with no standard encoding needs one, so the same damage is C8.
+    for (encoding, class) in [
+        ("/Encoding /WinAnsiEncoding ", C7FontStreamDeleted),
+        (
+            "/Encoding << /BaseEncoding /MacRomanEncoding /Differences [32 /space] >> ",
+            C7FontStreamDeleted,
+        ),
+        ("", C8FontResourcesDeleted),
+    ] {
+        let original = font_file(
+            &format!("/BaseFont /BCDFEE+Cambria {encoding}"),
+            "/FontName /BCDFEE+Cambria /Flags 32 /FontFile2 8 0 R ",
+            &[obj(
+                8,
+                &stream_body("", "true and the rest of a font program"),
+            )],
+        );
+        assert_eq!(findings(&original), vec![], "{encoding}");
+        let buf = blank_object(&overwrite(&original, "/FontFile2 8 0 R"), 8);
+        let found = findings(&buf);
+        assert_eq!(found.len(), 1, "{encoding}: {found:#?}");
+        assert_eq!(found[0].class, FindingKind::Corruption(class), "{encoding}");
+    }
+}
+
+#[test]
+fn an_indented_descriptor_that_never_had_a_program_is_not_embedded() {
+    // Pretty-printed indentation is a run of 0x20 too, but one that sits
+    // between a line break and the next entry: no entry was there.
+    let indent = " ".repeat(24);
+    let buf = font_file(
+        "/BaseFont /Arial ",
+        &format!("\n{indent}/FontName /Arial\n{indent}/Flags 32\n{indent}"),
+        &[],
+    );
+    let found = findings(&buf);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(
+        found[0].class,
+        FindingKind::FontNotEmbedded {
+            font: (5, 0),
+            base_font: "Arial".into(),
+        }
     );
 }
 

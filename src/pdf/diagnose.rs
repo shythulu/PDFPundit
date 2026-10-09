@@ -65,18 +65,29 @@
 //! - **C7**: a `/FontDescriptor` whose `/FontFile`, `/FontFile2` or
 //!   `/FontFile3` is not a reference, or names a stream that is missing,
 //!   empty, all 0x20 or does not read as a font: a program that was there
-//!   and is gone. A Type3 font's descriptor is skipped. A font program whose
-//!   Flate data does not decode is C9's.
-//! - **FontNotEmbedded**: a descriptor with none of those keys, a font never
-//!   embedded (a system font left out on purpose), is an Info note on the
-//!   descriptor, `NotApplicable`, never C7 or C8 and never a question
-//!   (D-084). `font` is the font a page selects (a CIDFont's Type0 parent),
-//!   or the descriptor when no font names it. A standard-14 name gives no
-//!   finding at all: that is how such fonts are written.
+//!   and is gone. Or one with none of those keys whose bytes hold a run of
+//!   at least 15 0x20 bytes (`/FontFile 1 0 R` is 15) that is not
+//!   indentation (a run between a line break and the next token): where an
+//!   entry was overwritten. REPDF's C7 and C8 blank the `/FontFile2 N G R`
+//!   entry and the program object itself (C8-01, measured on all 200 of its
+//!   C7 and C8 files). A descriptor written inline in a font object (as
+//!   print producers write them) is read too, and its findings sit on that
+//!   font. A Type3 font's descriptor is skipped. A font program whose Flate
+//!   data does not decode is C9's.
+//! - **FontNotEmbedded**: a descriptor with none of those keys and no such
+//!   run, a font never embedded (a system font left out on purpose), is an
+//!   Info note on the descriptor, `NotApplicable`, never C7 or C8 and never
+//!   a question (D-084). `font` is the font a page selects (a CIDFont's
+//!   Type0 parent), or the descriptor when no font names it. A standard-14
+//!   name gives no finding at all: that is how such fonts are written.
 //! - **C8**: C7, and the font's `/ToUnicode` (a CIDFont's is on its Type0
-//!   parent) is missing, empty, all 0x20 or holds no `bfchar`/`bfrange`
-//!   CMap. C8 replaces C7 for that font. Both need a font pick: diagnose has
-//!   no font DB to look the name up in; T-30 upgrades a name T-28's DB
+//!   parent, found through a `/DescendantFonts` array written inline or as
+//!   an object of its own) is missing, `null`, empty, all 0x20 or holds no
+//!   `bfchar`/`bfrange` CMap. A simple font whose `/Encoding` is a standard
+//!   one (by name, or as an encoding dictionary's `/BaseEncoding`) reads
+//!   without a `/ToUnicode`, so having none loses nothing: its lost program
+//!   is C7. C8 replaces C7 for that font. Both need a font pick: diagnose
+//!   has no font DB to look the name up in; T-30 upgrades a name T-28's DB
 //!   knows to `Auto`.
 //! - **C9**: one finding per stream whose salvage is not `Clean`: `Exact` and
 //!   `Accepted` repairs are Warnings repaired automatically; `Ambiguous`,
@@ -111,7 +122,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use lopdf::{Dictionary, Object};
 
 use crate::pdf::carver::{Body, CarveNote, CarveReport, Origin, Orphan};
-use crate::pdf::graph::{ContentPiece, MAX_TREE_DEPTH, ObjectGraph};
+use crate::pdf::graph::{ContentPiece, MAX_TREE_DEPTH, ObjectGraph, PathSeg, RefEdge};
 use crate::pdf::lexer::{self, LexNote};
 use crate::pdf::model::{
     ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, HexWindow, InteractionKind,
@@ -1462,6 +1473,24 @@ pub(crate) fn orphan_fonts(graph: &ObjectGraph) -> Vec<ObjId> {
         .collect()
 }
 
+/// The `/Type0` font whose `/DescendantFonts` names `font`: through a
+/// direct array, or through an array object of its own (`/DescendantFonts
+/// 6 0 R` with `6 0 obj [7 0 R]`, as save-as producers write it). `None`
+/// when no font names it so.
+pub(crate) fn type0_parent(graph: &ObjectGraph, font: ObjId) -> Option<ObjId> {
+    let descendants = |e: &&RefEdge| e.path.first_key() == Some(&b"DescendantFonts"[..]);
+    let edges = graph.referrers(font);
+    if let Some(e) = edges.iter().find(descendants) {
+        return Some(e.from);
+    }
+    // An element of an array object: that array's own referrer.
+    edges
+        .iter()
+        .filter(|e| matches!(e.path.0[..], [PathSeg::Index(_)]))
+        .find_map(|e| graph.referrers(e.from).iter().find(descendants))
+        .map(|e| e.from)
+}
+
 fn is_subtype(d: &Dictionary, subtype: &[u8]) -> bool {
     d.get(b"Subtype").ok().and_then(|o| o.as_name().ok()) == Some(subtype)
 }
@@ -1547,6 +1576,32 @@ fn is_tounicode(b: &[u8]) -> bool {
         .any(|k| memchr::memmem::find(b, k).is_some())
 }
 
+/// The encodings a reader decodes a simple font's codes with on its own.
+const STANDARD_ENCODINGS: [&[u8]; 4] = [
+    b"WinAnsiEncoding",
+    b"MacRomanEncoding",
+    b"StandardEncoding",
+    b"MacExpertEncoding",
+];
+
+/// `font` is a simple font whose `/Encoding` is a standard one, by name or
+/// as the `/BaseEncoding` of an encoding dictionary: its text decodes
+/// without a `/ToUnicode`.
+fn standard_encoded(cx: &Cx<'_>, font: &Dictionary) -> bool {
+    let standard = |o: &Object| o.as_name().is_ok_and(|n| STANDARD_ENCODINGS.contains(&n));
+    if is_subtype(font, b"Type0") || is_subtype(font, b"Type3") {
+        return false;
+    }
+    match font.get(b"Encoding").ok().map(|e| cx.resolve(e)) {
+        Some(e) if standard(e) => true,
+        Some(e) => cx
+            .dict_of(e)
+            .and_then(|d| d.get(b"BaseEncoding").ok())
+            .is_some_and(|b| standard(cx.resolve(b))),
+        None => false,
+    }
+}
+
 /// `ABCDEF+Name` → `Name`.
 fn without_subset_tag(name: &[u8]) -> &[u8] {
     match name.split_at_checked(7) {
@@ -1561,23 +1616,158 @@ fn without_subset_tag(name: &[u8]) -> &[u8] {
     }
 }
 
+/// A run of 0x20 at least this long inside a descriptor stands where an
+/// entry was: `/FontFile 1 0 R`, the shortest `/FontFile*` entry, is 15
+/// bytes.
+const BLANKED_ENTRY_MIN: usize = 15;
+
+/// One font descriptor: an object of its own, or a dictionary written inline
+/// in a font object (as print producers write them, OBS-0001).
+struct Descriptor<'a> {
+    dict: Cow<'a, Dictionary>,
+    /// What holds it: the descriptor object, or the font it is written in.
+    held: Held,
+    /// The descriptor object's id, or the font's for an inline one.
+    id: ObjId,
+    /// Its bytes in the file; `None` when packed in an object stream.
+    span: Option<ByteSpan>,
+    inline: bool,
+}
+
+/// Every descriptor object, then every descriptor written inline in a
+/// top-level font object, in byte order of what holds them.
+fn descriptors<'a>(cx: &Cx<'a>) -> Vec<Descriptor<'a>> {
+    let mut out = Vec::new();
+    for id in cx.graph.objects_of_kind(ObjectKind::FontDescriptor) {
+        let Some(held) = cx.remap.target(id) else {
+            continue;
+        };
+        let Some(d) = cx.dict(held) else { continue };
+        let span = match held {
+            Held::Object(i) => {
+                let o = &cx.carve.objects[i];
+                (o.origin == Origin::TopLevel).then_some(o.span)
+            }
+            Held::Orphan(i) => Some(cx.carve.orphans[i].span()),
+        };
+        out.push(Descriptor {
+            dict: Cow::Borrowed(d),
+            held,
+            id,
+            span,
+            inline: false,
+        });
+    }
+    for id in cx.graph.objects_of_kind(ObjectKind::Font) {
+        let Some(held @ Held::Object(i)) = cx.remap.target(id) else {
+            continue;
+        };
+        let o = &cx.carve.objects[i];
+        if o.origin != Origin::TopLevel || !matches!(o.body, Body::Dict(_)) {
+            continue;
+        }
+        for (dict, span) in inline_descriptors(cx.bytes, o.span) {
+            out.push(Descriptor {
+                dict: Cow::Owned(dict),
+                held,
+                id,
+                span: Some(span),
+                inline: true,
+            });
+        }
+    }
+    out.sort_by_key(|d| d.span.map_or(u64::MAX, |s| s.start));
+    out
+}
+
+/// Each `/FontDescriptor << … >>` written inline in `span` (a font object's
+/// bytes): the dictionary and its bytes, from `<<` through `>>`.
+fn inline_descriptors(bytes: &[u8], span: ByteSpan) -> Vec<(Dictionary, ByteSpan)> {
+    let end = usize::try_from(span.end).map_or(bytes.len(), |e| e.min(bytes.len()));
+    let bytes = &bytes[..end];
+    let Ok(start) = usize::try_from(span.start) else {
+        return Vec::new();
+    };
+    let mut lx = lexer::Lexer::new(bytes, start.min(end));
+    let mut out = Vec::new();
+    loop {
+        match lx.next() {
+            lexer::Tok::Eof => break,
+            lexer::Tok::Name(n) if *n == *b"FontDescriptor" => {
+                let mut at = lx.pos;
+                while bytes.get(at).is_some_and(|&b| lexer::is_ws(b)) {
+                    at += 1;
+                }
+                if !bytes[at..].starts_with(b"<<") {
+                    continue;
+                }
+                let Ok(parsed) = lexer::parse_value(bytes, at, 1) else {
+                    continue;
+                };
+                if let Object::Dictionary(d) = parsed.value {
+                    let span = ByteSpan {
+                        start: at as u64,
+                        end: parsed.end as u64,
+                    };
+                    out.push((d, span));
+                }
+                lx.pos = parsed.end;
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// The first run of 0x20 in `span` long enough to be a blanked entry, and
+/// not indentation: a run between a line break and the next token is how a
+/// pretty-printer lays a dictionary out, not where an entry was.
+fn blanked_entry(bytes: &[u8], span: ByteSpan) -> Option<ByteSpan> {
+    let start = usize::try_from(span.start).ok()?;
+    let end = usize::try_from(span.end).map_or(bytes.len(), |e| e.min(bytes.len()));
+    let b = bytes.get(start..end)?;
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] != b' ' {
+            i += 1;
+            continue;
+        }
+        let run = i;
+        while i < b.len() && b[i] == b' ' {
+            i += 1;
+        }
+        let after_break = run > 0 && matches!(b[run - 1], b'\n' | b'\r');
+        let before_token = b.get(i).is_some_and(|&x| !lexer::is_ws(x));
+        if i - run >= BLANKED_ENTRY_MIN && !(after_break && before_token) {
+            return Some(ByteSpan {
+                start: (start + run) as u64,
+                end: (start + i) as u64,
+            });
+        }
+    }
+    None
+}
+
 /// The C7, C8 and `FontNotEmbedded` findings, and the streams C7 and C8
 /// found blank.
 fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<ObjId>) {
     let mut out = Vec::new();
     let mut blanked = BTreeSet::new();
-    for desc in cx.graph.objects_of_kind(ObjectKind::FontDescriptor) {
-        let Some(held) = cx.remap.target(desc) else {
-            continue;
+    for site in descriptors(cx) {
+        let (d, held, desc) = (&*site.dict, site.held, site.id);
+        // An inline descriptor's font is the object it is written in.
+        let users: Vec<ObjId> = if site.inline {
+            vec![desc]
+        } else {
+            cx.graph
+                .referrers(desc)
+                .iter()
+                .filter(|e| {
+                    e.path.0.len() == 1 && e.path.first_key() == Some(&b"FontDescriptor"[..])
+                })
+                .map(|e| e.from)
+                .collect()
         };
-        let Some(d) = cx.dict(held) else { continue };
-        let users: Vec<ObjId> = cx
-            .graph
-            .referrers(desc)
-            .iter()
-            .filter(|e| e.path.0.len() == 1 && e.path.first_key() == Some(&b"FontDescriptor"[..]))
-            .map(|e| e.from)
-            .collect();
         let font = |id: ObjId| cx.dict(cx.remap.target(id)?);
         if users
             .iter()
@@ -1594,24 +1784,38 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
             .map(|n| String::from_utf8_lossy(without_subset_tag(n)).into_owned());
 
         // The font a page selects: a CIDFont's Type0 parent.
-        let top = user.map(|u| {
-            cx.graph
-                .referrers(u)
-                .iter()
-                .find(|e| e.path.first_key() == Some(&b"DescendantFonts"[..]))
-                .map_or(u, |e| e.from)
-        });
+        let top = user.map(|u| type0_parent(cx.graph, u).unwrap_or(u));
         let (location, at, _) = cx.place(held);
 
         // C7: the program.
         let mut evidence = vec![Evidence::ObjectRef(desc)];
-        let why = match FONT_FILES.iter().find_map(|&k| Some((k, d.get(k).ok()?))) {
+        let program = FONT_FILES.iter().find_map(|&k| Some((k, d.get(k).ok()?)));
+        // No `/FontFile*` key, but a blank run where an entry was: REPDF's
+        // C7 and C8 overwrite the entry and the program with 0x20 (C8-01).
+        let overwritten = match program {
+            None => site.span.and_then(|s| blanked_entry(cx.bytes, s)),
+            Some(_) => None,
+        };
+        let why = match (program, overwritten) {
+            (None, Some(run)) => {
+                let len = run.end - run.start;
+                evidence.push(metric("blanked_bytes", int(len)));
+                evidence.push(Evidence::HexWindow(HexWindow::new(
+                    run.start,
+                    slice(cx.bytes, run),
+                )));
+                format!(
+                    "overwritten: no /FontFile entry, and {len} bytes of 0x20 at byte {} \
+                     where one was",
+                    run.start
+                )
+            }
             // Every reader carries these: leaving them out is how they are
             // written, so there is nothing to note.
-            None if name.as_deref().is_some_and(|n| STANDARD_14.contains(&n)) => continue,
+            (None, None) if name.as_deref().is_some_and(|n| STANDARD_14.contains(&n)) => continue,
             // Never embedded (no `/FontFile*` key at all): a system font left
             // out on purpose. A note, not damage, and it asks nothing (D-084).
-            None => {
+            (None, None) => {
                 let font = top.unwrap_or(desc);
                 if font != desc {
                     evidence.push(Evidence::ObjectRef(font));
@@ -1634,7 +1838,7 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
                 });
                 continue;
             }
-            Some((key, Object::Reference(id))) => {
+            (Some((key, Object::Reference(id))), _) => {
                 if let Some((_, data, raw)) = cx.stream(*id) {
                     evidence.push(metric("fontfile_bytes", raw.len() as i64));
                     evidence.push(Evidence::HexWindow(HexWindow::new(data.start, raw)));
@@ -1656,7 +1860,7 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
                     Data::Bytes(_) | Data::Unknown => continue,
                 }
             }
-            Some((key, _)) => format!(
+            (Some((key, _)), _) => format!(
                 "gone: its /{} is not a reference",
                 String::from_utf8_lossy(key)
             ),
@@ -1664,7 +1868,16 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
 
         // C8: and the `/ToUnicode` (a CIDFont's is on its Type0 parent).
         // (its reference, a note) when it is lost.
-        let tounicode_lost = match top.and_then(font).and_then(|f| f.get(b"ToUnicode").ok()) {
+        let top_dict = top.and_then(font);
+        // `null` is no entry (ISO 32000-1 7.3.9): a rebuilt file writes a
+        // reference to a lost object so.
+        let entry = top_dict
+            .and_then(|f| f.get(b"ToUnicode").ok())
+            .filter(|v| !matches!(v, Object::Null));
+        let tounicode_lost = match entry {
+            // A simple font with a standard encoding reads without one, so
+            // having none loses no text (Word writes its WinAnsi fonts so).
+            None if top_dict.is_some_and(|f| standard_encoded(cx, f)) => None,
             None => Some((None, None)),
             Some(Object::Reference(id)) => match data_of(cx, salvage, *id) {
                 Data::Missing => Some((Some(*id), None)),

@@ -362,15 +362,35 @@ const BLOCK_LIMIT: usize = 100;
 // T-30 (template assembly) is the first caller outside the tests.
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn build_tounicode(map: &BTreeMap<u16, char>) -> Vec<u8> {
-    let mut singles: Vec<(u16, char)> = Vec::new();
+    let text: BTreeMap<u16, String> = map.iter().map(|(&k, &c)| (k, c.to_string())).collect();
+    build_tounicode_text(&text)
+}
+
+/// [`build_tounicode`] with each code's text a string: a code whose text is
+/// several characters (a ligature, a conjunct, a combining sequence) is a
+/// `bfchar` singleton mapping to all of them, as a C7 file's surviving
+/// `/ToUnicode` maps it (C8-01). One-character texts are written as
+/// `build_tounicode` writes them; an empty text is left out.
+pub(crate) fn build_tounicode_text(map: &BTreeMap<u16, String>) -> Vec<u8> {
+    let mut singles: Vec<(u16, &str)> = Vec::new();
     let mut ranges: Vec<(u16, u16, char)> = Vec::new();
-    let entries: Vec<(u16, char)> = map.iter().map(|(&k, &v)| (k, v)).collect();
+    // `(code, the text, its one character when it has exactly one)`.
+    let one = |t: &str| {
+        let mut chars = t.chars();
+        chars.next().filter(|_| chars.next().is_none())
+    };
+    let entries: Vec<(u16, &str, Option<char>)> = map
+        .iter()
+        .filter(|(_, t)| !t.is_empty())
+        .map(|(&k, t)| (k, t.as_str(), one(t)))
+        .collect();
     let mut i = 0;
     while i < entries.len() {
-        let (lo, first) = entries[i];
+        let (lo, text, first) = entries[i];
         let mut j = i;
-        while let Some(&(code, c)) = entries.get(j + 1) {
-            let (prev_code, prev_c) = entries[j];
+        while let (Some(&(code, _, Some(c))), (prev_code, _, Some(prev_c))) =
+            (entries.get(j + 1), entries[j])
+        {
             let continues = u32::from(code) == u32::from(prev_code) + 1
                 && u32::from(c) == u32::from(prev_c) + 1
                 && code & 0xff != 0
@@ -381,10 +401,9 @@ pub(crate) fn build_tounicode(map: &BTreeMap<u16, char>) -> Vec<u8> {
             }
             j += 1;
         }
-        if j > i {
-            ranges.push((lo, entries[j].0, first));
-        } else {
-            singles.push((lo, first));
+        match first {
+            Some(c) if j > i => ranges.push((lo, entries[j].0, c)),
+            _ => singles.push((lo, text)),
         }
         i = j + 1;
     }
@@ -397,8 +416,9 @@ pub(crate) fn build_tounicode(map: &BTreeMap<u16, char>) -> Vec<u8> {
     );
     for block in singles.chunks(BLOCK_LIMIT) {
         let _ = writeln!(s, "{} beginbfchar", block.len());
-        for &(code, c) in block {
-            let _ = writeln!(s, "<{code:04X}> <{}>", utf16_hex(c));
+        for &(code, text) in block {
+            let hex: String = text.chars().map(utf16_hex).collect();
+            let _ = writeln!(s, "<{code:04X}> <{hex}>");
         }
         s.push_str("endbfchar\n");
     }
@@ -838,6 +858,26 @@ mod tests {
         // run cut at codes 0x3100, 0x3200 and characters U+0500, U+0600 make
         // 155 ranges in two bfrange blocks.
         assert_eq!((blocks, singles, ranges), (6, 305, 155));
+    }
+
+    #[test]
+    fn several_characters_are_one_bfchar_entry_and_one_character_is_as_before() {
+        // A Devanagari conjunct, a lam-alef and a combining sequence keep all
+        // their characters; one-character texts give `build_tounicode`'s
+        // bytes.
+        let mut text: BTreeMap<u16, String> = mixed_map()
+            .into_iter()
+            .map(|(code, c)| (code, c.to_string()))
+            .collect();
+        assert_eq!(build_tounicode_text(&text), build_tounicode(&mixed_map()));
+        text.insert(0x9000, "\u{915}\u{94D}\u{937}".to_owned());
+        text.insert(0x9001, "\u{644}\u{627}".to_owned());
+        text.insert(0x9002, "e\u{301}".to_owned());
+        let expected: BTreeMap<u16, Vec<u16>> = text
+            .iter()
+            .map(|(&code, t)| (code, t.encode_utf16().collect()))
+            .collect();
+        assert_eq!(reload(build_tounicode_text(&text)), expected);
     }
 
     #[test]
