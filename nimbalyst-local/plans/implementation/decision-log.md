@@ -112,6 +112,44 @@ Each row is one question only the user can answer. Options are the row's letters
 | D-091 | DarkBerry notice: confirmed. |
 | D-065 | Ship the Smudge likeness as designed (a), after the question was explained. T-35 is no longer blocked. |
 
+### Answered by the user, 2026-10-08 (Tiers 3 and 4)
+
+| ID | Answer | Work it needs |
+|---|---|---|
+| D-001 | (a) Amend map #1 to the panel's destination text and post the per-ticket resolutions, after a private-detail check. | GitHub posts |
+| D-003 | (a) One package. | none |
+| D-004 | (a) ratatui + crossterm. UI D1 is closed. | none |
+| D-021 | (c) As built: committed gmaps and index, run-time templates. | none |
+| D-045 | (a) The framework-free canvas. | none |
+| D-050 | (a) No network code ever: OCR ships with bundled models or a model pack installed from a file; no `offline` knob. | applies to T-34 |
+| D-117 | Align the mockup with what the engine can supply: the C9 count line stays in the RECOVERY rows; data no engine type has is dropped or relabelled in frames 03 and 05. | mockup ticket |
+| D-048 | Draw the history, setup and help screens in the mockup for review, then build them. | design + tickets |
+| D-010 | (b) Add gmaps for the corpus's other open-licensed faces. | ticket |
+| D-011 | Leipzig news lists for English, French and Spanish, 50k cut, CC BY 4.0 attribution in the notices. | ticket |
+| D-014 | No Document AI. Per-script Tesseract is the OCR-scoring plan (this also settles D-071's apparatus for v1). | ticket |
+| D-025 | (a) Research extras stay out of v1. | none |
+| D-042 | (c) Scrub the copyleft links and verbatim quotes on the research branch, keeping the facts. | research-branch commit |
+| D-063 | (a)(i)(x)(p): release notes, per-class tables, labelled "text-layer metric, not REPDF's". | applies at release |
+| D-070 | Shelved: a like-for-like comparison with the paper needs a more advanced research run. No reference columns for now. | none now |
+| D-016 | Custody mode stays off by default. A UX design agent designs the custody prompt and related screens, then custody mode (T-33) is built. | design + T-33 |
+| D-114 | (a) Image extraction is required, and it feeds the evidence report when custody mode is on. Design an evidence/report schema first. | design + tickets |
+| D-142 | No Apple Developer account, no paid signing: ship unsigned archives; document the Gatekeeper and SmartScreen first-run steps in the README. | T-35 follow-up |
+
+### Answered by the user, 2026-10-08 (Tier 2, all as recommended)
+
+| ID | Answer | Work it needs |
+|---|---|---|
+| D-128 | Keep: salvage never keeps invented bytes (built, F-04). | none |
+| D-084 | (b) A never-embedded font is an informational warning (`FindingKind::FontNotEmbedded`), not C7/C8 damage that asks. | follow-up G-01 |
+| D-122 | (b) `UseBest` on a weak C8 guess (top hit below 1/2) recovers the text without substituting a font. | follow-up G-02 |
+| D-141 | (a) Answers the app gives without asking are recorded as automatic (`Batched` / `Policy`), not as the user's. | follow-up G-03 |
+| D-112 | (c) Pages found only outside the page tree are appended and the report says how many. | follow-up G-04 |
+| D-005, D-103 | Keep evict-and-replay (built); evicted jobs re-run one at a time. | follow-up G-05 (resume slot) |
+| D-062 | (a) Keep failing loudly on a read-only destination (built). | none |
+| D-131, D-020, D-127, D-130, D-030, D-053, D-023, D-033, D-041, D-049, D-061, D-064 | Ratified as built. | none |
+| D-088 | (a) Fix the V1 glyph baseline, after a V1 run on corpus C5 files. | follow-up G-06 |
+| D-118 | (a) `unicode-width` cell widths plus Cf replacement in the canvas. | follow-up G-07 |
+
 ### Tier 1: before any push or any public binary
 Every Tier 1 question below was answered on 2026-10-08 (above).
 
