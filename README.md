@@ -151,5 +151,5 @@ Set `[ui] layout` to `full` or `widget` to pin one of the first two.
 
 MIT, see `LICENSE`. Data compiled into the binary (fonts, glyph lists, the
 DarkBerry palette) carries its own terms, listed in `THIRD_PARTY_NOTICES.md`.
-Every Rust crate the binary links, with its licence text, is in
-`THIRD_PARTY_CRATES.md`.
+Every Rust crate in its normal dependency graph (including compile-time
+proc-macros), with its licence text, is in `THIRD_PARTY_CRATES.md`.
