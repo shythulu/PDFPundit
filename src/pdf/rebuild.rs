@@ -56,6 +56,14 @@
 //! (ISO 32000-1 7.7.3.4). The MediaBox chain is the page's own, the nearest
 //! `/Parent` ancestor's, the modal box of the other pages (its first in
 //! document order on a tie), then the configured default page size.
+//!
+//! **Pages outside the tree** (D-112 (c)). The pages only byte order finds
+//! are appended whether or not the tree is damaged: a damaged tree's lost
+//! pages come back, and so does a page an incremental update took out of
+//! `/Kids` (the carver reads no xref free entries). Either way it is
+//! reported, never hidden: [`pages_outside_tree`] lists them, diagnose
+//! makes them one `PagesOutsideTree` Info finding and repair one report
+//! action, both worded by [`outside_tree_note`].
 #![cfg_attr(not(test), allow(dead_code))]
 
 #[cfg(test)]
@@ -896,6 +904,9 @@ pub(crate) struct PageTreePlan {
     /// The catalog's output number: the reused catalog's, or the one after
     /// `pages_id`.
     pub(crate) root: u32,
+    /// The pages no page-tree walk placed, appended after those it did, in
+    /// the order `pages` holds them ([`pages_outside_tree`]).
+    pub(crate) appended: Vec<Held>,
 }
 
 impl PageTreePlan {
@@ -923,7 +934,7 @@ pub(crate) fn rebuild_page_tree(
     default_page_size: PageSize,
 ) -> PageTreePlan {
     let view = View { carve, remap };
-    let order = view.pages_in_order(graph);
+    let (order, appended) = view.placed_pages(graph);
 
     struct Found {
         id: u32,
@@ -1010,7 +1021,47 @@ pub(crate) fn rebuild_page_tree(
         catalog,
         pages_id,
         root,
+        appended,
     }
+}
+
+/// The pages [`rebuild_page_tree`] appends after those the page-tree walk
+/// placed, in the order it appends them (module docs, "Pages outside the
+/// tree"). `remap` must come from [`plan_ids`] over the same `carve` and
+/// `graph`.
+pub(crate) fn pages_outside_tree(
+    carve: &CarveReport,
+    graph: &ObjectGraph,
+    remap: &IdRemap,
+) -> Vec<Held> {
+    View { carve, remap }.placed_pages(graph).1
+}
+
+/// The line that reports `pages` (D-112), for the finding and the report
+/// action alike: "n pages not reachable from the page tree were appended:"
+/// and each page, by its declared id (`4 0 obj`), or a headerless one by
+/// where it starts.
+pub(crate) fn outside_tree_note(carve: &CarveReport, pages: &[Held]) -> String {
+    let each: Vec<String> = (pages.iter())
+        .map(|&held| match held {
+            Held::Object(at) => {
+                let (n, g) = carve.objects[at].declared_id;
+                format!("{n} {g} obj")
+            }
+            Held::Orphan(at) => format!(
+                "the headerless page at byte {}",
+                carve.orphans[at].span().start
+            ),
+        })
+        .collect();
+    let (count, verb) = match pages.len() {
+        1 => ("1 page".to_owned(), "was"),
+        n => (format!("{n} pages"), "were"),
+    };
+    format!(
+        "{count} not reachable from the page tree {verb} appended: {}",
+        each.join(", ")
+    )
 }
 
 /// The carve as the remap sees it: references resolve to what they now name.
@@ -1108,7 +1159,9 @@ impl<'a> View<'a> {
     /// nothing), in byte order; then the pages only the byte order finds,
     /// the graph's and the `/Type /Page` orphans no walk placed together,
     /// typed before untyped and each in byte order.
-    fn pages_in_order(&self, graph: &ObjectGraph) -> Vec<Held> {
+    /// Also returns how many of them the walks placed: the rest are
+    /// [`pages_outside_tree`]'s.
+    fn pages_in_order(&self, graph: &ObjectGraph) -> (Vec<Held>, usize) {
         let mut seen = BTreeSet::new();
         let mut pages = Vec::new();
         let root = graph
@@ -1124,6 +1177,7 @@ impl<'a> View<'a> {
         for root in roots {
             self.walk_tree(root, &mut seen, &mut pages);
         }
+        let walked = pages.len();
 
         // (untyped, start, held): typed first, then byte order.
         let mut rest: Vec<(bool, u64, Held)> = Vec::new();
@@ -1152,7 +1206,17 @@ impl<'a> View<'a> {
                 pages.push(held);
             }
         }
-        pages
+        (pages, walked)
+    }
+
+    /// The pages the flat tree holds, in document order, and those of them
+    /// no walk placed (module docs, "Pages outside the tree").
+    fn placed_pages(&self, graph: &ObjectGraph) -> (Vec<Held>, Vec<Held>) {
+        let (order, walked) = self.pages_in_order(graph);
+        let kept = |h: &&Held| self.remap.number_of(**h).is_some() && self.dict(**h).is_some();
+        let appended = order[walked..].iter().filter(kept).copied().collect();
+        let placed = order.iter().filter(kept).copied().collect();
+        (placed, appended)
     }
 
     /// Appends the pages under `root` to `pages` in `/Kids` order, depth

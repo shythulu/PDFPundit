@@ -118,6 +118,13 @@ pub enum FindingKind {
         font: ObjId,
         base_font: String,
     },
+    /// Pages the page-tree walk does not reach, found by byte order and
+    /// appended after the tree's pages (D-112): a page an incremental update
+    /// took out of `/Kids`, or one a damaged tree dropped. `pages` counts
+    /// them; the evidence names each one that has an object id. Info only.
+    PagesOutsideTree {
+        pages: u32,
+    },
 }
 
 /// Ordered `Info < Warning < Error`.
@@ -451,6 +458,7 @@ mod tests {
             FindingKind::OutlinedText { .. } => 3,
             FindingKind::Type3Text { .. } => 4,
             FindingKind::FontNotEmbedded { .. } => 5,
+            FindingKind::PagesOutsideTree { .. } => 6,
         }
     }
 
@@ -660,6 +668,18 @@ mod tests {
             repair: Repairability::NotApplicable,
         });
         findings.push(Finding {
+            id: "OFFTREE-001".into(),
+            class: FindingKind::PagesOutsideTree { pages: 1 },
+            severity: Severity::Info,
+            location: Location::Object {
+                id: (4, 0),
+                span: None,
+            },
+            summary: "1 page not reachable from the page tree was appended: 4 0 obj".into(),
+            evidence: vec![Evidence::ObjectRef((4, 0))],
+            repair: Repairability::NotApplicable,
+        });
+        findings.push(Finding {
             id: "C10-099".into(),
             class: FindingKind::Corruption(CorruptionClass::C10Truncated),
             severity: Severity::Error,
@@ -730,7 +750,7 @@ mod tests {
             _ => None,
         });
         assert!(covers(classes, 10));
-        assert!(covers(f.findings.iter().map(|x| kind_index(&x.class)), 6));
+        assert!(covers(f.findings.iter().map(|x| kind_index(&x.class)), 7));
         assert!(covers(
             f.findings.iter().map(|x| severity_index(x.severity)),
             3

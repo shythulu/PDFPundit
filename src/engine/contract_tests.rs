@@ -522,7 +522,7 @@ fn fixtures_carry_every_variant() {
         }),
         CorruptionClass::ALL.len()
     ));
-    assert!(covers(all_findings().map(|f| kind_index(&f.class)), 6));
+    assert!(covers(all_findings().map(|f| kind_index(&f.class)), 7));
     assert!(covers(
         all_findings().map(|f| severity_index(f.severity)),
         3
@@ -677,6 +677,7 @@ fn kind_index(k: &FindingKind) -> usize {
         FindingKind::OutlinedText { .. } => 3,
         FindingKind::Type3Text { .. } => 4,
         FindingKind::FontNotEmbedded { .. } => 5,
+        FindingKind::PagesOutsideTree { .. } => 6,
     }
 }
 
@@ -1017,6 +1018,13 @@ fn model_findings() -> Vec<Finding> {
             Severity::Info,
             Repairability::NotApplicable,
             "the font Arial is not embedded",
+        ),
+        info(
+            "OFFTREE-001",
+            FindingKind::PagesOutsideTree { pages: 1 },
+            Severity::Info,
+            Repairability::NotApplicable,
+            "1 page not reachable from the page tree was appended: 4 0 obj",
         ),
     ]);
     findings

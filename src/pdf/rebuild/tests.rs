@@ -972,3 +972,58 @@ fn a_resources_reference_to_nothing_falls_through_to_the_ancestor() {
         "a whole real multiple of 90 is the page's own; 45.0 falls through"
     );
 }
+
+#[test]
+fn pages_the_tree_does_not_reach_are_appended_and_listed() {
+    // D-112 (c): page 4 left `/Kids` in an incremental update.
+    let buf = fixtures::incremental_page_removed();
+    let (carve, graph, remap) = planned(&buf);
+    let plan = rebuild_page_tree(&carve, &graph, &remap, PageSize::A4);
+    let outside = pages_outside_tree(&carve, &graph, &remap);
+    let ids: Vec<ObjId> = (outside.iter())
+        .map(|&h| match h {
+            Held::Object(at) => carve.objects[at].declared_id,
+            Held::Orphan(_) => panic!("no orphan here"),
+        })
+        .collect();
+    assert_eq!(ids, [id(4)]);
+    assert_eq!(plan.appended, outside);
+    let numbers: Vec<u32> = plan.pages.iter().map(|p| p.id).collect();
+    assert_eq!(numbers, [3, 4], "appended after the tree's page");
+    assert_eq!(
+        outside_tree_note(&carve, &outside),
+        "1 page not reachable from the page tree was appended: 4 0 obj"
+    );
+
+    let golden = fixtures::golden_pdf();
+    let (carve, graph, remap) = planned(&golden);
+    assert_eq!(pages_outside_tree(&carve, &graph, &remap), []);
+    let plan = rebuild_page_tree(&carve, &graph, &remap, PageSize::A4);
+    assert_eq!(plan.appended, []);
+}
+
+#[test]
+fn a_headerless_page_outside_the_tree_is_named_by_its_place() {
+    let headerless = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n";
+    let buf = pdf(&[
+        obj(1, "<< /Type /Catalog /Pages 2 0 R >>"),
+        obj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        obj(3, "<< /Type /Page /Parent 2 0 R >>"),
+        Part::Raw(headerless.to_owned()),
+        obj(5, "<< /Type /Page /Parent 2 0 R >>"),
+    ]);
+    let at = buf
+        .windows(headerless.len())
+        .position(|w| w == headerless.as_bytes())
+        .expect("the headerless page");
+    let (carve, graph, remap) = planned(&buf);
+    let outside = pages_outside_tree(&carve, &graph, &remap);
+    assert_eq!(outside.len(), 2, "{outside:?}");
+    assert_eq!(
+        outside_tree_note(&carve, &outside),
+        format!(
+            "2 pages not reachable from the page tree were appended: the headerless page at \
+             byte {at}, 5 0 obj"
+        )
+    );
+}

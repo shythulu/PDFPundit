@@ -599,3 +599,25 @@ fn hand_built_fixtures_match_their_committed_hashes() {
         assert_eq!(hex(&Sha256::digest(f())), want, "{label}");
     }
 }
+
+#[test]
+fn incremental_page_removed_hides_page_two_from_readers_but_keeps_its_bytes() {
+    let g = golden_pdf();
+    let b = incremental_page_removed();
+    assert!(b.starts_with(&g), "an incremental update only appends");
+    let doc = load_strict(&b);
+    assert_eq!(doc.get_pages().keys().copied().collect::<Vec<_>>(), [1]);
+    assert_eq!(doc.get_pages()[&1], (3, 0));
+    assert!(
+        find(&b[g.len()..], b"4 1\n0000000000 00001 f ").is_some(),
+        "the update marks object 4 free"
+    );
+    // The golden's page 2 is still in the file, under its old header.
+    let all = headers(&b);
+    assert_eq!(all.iter().filter(|&&(_, n)| n == 4).count(), 1);
+    let appended: Vec<u32> = (all.iter())
+        .filter(|&&(at, _)| at >= g.len())
+        .map(|&(_, n)| n)
+        .collect();
+    assert_eq!(appended, [2]);
+}

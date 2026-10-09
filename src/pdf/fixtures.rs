@@ -631,6 +631,46 @@ pub fn word_style_arial_page() -> Vec<u8> {
     single_page(BTreeMap::from([("F1", FONT)]), content, extra)
 }
 
+/// [`golden_pdf`] with an incremental update that deletes page 2 (object 4):
+/// a new copy of page-tree node 2 whose `/Kids` holds page 1 alone, and an
+/// xref section that rewrites node 2, marks object 4 free (generation 1) and
+/// names the golden's table as `/Prev`. Page 4's bytes stay in the file, as
+/// every incremental update leaves them (D-112).
+pub fn incremental_page_removed() -> Vec<u8> {
+    let mut out = golden_pdf();
+    let prev = startxref(&out);
+    if !out.ends_with(b"\n") {
+        out.push(b'\n');
+    }
+    let node = out.len();
+    let pages = dict(vec![
+        ("Type", name(b"Pages")),
+        ("Kids", Object::Array(vec![r(PAGE_IDS[0])])),
+        ("Count", int(1)),
+    ]);
+    out.extend_from_slice(format!("{PAGES} 0 obj\n").as_bytes());
+    write_object(&mut out, &Object::Dictionary(pages));
+    out.extend_from_slice(b"\nendobj\n");
+    let xref = out.len();
+    let removed = PAGE_IDS[1];
+    let size = CONTENTS[1] + 1;
+    let table = format!(
+        "xref\n0 1\n{removed:010} 65535 f \n{PAGES} 1\n{node:010} 00000 n \n\
+         {removed} 1\n0000000000 00001 f \n"
+    );
+    out.extend_from_slice(table.as_bytes());
+    let trailer = dict(vec![
+        ("Size", int(i64::from(size))),
+        ("Root", r(CATALOG)),
+        ("Prev", int(prev as i64)),
+        ("ID", Hand::id()),
+    ]);
+    out.extend_from_slice(b"trailer\n");
+    write_object(&mut out, &Object::Dictionary(trailer));
+    out.extend_from_slice(format!("\nstartxref\n{xref}\n%%EOF\n").as_bytes());
+    out
+}
+
 /// The blank-case constructions (goal-r2-fr2 §3): one content stream per
 /// page of [`blank_cases_pdf`], in page order.
 pub const BLANK_CASES: [&str; 11] = [

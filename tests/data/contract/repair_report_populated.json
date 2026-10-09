@@ -792,6 +792,23 @@
         }
       ],
       "repair": "NotApplicable"
+    },
+    {
+      "id": "OFFTREE-001",
+      "class": {
+        "PagesOutsideTree": {
+          "pages": 1
+        }
+      },
+      "severity": "Info",
+      "location": "File",
+      "summary": "1 page not reachable from the page tree was appended: 4 0 obj",
+      "evidence": [
+        {
+          "Text": "1 page not reachable from the page tree was appended: 4 0 obj"
+        }
+      ],
+      "repair": "NotApplicable"
     }
   ],
   "findings_after": [
