@@ -9,6 +9,7 @@
 //! crossterm reader in `input/mod.rs`, nothing more.
 
 use std::collections::BTreeMap;
+use std::ffi::OsStr;
 use std::io::{self, IsTerminal, Write};
 
 use crossterm::{cursor, execute, terminal};
@@ -17,8 +18,8 @@ use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Modifier};
 
-use super::canvas::{Canvas, printable, width};
-use super::color::{ColorCaps, Rgb, Snap, xterm256};
+use super::canvas::{Canvas, CanvasCell, HALF, printable, width};
+use super::color::{ColorCaps, Rgb, Snap, lightness, xterm256};
 use super::input::osc72;
 use super::theme::Theme;
 use crate::panic_guard;
@@ -31,20 +32,32 @@ pub fn stdio_is_terminal() -> bool {
     io::stdin().is_terminal() && io::stdout().is_terminal()
 }
 
-/// What the terminal can show, from `COLORTERM` and `TERM` (the two variables
-/// the probe may read, plan §3.1). A Windows console with no `TERM` takes
-/// 24-bit colour, as every Windows 10 console does.
+/// What the terminal can show, from `NO_COLOR`, `COLORTERM` and `TERM` (the
+/// three variables the probe may read, plan §3.1). A non-empty `NO_COLOR` is
+/// read first and turns colour off (no-color.org; UX "Accessibility:
+/// NO_COLOR"). A Windows console with no `TERM` takes 24-bit colour, as every
+/// Windows 10 console does.
 pub fn probe_color_caps() -> ColorCaps {
+    let no_color = std::env::var_os("NO_COLOR");
     let colorterm = std::env::var_os("COLORTERM");
     let term = std::env::var_os("TERM");
     color_caps(
+        no_color.as_deref(),
         colorterm.as_deref().and_then(|s| s.to_str()),
         term.as_deref().and_then(|s| s.to_str()),
         cfg!(windows),
     )
 }
 
-fn color_caps(colorterm: Option<&str>, term: Option<&str>, windows: bool) -> ColorCaps {
+fn color_caps(
+    no_color: Option<&OsStr>,
+    colorterm: Option<&str>,
+    term: Option<&str>,
+    windows: bool,
+) -> ColorCaps {
+    if no_color.is_some_and(|v| !v.is_empty()) {
+        return ColorCaps::None;
+    }
     let colorterm = colorterm.unwrap_or("").to_ascii_lowercase();
     let term = term.map(str::to_ascii_lowercase);
     if colorterm == "truecolor" || colorterm == "24bit" {
@@ -361,7 +374,7 @@ pub fn flush_input() -> io::Result<()> {
 
 /// Turns canvas colours into terminal colours: 24-bit as they are; otherwise
 /// the nearest xterm colour 16-255, or the nearest of the theme's 16 ANSI
-/// colours, as an index.
+/// colours, as an index; or, with no colour, into attributes.
 pub struct Palette {
     caps: ColorCaps,
     entries: Vec<Rgb>,
@@ -369,22 +382,72 @@ pub struct Palette {
     /// The first index `entries` stands for.
     base: u8,
     seen: BTreeMap<Rgb, u8>,
+    /// The theme's heading, dim and lightbar colours: under
+    /// [`ColorCaps::None`] they are bold, faint and reverse video.
+    attrs: [Rgb; 3],
 }
+
+/// A pixel pair's pixel is lit, under [`ColorCaps::None`], from this OKLab
+/// lightness (thousandths) up.
+const LIT: u16 = 500;
 
 impl Palette {
     pub fn new(caps: ColorCaps, theme: &Theme) -> Palette {
         let (entries, base) = match caps {
-            ColorCaps::TrueColor => (Vec::new(), 0),
+            ColorCaps::TrueColor | ColorCaps::None => (Vec::new(), 0),
             ColorCaps::Ansi256 => (xterm256().to_vec(), 16),
             ColorCaps::Ansi16 => (theme.ansi.to_vec(), 0),
         };
+        let r = &theme.roles;
         Palette {
             caps,
             snap: Snap::new(&entries),
             entries,
             base,
             seen: BTreeMap::new(),
+            attrs: [r.heading, r.dim, r.lightbar],
         }
+    }
+
+    /// A cell as the terminal shows it: its character, colours and
+    /// attributes. With colour, the character and colours as they are. With
+    /// none ([`ColorCaps::None`], drawn in [`Theme::monochrome`]), the
+    /// terminal's own colours, and the theme's colours as attributes: the
+    /// lightbar background as reverse video (SGR 7), heading text as bold
+    /// (SGR 1), dim text as faint (SGR 2), anything else plain. A pixel pair
+    /// (the logo, the plate, a dragged file) becomes the block of its lit
+    /// pixels, `█`, `▀`, `▄` or a space, so it keeps its shape without a
+    /// second colour.
+    fn paint(&mut self, ch: char, cell: CanvasCell) -> (char, Color, Color, Modifier) {
+        if self.caps != ColorCaps::None {
+            return (
+                ch,
+                self.color(cell.fg),
+                self.color(cell.bg),
+                Modifier::empty(),
+            );
+        }
+        let [bold, faint, reverse] = self.attrs;
+        if ch == HALF {
+            let lit = |c: Rgb| lightness(c) >= LIT;
+            let block = match (lit(cell.fg), lit(cell.bg)) {
+                (true, true) => '█',
+                (true, false) => HALF,
+                (false, true) => '▄',
+                (false, false) => ' ',
+            };
+            return (block, Color::Reset, Color::Reset, Modifier::empty());
+        }
+        let mut m = Modifier::empty();
+        if cell.bg == reverse {
+            m |= Modifier::REVERSED;
+        }
+        if cell.fg == bold {
+            m |= Modifier::BOLD;
+        } else if cell.fg == faint {
+            m |= Modifier::DIM;
+        }
+        (ch, Color::Reset, Color::Reset, m)
     }
 
     fn color(&mut self, c: Rgb) -> Color {
@@ -407,7 +470,8 @@ impl Palette {
 }
 
 /// The blit: every canvas cell into `buf` (`set_symbol`, the colours through
-/// `palette`, a blinking cell as `SLOW_BLINK`). Cells past either edge of
+/// `palette`, as attributes when there is no colour, a blinking cell as
+/// `SLOW_BLINK`). Cells past either edge of
 /// `buf` are dropped. A control, bidi control or other format character in a
 /// cell is shown as `�` ([`printable`]), and so is a zero-width character,
 /// which would shift the rest of the row: [`Canvas::text`] already replaces
@@ -425,13 +489,14 @@ pub fn blit(canvas: &Canvas, buf: &mut Buffer, palette: &mut Palette) {
                 ch if width(ch) == 0 => '\u{fffd}',
                 ch => ch,
             };
+            let (ch, fg, bg, attrs) = palette.paint(ch, cell);
             out.set_symbol(ch.encode_utf8(&mut sym));
-            out.set_fg(palette.color(cell.fg));
-            out.set_bg(palette.color(cell.bg));
+            out.set_fg(fg);
+            out.set_bg(bg);
             out.modifier = if canvas.blink.contains(&(x, y)) {
-                Modifier::SLOW_BLINK
+                attrs | Modifier::SLOW_BLINK
             } else {
-                Modifier::empty()
+                attrs
             };
         }
     }
@@ -543,7 +608,6 @@ impl TestScreen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::canvas::HALF;
 
     fn theme() -> &'static Theme {
         Theme::default_theme()
@@ -551,7 +615,7 @@ mod tests {
 
     #[test]
     fn the_probe_reads_colorterm_then_term() {
-        use ColorCaps::*;
+        use ColorCaps::{Ansi16, Ansi256, TrueColor};
         for (colorterm, term, windows, want) in [
             (Some("truecolor"), Some("xterm-256color"), false, TrueColor),
             (Some("24bit"), None, false, TrueColor),
@@ -566,10 +630,39 @@ mod tests {
             (None, Some("xterm"), true, Ansi16),
         ] {
             assert_eq!(
-                color_caps(colorterm, term, windows),
+                color_caps(None, colorterm, term, windows),
                 want,
                 "{colorterm:?} {term:?} {windows}"
             );
+        }
+    }
+
+    /// `NO_COLOR` (no-color.org): any non-empty value turns colour off
+    /// before `COLORTERM` and `TERM` are looked at; an empty one is ignored.
+    #[test]
+    fn a_non_empty_no_color_turns_colour_off() {
+        let set = |v: &str| Some(std::ffi::OsString::from(v));
+        for (colorterm, term, windows) in [
+            (Some("truecolor"), Some("xterm-direct"), false),
+            (None, Some("xterm-256color"), false),
+            (None, Some("xterm"), false),
+            (None, None, true),
+        ] {
+            let plain = color_caps(None, colorterm, term, windows);
+            let empty = set("");
+            assert_eq!(
+                color_caps(empty.as_deref(), colorterm, term, windows),
+                plain,
+                "NO_COLOR=\"\" is ignored: {colorterm:?} {term:?}"
+            );
+            for v in ["1", "0", "false", " "] {
+                let no_color = set(v);
+                assert_eq!(
+                    color_caps(no_color.as_deref(), colorterm, term, windows),
+                    ColorCaps::None,
+                    "NO_COLOR={v:?}: {colorterm:?} {term:?}"
+                );
+            }
         }
     }
 
@@ -791,6 +884,110 @@ mod tests {
         .map(|(x, s)| (x, s.to_string()))
         .collect();
         assert_eq!(sent, want);
+    }
+
+    /// Every SGR parameter list (`ESC [ … m`) in `bytes`.
+    fn sgr_params(bytes: &[u8]) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i + 1 < bytes.len() {
+            if bytes[i] == 0x1b && bytes[i + 1] == b'[' {
+                let mut j = i + 2;
+                while bytes.get(j).is_some_and(|b| (0x20..=0x3f).contains(b)) {
+                    j += 1;
+                }
+                if bytes.get(j) == Some(&b'm') {
+                    out.push(String::from_utf8_lossy(&bytes[i + 2..j]).into_owned());
+                }
+                i = j;
+            } else {
+                i += 1;
+            }
+        }
+        out
+    }
+
+    /// `NO_COLOR`: the blit writes no colour at all, no `38;` or `48;` SGR
+    /// and nothing but the terminal's own colours in any cell. The theme's
+    /// roles are attributes: the lightbar is reverse video (7), headings
+    /// bold (1), dim text faint (2), the rest plain; blinking stays. A pixel
+    /// pair becomes the block of its lit pixels.
+    #[test]
+    fn no_colour_blits_attributes_and_no_colour() {
+        let mono = theme().monochrome();
+        let r = &mono.roles;
+        let mut c = Canvas::new(12, 3, &mono);
+        c.text(0, 0, "plain", r.body, None);
+        c.text(6, 0, "head", r.heading, None);
+        c.text(0, 1, "dim", r.dim, None);
+        c.text(4, 1, "►bar", r.heading, Some(r.lightbar));
+        c.text(9, 1, "x", r.body, Some(r.lightbar));
+        c.put(11, 1, '‼', Some(r.hotkey), None);
+        c.set_blink(11, 1);
+        // A stray colour from another theme is plain too.
+        c.put(
+            11,
+            0,
+            'r',
+            Some(Rgb::from_u32(0xe0445c)),
+            Some(Rgb::from_u32(0x2040ff)),
+        );
+        let lit = Rgb::from_u32(0xf0f0f0);
+        let unlit = Rgb::from_u32(0x101010);
+        c.pix(0, 4, &[[Some(lit), Some(lit), Some(unlit), Some(unlit)]]);
+        c.pix(0, 5, &[[Some(lit), Some(unlit), Some(lit), Some(unlit)]]);
+
+        let area = ratatui::layout::Rect::new(0, 0, 12, 3);
+        let mut buf = Buffer::empty(area);
+        blit(&c, &mut buf, &mut Palette::new(ColorCaps::None, &mono));
+        for cell in &buf.content {
+            assert_eq!((cell.fg, cell.bg), (Color::Reset, Color::Reset));
+        }
+        let m = |x, y| buf[(x, y)].modifier;
+        assert_eq!(m(0, 0), Modifier::empty());
+        assert_eq!(m(6, 0), Modifier::BOLD);
+        assert_eq!(m(11, 0), Modifier::empty());
+        assert_eq!(m(0, 1), Modifier::DIM);
+        assert_eq!(buf[(4, 1)].symbol(), "►");
+        assert_eq!(m(4, 1), Modifier::BOLD | Modifier::REVERSED);
+        assert_eq!(m(9, 1), Modifier::REVERSED);
+        assert_eq!(m(11, 1), Modifier::SLOW_BLINK);
+        let blocks: String = (0..4).map(|x| buf[(x, 2)].symbol().to_string()).collect();
+        assert_eq!(blocks, "█▀▄ ");
+
+        let mut bytes = Vec::new();
+        let cells = buf.content.iter().enumerate().map(|(i, cell)| {
+            let (x, y) = buf.pos_of(i);
+            (x, y, cell)
+        });
+        CrosstermBackend::new(&mut bytes)
+            .draw(cells)
+            .expect("drawn");
+        let sgr = sgr_params(&bytes);
+        let mut seen = BTreeMap::new();
+        for p in &sgr {
+            assert!(
+                !p.split(';').any(|n| n == "38" || n == "48"),
+                "a colour SGR: {p:?}"
+            );
+            for n in p.split(';') {
+                *seen.entry(n.to_string()).or_insert(0) += 1;
+            }
+        }
+        let shown = String::from_utf8_lossy(&bytes);
+        assert!(
+            !shown.contains("38;") && !shown.contains("48;"),
+            "{shown:?}"
+        );
+        for on in ["1", "2", "7", "5"] {
+            assert!(seen.contains_key(on), "SGR {on} set: {sgr:?}");
+        }
+        // Setting only 1, 2, 7 and the blink's 5; the rest turn them off or
+        // reset the default colours (39, 49 and the underline's 59).
+        let allowed = ["0", "1", "2", "5", "7", "22", "25", "27", "39", "49", "59"];
+        for n in seen.keys() {
+            assert!(allowed.contains(&n.as_str()), "SGR {n}: {sgr:?}");
+        }
     }
 
     #[test]

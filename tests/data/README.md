@@ -49,7 +49,8 @@ asserts hayro decodes it.
 ## `ui-self/` (T-37, D-048)
 
 Self-goldens: frames of screens the mockup has no frame for yet (the browse
-picker, full layout and widget), drawn once by this crate and committed in the
+picker, full layout and widget; the `NO_COLOR` shade-block cat at 0.93 and
+0.465, H-24), drawn once by this crate and committed in the
 `ui/` goldens' JSON format. They hold the look still until the user supplies a
 mockup frame. To accept a deliberate change, run the test with
 `PDFPUNDIT_BLESS_UI=1` and review the diff. The file names in them are the

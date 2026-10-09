@@ -106,7 +106,12 @@ impl Layout for WidgetLayout {
 /// The widget's cells; [`WidgetLayout::draw`] clips them to the tile.
 fn draw_tile(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
     let (cx, cy) = CAT_AT;
-    c.blit_grid(&cat::render(&cat.pose, CAT_SCALE, theme, cat.glow), cx, cy);
+    c.blit_cat(
+        &cat::render(&cat.pose, CAT_SCALE, theme, cat.glow),
+        cx,
+        cy,
+        theme,
+    );
     if let Some(off) = cat.pose.plate {
         c.blit_grid(&cat::plate(PLATE_W, Some(off)), PLATE_AT.0, PLATE_AT.1);
     }
@@ -404,6 +409,61 @@ mod tests {
         );
         assert_eq!(zy + zh, LINE_Y, "up to the hint row");
         assert_eq!(WidgetLayout.drop_zone(), Some(DROP_ZONE));
+    }
+
+    /// `NO_COLOR` (UX "Accessibility: NO_COLOR"): the widget draws in the
+    /// monochrome theme and the blit with no colour leaves every cell in the
+    /// terminal's own colours. The cat is shade blocks above its plate, the
+    /// state glyphs stay, and the needs-you line still blinks.
+    #[test]
+    fn the_widget_draws_without_colour() {
+        use crate::ui::color::ColorCaps;
+        use crate::ui::term::{Palette, blit};
+        use ratatui::buffer::Buffer;
+        use ratatui::style::{Color, Modifier};
+        let mono = theme().monochrome();
+        let app = AppState::mockup_widget_needs();
+        let vm = view(&app);
+        let mut c = Canvas::new(WIDGET_SIZE.0, WIDGET_SIZE.1, &mono);
+        WidgetLayout.draw(&mut c, &vm, &resting(&vm), &mono);
+        let mut colour = Canvas::new(WIDGET_SIZE.0, WIDGET_SIZE.1, theme());
+        WidgetLayout.draw(&mut colour, &vm, &resting(&vm), theme());
+        let area = ratatui::layout::Rect::new(0, 0, WIDGET_SIZE.0, WIDGET_SIZE.1);
+        let mut buf = Buffer::empty(area);
+        blit(&c, &mut buf, &mut Palette::new(ColorCaps::None, &mono));
+        for cell in &buf.content {
+            assert_eq!((cell.fg, cell.bg), (Color::Reset, Color::Reset));
+        }
+
+        let g = cat::render(&cat::Pose::default(), CAT_SCALE, theme(), 0.0);
+        let (x, y) = (CAT_AT.0 as u16, CAT_AT.1 as u16);
+        let mut blocks = 0;
+        for gy in 0..(PLATE_AT.1 - CAT_AT.1) as u16 {
+            for gx in 0..g.cols {
+                let ch = c.get(x + gx, y + gy).expect("on the tile").ch;
+                assert_ne!(ch, crate::ui::canvas::HALF, "({gx}, {gy})");
+                blocks += usize::from(cat::SHADES[1..].contains(&ch));
+            }
+        }
+        assert!(blocks > 40, "{blocks} shade blocks");
+
+        // Below the cat, the text rows are the colour widget's, character
+        // for character, and blink where it blinks.
+        for y in LINE_Y as u16..WIDGET_SIZE.1 {
+            for x in 0..WIDGET_SIZE.0 {
+                let (m, k) = (c.get(x, y), colour.get(x, y));
+                assert_eq!(m.map(|m| m.ch), k.map(|k| k.ch), "({x}, {y})");
+            }
+        }
+        assert_eq!(c.blink, colour.blink);
+        assert!(!c.blink.is_empty(), "the needs-you line blinks");
+        let row: String = (0..WIDGET_SIZE.0)
+            .map(|x| buf[(x, LINE_Y as u16)].symbol().to_string())
+            .collect();
+        assert!(row.contains('‼'), "{row:?}");
+        for &(x, y) in &c.blink {
+            assert!(buf[(x, y)].modifier.contains(Modifier::SLOW_BLINK));
+        }
     }
 
     /// The four mood states, from the view model of fixture app states.

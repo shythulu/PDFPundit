@@ -88,6 +88,29 @@ pub struct Theme {
     /// The logo's drop shadow (generate.py's `shadow`): DarkBerry's `crust`,
     /// else the background mixed 60% towards the lightbar.
     pub logo_shadow: Rgb,
+    /// Drawn for a terminal without colour ([`Theme::monochrome`]): its
+    /// colours stand for attributes, and the cat is drawn in shade blocks.
+    pub monochrome: bool,
+}
+
+/// [`Theme::monochrome`]'s colours. Each stands for an attribute, not a
+/// colour: the blit under [`ColorCaps::None`] writes the terminal's own
+/// colours and turns these into SGR 1 (bold), 2 (faint) and 7 (reverse
+/// video). They are greys, light to dark in the order a dark terminal shows
+/// them, so pixels drawn in them (the logo) keep their shape.
+mod mono {
+    use super::Rgb;
+
+    /// The background: the terminal's own.
+    pub const BG: Rgb = Rgb([0x00, 0x00, 0x00]);
+    /// Plain text: everything that is not one of the three below.
+    pub const PLAIN: Rgb = Rgb([0xc0, 0xc0, 0xc0]);
+    /// Headings: bold.
+    pub const BOLD: Rgb = Rgb([0xff, 0xff, 0xff]);
+    /// Dim text: faint.
+    pub const FAINT: Rgb = Rgb([0x80, 0x80, 0x80]);
+    /// The lightbar (and the status bar on it): reverse video.
+    pub const REVERSE: Rgb = Rgb([0x40, 0x40, 0x40]);
 }
 
 /// generate.py's `KEYS`: the slot letters in [`Theme::slots`] order.
@@ -156,6 +179,7 @@ impl Theme {
     pub fn downgrade(&self, caps: ColorCaps) -> Theme {
         let snap = match caps {
             ColorCaps::TrueColor => return self.clone(),
+            ColorCaps::None => return self.monochrome(),
             ColorCaps::Ansi256 => Snap::new(&xterm256()),
             ColorCaps::Ansi16 => Snap::new(&self.ansi),
         };
@@ -195,6 +219,57 @@ impl Theme {
             },
             logo_ramp: v(&self.logo_ramp),
             logo_shadow: s(self.logo_shadow),
+            monochrome: false,
+        }
+    }
+
+    /// This theme for a terminal without colour (`NO_COLOR`, UX
+    /// "Accessibility: NO_COLOR"): the roles become attributes. The lightbar
+    /// is reverse video, headings (`W`) bold, dim text (`D`) faint, and every
+    /// other role, slot and gradient plain, so borders, separators and bars
+    /// keep their characters and lose only their colour. The name stays, so
+    /// the chooser still marks the theme in use; `ansi` is kept and unused.
+    pub fn monochrome(&self) -> Theme {
+        use mono::{BG, BOLD, FAINT, PLAIN, REVERSE};
+        let mut slots = [PLAIN; 16];
+        slots[K] = BG;
+        slots[B_LO] = REVERSE;
+        slots[W] = BOLD;
+        slots[D] = FAINT;
+        let plain = || vec![PLAIN];
+        Theme {
+            name: self.name,
+            dark: self.dark,
+            ansi: self.ansi,
+            slots,
+            roles: Roles {
+                bg: BG,
+                lightbar: REVERSE,
+                heading: BOLD,
+                body: PLAIN,
+                dim: FAINT,
+                file: PLAIN,
+                hotkey: PLAIN,
+                error: PLAIN,
+                ok: PLAIN,
+                needs_input: PLAIN,
+                accent: PLAIN,
+                info: PLAIN,
+                border_stops: plain(),
+            },
+            gradients: Gradients {
+                modal: plain(),
+                menu: plain(),
+                bar: plain(),
+                bar2: plain(),
+                ok: plain(),
+                vu: plain(),
+                sep: plain(),
+                tag: plain(),
+            },
+            logo_ramp: plain(),
+            logo_shadow: BG,
+            monochrome: true,
         }
     }
 }
@@ -259,6 +334,7 @@ fn mk_theme(
         gradients,
         logo_ramp,
         logo_shadow: logo_shadow.unwrap_or_else(|| mix(a[K], a[B_LO], 0.6)),
+        monochrome: false,
     }
 }
 
@@ -889,6 +965,62 @@ mod tests {
         v.extend(&r.border_stops);
         v.extend(&t.logo_ramp);
         v
+    }
+
+    /// `NO_COLOR`: every theme gives the same five greys, one per
+    /// attribute, distinct so the blit can tell them apart; the name stays.
+    #[test]
+    fn no_colour_turns_roles_into_attributes() {
+        use mono::{BG, BOLD, FAINT, PLAIN, REVERSE};
+        let distinct: std::collections::BTreeSet<Rgb> = [BG, BOLD, FAINT, PLAIN, REVERSE].into();
+        assert_eq!(distinct.len(), 5);
+        for t in Theme::all() {
+            assert!(!t.monochrome, "{}", t.name);
+            let m = t.downgrade(ColorCaps::None);
+            assert_eq!(m, t.monochrome(), "{}", t.name);
+            assert!(m.monochrome);
+            assert_eq!((m.name, m.ansi), (t.name, t.ansi));
+            let r = &m.roles;
+            assert_eq!(
+                (r.bg, r.lightbar, r.heading, r.dim, r.body),
+                (BG, REVERSE, BOLD, FAINT, PLAIN)
+            );
+            for c in [
+                r.file,
+                r.hotkey,
+                r.error,
+                r.ok,
+                r.needs_input,
+                r.accent,
+                r.info,
+            ] {
+                assert_eq!(c, PLAIN, "{}", t.name);
+            }
+            for (k, c) in SLOT_KEYS.iter().zip(m.slots) {
+                let want = match k {
+                    'K' => BG,
+                    'b' => REVERSE,
+                    'W' => BOLD,
+                    'D' => FAINT,
+                    _ => PLAIN,
+                };
+                assert_eq!(c, want, "{}: slot {k}", t.name);
+            }
+            let g = &m.gradients;
+            let stops = [
+                &g.modal,
+                &g.menu,
+                &g.bar,
+                &g.bar2,
+                &g.ok,
+                &g.vu,
+                &g.sep,
+                &g.tag,
+                &r.border_stops,
+                &m.logo_ramp,
+            ];
+            assert!(stops.into_iter().flatten().all(|&c| c == PLAIN));
+        }
     }
 
     #[test]

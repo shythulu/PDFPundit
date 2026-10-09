@@ -25,7 +25,7 @@ use std::collections::BTreeSet;
 use unicode_normalization::UnicodeNormalization;
 use unicode_width::UnicodeWidthChar;
 
-use super::cat::CellGrid;
+use super::cat::{self, CellGrid};
 use super::color::{Rgb, mix, ramp};
 use super::theme::Theme;
 
@@ -296,6 +296,26 @@ impl Canvas {
                 if let Some(cell) = grid.get(gx, gy) {
                     let (top, bottom) = cell.halves();
                     self.pixel_pair(x + i32::from(gx), y + i32::from(gy), top, bottom);
+                }
+            }
+        }
+    }
+
+    /// Draws the cat's grid with its top-left cell at `(x, y)`: as half-block
+    /// pixels ([`Canvas::blit_grid`]), or, in a theme for a terminal without
+    /// colour ([`Theme::monochrome`]), as shade blocks ([`cat::shade`]) in the
+    /// body colour, each drawn cell a character, a space included.
+    pub fn blit_cat(&mut self, grid: &CellGrid, x: i32, y: i32, theme: &Theme) {
+        if !theme.monochrome {
+            self.blit_grid(grid, x, y);
+            return;
+        }
+        let shades = cat::shade(grid);
+        for gy in 0..shades.rows {
+            for gx in 0..shades.cols {
+                if let Some(ch) = shades.get(gx, gy) {
+                    let (cx, cy) = (x + i32::from(gx), y + i32::from(gy));
+                    self.put(cx, cy, ch, Some(theme.roles.body), None);
                 }
             }
         }

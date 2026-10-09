@@ -40,13 +40,17 @@ impl fmt::Display for Rgb {
     }
 }
 
-/// What the terminal can show: 24-bit colour, the xterm 256-colour palette, or
-/// only the 16 ANSI colours. `Theme::downgrade` maps a theme onto it.
+/// What the terminal can show: 24-bit colour, the xterm 256-colour palette,
+/// only the 16 ANSI colours, or no colour at all (`NO_COLOR`).
+/// `Theme::downgrade` maps a theme onto it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColorCaps {
     TrueColor,
     Ansi256,
     Ansi16,
+    /// No colour: roles become attributes (`Theme::monochrome`)
+    /// and the cat is drawn in shade blocks (Q32).
+    None,
 }
 
 /// Python's `max(0.0, min(1.0, x))`, NaN and signed zero included (`min`
@@ -87,6 +91,15 @@ pub fn lab(c: Rgb) -> [f64; 3] {
         1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
         0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
     ]
+}
+
+/// OKLab lightness in thousandths, 0 (black) to 1000 (white), rounded half to
+/// even: the integer the no-colour drawing (`NO_COLOR`) compares with fixed
+/// thresholds.
+pub fn lightness(c: Rgb) -> u16 {
+    let l = clamp01(lab(c)[0]) * 1000.0;
+    // Within [0, 1000], so the cast neither wraps nor saturates.
+    l.round_ties_even() as u16
 }
 
 /// OKLab to sRGB, each channel clamped and rounded half-to-even.
@@ -252,6 +265,14 @@ mod tests {
         // t is clamped before rounding.
         assert_eq!(mix(base, jam, -3.0), base);
         assert_eq!(mix(base, jam, 9.0), jam);
+    }
+
+    #[test]
+    fn lightness_runs_from_black_to_white_in_thousandths() {
+        assert_eq!(lightness(Rgb([0, 0, 0])), 0);
+        assert_eq!(lightness(Rgb([0xff, 0xff, 0xff])), 1000);
+        // Mid grey #808080 is OKLab L 0.5999.
+        assert_eq!(lightness(Rgb([0x80, 0x80, 0x80])), 600);
     }
 
     #[test]
