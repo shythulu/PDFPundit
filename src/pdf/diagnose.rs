@@ -55,13 +55,17 @@
 //!   when the resources in force are unknown: a `/Resources` or `/Font`
 //!   entry names nothing usable (its target is not a dictionary), or the
 //!   page's `/Parent` chain names no object, loops or is not a reference.
-//! - **C7**: a `/FontDescriptor` with no `/FontFile`, `/FontFile2` or
-//!   `/FontFile3`, or one whose stream is missing, empty, all 0x20 or does not
-//!   read as a font. A font never embedded (no such key) is C7 too, as #14
-//!   has it. A standard-14 name without a program is how such fonts are
-//!   written and gives no finding: #14's "not embedded" Warning has no
-//!   `FindingKind` to carry it. A Type3 font's descriptor is skipped. A font
-//!   program whose Flate data does not decode is C9's.
+//! - **C7**: a `/FontDescriptor` whose `/FontFile`, `/FontFile2` or
+//!   `/FontFile3` is not a reference, or names a stream that is missing,
+//!   empty, all 0x20 or does not read as a font: a program that was there
+//!   and is gone. A Type3 font's descriptor is skipped. A font program whose
+//!   Flate data does not decode is C9's.
+//! - **FontNotEmbedded**: a descriptor with none of those keys, a font never
+//!   embedded (a system font left out on purpose), is an Info note on the
+//!   descriptor, `NotApplicable`, never C7 or C8 and never a question
+//!   (D-084). `font` is the font a page selects (a CIDFont's Type0 parent),
+//!   or the descriptor when no font names it. A standard-14 name gives no
+//!   finding at all: that is how such fonts are written.
 //! - **C8**: C7, and the font's `/ToUnicode` (a CIDFont's is on its Type0
 //!   parent) is missing, empty, all 0x20 or holds no `bfchar`/`bfrange`
 //!   CMap. C8 replaces C7 for that font. Both need a font pick: diagnose has
@@ -224,6 +228,7 @@ fn prefix(kind: &FindingKind) -> (&'static str, usize) {
         FindingKind::Signed { .. } => ("SIG", 11),
         FindingKind::OutlinedText { .. } => ("OUTLINE", 12),
         FindingKind::Type3Text { .. } => ("TYPE3", 13),
+        FindingKind::FontNotEmbedded { .. } => ("NOEMBED", 14),
     }
 }
 
@@ -1526,7 +1531,8 @@ fn without_subset_tag(name: &[u8]) -> &[u8] {
     }
 }
 
-/// The C7 and C8 findings, and the streams they found blank.
+/// The C7, C8 and `FontNotEmbedded` findings, and the streams C7 and C8
+/// found blank.
 fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<ObjId>) {
     let mut out = Vec::new();
     let mut blanked = BTreeSet::new();
@@ -1557,18 +1563,47 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
             .and_then(|o| o.as_name().ok())
             .map(|n| String::from_utf8_lossy(without_subset_tag(n)).into_owned());
 
+        // The font a page selects: a CIDFont's Type0 parent.
+        let top = user.map(|u| {
+            cx.graph
+                .referrers(u)
+                .iter()
+                .find(|e| e.path.first_key() == Some(&b"DescendantFonts"[..]))
+                .map_or(u, |e| e.from)
+        });
+        let (location, at, _) = cx.place(held);
+
         // C7: the program.
         let mut evidence = vec![Evidence::ObjectRef(desc)];
         let why = match FONT_FILES.iter().find_map(|&k| Some((k, d.get(k).ok()?))) {
-            // The #14 table wants a Warning "not embedded" here, but no
-            // FindingKind carries one: only Corruption(C7) fits, which the
-            // table rules out. No finding until one exists (decision pending).
+            // Every reader carries these: leaving them out is how they are
+            // written, so there is nothing to note.
             None if name.as_deref().is_some_and(|n| STANDARD_14.contains(&n)) => continue,
-            // Deliberate, per the #14 table: a font that was never embedded
-            // (no `/FontFile*` key at all, a system font left out on purpose)
-            // is C7, and C8 with no `/ToUnicode`. Whether such a font should
-            // be a Warning instead is a pending decision.
-            None => "not embedded".to_owned(),
+            // Never embedded (no `/FontFile*` key at all): a system font left
+            // out on purpose. A note, not damage, and it asks nothing (D-084).
+            None => {
+                let font = top.unwrap_or(desc);
+                if font != desc {
+                    evidence.push(Evidence::ObjectRef(font));
+                }
+                let summary = match &name {
+                    Some(n) => format!("the font {n} is not embedded"),
+                    None => "an unnamed font is not embedded".to_owned(),
+                };
+                out.push(Draft {
+                    at,
+                    kind: FindingKind::FontNotEmbedded {
+                        font,
+                        base_font: name.unwrap_or_default(),
+                    },
+                    severity: Severity::Info,
+                    location,
+                    summary,
+                    evidence,
+                    repair: Repairability::NotApplicable,
+                });
+                continue;
+            }
             Some((key, Object::Reference(id))) => {
                 if let Some((_, data, raw)) = cx.stream(*id) {
                     evidence.push(metric("fontfile_bytes", raw.len() as i64));
@@ -1598,13 +1633,6 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
         };
 
         // C8: and the `/ToUnicode` (a CIDFont's is on its Type0 parent).
-        let top = user.map(|u| {
-            cx.graph
-                .referrers(u)
-                .iter()
-                .find(|e| e.path.first_key() == Some(&b"DescendantFonts"[..]))
-                .map_or(u, |e| e.from)
-        });
         // (its reference, a note) when it is lost.
         let tounicode_lost = match top.and_then(font).and_then(|f| f.get(b"ToUnicode").ok()) {
             None => Some((None, None)),
@@ -1625,7 +1653,6 @@ fn font_programs(cx: &Cx<'_>, salvage: &SalvageIndex) -> (Vec<Draft>, BTreeSet<O
             Some(_) => None,
         };
         let name = name.unwrap_or_else(|| "an unnamed font".to_owned());
-        let (location, at, _) = cx.place(held);
         let draft = match tounicode_lost {
             None => Draft::corruption(C7FontStreamDeleted, Severity::Error, at, location)
                 .summary(format!("the font program of {name} is {why}")),

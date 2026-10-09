@@ -23,7 +23,9 @@ use std::num::NonZeroUsize;
 use lopdf::{Document, LoadOptions};
 
 use super::*;
-use crate::pdf::fixtures::{GOLDEN_TEXT, corrupt, golden_pdf, golden_pdf_signed};
+use crate::pdf::fixtures::{
+    GOLDEN_TEXT, corrupt, golden_pdf, golden_pdf_signed, word_style_arial_page,
+};
 
 use CorruptionClass::{
     C1Header, C2XrefMissing, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped,
@@ -818,6 +820,43 @@ fn a_lost_font_map_or_program_shows_in_the_font_slots() {
         "{:#?}",
         a.font_slots
     );
+}
+
+#[test]
+fn a_font_never_embedded_is_a_note_that_asks_nothing() {
+    // D-084 (b): a Word-style system font left out on purpose.
+    let bytes = word_style_arial_page();
+    let analysis = analysed(&bytes);
+    let kinds: Vec<&FindingKind> = analysis.findings.iter().map(|f| &f.class).collect();
+    assert_eq!(
+        kinds,
+        [&FindingKind::FontNotEmbedded {
+            font: (6, 0),
+            base_font: "Arial".into(),
+        }],
+        "{:#?}",
+        analysis.findings
+    );
+    assert_eq!(classes(&analysis.findings), []);
+    let f = &analysis.findings[0];
+    assert_eq!(
+        (f.severity, &f.repair),
+        (Severity::Info, &Repairability::NotApplicable)
+    );
+    assert!(analysis.font_slots.iter().all(|s| !s.embedded));
+
+    // No font question: an unscripted one panics.
+    let mut ask = Scripted::new([]);
+    let out = repaired_with(
+        &bytes,
+        &analysis,
+        &RepairOptions::default(),
+        &mut ask,
+        &mut NullProgress,
+    );
+    assert!(ask.asked.is_empty(), "{:#?}", ask.asked);
+    assert!(out.report.interactions.is_empty());
+    assert_eq!(classes(&out.report.findings_after), []);
 }
 
 #[test]

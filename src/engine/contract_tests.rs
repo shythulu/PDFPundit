@@ -486,7 +486,7 @@ fn fixtures_carry_every_variant() {
         }),
         CorruptionClass::ALL.len()
     ));
-    assert!(covers(all_findings().map(|f| kind_index(&f.class)), 5));
+    assert!(covers(all_findings().map(|f| kind_index(&f.class)), 6));
     assert!(covers(
         all_findings().map(|f| severity_index(f.severity)),
         3
@@ -640,6 +640,7 @@ fn kind_index(k: &FindingKind) -> usize {
         FindingKind::Signed { .. } => 2,
         FindingKind::OutlinedText { .. } => 3,
         FindingKind::Type3Text { .. } => 4,
+        FindingKind::FontNotEmbedded { .. } => 5,
     }
 }
 
@@ -969,6 +970,16 @@ fn model_findings() -> Vec<Finding> {
             Severity::Info,
             Repairability::NotApplicable,
             "text drawn by a Type 3 font",
+        ),
+        info(
+            "NOEMBED-001",
+            FindingKind::FontNotEmbedded {
+                font: (5, 0),
+                base_font: "Arial".into(),
+            },
+            Severity::Info,
+            Repairability::NotApplicable,
+            "the font Arial is not embedded",
         ),
     ]);
     findings

@@ -90,7 +90,7 @@ impl CorruptionClass {
 }
 
 /// What a [`Finding`] is about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FindingKind {
     Corruption(CorruptionClass),
     /// `/Encrypt` present: unrepairable until decrypted.
@@ -108,6 +108,15 @@ pub enum FindingKind {
     /// Text drawn by a Type 3 font. Info only.
     Type3Text {
         font: ObjId,
+    },
+    /// A font whose descriptor never named a program (no `/FontFile*` key):
+    /// a system font left out on purpose, not damage (D-084). `font` is the
+    /// font a page selects (a CIDFont's Type0 parent), or the descriptor when
+    /// no font names it; `base_font` is its name without a subset tag, empty
+    /// when it has none. Info only.
+    FontNotEmbedded {
+        font: ObjId,
+        base_font: String,
     },
 }
 
@@ -441,6 +450,7 @@ mod tests {
             FindingKind::Signed { .. } => 2,
             FindingKind::OutlinedText { .. } => 3,
             FindingKind::Type3Text { .. } => 4,
+            FindingKind::FontNotEmbedded { .. } => 5,
         }
     }
 
@@ -635,6 +645,21 @@ mod tests {
             repair: Repairability::Interactive(InteractionKind::FontUnreproducible),
         });
         findings.push(Finding {
+            id: "NOEMBED-001".into(),
+            class: FindingKind::FontNotEmbedded {
+                font: (5, 0),
+                base_font: "Arial".into(),
+            },
+            severity: Severity::Info,
+            location: Location::Object {
+                id: (6, 0),
+                span: None,
+            },
+            summary: "the font Arial is not embedded".into(),
+            evidence: vec![Evidence::ObjectRef((6, 0)), Evidence::ObjectRef((5, 0))],
+            repair: Repairability::NotApplicable,
+        });
+        findings.push(Finding {
             id: "C10-099".into(),
             class: FindingKind::Corruption(CorruptionClass::C10Truncated),
             severity: Severity::Error,
@@ -705,7 +730,7 @@ mod tests {
             _ => None,
         });
         assert!(covers(classes, 10));
-        assert!(covers(f.findings.iter().map(|x| kind_index(&x.class)), 5));
+        assert!(covers(f.findings.iter().map(|x| kind_index(&x.class)), 6));
         assert!(covers(
             f.findings.iter().map(|x| severity_index(x.severity)),
             3
