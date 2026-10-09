@@ -223,13 +223,50 @@ fn report_lines_state_the_fixed_lines() {
     assert_eq!(
         r.lines(),
         vec![
-            "the original is digitally signed; the repaired file is not".to_string(),
+            SIGNED_NOTE.to_string(),
             "7 streams repaired; 5 of them unique within the searched window; \
              2 accepted without a uniqueness check; 1 ambiguous; 1 unrecoverable, written as found"
                 .to_string(),
             "3 numbers were narrowed to single precision on re-emission".to_string(),
         ]
     );
+}
+
+/// Every file under `dir`, recursively.
+fn files_under(dir: &Path, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).expect("the directory reads") {
+        let path = entry.expect("the entry reads").path();
+        if path.is_dir() {
+            files_under(&path, out);
+        } else {
+            out.push(path);
+        }
+    }
+}
+
+/// Schema items 24 and 27: the C9 Exact text overclaimed and the signed text
+/// named an input the tool cannot tell from a copy. Neither phrase may come
+/// back anywhere in the source. Each is split here so this file holds
+/// neither whole.
+#[test]
+fn the_retired_phrases_appear_nowhere_under_src() {
+    let retired = [
+        concat!("no other repair ", "fits its window"),
+        concat!("the original ", "is digitally signed"),
+    ];
+    let mut files = Vec::new();
+    files_under(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+        &mut files,
+    );
+    assert!(files.len() > 100, "{} files", files.len());
+    for path in &files {
+        let bytes = std::fs::read(path).expect("the file reads");
+        for phrase in retired {
+            let found = (bytes.windows(phrase.len())).any(|w| w == phrase.as_bytes());
+            assert!(!found, "{} holds {phrase:?}", path.display());
+        }
+    }
 }
 
 // ── StateHandle ──────────────────────────────────────────────────────────

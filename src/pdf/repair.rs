@@ -684,16 +684,28 @@ impl RepairPass for Salvaged {
                     edits,
                     grade,
                     survivors,
+                    trailer_edit,
                     ..
                 } => {
                     summary.repaired += 1;
                     survivors_of.push((id, survivors.clone()));
                     let edits = edit_list(edits);
                     match *grade {
+                        Grade::Exact if *trailer_edit => {
+                            summary.exact += 1;
+                            let what = format!(
+                                "Adler-32 trailer rewritten ({edits}) to match the decoded \
+                                 data; no replacement in the data passed the check, so no \
+                                 checksum covers the data"
+                            );
+                            (what, None)
+                        }
                         Grade::Exact => {
                             summary.exact += 1;
                             let what = format!(
-                                "Flate data repaired ({edits}); no other repair fits its window"
+                                "Flate data repaired ({edits}); every single-byte replacement \
+                                 in its window was tried, and every one that passed the \
+                                 Adler-32 gave this output"
                             );
                             (what, None)
                         }

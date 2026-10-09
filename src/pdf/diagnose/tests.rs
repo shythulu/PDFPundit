@@ -880,12 +880,19 @@ fn the_signed_golden_is_one_signed_finding_and_nothing_else() {
     assert_eq!(f.severity, Severity::Info);
     assert_eq!(f.repair, Repairability::NotApplicable);
     assert_eq!(f.id, "SIG-001");
-    assert_eq!(
-        f.summary,
-        "the original is digitally signed; a repaired file is not"
-    );
+    assert_eq!(f.summary, SIGNED_SUMMARY);
     assert!(f.evidence.contains(&Evidence::ObjectRef((14, 0))));
     assert_eq!(metric(f, "fields"), Some(&MetricValue::Int(1)));
+}
+
+/// Schema item 27: the tool cannot tell the original from a copy, so the
+/// summary names the input.
+#[test]
+fn the_signed_summary_names_the_input() {
+    assert_eq!(
+        SIGNED_SUMMARY,
+        "the input is digitally signed; a repaired file is not"
+    );
 }
 
 #[test]

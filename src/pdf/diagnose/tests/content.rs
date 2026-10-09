@@ -1209,6 +1209,52 @@ fn an_ambiguous_stream_is_a_partial_c9_listing_every_survivor() {
     assert!(t.contains(&"survivor 2: byte 97 0x30 -> 0x31"), "{t:?}");
 }
 
+/// An `Exact` C9 finding on `CONTENT`, the repair rewriting the Adler-32
+/// trailer when `trailer_edit` is set.
+fn exact_summary(trailer_edit: bool) -> String {
+    let index = index_of(vec![(
+        CONTENT,
+        Salvage::Repaired {
+            data: b"BT ET".to_vec(),
+            edits: vec![(40, 0x31, 0x30)],
+            grade: Grade::Exact,
+            survivors: vec![vec![(40, 0x31, 0x30)]],
+            work: 7,
+            trailer_edit,
+            adler_rerun: false,
+        },
+    )]);
+    let found = findings_with(&fixtures::golden_pdf(), &index);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    found[0].summary.clone()
+}
+
+/// Schema item 24: the search tried single-byte replacements in one window,
+/// so the finding says only that.
+#[test]
+fn an_exact_finding_claims_only_the_searched_window() {
+    assert_eq!(
+        exact_summary(false),
+        "the Flate data of 11 0 obj is damaged: repaired; every single-byte replacement \
+         in its window that passed the Adler-32 gave the same output"
+    );
+}
+
+/// Schema item 24: a trailer rewrite leaves the data with no checksum.
+#[test]
+fn an_exact_trailer_edit_finding_says_no_checksum_covers_the_data() {
+    assert_eq!(
+        exact_summary(true),
+        "the Flate data of 11 0 obj is damaged: its stored Adler-32 was rewritten to \
+         match the decoded data, which no checksum covers"
+    );
+    let buf = fixtures::with_adler_trailer_damage();
+    let found = findings_with(&buf, &salvaged(&buf));
+    let c9 = of_class(&found, C9ZlibTampered);
+    assert_eq!(c9.len(), 1, "{found:#?}");
+    assert_eq!(c9[0].summary, exact_summary(true));
+}
+
 #[test]
 fn each_salvage_outcome_maps_to_its_severity_and_repair() {
     let golden = fixtures::golden_pdf();

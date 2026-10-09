@@ -22,7 +22,7 @@ use crate::pdf::verify::Verification;
 pub type ByteEdit = (usize, u8, u8);
 
 /// The fixed line for a file that carried a signature (D-052).
-pub const SIGNED_NOTE: &str = "the original is digitally signed; the repaired file is not";
+pub const SIGNED_NOTE: &str = "the input is digitally signed; the repaired file is not";
 
 /// Every setting the output depends on (goal-r2-q12). No path and no machine
 /// name; `threads` and the scratch cap are absent because they never change
@@ -176,7 +176,7 @@ pub struct RepairReport {
     /// Reals that do not survive `f32` on re-emission (D-075).
     pub reals_narrowed: u32,
     pub shadows: Vec<(ObjId, ByteSpan)>,
-    /// [`SIGNED_NOTE`] when the original was signed (D-052).
+    /// [`SIGNED_NOTE`] when the input was signed (D-052).
     pub signed_note: Option<String>,
     pub extracted_images: Vec<ExtractedImage>,
     pub partial_reasons: Vec<String>,

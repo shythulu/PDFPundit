@@ -602,7 +602,7 @@ mod tests {
                     end: 512,
                 }),
             },
-            summary: "the original is digitally signed; a repaired file is not".into(),
+            summary: crate::pdf::diagnose::SIGNED_SUMMARY.into(),
             evidence: vec![
                 Evidence::ObjectRef((12, 0)),
                 Evidence::Metric {

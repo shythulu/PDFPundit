@@ -141,8 +141,8 @@ use CorruptionClass::{
 const HEADER_WINDOW: u64 = 1024;
 /// A `startxref` this close to its table is a Warning (lopdf's window).
 const STARTXREF_SLACK: u64 = 64;
-/// The fixed summary of a signed original (D-052).
-pub(crate) const SIGNED_SUMMARY: &str = "the original is digitally signed; a repaired file is not";
+/// The fixed summary of a signed input (D-052).
+pub(crate) const SIGNED_SUMMARY: &str = "the input is digitally signed; a repaired file is not";
 
 /// Every finding in `bytes`, in byte order with ids assigned (module docs).
 /// `carve`, `graph` and `salvage` must all come from `bytes`.
@@ -1933,10 +1933,25 @@ fn c9(cx: &Cx<'_>, salvage: &SalvageIndex, blanked: &BTreeSet<ObjId>) -> Vec<Dra
             Salvage::Clean { .. } => continue,
             Salvage::Repaired {
                 grade: Grade::Exact,
+                trailer_edit: false,
                 ..
             } => (
                 "Repaired",
-                "repaired; no other repair fits its window".to_owned(),
+                "repaired; every single-byte replacement in its window that passed the \
+                 Adler-32 gave the same output"
+                    .to_owned(),
+                Severity::Warning,
+                Repairability::Auto,
+            ),
+            Salvage::Repaired {
+                grade: Grade::Exact,
+                trailer_edit: true,
+                ..
+            } => (
+                "Repaired",
+                "its stored Adler-32 was rewritten to match the decoded data, which no \
+                 checksum covers"
+                    .to_owned(),
                 Severity::Warning,
                 Repairability::Auto,
             ),

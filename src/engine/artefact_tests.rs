@@ -18,7 +18,8 @@
 //! UTF-16 `/Title` is caught. A stream whose filters lopdf cannot undo is
 //! scanned raw only. The Markdown of the export's own fixtures (outline-only
 //! and Type 3 pages, and a layout with every block and note kind) is scanned
-//! as well.
+//! as well. Every fixture finding's summary is scanned too: a custody record
+//! quotes it verbatim.
 //!
 //! **Matching.** An entry hits where its text appears whole: not inside a
 //! longer word ("nom" does not hit "nominal"; letters, digits and `_` make
@@ -33,7 +34,7 @@ use lopdf::{Document, Object, decode_text_string};
 
 use super::tests::class_fixtures;
 use super::*;
-use crate::pdf::fixtures::{golden_pdf, golden_pdf_signed};
+use crate::pdf::fixtures::{golden_pdf, golden_pdf_signed, with_adler_trailer_damage};
 use crate::ui::strings::ALL;
 
 /// One piece of a deny-list entry.
@@ -318,6 +319,10 @@ fn no_artefact_carries_ui_copy() {
     let mut inputs: Vec<(String, Vec<u8>)> = vec![
         ("the golden".into(), golden_pdf()),
         ("the signed golden".into(), golden_pdf_signed()),
+        (
+            "the Adler-32 trailer fixture".into(),
+            with_adler_trailer_damage(),
+        ),
     ];
     inputs.extend(
         class_fixtures()
@@ -336,6 +341,24 @@ fn no_artefact_carries_ui_copy() {
     // Markdown; all but the two goldens an output, scanned raw and decoded.
     let per_input = if cfg!(feature = "export") { 5 } else { 4 };
     assert_eq!(scanned, per_input * inputs.len() - 4);
+}
+
+/// A finding's summary lands in a custody record verbatim (schema items 24
+/// and 27), so no fixture's finding carries UI copy either: the C9 texts,
+/// the trailer rewrite and the signed summary among them.
+#[test]
+fn no_finding_summary_carries_ui_copy() {
+    let mut inputs = vec![golden_pdf_signed(), with_adler_trailer_damage()];
+    inputs.extend(class_fixtures().into_iter().map(|(_, b)| b));
+    let mut scanned = 0;
+    for bytes in &inputs {
+        let analysis = analyze(bytes, &AnalyzeOptions::default(), &mut NullProgress).unwrap();
+        for f in &analysis.findings {
+            scanned += 1;
+            assert_eq!(entries(&f.summary), Vec::<&str>::new(), "{}", f.summary);
+        }
+    }
+    assert!(scanned >= inputs.len(), "{scanned} findings");
 }
 
 /// The export's own fixtures and layouts, which the facade's fixtures do not

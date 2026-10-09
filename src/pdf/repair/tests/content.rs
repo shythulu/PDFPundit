@@ -8,6 +8,7 @@
 //! form uses is not re-linked).
 
 use crate::engine::RepairReport;
+use crate::pdf::fixtures::with_adler_trailer_damage;
 use crate::pdf::model::{InteractionKind, SalvageGrade};
 use crate::pdf::streams::salvage::{Grade, Salvage};
 
@@ -251,6 +252,88 @@ fn the_c9_fixture_repairs_clean_with_exact_streams_as_the_original() {
         );
         assert!(!g.c9_survivors.is_empty(), "seed {seed}");
     }
+}
+
+/// `edits` as the C9 action lists them.
+fn listed(edits: &[(usize, u8, u8)]) -> String {
+    let each: Vec<String> = edits
+        .iter()
+        .map(|(at, from, to)| format!("byte {at} 0x{from:02x} -> 0x{to:02x}"))
+        .collect();
+    each.join(", ")
+}
+
+/// Schema item 24: an `Exact` action says what the search tried, not that
+/// no other repair exists.
+#[test]
+fn an_exact_action_claims_only_the_searched_window() {
+    let input = analysed(corrupt(C9ZlibTampered, &golden_pdf(), 2));
+    let (g, _) = run(&input);
+    let c9 = pass(&g, C9ZlibTampered);
+    let mut checked = 0;
+    for (&id, e) in &input.salvage.by_obj {
+        let Salvage::Repaired {
+            grade: Grade::Exact,
+            edits,
+            trailer_edit: false,
+            ..
+        } = &e.salvage
+        else {
+            continue;
+        };
+        let action = (c9.actions.iter())
+            .find(|a| a.object == id)
+            .expect("an action");
+        assert_eq!(
+            action.what,
+            format!(
+                "Flate data repaired ({}); every single-byte replacement in its window \
+                 was tried, and every one that passed the Adler-32 gave this output",
+                listed(edits)
+            )
+        );
+        checked += 1;
+    }
+    assert!(checked > 0, "no Exact stream without a trailer edit");
+}
+
+/// Schema item 24: when only the Adler-32 trailer is rewritten, the action
+/// says no checksum covers the data. The output is the golden's stream.
+#[test]
+fn a_trailer_edit_action_says_no_checksum_covers_the_data() {
+    const CONTENT: ObjId = (11, 0);
+    let input = analysed(with_adler_trailer_damage());
+    let Salvage::Repaired {
+        grade: Grade::Exact,
+        edits,
+        trailer_edit: true,
+        ..
+    } = &input.salvage.by_obj[&CONTENT].salvage
+    else {
+        panic!("{:?}", input.salvage.by_obj[&CONTENT].salvage);
+    };
+    let (g, _) = run(&input);
+    let c9 = pass(&g, C9ZlibTampered);
+    let action = (c9.actions.iter())
+        .find(|a| a.object == CONTENT)
+        .expect("an action");
+    assert_eq!(
+        action.what,
+        format!(
+            "Adler-32 trailer rewritten ({}) to match the decoded data; no replacement in \
+             the data passed the check, so no checksum covers the data",
+            listed(edits)
+        )
+    );
+    assert_eq!(action.grade, Some(SalvageGrade::Exact));
+    let out = g.output.as_deref().expect("an output");
+    assert!(chosen(&g).verification.v0.all_pass());
+    let original = Document::load_mem(&golden_pdf()).expect("the golden loads");
+    let written = Document::load_mem(out).expect("the output loads");
+    assert_eq!(
+        raw_stream(&written, out_number(&input, CONTENT)),
+        raw_stream(&original, CONTENT.0)
+    );
 }
 
 /// D-041 / goal-r3-q12: under a small budget the small content streams

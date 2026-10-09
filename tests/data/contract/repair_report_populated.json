@@ -1198,7 +1198,7 @@
       }
     ]
   ],
-  "signed_note": "the original is digitally signed; the repaired file is not",
+  "signed_note": "the input is digitally signed; the repaired file is not",
   "extracted_images": [
     {
       "name": "p3-img1.jpg",

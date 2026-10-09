@@ -282,6 +282,19 @@ pub fn with_stream_containing_keywords() -> Vec<u8> {
     })
 }
 
+/// [`golden_pdf`] with the last byte of page 1's content stream flipped. That
+/// byte is the low byte of the zlib Adler-32 trailer, so the Flate data still
+/// inflates to the golden's and only the checksum disagrees.
+pub fn with_adler_trailer_damage() -> Vec<u8> {
+    let facts = font_facts();
+    golden_with(|objects| {
+        let mut data = flate(&content(&facts, 0));
+        let last = data.len() - 1;
+        data[last] ^= 0x01;
+        objects.insert(CONTENTS[0], stream(flate_dict(), data));
+    })
+}
+
 /// The golden written by hand with page 1's content stream declaring its
 /// `/Length` as `kind` says; the data is the golden's.
 pub fn with_wrong_length(kind: LengthKind) -> Vec<u8> {

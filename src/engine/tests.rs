@@ -438,6 +438,16 @@ fn cancellation_stops_analysis_inside_the_carve() {
     assert!(sink.phases.is_empty());
 }
 
+/// Schema item 27: the tool cannot tell the original from a copy, so the
+/// line names the input.
+#[test]
+fn the_signed_note_names_the_input() {
+    assert_eq!(
+        SIGNED_NOTE,
+        "the input is digitally signed; the repaired file is not"
+    );
+}
+
 #[test]
 fn a_signed_input_s_report_carries_the_signature_line() {
     let bytes = golden_pdf_signed();
