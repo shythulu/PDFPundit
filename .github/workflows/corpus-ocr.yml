@@ -1,12 +1,13 @@
-# REPDF-style OCR word recall, nightly (T-38b; D-013, D-036, D-063, D-067,
-# D-068, D-071).
+# REPDF-style OCR word recall, nightly (T-38b, G-11; D-013, D-014, D-036,
+# D-063, D-067, D-068, D-071).
 #
 # Never a PR gate. The job fetches only the 44 files of bench/smoke_subset.txt
 # at the pinned commit, rasterises them with the corpus `ocr` mode (T-38a),
-# OCRs every PNG once with PaddleOCR and prints the labelled per-class tables,
-# per-page OCR digests and per-page seconds to the log, which is public.
-# Nothing is uploaded. The corpus clone and the rasters are never cached;
-# only wheels and models are, because they are not corpus bytes.
+# OCRs every PNG once and prints the labelled per-class tables, per-page OCR
+# digests and per-page seconds to the log, which is public. The nightly engine
+# is per-script Tesseract (D-014); PaddleOCR runs only on demand. Nothing is
+# uploaded. The corpus clone and the rasters are never cached; only wheels and
+# models are, because they are not corpus bytes.
 name: corpus ocr
 
 on:
@@ -14,8 +15,13 @@ on:
     - cron: "23 3 * * *"
   workflow_dispatch:
     inputs:
+      engine:
+        description: "OCR apparatus (tesseract is the scoring plan, D-014)"
+        type: choice
+        options: [tesseract, paddle]
+        default: tesseract
       tier:
-        description: "Model tier (medium costs about 13x tiny per page)"
+        description: "PaddleOCR model tier (medium costs about 13x tiny per page)"
         type: choice
         options: [tiny, medium]
         default: tiny
@@ -29,6 +35,8 @@ env:
   REPDF_COMMIT: e547d4d1b77ead7e8cccce8b02878a6d33aa427a
   PADDLE_PDX_CACHE_HOME: ${{ github.workspace }}/target/corpus/paddle-models
   PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+  TESSDATA_BEST_CACHE: ${{ github.workspace }}/target/corpus/tessdata-best
+  OCR_ENGINE: ${{ inputs.engine || 'tesseract' }}
   OCR_TIER: ${{ inputs.tier || 'tiny' }}
 
 jobs:
@@ -48,18 +56,34 @@ jobs:
         with:
           path: ~/.cache/uv
           key: ocr-wheels-${{ runner.os }}-${{ hashFiles('tools/ocr-recall/requirements.lock', 'tools/ocr-recall/requirements-test.lock') }}
-      - name: Model cache (not corpus bytes)
+      - name: PaddleOCR model cache (not corpus bytes)
+        if: env.OCR_ENGINE == 'paddle'
         uses: actions/cache@v4
         with:
           path: target/corpus/paddle-models
           key: ocr-models-${{ hashFiles('tools/ocr-recall/models.toml') }}
+      - name: tessdata_best model cache (not corpus bytes)
+        if: env.OCR_ENGINE == 'tesseract'
+        uses: actions/cache@v4
+        with:
+          path: target/corpus/tessdata-best
+          key: ocr-tessdata-${{ hashFiles('tools/ocr-recall/tessdata.toml') }}
       - name: Harness tests (no PaddleOCR, no model download)
         run: |
           set -eu
           uv venv --python 3.12 "$RUNNER_TEMP/ocr-test"
           uv pip install --python "$RUNNER_TEMP/ocr-test" --require-hashes -r tools/ocr-recall/requirements-test.lock
           "$RUNNER_TEMP/ocr-test/bin/python" -I -m pytest tools/ocr-recall/tests
+      - name: Install Tesseract (models come from tessdata.toml, not apt)
+        if: env.OCR_ENGINE == 'tesseract'
+        run: |
+          set -eu
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends tesseract-ocr
+          tesseract --version
+          uv venv --python 3.12 "$RUNNER_TEMP/ocr"
       - name: Install the pinned PaddleOCR set
+        if: env.OCR_ENGINE == 'paddle'
         run: |
           set -eu
           uv venv --python 3.12 "$RUNNER_TEMP/ocr"
@@ -85,4 +109,4 @@ jobs:
           --manifest target/corpus/ocr_inputs/manifest.csv
           --out target/corpus/ocr_results.csv
           --tier "$OCR_TIER"
-          --engine paddle
+          --engine "$OCR_ENGINE"

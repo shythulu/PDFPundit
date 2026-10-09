@@ -1,5 +1,5 @@
-"""OCR engines behind one interface (D-071: the apparatus is research-pending,
-so the harness is engine-agnostic and the board's ruling is a flag).
+"""OCR engines behind one interface (D-071: the harness is engine-agnostic, so
+choosing the apparatus is a flag; D-014 made per-script Tesseract the plan).
 
 An engine module provides:
 

@@ -50,11 +50,7 @@ def read_rows(out: Path) -> list[dict]:
     return list(csv.DictReader(lines[1:]))
 
 
-@pytest.mark.parametrize(
-    ("engine", "decision"),
-    [("documentai", "blocked on D-014"), ("tesseract", "blocked on D-071")],
-)
-def test_stub_engines_exit_with_their_blocking_decision(tmp_path, engine, decision):
+def test_the_documentai_stub_exits_with_its_blocking_decision(tmp_path):
     # Through the real entry point, isolated, as CI runs it.
     proc = subprocess.run(
         [
@@ -66,14 +62,14 @@ def test_stub_engines_exit_with_their_blocking_decision(tmp_path, engine, decisi
             "--out",
             str(tmp_path / "out.csv"),
             "--engine",
-            engine,
+            "documentai",
         ],
         capture_output=True,
         text=True,
         check=False,
     )
     assert proc.returncode != 0
-    assert decision in proc.stderr
+    assert "D-014" in proc.stderr
     assert len(proc.stderr.strip().splitlines()) == 1
     assert not (tmp_path / "out.csv").exists()
 
