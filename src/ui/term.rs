@@ -17,7 +17,7 @@ use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Modifier};
 
-use super::canvas::Canvas;
+use super::canvas::{Canvas, printable};
 use super::color::{ColorCaps, Rgb, Snap, xterm256};
 use super::input::osc72;
 use super::theme::Theme;
@@ -398,7 +398,9 @@ impl Palette {
 
 /// The blit: every canvas cell into `buf` (`set_symbol`, the colours through
 /// `palette`, a blinking cell as `SLOW_BLINK`). Cells past either edge of
-/// `buf` are dropped.
+/// `buf` are dropped. A control or bidi control character in a cell is shown
+/// as `�` ([`printable`]): [`Canvas::text`] already replaces them, and this is
+/// the second guard for a cell written some other way.
 pub fn blit(canvas: &Canvas, buf: &mut Buffer, palette: &mut Palette) {
     let mut sym = [0u8; 4];
     for y in 0..canvas.h {
@@ -406,7 +408,7 @@ pub fn blit(canvas: &Canvas, buf: &mut Buffer, palette: &mut Palette) {
             let (Some(cell), Some(out)) = (canvas.get(x, y), buf.cell_mut((x, y))) else {
                 continue;
             };
-            out.set_symbol(cell.ch.encode_utf8(&mut sym));
+            out.set_symbol(printable(cell.ch).encode_utf8(&mut sym));
             out.set_fg(palette.color(cell.fg));
             out.set_bg(palette.color(cell.bg));
             out.modifier = if canvas.blink.contains(&(x, y)) {
@@ -601,6 +603,84 @@ mod tests {
         assert_eq!(wide[(3, 1)].symbol(), "‼");
         assert_eq!(wide[(3, 1)].modifier, Modifier::SLOW_BLINK);
         assert_eq!(wide[(2, 1)].modifier, Modifier::empty());
+    }
+
+    /// `bytes` with every CSI sequence (`ESC [`, parameter and intermediate
+    /// bytes, a final byte) taken out; panics on any other byte below 0x20
+    /// or DEL.
+    fn outside_csi(bytes: &[u8]) -> String {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
+            if b == 0x1b {
+                assert_eq!(bytes.get(i + 1), Some(&b'['), "a bare ESC at byte {i}");
+                let mut j = i + 2;
+                while bytes.get(j).is_some_and(|b| (0x30..=0x3f).contains(b)) {
+                    j += 1;
+                }
+                while bytes.get(j).is_some_and(|b| (0x20..=0x2f).contains(b)) {
+                    j += 1;
+                }
+                assert!(
+                    bytes.get(j).is_some_and(|b| (0x40..=0x7e).contains(b)),
+                    "an unfinished CSI at byte {i}"
+                );
+                i = j + 1;
+                continue;
+            }
+            assert!(b >= 0x20 && b != 0x7f, "byte {b:#04x} at {i}");
+            out.push(b);
+            i += 1;
+        }
+        String::from_utf8(out).expect("UTF-8")
+    }
+
+    /// The blit is the second guard: a control or bidi character that reached
+    /// a cell some other way ([`Canvas::put`] takes any character) is shown
+    /// as `�`. The only bytes below 0x20 that reach the terminal are the
+    /// escape sequences the blit itself has written, at every colour depth.
+    #[test]
+    fn no_control_reaches_the_terminal_but_the_blits_own_sequences() {
+        let t = theme();
+        let hostile: Vec<char> = (0u32..0x20)
+            .chain(0x7f..0xa0)
+            .chain([0x200e, 0x200f])
+            .chain(0x202a..=0x202e)
+            .chain(0x2066..=0x2069)
+            .filter_map(char::from_u32)
+            .collect();
+        let mut c = Canvas::new(40, 3, t);
+        for (i, &ch) in hostile.iter().enumerate() {
+            let i = i32::try_from(i).expect("small");
+            c.put(i % 40, i / 40, ch, Some(t.roles.file), None);
+        }
+        c.set_blink(0, 0);
+        c.text(0, 2, "ok {R}\u{1b}[2J", t.roles.file, None);
+        for caps in [ColorCaps::TrueColor, ColorCaps::Ansi256, ColorCaps::Ansi16] {
+            let mut buf = Buffer::empty(ratatui::layout::Rect::new(0, 0, 40, 3));
+            blit(&c, &mut buf, &mut Palette::new(caps, t));
+            let mut bytes = Vec::new();
+            let cells = buf.content.iter().enumerate().map(|(i, cell)| {
+                let (x, y) = buf.pos_of(i);
+                (x, y, cell)
+            });
+            CrosstermBackend::new(&mut bytes)
+                .draw(cells)
+                .expect("drawn");
+            let shown = outside_csi(&bytes);
+            for ch in shown.chars() {
+                assert_eq!(
+                    crate::ui::canvas::printable(ch),
+                    ch,
+                    "U+{:04X} reached the terminal ({caps:?})",
+                    u32::from(ch)
+                );
+            }
+            let replaced = shown.chars().filter(|&ch| ch == '\u{fffd}').count();
+            assert_eq!(replaced, hostile.len() + 1, "{caps:?}");
+            assert!(shown.contains("ok {R}\u{fffd}[2J"), "{shown:?}");
+        }
     }
 
     #[test]

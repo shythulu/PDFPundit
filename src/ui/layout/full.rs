@@ -1026,7 +1026,7 @@ mod tests {
     use crate::engine::{C9Summary, FontResolutionKind, Location};
     use crate::jobs::{EntryState, QueueEntry};
     use crate::library::{HistorySummary, RecentRow, RecentStatus};
-    use crate::ui::canvas::HALF;
+    use crate::ui::canvas::{HALF, HOSTILE_NAMES};
     use crate::ui::director::{
         CHOMP_DURS, CatEvent, CellPos, DRAG, DRAG_DOC, DRAG_DURS, Director, Mood,
     };
@@ -1781,6 +1781,44 @@ mod tests {
         let vm = view(&app);
         let row: String = row_text(&draw(FULL_SIZE, &vm, &resting(&vm)), 2);
         assert!(row.contains("… ╞═╡ √ repaired ╞═╗"), "{row:?}");
+    }
+
+    /// Hostile names in LAST CALLERS, the queue, the analysis and result
+    /// titles, the needs-input box and the progress box are drawn as they
+    /// are, controls and bidi controls as `�`; no cell holds one raw.
+    #[test]
+    fn hostile_names_are_drawn_literally_in_every_view() {
+        for (name, shown) in HOSTILE_NAMES {
+            let mut idle = AppState::mockup_idle();
+            idle.history.recent = vec![RecentRow {
+                name: name.to_string(),
+                status: RecentStatus::Repaired,
+            }];
+            let vm = view(&idle);
+            let c = draw(FULL_SIZE, &vm, &resting(&vm));
+            c.assert_printable();
+            assert!(
+                row_text(&c, 10).contains(&format!("√ {shown} ")),
+                "{name:?}"
+            );
+
+            for mut app in [AppState::mockup_batch(), AppState::mockup_result()] {
+                for e in &mut app.batch.entries {
+                    e.name = name.to_string();
+                }
+                let vm = view(&app);
+                let c = draw(FULL_SIZE, &vm, &resting(&vm));
+                c.assert_printable();
+                let rows: Vec<String> = (0..c.h).map(|y| row_text(&c, y)).collect();
+                let hits = rows.iter().filter(|r| r.contains(shown)).count();
+                // At least the queue rows and the selected file's title.
+                assert!(hits > 2, "{name:?}: {hits} rows\n{}", rows.join("\n"));
+                assert!(
+                    rows.iter().any(|r| r.contains(&format!(" » {shown} "))),
+                    "{name:?}: the panel title"
+                );
+            }
+        }
     }
 
     /// File names, finding summaries and font names are data: braces in them

@@ -129,7 +129,7 @@ fn draw_tile(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
         } else {
             String::new()
         };
-        status(c, &app_name(None), &right, theme);
+        status(c, None, &right, theme);
         return;
     }
     let counts = vm.counts;
@@ -142,7 +142,7 @@ fn draw_tile(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
             } else {
                 String::new()
             };
-            status(c, &app_name(None), &right, theme);
+            status(c, None, &right, theme);
         }
         Mood::Working { .. } => {
             let pct = vm
@@ -156,14 +156,14 @@ fn draw_tile(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
             c.rich(x, LINE_Y, &count, None, theme);
             let right = format!("{{W}}{done_of} ");
             // The name gives way to a long count, keeping a cell between them.
-            let room = W - to_i32(plain_len(&app_name(Some("")))) - to_i32(plain_len(&right)) - 1;
+            let room = W - to_i32(plain_len(&app_name(true))) - to_i32(plain_len(&right)) - 1;
             let max = usize::try_from(room).unwrap_or(0).min(WORKING_NAME);
             let name = vm
                 .current
                 .as_ref()
                 .filter(|_| max >= 2)
                 .map(|f| clip(&f.name, max));
-            status(c, &app_name(name.as_deref()), &right, theme);
+            status(c, name.as_deref(), &right, theme);
         }
         Mood::NeedsYou => {
             c.put(W - 2, 0, '‼', theme.slot('M'), None);
@@ -172,21 +172,17 @@ fn draw_tile(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
                 .needs_you
                 .as_ref()
                 .map_or((0, ""), |(n, name)| (*n, name.as_str()));
-            let line = format!(
-                "{{M}}‼ {{C}}{} {{D}}· {{W}}{}",
-                clip(name, NEEDS_NAME),
-                strings::ZOOM_ME
-            );
-            c.rich(NEEDS_SPAN.start, LINE_Y, &line, None, theme);
+            // The name is the file's, drawn as it is between the markup.
+            let x = c.rich(NEEDS_SPAN.start, LINE_Y, "{M}‼ ", None, theme);
+            let name_fg = theme.slot('C').unwrap_or(theme.roles.file);
+            let name = format!("{} ", clip(name, NEEDS_NAME));
+            let x = c.text(x, LINE_Y, &name, name_fg, None);
+            let zoom = format!("{{D}}· {{W}}{}", strings::ZOOM_ME);
+            c.rich(x, LINE_Y, &zoom, None, theme);
             for x in NEEDS_SPAN {
                 c.set_blink(x, LINE_Y);
             }
-            status(
-                c,
-                &app_name(None),
-                &format!("{{M}}‼ {n} {{W}}{done_of} "),
-                theme,
-            );
+            status(c, None, &format!("{{M}}‼ {n} {{W}}{done_of} "), theme);
         }
         Mood::Done { .. } | Mood::Failed => {
             let tally = format!(
@@ -201,7 +197,7 @@ fn draw_tile(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
             }
             c.rich(x, LINE_Y, &tally, None, theme);
             let done = fmt_n(strings::N_DONE, counts.done());
-            status(c, &app_name(None), &format!("{{G}}{done} "), theme);
+            status(c, None, &format!("{{G}}{done} "), theme);
         }
     }
 }
@@ -249,27 +245,35 @@ fn hint(c: &mut Canvas, cat: &CatFrame, theme: &Theme) {
     }
 }
 
-/// The status bar: `left` from the first column, `right` against the right
-/// edge, both markup on the light bar. `left` is cut a cell short of `right`.
-fn status(c: &mut Canvas, left: &str, right: &str, theme: &Theme) {
+/// The status bar: the app's name and the name of `file` (drawn as it is)
+/// from the first column, `right` (markup) against the right edge, on the
+/// light bar. The left side is cut a cell short of `right`.
+fn status(c: &mut Canvas, file: Option<&str>, right: &str, theme: &Theme) {
     let bar = theme.roles.lightbar;
     c.fill(0, BAR_Y, W, 1, theme.roles.body, bar);
     let right_x = W - to_i32(plain_len(right));
     let left_w = if right.is_empty() { W } else { right_x - 1 };
     let left_w = u16::try_from(left_w.max(0)).unwrap_or(0);
     c.clipped(left_w, WIDGET_SIZE.1, |c| {
-        c.rich(0, BAR_Y, left, Some(bar), theme)
+        let x = c.rich(0, BAR_Y, &app_name(file.is_some()), Some(bar), theme);
+        if let Some(f) = file {
+            let fg = theme.slot('D').unwrap_or(theme.roles.dim);
+            c.text(x, BAR_Y, f, fg, Some(bar));
+        }
     });
     if !right.is_empty() {
         c.rich(right_x, BAR_Y, right, Some(bar), theme);
     }
 }
 
-/// The status bar's left side: the name, and the file being worked on.
-fn app_name(file: Option<&str>) -> String {
-    match file {
-        Some(f) => format!(" {{Y}}{} {{D}}{f}", strings::APP_NAME),
-        None => format!(" {{Y}}{}", strings::APP_NAME),
+/// The status bar's left side: the app's name, then a space before the file
+/// being worked on when there is one (the file's name is not markup, so
+/// [`status`] draws it).
+fn app_name(file: bool) -> String {
+    if file {
+        format!(" {{Y}}{} ", strings::APP_NAME)
+    } else {
+        format!(" {{Y}}{}", strings::APP_NAME)
     }
 }
 
@@ -322,7 +326,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::ui::canvas::CanvasCell;
+    use crate::ui::canvas::{CanvasCell, HOSTILE_NAMES};
     use crate::ui::director::{
         CHOMP_DURS, CatEvent, CellPos, DRAG_DURS, Director, Stage, WDRAG_DOC,
     };
@@ -632,6 +636,42 @@ mod tests {
         for y in 1..15 {
             for x in 0..31 {
                 assert_eq!(c.get(x, y), Some(blank), "({x}, {y})");
+            }
+        }
+    }
+
+    /// A file's name is drawn as it is on the working status bar and the
+    /// needs-you line: markup in it is not read, and control and bidi
+    /// characters are drawn as `�`, in the name's own colour.
+    #[test]
+    fn hostile_names_are_drawn_literally() {
+        let t = theme();
+        let dim = t.slot('D').expect("slot");
+        let cyan = t.slot('C').expect("slot");
+        for (name, shown) in HOSTILE_NAMES {
+            let n = shown.chars().count();
+            let mut vm = view(&AppState::mockup_widget_working());
+            vm.current.as_mut().expect("working").name = name.to_string();
+            let c = draw(&WidgetLayout, WIDGET_SIZE, &vm, &resting(&vm));
+            c.assert_printable();
+            let bar = row_text(&c, 15);
+            let lead = format!(" {} ", strings::APP_NAME);
+            assert!(bar.starts_with(&format!("{lead}{shown} ")), "{bar:?}");
+            let x0 = lead.chars().count();
+            for x in x0..x0 + n {
+                let x = u16::try_from(x).expect("on the tile");
+                assert_eq!(c.get(x, 15).expect("cell").fg, dim, "{name:?} ({x}, 15)");
+            }
+
+            let mut vm = view(&AppState::mockup_widget_needs());
+            vm.needs_you.as_mut().expect("needs you").1 = name.to_string();
+            let c = draw(&WidgetLayout, WIDGET_SIZE, &vm, &resting(&vm));
+            c.assert_printable();
+            let line = row_text(&c, 14);
+            assert!(line.contains(&format!("‼ {shown} · ")), "{line:?}");
+            for x in 4..4 + n {
+                let x = u16::try_from(x).expect("on the tile");
+                assert_eq!(c.get(x, 14).expect("cell").fg, cyan, "{name:?} ({x}, 14)");
             }
         }
     }

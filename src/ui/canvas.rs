@@ -166,14 +166,14 @@ impl Canvas {
 
     /// Writes `text` from `(x, y)` as it is, in `fg` on `bg` (`None` keeps
     /// each cell's background): no markup, so a `{` in untrusted text such as
-    /// a file's name is drawn, not read as a colour. A control character is
-    /// drawn as `�`, so none reaches a cell. Returns the column after the
-    /// last character.
+    /// a file's name is drawn, not read as a colour. Every string from a file
+    /// name, a path, a PDF, a font name or a finding is drawn with this. A
+    /// control or bidi control character is drawn as `�` ([`printable`]), so
+    /// none reaches a cell. Returns the column after the last character.
     pub fn text(&mut self, x: i32, y: i32, text: &str, fg: Rgb, bg: Option<Rgb>) -> i32 {
         let mut cx = x;
         for ch in text.chars() {
-            let ch = if ch.is_control() { '\u{fffd}' } else { ch };
-            self.put(cx, y, ch, Some(fg), bg);
+            self.put(cx, y, printable(ch), Some(fg), bg);
             cx += 1;
         }
         cx
@@ -503,6 +503,22 @@ fn markup(text: &str) -> Vec<Piece> {
     out
 }
 
+/// `ch`, or `�` in place of a character a terminal would act on rather than
+/// draw: a C0 or C1 control or DEL (an escape sequence starts with one), or
+/// a bidi control (U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), which
+/// reorders what follows it (`invoice\u{202E}fdp.exe.pdf`).
+pub fn printable(ch: char) -> char {
+    let bidi = matches!(
+        ch,
+        '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+    );
+    if ch.is_control() || bidi {
+        '\u{fffd}'
+    } else {
+        ch
+    }
+}
+
 /// How many cells `text` takes once its markup is removed (generate.py's
 /// `len(plain(text))`).
 pub fn plain_len(text: &str) -> usize {
@@ -544,7 +560,34 @@ impl Canvas {
         let want: BTreeSet<(u16, u16)> = g.blink.iter().copied().collect();
         assert_eq!(self.blink, want, "{}: blink", g.name);
     }
+
+    /// Panics if any cell holds a character the terminal would act on
+    /// rather than draw (see [`printable`]).
+    #[track_caller]
+    pub(crate) fn assert_printable(&self) {
+        for (i, cell) in self.cells.iter().enumerate() {
+            let (x, y) = (i % usize::from(self.w), i / usize::from(self.w));
+            assert_eq!(
+                printable(cell.ch),
+                cell.ch,
+                "({x}, {y}) holds U+{:04X}",
+                u32::from(cell.ch)
+            );
+        }
+    }
 }
+
+/// Names a hostile file can carry (markup, ESC, a CSI sequence, BEL, the C1
+/// CSI, the right-to-left override), each with how it is drawn.
+#[cfg(test)]
+pub(crate) const HOSTILE_NAMES: [(&str, &str); 6] = [
+    ("{R}x.pdf", "{R}x.pdf"),
+    ("a\u{1b}b.pdf", "a\u{fffd}b.pdf"),
+    ("c\u{1b}[2Jd.pdf", "c\u{fffd}[2Jd.pdf"),
+    ("e\u{7}f.pdf", "e\u{fffd}f.pdf"),
+    ("g\u{9b}31m.pdf", "g\u{fffd}31m.pdf"),
+    ("h\u{202e}fdp.exe", "h\u{fffd}fdp.exe"),
+];
 
 #[cfg(test)]
 mod tests {
@@ -839,6 +882,34 @@ mod tests {
             bad.len(),
             bad.join("\n")
         );
+    }
+
+    /// Text drawn with [`Canvas::text`] never puts a C0 or C1 control, DEL
+    /// or a bidi control in a cell; everything else is drawn as it is.
+    #[test]
+    fn text_replaces_controls_and_bidi_controls() {
+        let t = theme();
+        let mut replaced: Vec<char> = (0u32..0x20)
+            .chain(0x7f..0xa0)
+            .filter_map(char::from_u32)
+            .collect();
+        replaced.extend(['\u{200e}', '\u{200f}']);
+        replaced.extend('\u{202a}'..='\u{202e}');
+        replaced.extend('\u{2066}'..='\u{2069}');
+        let kept = "a{R}é€\u{a0}\u{200d}\u{2010}\u{202f}\u{2065}";
+        for ch in replaced {
+            let mut c = Canvas::new(3, 1, t);
+            let end = c.text(0, 0, &format!("a{ch}b"), t.roles.file, None);
+            let row: String = c.cells.iter().map(|c| c.ch).collect();
+            assert_eq!(row, "a\u{fffd}b", "U+{:04X}", u32::from(ch));
+            assert_eq!(end, 3);
+            c.assert_printable();
+        }
+        let n = kept.chars().count();
+        let mut c = Canvas::new(u16::try_from(n).expect("short"), 1, t);
+        c.text(0, 0, kept, t.roles.file, None);
+        let row: String = c.cells.iter().map(|c| c.ch).collect();
+        assert_eq!(row, kept);
     }
 
     #[test]
