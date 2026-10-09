@@ -1,7 +1,7 @@
 {
  "generator": "nimbalyst-local/mockups/pdfpundit-ansi-bbs/generate.py",
  "pinned_commit": "9439a30",
- "generate_py_sha256": "1d043dfcdaa0d7a7bc593114a8d18746cbf21c0371a256103cffbe5ff20b5f21",
+ "generate_py_sha256": "a9b9f39f63ab2aa538565ced4bd42e7f6d2ee7f0ec4d80ade70ae067ff3318d8",
  "palette_sha256": "ead94d9988bac402828c0298cb54e64f4eae2ffd0da794e34fb7ce514d2ed230",
  "theme": "DarkBerry Blackwater",
  "scales": [

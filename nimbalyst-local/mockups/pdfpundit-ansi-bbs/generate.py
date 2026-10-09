@@ -993,7 +993,7 @@ QUEUE_A = [
     ('√', 'G', 'contract_signed.pdf', 'clean · nothing to fix', 'D', False),
     ('‼', 'M', 'thesis_ar.pdf', 'needs input · 2 fonts', 'M', True),
     ('√', 'G', 'minutes_q3.pdf', 'repaired · 1 fixed', 'w', False),
-    ('☼', 'C', 'invoice_scan.pdf', 'repairing · verifying', 'C', True),
+    ('☼', 'C', 'invoice_scan.pdf', 'repairing · C9 salvage', 'C', True),
     ('∙', 'D', 'board_deck.pdf', 'queued', 'D', False),
     ('×', 'R', 'payroll_locked.pdf', 'encrypted · decrypt first', 'R', False),
 ]
@@ -1038,25 +1038,24 @@ def frame_batch():
     header(cv, '{w}batch {D}· {c}auto-repair ON ')
     queue_box(cv, 1, 2, 64, QUEUE_A, 4, '{G}3{w}/7 done {D}·{M} 1 needs input {D}·{R} 1 failed')
 
-    # D-117: every datum here has an engine source (see ux-design.md, frame 03).
     ab = Box(cv, 1, 13, 64, 19, title='ANALYSiS » invoice_scan.pdf')
-    ab.line(14, ' {D}PDF {W}1.4 {D}· {W}6{D} pages · {W}1.1{D} MB · {W}212{D} objects carved')
-    ab.line(16, ' {G}■{w} carve {G}■{w} diagnose {G}■{w} salvage {G}■{w} measure '
-                '{G}■{w} repair {C}☼{W} verify')
+    ab.line(14, ' {D}PDF {W}1.4 {D}· {W}6{D} pages · {W}1.1{D} MB · {w}Microsoft: Print To PDF')
+    ab.line(16, ' {G}■{w} carve {D}─ {G}■{w} diagnose {D}─ {G}■{w} plan {D}─ '
+                '{C}☼{W} repair {D}─ ∙ emit ─ ∙ verify')
     cv.blink.add((next(i for i in range(W) if cv.c[16][i][0] == '☼'), 16))
-    ab.line(17, ' {D}toolpath {w}chosen after verify {D}· candidate {W}1{D} of {W}2')
+    ab.line(17, ' {D}toolpath {W}Resave {D}· structural only · keeps outlines')
     ab.sep(18)
     ab.line(19, ' {W}FiNDiNGS {D}streamed as found')
-    ab.line(20, ' {R}[ERR] {W}C9 {w}zlib stream damaged   {D}obj 14 0')
-    ab.line(21, ' {Y}[WRN] {W}C3 {w}trailer missing')
-    ab.line(22, ' {c}[iNF]    {w}text as outlines      {D}p.1')
-    ab.line(23, ' {c}[iNF]    {w}digitally signed')
+    ab.line(20, ' {R}[ERR] {W}C9 {w}zlib stream damaged   {D}obj 14 0 · p.3 contents')
+    ab.line(21, ' {Y}[WRN] {W}C3 {w}trailer missing       {D}rebuild from carved /Root')
+    ab.line(22, ' {c}[iNF]    {w}header intact         {D}%PDF-1.4')
+    ab.line(23, ' {c}[iNF]    {w}212 objects carved    {D}6/6 pages found')
     ab.sep(24)
     ab.line(25, ' {W}LOG')
-    ab.line(26, ' {D}11:42 {w}measuring {D}· step 4 of 4')
-    ab.line(27, ' {D}11:42 {w}repairing {D}· candidate 1 of 2')
-    ab.line(28, ' {D}11:42 {Y}warn {w}3 NaN or infinite numbers were written as 0')
-    e = ab.line(29, ' {D}11:42 {w}verifying {D}· candidate 1 of 2 ')
+    ab.line(26, ' {D}11:42:07 {w}inflate obj 14 0: bad block at byte 2,113')
+    ab.line(27, ' {D}11:42:07 {w}resync at byte 2,176 {D}→ {G}salvaged 88%{w} of stream')
+    ab.line(28, ' {D}11:42:08 {w}rebuilding xref {D}· 212 entries')
+    e = ab.line(29, ' {D}11:42:08 {w}re-linking p.3 /Contents ')
     cv.put(e, 29, '█', 'w')
     cv.blink.add((e, 29))
 
@@ -1125,29 +1124,29 @@ def frame_result():
     queue_box(cv, 1, 2, 50, QUEUE_B, 2, '{G}5{w}/7 done {D}·{R} 1 failed', nw=20)
 
     rb = Box(cv, 52, 2, 59, 30, title='RESULT » thesis_ar.pdf', note='{G}√ repaired')
-    # D-117: every datum here has an engine source (see ux-design.md, frame 05).
     rb.line(4, ' {D}out   {W}thesis_ar.repaired.pdf')
     rb.line(5, ' {D}in    {w}~/cases/2026-091/evidence/')
-    rb.line(6, ' {D}path  {W}TemplateAssemble {D}· re-diagnosed {G}clean')
+    rb.line(6, ' {D}path  {W}TemplateAssemble {D}· 3.8 s · re-diagnosed {G}clean')
     rb.sep(7)
     rb.line(8, ' {W}FiNDiNGS                          {D}before after')
-    rb.line(9, ' {R}[ERR] {W}C2 {w}xref table missing      {R}  ×    {G}√')
-    rb.line(10, ' {R}[ERR] {W}C8 {w}font resources deleted  {R}  ×    {G}√ {D}p.12')
-    rb.line(11, ' {Y}[WRN] {W}C6 {w}font mapping lost       {Y}  ×    {G}√ {D}p.12')
-    rb.line(12, ' {R}[ERR] {W}C9 {w}zlib stream damaged     {R}  ×    {G}√ {D}obj 14 0')
+    rb.line(9, ' {R}[ERR] {W}C2 {w}xref table missing      {R}  ×    {G}√ {D}1,842 obj')
+    rb.line(10, ' {R}[ERR] {W}C8 {w}font resources deleted  {R}  ×    {G}√ {D}2 fonts')
+    rb.line(11, ' {Y}[WRN] {W}C6 {w}font mapping lost       {Y}  ×    {G}√ {D}12 pages')
+    rb.line(12, ' {c}[iNF]    {w}header intact           {D}  ·    ·')
     rb.sep(13)
-    rb.line(14, ' {W}RECOVERY {D}kept in the output, against the input')
-    rb.line(15, ' {D}text    {W}96%')
-    cv.bar(76, 15, 26, .96, T['ok'])
-    rb.line(16, ' {D}images  {W}31{D}/{W}32')
-    cv.bar(76, 16, 26, 31 / 32, T['ok'])
-    rb.line(17, ' {w}3 streams repaired; 3 of them unique within the')
-    rb.line(18, ' {w}searched window; 0 accepted without a uniqueness check')
+    rb.line(14, ' {W}RECOVERY')
+    rb.line(15, ' {D}pages   {W}214{D}/{W}214')
+    cv.bar(76, 15, 26, 1.0, T['ok'])
+    rb.line(16, ' {D}text    {W}96%')
+    cv.bar(76, 16, 26, .96, T['ok'])
+    rb.line(17, ' {D}images  {W}31{D}/{W}32')
+    cv.bar(76, 17, 26, .97, T['ok'])
+    rb.line(18, ' {D}        1 unplaceable → {w}thesis_ar.images/p041-im2.jp2')
     rb.sep(19)
     rb.line(20, ' {W}FONTS')
     rb.line(21, ' {W}F1 {w}TimesNewRomanPSMT {D}embedded {G}intact')
     rb.line(22, ' {W}F3 {w}CIDFont+F1        {D}bundled  {C}Noto Naskh Arabic {D}(picked)')
-    rb.line(23, ' {W}F7 {w}unknown           {D}bundled  {C}Noto Sans')
+    rb.line(23, ' {W}F7 {w}unknown           {D}bundled  {C}Noto Sans {Y}partial{D} bold→reg')
     rb.sep(24)
     rb.line(25, ' ' + '  '.join([hk('o', 'open'), hk('e', 'export .md'), hk('d', 're-diagnose'), hk('c', 'copy')]))
     cv.gtext(54, 28, '─── case closed · the cat has inspected this pdf ───', [R('D'), R('m'), R('M'), R('W')], sym=True)
@@ -1442,7 +1441,9 @@ def sample_hash(kind, text):
     return hashlib.new(kind, text.encode()).hexdigest()
 
 
-CASE_REF, EXAMINER = '2026-091 / E-14', 'J. Okafor'
+CASE_REF, EXAMINER, ITEM_REF = '2026-091 / E-14', 'J. Okafor', 'E-14.3 export folder'
+CASE_FIELDS = [('case reference', CASE_REF), ('examiner', EXAMINER),
+               ('item reference', ITEM_REF), ('authority / notes', '')]
 IN_SHA = sample_hash('sha256', 'thesis_ar.pdf')
 DATA_DIR = '~/.local/share/pdfpundit/'
 CONFIG_TOML = '~/.config/pdfpundit/config.toml'
@@ -1484,9 +1485,10 @@ def frame_history(empty=False):
         for i, (ic, k, name, runs, last) in enumerate(HISTORY):
             ry = 5 + i
             sel = i == 0
-            if sel:
+            if sel:   # the focused list: lightbar and a ► marker
                 cv.fill(2, ry, 56, 1, 'b')
-            cv.put(3, ry, ic, k)
+                cv.put(2, ry, '►', 'Y')
+            cv.put(4, ry, ic, k)
             nf = 'W' if sel else 'C'
             name = name if len(name) <= 24 else name[:23] + '…'   # cut at the column, marked
             cv.rich(6, ry, f'{{{nf}}}{name:<24} {{W}}{runs:>4}  {{{"W" if sel else "w"}}}{last}  '
@@ -1524,10 +1526,8 @@ def frame_history(empty=False):
                 ('2026-09-26 14:10', 'Resave', 4, 3)]
         for i, (when, path, a, b) in enumerate(runs):
             ry = 9 + i
-            sel = i == 0
-            if sel:
-                cv.fill(61, ry, 49, 1, 'b')
-            cv.rich(62, ry, ('{Y}►' if sel else ' ') + f' {{{"W" if sel else "w"}}}{when} '
+            sel = i == 0   # selected in the unfocused list: a dim ►, no lightbar
+            cv.rich(62, ry, ('{D}►' if sel else ' ') + f' {{{"W" if sel else "w"}}}{when} '
                             f'{path:<16} {{W}}{a}{{D}} → {{{"G" if b == 0 else "Y"}}}{b}')
         rb.sep(12)
         rb.line(13, ' {W}RUN {D}2026-10-08 11:46 · engine {W}0.1.0')
@@ -1543,14 +1543,14 @@ def frame_history(empty=False):
         rb.sep(23)
         rb.line(24, ' {W}ANSWERS {D}who decided each question')
         rb.line(25, ' {W}F3 {w}Noto Naskh Arabic      {D}p.12 · {W}you')
-        rb.line(26, ' {W}F7 {w}Noto Sans              {D}p.40 · {W}best guess')
+        rb.line(26, ' {W}F7 {w}Noto Sans              {D}p.40 · {W}you')
         rb.sep(27)
         rb.line(28, ' ' + '  '.join([hk('o', 'open'), hk('f', 'folder'), hk('e', 'export .md'),
                                      hk('x', 'forget')]))
     if empty:
         cv.rich(1, 36, ' ' + '  '.join([hk('B', 'browse for pdfs'), hk('esc', 'back')]))
     else:
-        cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'select'), hk('tab', 'runs'), hk('/', 'filter'),
+        cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'select'), hk('tab', 'go to runs'), hk('/', 'filter'),
                                          hk('o', 'open'), hk('f', 'folder'), hk('x', 'forget'),
                                          hk('esc', 'back')]))
     statusbar(cv, ['node 1', 'history', '{G}offline'], '112×38 {c}│{W} 11:47')
@@ -1578,8 +1578,9 @@ SETUP = [   # (label, value markup, recorded in every report, dim) or a section 
     None,
     'CUSTODY',
     ('custody mode', '{D}[ ] {W}off', False, False),
-    ('hashes', '{D}[x] sha256 [x] sha1 [x] md5', False, True),
+    ('hashes', '{D}sha256 always · [x] sha1 [x] md5', False, True),
     ('ask case details', '{D}[x] on', False, True),
+    ('record host name', '{D}[x] on', False, True),
     ('custody log', '{D}data folder/custody.log', False, True),
     None,
     'LOOK',
@@ -1620,20 +1621,19 @@ def frame_setup():
 
     db = Box(cv, 66, 2, 45, 20, title='CUSTODY MODE', grad=T['modal'], tbg='m')
     db.line(3, ' {W}off {D}· the default')
-    db.line(5, ' {w}When on, each batch also gets a chain-')
-    db.line(6, ' {w}of-custody record:')
-    db.line(7, ' {M}· {w}the cat asks once per batch for a')
-    db.line(8, '   {w}case reference and an examiner')
-    db.line(9, ' {M}· {w}each input is hashed before it is')
-    db.line(10, '   {w}read, and again after the run')
-    db.line(11, ' {M}· {w}each output is hashed once written')
-    db.line(12, ' {M}· {C}<name>.custody.json{w} and {C}.txt{w} land')
-    db.line(13, '   {w}beside each output')
-    db.line(14, ' {M}· {C}custody.log{w} gets one chained entry')
-    db.line(15, '   {w}per file')
-    db.line(17, ' {w}The repair itself does not change:')
-    db.line(18, ' {w}same input, same output bytes.')
-    db.line(20, ' ' + hk('space', 'turn on', 'D'))
+    db.line(5, ' {w}When on, every batch also gets custody')
+    db.line(6, ' {w}records:')
+    db.line(7, ' {M}· {w}the cat asks once per batch for the')
+    db.line(8, '   {w}case details, before anything runs')
+    db.line(9, ' {M}· {w}inputs are hashed when read and again')
+    db.line(10, '   {w}after the run; outputs once placed')
+    db.line(11, ' {M}· {w}three files beside each output:')
+    db.line(12, '   {C}<output>.custody.json{D}, {C}.txt{D}, {C}.sha256')
+    db.line(13, ' {M}· {C}custody.log{w} gets an entry when a batch')
+    db.line(14, '   {w}opens, one per record, one at the end')
+    db.line(16, ' {w}The repair itself does not change:')
+    db.line(17, ' {w}same input, same output bytes.')
+    db.line(19, ' ' + hk('space', 'turn on', 'D'))
 
     cv.pix(73, 22, cat_grid(WCAT_S, 'closed'))
     cv.rich(2, 35, '{D}saves to {C}' + CONFIG_TOML + ' {D}· applies to the next batch')
@@ -1671,7 +1671,7 @@ def frame_help():
     keys(16, ('o', 'open the copy'), ('e', 'export .md'))
     keys(17, ('d', 're-diagnose'), ('c', 'copy report'))
     keys(18, ('v', 'evidence'))
-    cv.rich(22, 18, '{D}custody mode only')
+    cv.rich(22, 18, '{D}when the run has a custody record')
 
     cv.rich(6, 20, '{W}THE CAT')
     cv.rich(6, 21, '{w}Drop pdfs on its face. It eats them,')
@@ -1691,14 +1691,14 @@ def frame_help():
     cv.rich(58, 7, '{D}never replaces a file: it adds {w}(2){D}, {w}(3){D} …')
     cv.rich(58, 8, '{C}<name>.md            {D}when you export {D}[{Y}e{D}]')
     cv.rich(58, 9, '{C}<hash>.images/       {D}images it extracts')
-    cv.rich(58, 10, '{C}<name>.custody.*     {D}custody mode only')
+    cv.rich(58, 10, '{C}<output>.custody.*   {D}custody mode only')
     cv.rich(58, 11, '{D}history  {w}' + DATA_DIR + 'history/')
     cv.rich(58, 12, '{D}config   {w}' + CONFIG_TOML)
 
     cv.rich(58, 14, '{W}WHAT iT PROMiSES')
     cv.rich(58, 15, '{G}√ {w}Originals are never opened for writing.')
-    cv.rich(58, 16, '{G}√ {w}Same file, version and settings: the')
-    cv.rich(58, 17, '  {w}same output, byte for byte.')
+    cv.rich(58, 16, '{G}√ {w}Same file, version, settings and answers:')
+    cv.rich(58, 17, '  {w}the same output, byte for byte.')
     cv.rich(58, 18, '{G}√ {w}No network code. It works offline.')
     cv.rich(58, 19, '{G}√ {w}Every fix is listed in the report.')
     cv.rich(58, 20, '{G}√ {w}No cat in any file it writes.')
@@ -1709,10 +1709,10 @@ def frame_help():
     cv.rich(58, 25, '{R}× {w}Touch the network, ever.')
 
     cv.rich(58, 27, '{W}CUSTODY MODE {D}off by default · setup [{Y}S{D}]')
-    cv.rich(58, 28, '{w}Hashes every input and output, asks once')
-    cv.rich(58, 29, '{w}per batch for a case reference and an')
-    cv.rich(58, 30, '{w}examiner, and writes a custody record')
-    cv.rich(58, 31, '{w}beside each output.')
+    cv.rich(58, 28, '{w}Asks once per batch for the case details,')
+    cv.rich(58, 29, '{w}hashes every input and output, and writes')
+    cv.rich(58, 30, '{C}.custody.json{w}, {C}.txt{w} and {C}.sha256{w} beside each')
+    cv.rich(58, 31, '{w}output, each with an entry in {C}custody.log{w}.')
     cv.rich(58, 33, '{D}esc closes this')
     statusbar(cv, ['node 1', '{M}help', '{G}offline'], '112×38 {c}│{W} 11:38')
     return cv
@@ -1740,28 +1740,28 @@ def frame_custody():
     cv.rich(8, 28, '{w}case details first. {m}then food.')
     cv.rich(5, 31, '{D}custody mode is on in setup [{Y}S{D}]')
 
-    mb = Box(cv, 48, 2, 63, 27, title='‼ CASE DETAiLS', note='{W}once{D} per batch',
+    mb = Box(cv, 48, 2, 63, 31, title='‼ CASE DETAiLS', note='{W}once{D} per batch',
              grad=T['modal'], tbg='m')
-    mb.line(4, ' {W}3 pdfs{w} are queued in {Y}custody mode{w}. Before the cat')
-    mb.line(5, ' {w}starts, it needs two lines for the custody records.')
+    mb.line(4, ' {W}3 pdfs{w} are queued in {Y}custody mode{w}. The cat asks for the')
+    mb.line(5, ' {w}case details once, before any of them runs.')
     mb.sep(6, [BG(), R('m'), R('M')])
-    mb.line(7, '   {D}case reference')
-    field(cv, 52, 8, 56, CASE_REF, True)
-    mb.line(10, '   {D}examiner')
-    field(cv, 52, 11, 56, EXAMINER, False)
-    mb.line(13, ' {D}Both may stay blank: the record then says {w}not given{D}.')
-    mb.line(14, ' {D}They go only into the custody records, never into the')
-    mb.line(15, ' {D}repaired pdf or the markdown.')
-    mb.sep(16, [BG(), R('m'), R('M')])
-    mb.line(17, ' {W}THiS BATCH')
-    mb.line(18, ' {C}report_2024.pdf  minutes_q3.pdf  thesis_ar.pdf')
-    mb.line(19, ' {D}hashes  {W}sha256 · sha1 · md5 {D}· before and after')
-    mb.line(20, ' {D}records {C}<name>.custody.json {D}and {C}.txt {D}beside each output')
-    mb.line(21, ' {D}log     {W}custody.log {D}· one chained entry per file')
-    mb.sep(22, [BG(), R('m'), R('M')])
-    cv.rich(51, 24, '{W/m} ► Start batch {/K}')
-    cv.rich(70, 24, '{D}[ {w}Cancel batch {D}]')
-    mb.line(26, ' {D}tab next field · enter start · esc cancel: nothing is lost')
+    for i, (label, value) in enumerate(CASE_FIELDS):
+        mb.line(7 + 2 * i, '   {D}' + label)
+        field(cv, 52, 8 + 2 * i, 56, value, i == 0)
+    mb.line(16, ' {D}Any field may stay blank, and is then recorded as blank.')
+    mb.line(17, ' {D}Up to 200 characters each. They go only into the custody')
+    mb.line(18, ' {D}records: never into custody.log, the pdf or the markdown.')
+    mb.sep(19, [BG(), R('m'), R('M')])
+    mb.line(20, ' {W}THiS BATCH')
+    mb.line(21, ' {C}report_2024.pdf  minutes_q3.pdf  thesis_ar.pdf')
+    mb.line(22, ' {D}hashes  {W}sha256 {D}· {W}sha1 {D}· {W}md5 {D}legacy · before and after')
+    mb.line(23, ' {D}records {C}<output>.custody.json{D}, {C}.txt{D} and {C}.sha256{D} per output')
+    mb.line(24, ' {D}log     {W}custody.log {D}· batch opened, one per record, closed')
+    mb.sep(25, [BG(), R('m'), R('M')])
+    cv.rich(51, 27, '{W/m} ► Start batch {/K}')
+    cv.rich(70, 27, '{D}[ {w}Cancel batch {D}]')
+    mb.line(29, ' {D}tab next field · enter start · esc cancel batch')
+    mb.line(30, ' {D}Cancel runs nothing. {C}custody.log{D} lists the files by hash.')
 
     hint = '·∙· the cat asks once per batch ·∙·'
     cv.gtext((W - len(hint)) // 2, 35, hint, T['tag'], sym=True)
@@ -1780,7 +1780,7 @@ def frame_widget_custody():
     cv.rich(3, WH - 2, '{M}‼ {W}case details {D}· {W}zoom me')
     for i in range(3, 28):
         cv.blink.add((i, WH - 2))
-    wstatus(cv, ' {Y}PDFPuNDiT', '{Y}custody {M}‼ 3 ')
+    wstatus(cv, ' {Y}PDFPuNDiT', '{Y}custody {M}‼ 1 ')
     return cv
 
 
@@ -1790,37 +1790,39 @@ def frame_evidence():
     queue_box(cv, 1, 2, 50, QUEUE_B, 2, '{G}5{w}/7 done {D}·{R} 1 failed', nw=20)
 
     rb = Box(cv, 52, 2, 59, 30, title='EViDENCE » thesis_ar.pdf', note='{G}√ unchanged')
-    rb.line(4, ' {D}case     {W}' + CASE_REF)
-    rb.line(5, ' {D}examiner {W}' + EXAMINER)
-    rb.sep(6)
+    for k, (label, value) in enumerate(zip(('case', 'examiner', 'item', 'notes'),
+                                           (CASE_REF, EXAMINER, ITEM_REF, ''))):
+        rb.line(3 + k, f' {{D}}{label:<9}' + ('{W}' + value if value else '{D}blank'))
+    rb.sep(7)
     out = 'thesis_ar.repaired.pdf'
-    for y0, title, name, seed in ((7, 'iNPUT ', 'thesis_ar.pdf', 'thesis_ar.pdf'),
-                                  (14, 'OUTPUT', out, out)):
+    for y0, title, name in ((8, 'iNPUT ', 'thesis_ar.pdf'), (15, 'OUTPUT', out)):
         rb.line(y0, f' {{W}}{title} {{C}}{name}')
-        s256 = hex_rows(sample_hash('sha256', seed))
+        cv.rich(92, y0, '{D}sha1, md5: legacy')
+        s256 = hex_rows(sample_hash('sha256', name))
         rb.line(y0 + 1, ' {D}sha256 {w}' + s256[0])
         rb.line(y0 + 2, '        {w}' + s256[1])
-        rb.line(y0 + 3, ' {D}sha1   {w}' + hex_rows(sample_hash('sha1', seed), 5)[0])
-        rb.line(y0 + 4, ' {D}md5    {w}' + hex_rows(sample_hash('md5', seed))[0])
-    rb.line(12, ' {D}after  {G}√ unchanged {D}· hashed again when the run ended')
-    rb.sep(13)
-    rb.sep(19)
-    rb.line(20, ' {W}WRiTTEN BESiDE iT')
-    rb.line(21, ' {C}thesis_ar.custody.json  {D}the record, for tools')
-    rb.line(22, ' {C}thesis_ar.custody.txt   {D}the record, to print')
-    rb.line(23, ' {C}' + IN_SHA[:8] + '.images/        {W}31{D} images, each hashed')
-    rb.line(24, ' {D}custody.log entry {W}58{D}, chained to entry {W}57')
-    rb.sep(25)
-    rb.line(26, ' ' + '  '.join([hk('r', 're-verify'), hk('f', 'folder'), hk('c', 'copy hashes'),
+        rb.line(y0 + 3, ' {D}sha1   {w}' + hex_rows(sample_hash('sha1', name), 5)[0])
+        rb.line(y0 + 4, ' {D}md5    {w}' + hex_rows(sample_hash('md5', name))[0])
+    rb.line(13, ' {D}after  {G}√ unchanged {D}· hashed again after the run')
+    rb.sep(14)
+    rb.line(20, ' {D}placed {G}√ {w}same bytes as the engine made {D}· atomic')
+    rb.sep(21)
+    rb.line(22, ' {W}WRiTTEN BESiDE iT')
+    rec = out + '.custody'
+    rb.line(23, ' {C}' + rec + '.json    {D}the record')
+    rb.line(24, ' {C}' + rec + '.txt     {D}to print')
+    rb.line(25, ' {C}' + rec + '.sha256  {D}for sha256sum -c')
+    rb.line(26, ' {C}' + IN_SHA[:8] + '.images/   {W}31{D} images · images.json · SHA256SUMS')
+    rb.line(27, ' {C}custody.log  {D}record entry {W}58{D} · batch opened at {W}55')
+    rb.sep(28)
+    rb.line(29, ' ' + '  '.join([hk('r', 'verify'), hk('f', 'folder'), hk('c', 'copy hashes'),
                                  hk('tab', 'result')]))
-    cv.gtext(55, 29, '─── receipts kept · not one cat in them ───', [R('D'), R('m'), R('M'), R('W')],
-             sym=True)
 
     cv.pix(8, 17, cat_grid(0.52, 'happy'))
     cv.rich(5, 31, '{D}the cat kept the receipts. {m}burp.')
     progress(cv, 32, '{w}repairing {C}board_deck.pdf', .34, '{w}batch {W}5{D}/{W}7 {D}·{R} 1 failed', .79)
-    cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'select'), hk('tab', 'result'), hk('r', 're-verify'),
-                                     hk('esc', 'back'), hk('q', 'quit')]))
+    cv.rich(1, 36, ' ' + '  '.join([hk('↑↓', 'select'), hk('tab', 'result'), hk('r', 'verify'),
+                                     hk('c', 'copy hashes'), hk('esc', 'back'), hk('q', 'quit')]))
     statusbar(cv, ['batch 5/7', '{Y}custody ON', '{R}1 failed', '{G}offline'], '11:47')
     return cv
 

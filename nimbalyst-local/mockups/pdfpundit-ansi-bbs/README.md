@@ -1,8 +1,9 @@
 # PDFPundit ANSI BBS mockup: state and how to review it
 
-Status as of 2026-10-08: approved direction, not final art. Frames 10 to 14 and
-the D-117 changes to frames 03 and 05 are a design proposal awaiting review;
-the screen-by-screen spec, with each datum's source, is
+Status as of 2026-10-09: approved direction, not final art. Frames 10 to 14
+are a design proposal awaiting review. The D-117 changes to frames 03 and 05
+live on the branch `design/ux-d117`, because the Rust layouts must change in
+the same merge. The screen-by-screen spec, with each datum's source, is
 [`../../plans/implementation/ux-design.md`](../../plans/implementation/ux-design.md). This folder holds
 everything needed to review or change the mockup at
 [`../pdfpundit-ansi-bbs.mockup.html`](../pdfpundit-ansi-bbs.mockup.html).
@@ -66,9 +67,9 @@ These come from the user. Rationale lives in
 | `01-idle.png` | Idle: the logo, the cat (meme pose, behind the plate), last callers and menu on the left, how-it-works and system info on the right. |
 | `02-drag-1…8-*.png` | Dragging PDFs to the cat, in kitty only (see the drag animation table below). |
 | `02b-chomp-1…8-*.png` | The drop reaction in every other terminal: the files land on the cat's head and it eats them (see the chomp table below). |
-| `03-batch.png` | The batch repairing itself. `thesis_ar.pdf` is parked (‼) waiting on a font decision while the runner moves on. The cat still takes more files. Since D-117 it shows only data the engine has: the six engine phases, the candidate count, findings with their locations, and a log of phase changes and engine log lines. |
+| `03-batch.png` | The batch repairing itself. `thesis_ar.pdf` is parked (‼) waiting on a font decision while the runner moves on. The cat still takes more files. |
 | `04-font-pick.png` | Resolving the parked file: five candidate fonts, each decoding the same glyph codes into a different preview. Only the right font gives readable Arabic. |
-| `05-result.png` | A finished file with before/after findings, recovery bars and font resolutions, plus the per-file menu. The cat is shown contented ("burp."). Since D-117 RECOVERY holds the V1 retention bars (text, images) and the C9 count line; producer, repair time and the pages bar are gone. |
+| `05-result.png` | A finished file with before/after findings, recovery bars and font resolutions, plus the per-file menu. The cat is shown contented ("burp."). |
 | `06-theme-chooser.png` | Theme chooser (`T`): each theme's 16 ANSI colours and logo ramp in a list; the selected theme broken into roles, gradients and a live sample. |
 | `07-widget-idle.png` | Widget, idle: the meme cat behind its plate, "feed me a pdf". |
 | `07-widget-working.png` | Widget, working: contented cat, batch progress bar and 3/7. |
@@ -81,9 +82,9 @@ These come from the user. Rationale lives in
 | `10b-history-empty.png` | History before the cat has eaten anything. |
 | `11-setup.png` | Setup (`S`): every knob a user may change, saved to `config.toml`. ◆ marks the settings every report records. Custody mode is off, with its explanation open. |
 | `12-help.png` | Help (`?`): keys, what the cat does, where files go, what the app promises. |
-| `13-custody-prompt.png` | Custody mode on, files dropped: the cat asks once for a case reference and an examiner before the batch runs. |
+| `13-custody-prompt.png` | Custody mode on, files dropped: the cat asks once per batch for the case details (case reference, examiner, item reference, authority or notes) before the batch runs. |
 | `13b-widget-custody.png` | The same moment in the widget: no form, just "‼ case details · zoom me". |
-| `14-evidence.png` | A finished file in custody mode: the result panel's evidence page (`v`), with hashes before and after, the records written and the extracted images. |
+| `14-evidence.png` | A finished file with a custody record: the result panel's evidence page (`v`), with the case details, hashes before and after, the three record files, the extracted images and the log entry. |
 
 ### Drag animation
 
@@ -205,5 +206,6 @@ in the chooser come straight from each flavour's `ansiColors`.
   - error and encrypted-file states
   - setup's edit states (a number or path being typed, the unsaved-changes prompt)
   - the history's filter being typed and its forget confirmation
+  - the log head shown when a custody batch closes, and the Verify result
 - Frames 10 to 14 use sample data. Their hashes are SHA-256, SHA-1 and MD5 of
   the file names, not of real files.
