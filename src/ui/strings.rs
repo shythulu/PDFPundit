@@ -175,6 +175,9 @@ pub const SKIP_BUTTON: &str = "{D}[ {w}Skip {D}]{D} keeps best guess, marks find
 /// The font pick's keys.
 pub const FONT_PICK_KEYS: &str =
     "{D}↑↓ candidate · enter pick · b best for both · s skip · esc later (file stays parked)";
+/// The font pick's keys while more than one question is parked.
+pub const FONT_PICK_KEYS_ALL: &str =
+    "{D}↑↓ candidate · enter pick · b best for both · a best for all · s skip · esc later";
 /// A candidate's language label (T-28's `Lang` labels) as the slot line
 /// names it; any other label is shown as it is.
 pub const LANGUAGES: [(&str, &str); 6] = [
@@ -584,6 +587,7 @@ pub const ALL: &[&str] = &[
     "Use best for both",
     "keeps best guess, marks finding partial",
     "↑↓ candidate · enter pick · b best for both · s skip · esc later (file stays parked)",
+    "↑↓ candidate · enter pick · b best for both · a best for all · s skip · esc later",
     RESOLVING_FILE,
     "{n} themes · live preview",
     "+ load theme file…",

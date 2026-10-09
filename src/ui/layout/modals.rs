@@ -7,7 +7,6 @@
 //! does, and draws its box on top. The status bar row is the screen's, not
 //! the modal's: the loop redraws it after the modal with
 //! [`strings::RESOLVING_FILE`] or [`strings::CHOOSING_THEME`] as its state.
-#![cfg_attr(not(test), allow(dead_code))]
 
 use super::FULL_SIZE;
 use crate::engine::{FontPickRequest, FontSlot, InteractionReply, Ratio, ToUnicodeState};
@@ -127,9 +126,11 @@ pub struct FontPickModal<'a> {
     pub file: &'a str,
     /// The slot the question is about, as the analysis listed it.
     pub slot: Option<&'a FontSlot>,
-    /// Which of the file's font questions this is and how many it has, from
-    /// 1; `None` leaves the count out.
+    /// Which of the parked font questions this is and how many there are,
+    /// from 1; `None` leaves the count out.
     pub question: Option<(usize, usize)>,
+    /// More than one question is parked: the keys row offers "best for all".
+    pub all: bool,
 }
 
 /// What a key does in the font pick.
@@ -139,6 +140,9 @@ pub enum FontPickAction {
     Select(usize),
     /// Answer the question.
     Reply(InteractionReply),
+    /// Answer every parked font question with the best guess ("apply best
+    /// to all", TD:469-471).
+    BestForAll,
     /// Close the modal; the file stays parked and the question stays open.
     Later,
     /// The key does nothing here.
@@ -185,6 +189,7 @@ impl<'a> FontPickModal<'a> {
             file: &entry.name,
             slot: at.map(|i| lost[i]),
             question: at.map(|i| (i + 1, lost.len())),
+            all: false,
         }
     }
 
@@ -303,7 +308,12 @@ impl<'a> FontPickModal<'a> {
         for (bx, button) in BUTTON_XS.into_iter().zip(buttons) {
             c.rich(bx, BUTTONS_Y, button, None, theme);
         }
-        c.rich(KEYS_AT.0, KEYS_AT.1, strings::FONT_PICK_KEYS, None, theme);
+        let keys = if self.all {
+            strings::FONT_PICK_KEYS_ALL
+        } else {
+            strings::FONT_PICK_KEYS
+        };
+        c.rich(KEYS_AT.0, KEYS_AT.1, keys, None, theme);
     }
 
     /// `slot F3 (CIDFont+F1) · first seen p.12 · 418 glyph codes · language
@@ -335,7 +345,8 @@ impl<'a> FontPickModal<'a> {
             parts.push((r.heading, s.glyph_count.to_string()));
             parts.push((r.dim, format!(" {}", strings::GLYPH_CODES)));
         }
-        if let Some(lang) = req.candidates.first().map(|c| c.language.as_str()) {
+        let lang = req.candidates.first().map(|c| c.language.as_str());
+        if let Some(lang) = lang.filter(|l| !l.is_empty()) {
             let name = strings::LANGUAGES
                 .iter()
                 .find(|(code, _)| *code == lang)
@@ -351,7 +362,8 @@ impl<'a> FontPickModal<'a> {
     /// (stopping at either end), Enter picks the one under it, `b` takes the
     /// best guess (the loop applies it to the file's other open question too:
     /// "use best for both"), `s` skips (the best guess, the finding marked
-    /// partial, TD §5.3), Esc closes the modal and leaves the file parked.
+    /// partial, TD §5.3), `a` takes the best guess for every parked question
+    /// ("apply best to all"), Esc closes the modal and leaves the file parked.
     /// `tab` would switch the font source the modal draws, but v1 has only the
     /// bundled fonts (system fonts wait on M5, D-035), so the model has no key
     /// for it.
@@ -366,6 +378,7 @@ impl<'a> FontPickModal<'a> {
             }
             (ModalKey::Char('b' | 'B'), _, _) => FontPickAction::Reply(InteractionReply::UseBest),
             (ModalKey::Char('s' | 'S'), _, _) => FontPickAction::Reply(InteractionReply::Skip),
+            (ModalKey::Char('a' | 'A'), _, _) => FontPickAction::BestForAll,
             (ModalKey::Esc, _, _) => FontPickAction::Later,
             _ => FontPickAction::Ignore,
         }
@@ -792,7 +805,7 @@ mod tests {
 
     #[test]
     fn font_pick_keys() {
-        use FontPickAction::{Ignore, Later, Reply, Select};
+        use FontPickAction::{BestForAll, Ignore, Later, Reply, Select};
         use ModalKey::{Char, Down, Enter, Esc, Up};
         let req = mockup_request();
         let pick = |id: &str| Reply(InteractionReply::Pick(id.into()));
@@ -811,6 +824,8 @@ mod tests {
             (1, Char('s'), Reply(InteractionReply::Skip)),
             (1, Char('S'), Reply(InteractionReply::Skip)),
             (1, Esc, Later),
+            (1, Char('a'), BestForAll),
+            (1, Char('A'), BestForAll),
             (1, Char('q'), Ignore),
             (1, Char('T'), Ignore),
         ] {
@@ -834,6 +849,7 @@ mod tests {
             assert_eq!(FontPickModal::key(&none, 0, key), Ignore, "{key:?}");
         }
         assert_eq!(FontPickModal::key(&none, 0, Esc), Later);
+        assert_eq!(FontPickModal::key(&none, 0, Char('a')), BestForAll);
         assert_eq!(
             FontPickModal::key(&none, 0, Char('b')),
             Reply(InteractionReply::UseBest)
@@ -992,6 +1008,7 @@ mod tests {
             file: "a.pdf",
             slot: None,
             question: None,
+            all: false,
         };
         let mut other = req.clone();
         other.candidates[0].language = "ur".into();
@@ -1007,6 +1024,24 @@ mod tests {
             row_text(&c, 6).trim_matches(|ch| ch == ' ' || ch == '║'),
             ""
         );
+    }
+
+    /// With more than one question parked, the keys row offers "best for
+    /// all" in place of the parked note.
+    #[test]
+    fn the_keys_row_offers_best_for_all_when_asked() {
+        let entry = mockup_entry();
+        let req = mockup_request();
+        let mut modal = FontPickModal::for_entry(&entry, &req);
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        assert!(row_text(&c, 30).contains("(file stays parked)"));
+        modal.all = true;
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        let row = row_text(&c, 30);
+        assert!(row.contains("· a best for all ·"), "{row:?}");
+        assert_eq!(row.chars().nth(103), Some('║'), "inside the box");
     }
 
     /// Live preview: the chooser is drawn in the theme under the cursor, the
@@ -1129,6 +1164,7 @@ mod tests {
             strings::USE_BEST_BUTTON,
             strings::SKIP_BUTTON,
             strings::FONT_PICK_KEYS,
+            strings::FONT_PICK_KEYS_ALL,
             strings::COLOUR_SUPPORT,
             strings::PALETTE_SOURCE,
             strings::THEME_KEYS,
