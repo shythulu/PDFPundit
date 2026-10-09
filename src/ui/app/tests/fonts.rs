@@ -1,14 +1,16 @@
 //! Font questions from the UI (F-01): a parked job's question opens with
 //! `i`, each answer goes through the runner, `esc` leaves the job parked,
 //! "best for all" answers every parked job, `prompt_unresolved = false`
-//! answers without asking, and one family asks once.
+//! answers without asking, and one family asks once. Each answer carries
+//! who gave it to the run's interaction record (G-03, D-141).
 
 use super::*;
 use crate::engine::{
-    FontCandidate, FontPickRequest, FontSlot, InteractionReply, InteractionRequestId, Ratio,
-    ToUnicodeState,
+    Answer, FontCandidate, FontPickRequest, FontSlot, InteractionReply, InteractionRequestId,
+    InteractionSource, Ratio, ToUnicodeState,
 };
 use crate::jobs::FakeStep;
+use crate::library::{HistoryStore, JsonStore};
 
 fn candidate(id: &str, family: &str) -> FontCandidate {
     FontCandidate {
@@ -73,6 +75,21 @@ fn drive(
     stop: fn(&JobEvent) -> bool,
     n: usize,
 ) -> usize {
+    drive_into(app, screen, runner, rx, inputs, stop, n, None)
+}
+
+/// [`drive`], recording finished runs in `store`.
+#[allow(clippy::too_many_arguments)]
+fn drive_into(
+    app: &mut App,
+    screen: &mut TestScreen,
+    runner: &mut JobRunner<FakeEngine>,
+    rx: &Receiver<AppEvent<Input>>,
+    inputs: Vec<Input>,
+    stop: fn(&JobEvent) -> bool,
+    n: usize,
+    store: Option<&mut dyn HistoryStore>,
+) -> usize {
     let mut inputs = inputs.into_iter();
     let (mut seen, mut asked) = (0, 0);
     let mut next = || {
@@ -94,8 +111,22 @@ fn drive(
         Some(ev)
     };
     let mut clock = FakeClock::new();
-    event_loop(app, screen, &mut next, &mut clock, Some(runner), None).unwrap();
+    event_loop(app, screen, &mut next, &mut clock, Some(runner), store).unwrap();
     asked
+}
+
+/// The source of each answer row `i`'s finished run recorded, in order.
+fn recorded_sources(app: &App, i: usize) -> Vec<InteractionSource> {
+    let run = app.state.batch.entries[i].run.as_ref().expect("a run");
+    run.report.interactions.iter().map(|r| r.source).collect()
+}
+
+/// An answer the app gave on its own (D-141).
+fn batched(reply: InteractionReply) -> Answer {
+    Answer {
+        reply,
+        source: InteractionSource::Batched,
+    }
 }
 
 fn asks(ev: &JobEvent) -> bool {
@@ -174,6 +205,12 @@ fn i_opens_the_question_and_a_pick_finishes_the_row() {
         [InteractionReply::Pick("noto-serif".into())],
         "the runner passed the pick on"
     );
+    assert_eq!(
+        engine.answers(),
+        [Answer::user(InteractionReply::Pick("noto-serif".into()))],
+        "as the user's"
+    );
+    assert_eq!(recorded_sources(&app, 0), [InteractionSource::User]);
     assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
     assert!(app.state.batch.entries[0].run.is_some());
     assert_eq!(app.state.screen, Screen::Main, "no question left");
@@ -247,11 +284,21 @@ fn best_for_all_answers_every_parked_job() {
         2,
     );
     assert_eq!(
-        engine.replies(),
-        [InteractionReply::UseBest, InteractionReply::UseBest]
+        engine.answers(),
+        [
+            batched(InteractionReply::UseBest),
+            batched(InteractionReply::UseBest)
+        ],
+        "`a` answers for the user: recorded as batched, not as the user's"
     );
-    for row in &app.state.batch.entries {
+    for (i, row) in app.state.batch.entries.iter().enumerate() {
         assert_eq!(row.state, EntryState::Done, "{}", row.name);
+        assert_eq!(
+            recorded_sources(&app, i),
+            [InteractionSource::Batched],
+            "{}",
+            row.name
+        );
     }
     assert_eq!(app.state.screen, Screen::Main);
     assert!(runner.shutdown(Duration::from_secs(5)));
@@ -303,10 +350,62 @@ fn an_answer_moves_on_to_the_next_parked_question() {
         1,
     );
     assert_eq!(
-        engine.replies(),
-        [InteractionReply::Skip, InteractionReply::UseBest]
+        engine.answers(),
+        [
+            Answer::user(InteractionReply::Skip),
+            Answer::user(InteractionReply::UseBest)
+        ],
+        "each the user's answer to the question shown"
     );
+    assert_eq!(recorded_sources(&app, 0), [InteractionSource::User]);
+    assert_eq!(recorded_sources(&app, 1), [InteractionSource::UseBest]);
     assert_eq!(app.state.screen, Screen::Main);
+    assert!(runner.shutdown(Duration::from_secs(5)));
+}
+
+/// "Use best for both" (`b`) answers the question shown as the user's best
+/// guess, and the file's later questions for the user: those are batched.
+#[test]
+fn best_for_both_records_the_later_questions_as_batched() {
+    let dir = ScratchDir::new("app-font-both");
+    let a = pdf(&dir, "a.pdf");
+    let engine = Arc::new(
+        FakeEngine::new()
+            .with_font_slots(vec![
+                lost_slot("F1", "/NotoSans-Regular"),
+                lost_slot("F2", "/Garamond-Regular"),
+            ])
+            .on_repair(vec![
+                FakeStep::Ask(question("F1", Vec::new())),
+                FakeStep::Ask(question("F2", Vec::new())),
+            ]),
+    );
+    let (mut runner, rx) = runner_on(&engine);
+    let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    drive(
+        &mut app,
+        &mut screen,
+        &mut runner,
+        &rx,
+        vec![paste_of(&[&a])],
+        asks,
+        1,
+    );
+    let both = keys(&[key('i'), key('b')]);
+    let asked = drive(&mut app, &mut screen, &mut runner, &rx, both, repaired, 1);
+    assert_eq!(asked, 1, "the second question reached the app");
+    assert_eq!(app.state.screen, Screen::Main, "and was never shown");
+    assert_eq!(
+        engine.answers(),
+        [
+            Answer::user(InteractionReply::UseBest),
+            batched(InteractionReply::UseBest)
+        ]
+    );
+    assert_eq!(
+        recorded_sources(&app, 0),
+        [InteractionSource::UseBest, InteractionSource::Batched]
+    );
     assert!(runner.shutdown(Duration::from_secs(5)));
 }
 
@@ -343,8 +442,16 @@ fn prompt_unresolved_false_never_opens_the_modal() {
         1,
     );
     assert_eq!(app.state.screen, Screen::Main, "nothing to resolve");
-    assert_eq!(engine.replies(), [InteractionReply::UseBest]);
+    assert_eq!(
+        engine.answers(),
+        [Answer {
+            reply: InteractionReply::UseBest,
+            source: InteractionSource::Policy,
+        }],
+        "the policy answered, not the user"
+    );
     assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
+    assert_eq!(recorded_sources(&app, 0), [InteractionSource::Policy]);
     assert!(
         app.debug_log
             .iter()
@@ -376,6 +483,7 @@ fn one_family_asks_once() {
     );
     let (mut runner, rx) = runner_on(&engine);
     let (mut app, mut screen) = started(112, 38, &config::Ui::default());
+    let mut store = JsonStore::open_at(dir.join("history")).unwrap();
     drive(
         &mut app,
         &mut screen,
@@ -387,7 +495,16 @@ fn one_family_asks_once() {
     );
 
     let pick = keys(&[key('i'), code(KeyCode::Enter)]);
-    let asked = drive(&mut app, &mut screen, &mut runner, &rx, pick, repaired, 1);
+    let asked = drive_into(
+        &mut app,
+        &mut screen,
+        &mut runner,
+        &rx,
+        pick,
+        repaired,
+        1,
+        Some(&mut store),
+    );
     assert_eq!(asked, 1, "the bold face was asked of the app");
     assert_eq!(
         engine.replies(),
@@ -399,7 +516,32 @@ fn one_family_asks_once() {
     );
     assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
     assert_eq!(app.state.screen, Screen::Main, "asked once");
-    // The engine records the carried answer as the user's: the log names it.
+    // The run's interaction record, as the history keeps it: the user
+    // answered the regular face, the app carried it to the bold one.
+    let run = app.state.batch.entries[0].run.as_ref().expect("a run");
+    let runs = store.runs_for(&run.report.input_sha256).unwrap();
+    let [record] = &runs[..] else {
+        panic!("one run: {runs:?}")
+    };
+    let interactions: Vec<_> = (record.report.interactions.iter())
+        .map(|r| (r.request.slot.as_deref(), r.reply.clone(), r.source))
+        .collect();
+    assert_eq!(
+        interactions,
+        [
+            (
+                Some("F1"),
+                InteractionReply::Pick("noto-sans-regular".into()),
+                InteractionSource::User
+            ),
+            (
+                Some("F2"),
+                InteractionReply::Pick("noto-sans-bold".into()),
+                InteractionSource::Batched
+            ),
+        ]
+    );
+    // The log names the carried answer and where it came from.
     let line = app.debug_log.iter().find(|l| l.contains("without asking"));
     let line = line.expect("the carried answer is logged");
     assert!(line.contains("a.pdf"), "{line}");

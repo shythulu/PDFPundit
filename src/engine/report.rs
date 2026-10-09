@@ -10,7 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AnalysisResult, AnalyzeStats, FontDb, FontSourcePolicy, InteractionReply, PageSize,
+    AnalysisResult, AnalyzeStats, Answer, FontDb, FontSourcePolicy, InteractionReply, PageSize,
     RepairOptions, Toolpath, UnreproduciblePolicy,
 };
 use crate::pdf::model::{
@@ -80,13 +80,22 @@ pub struct InteractionSummary {
     pub candidates: Vec<String>,
 }
 
-/// Who answered.
+/// Who answered (D-141). Only `User` and `UseBest` say the user saw the
+/// question.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InteractionSource {
+    /// The user answered this question.
     User,
-    /// A configured policy answered without asking.
+    /// A configured policy answered without asking: the engine's
+    /// `unreproducible` policy, or the app's `[fonts] prompt_unresolved =
+    /// false`.
     Policy,
+    /// The user chose the best guess for this question.
     UseBest,
+    /// The app answered without asking, from an answer the user gave another
+    /// question: the one for the same font family in the file, "use best
+    /// for both" for the file's later questions, or "apply best to all".
+    Batched,
 }
 
 /// One repair pass.
@@ -202,6 +211,30 @@ impl RepairReport {
             partial_reasons: Vec::new(),
             stats: analysis.stats.clone(),
         }
+    }
+
+    /// The answers that replay this report's questions, in order, each with
+    /// the source it was recorded with (goal-r2-q12, D-141): every record
+    /// but the engine's own policy answers, which a repair with the same
+    /// settings gives again without asking. Those are the `Policy` records of
+    /// an unreproducible font under a policy other than `Ask`; a `Policy`
+    /// record of a question the engine asked (the app's `[fonts]
+    /// prompt_unresolved = false`) is replayed like any other.
+    // A replay is run by the tests; the runner replays its own answers.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn replay_answers(&self) -> Vec<Answer> {
+        let unasked = |r: &&InteractionRecord| {
+            r.source == InteractionSource::Policy
+                && r.request.kind == InteractionKind::FontUnreproducible
+                && self.settings.unreproducible != UnreproduciblePolicy::Ask
+        };
+        (self.interactions.iter())
+            .filter(|r| !unasked(r))
+            .map(|r| Answer {
+                reply: r.reply.clone(),
+                source: r.source,
+            })
+            .collect()
     }
 
     /// The fixed report lines: the signature note (D-052), the C9 count line

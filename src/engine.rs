@@ -542,11 +542,12 @@ pub enum LogLevel {
 #[error("cancelled")]
 pub struct Cancelled;
 
-/// Where a repair asks its questions (D-020).
+/// Where a repair asks its questions (D-020). The answer says who gave it
+/// (D-141), and the asking pass records that beside the reply.
 pub trait Interact {
     // The font passes ask (T-30); no pass of this version does.
     #[cfg_attr(not(test), allow(dead_code))]
-    fn ask(&mut self, req: InteractionRequest) -> Result<InteractionReply, Cancelled>;
+    fn ask(&mut self, req: InteractionRequest) -> Result<Answer, Cancelled>;
 }
 
 /// Answers every question with [`InteractionReply::UseBest`]. Reachable only
@@ -556,8 +557,41 @@ pub trait Interact {
 pub struct UseBest;
 
 impl Interact for UseBest {
-    fn ask(&mut self, _req: InteractionRequest) -> Result<InteractionReply, Cancelled> {
-        Ok(InteractionReply::UseBest)
+    fn ask(&mut self, _req: InteractionRequest) -> Result<Answer, Cancelled> {
+        Ok(Answer {
+            reply: InteractionReply::UseBest,
+            source: InteractionSource::UseBest,
+        })
+    }
+}
+
+/// A reply and who gave it (D-141). The app answers some questions itself (a
+/// family's earlier answer, "apply best to all", `[fonts] prompt_unresolved =
+/// false`); the source keeps the interaction record from saying the user
+/// answered a question they never saw.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Answer {
+    pub reply: InteractionReply,
+    pub source: InteractionSource,
+}
+
+impl Answer {
+    /// The user's own answer to the question asked.
+    pub fn user(reply: InteractionReply) -> Self {
+        Answer {
+            reply,
+            source: InteractionSource::User,
+        }
+    }
+
+    /// The source the interaction record keeps: the user's own
+    /// [`InteractionReply::UseBest`] is [`InteractionSource::UseBest`], any
+    /// other answer keeps its source.
+    pub fn recorded_source(&self) -> InteractionSource {
+        match (self.source, &self.reply) {
+            (InteractionSource::User, InteractionReply::UseBest) => InteractionSource::UseBest,
+            (source, _) => source,
+        }
     }
 }
 

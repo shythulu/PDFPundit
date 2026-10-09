@@ -68,8 +68,10 @@
 //!   [`FontResolution`] is `TextOnly`: the per-page record a Markdown note
 //!   can be made from (T-32 has no such note yet).
 //!
-//! Every question and answer is recorded in [`PassNotes::interactions`]:
-//! source `UseBest` for a `UseBest` reply, else `User`. Request ids are 0:
+//! Every question and answer is recorded in [`PassNotes::interactions`]
+//! with the source the answer came with (D-141): `Batched` or `Policy` when
+//! the app answered on its own, `UseBest` for the user's own `UseBest`
+//! reply, else `User`. Request ids are 0:
 //! the facade numbers the questions it shows. A substitution is the action
 //! `font program substituted: <font_id>` on the descriptor; every slot of
 //! the font gets a [`FontResolution`] whose provenance says how it was
@@ -1075,26 +1077,22 @@ fn generic(options: &[SubstituteChoice]) -> InteractionReply {
     })
 }
 
-/// Asks `request`, records the answer, and gives it; `None` (and the run
-/// marked cancelled) when the question was cancelled.
+/// Asks `request`, records the answer and who gave it (D-141), and gives
+/// the reply; `None` (and the run marked cancelled) when the question was
+/// cancelled.
 fn ask(
     ctx: &mut RepairCtx<'_>,
     request: InteractionRequest,
     summary: InteractionSummary,
 ) -> Option<InteractionReply> {
     match ctx.ask.ask(request) {
-        Ok(reply) => {
-            let source = if reply == InteractionReply::UseBest {
-                InteractionSource::UseBest
-            } else {
-                InteractionSource::User
-            };
+        Ok(answer) => {
             ctx.notes.interactions.push(InteractionRecord {
                 request: summary,
-                reply: reply.clone(),
-                source,
+                reply: answer.reply.clone(),
+                source: answer.recorded_source(),
             });
-            Some(reply)
+            Some(answer.reply)
         }
         Err(_) => {
             ctx.notes.cancelled = true;
