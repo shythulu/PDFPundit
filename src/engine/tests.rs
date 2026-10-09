@@ -230,6 +230,47 @@ fn each_class_with_a_pass_repairs_end_to_end_and_reloads_strictly() {
 }
 
 #[test]
+fn a_near_miss_header_outside_every_object_is_c9_and_gone_after_repair() {
+    // `3 0 obk`: the carve finds no object 3, and its rule 7 reads the
+    // keyword one byte off in the gap (F-07).
+    let mut bytes = golden_pdf();
+    let at = find(&bytes, b"3 0 obj").expect("page 1") + 6;
+    bytes[at] = b'k';
+    let analysis = analysed(&bytes);
+    let c9: Vec<&Finding> = (analysis.findings.iter())
+        .filter(|f| f.class == FindingKind::Corruption(C9ZlibTampered))
+        .collect();
+    assert_eq!(c9.len(), 1, "{:#?}", analysis.findings);
+    assert_eq!(c9[0].severity, Severity::Warning);
+    assert!(matches!(c9[0].location, Location::Span(_)), "{:?}", c9[0]);
+    let out = repaired(&bytes, &analysis);
+    assert!(
+        matches!(out.status, OutcomeStatus::Ok | OutcomeStatus::Partial(_)),
+        "{:?}",
+        out.status
+    );
+    let output = out.output.as_deref().expect("an output");
+    strict_load(output).expect("strict reload");
+    assert!(!classes(&analysed(output).findings).contains(&C9ZlibTampered));
+    let pass = (out.report.passes.iter())
+        .find(|p| p.class == C9ZlibTampered)
+        .expect("a C9 pass");
+    // No object to act on: the pass names the span instead of claiming a fix.
+    let PassOutcome::Partial(why) = &pass.outcome else {
+        panic!("{pass:?}");
+    };
+    let Location::Span(span) = c9[0].location else {
+        unreachable!()
+    };
+    assert!(
+        why.contains(&format!("bytes {}..{}", span.start, span.end))
+            && why.contains("not re-emitted"),
+        "{why}"
+    );
+    assert!(pass.actions.is_empty(), "{pass:?}");
+}
+
+#[test]
 fn a_class_left_out_of_passes_is_skipped_and_said_so() {
     // Every class has a pass since T-30, so C7 runs by default...
     let bytes = corrupt(C1Header, &corrupt(C7FontStreamDeleted, &golden_pdf(), 0), 0);

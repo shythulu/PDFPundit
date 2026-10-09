@@ -1,14 +1,16 @@
-//! The gap sweep (T-07 rule 6; TD §14.5): what lies between the objects.
+//! The gap sweep (T-07 rule 6; TD §14.5): what lies between the objects,
+//! and the near-miss lex over what the sweep left (rule 7, F-07).
 
 use std::ops::Range;
 
 use lopdf::{Dictionary, Object};
 
+use super::landmarks::Landmarks;
 use super::{
-    Cancelled, Cap, CarveNote, CarveReport, Classifier, Ladder, LengthSource, Orphan, Poll,
-    dict_kind, range, region_end, span,
+    Cancelled, Cap, CarveNote, CarveReport, Classifier, Ladder, LengthSource, MAX_NEAR_MISSES,
+    Orphan, Poll, dict_kind, range, region_end, span,
 };
-use crate::pdf::lexer::{self, Lexer, Tok, is_reg, is_ws};
+use crate::pdf::lexer::{self, LexNote, Lexer, Tok, is_reg, is_ws};
 
 /// A gap is read only when it holds at least this many bytes that are
 /// neither whitespace nor comments.
@@ -29,7 +31,7 @@ pub(super) fn sweep(
 ) -> Result<(), Cancelled> {
     let buf = ladder.buf;
     let mut room = max_objects.saturating_sub(report.objects.len());
-    for gap in gaps(ladder, report) {
+    for gap in gaps(buf, ladder.lm, report) {
         poll.tick()?;
         let mut pos = gap.start;
         loop {
@@ -64,10 +66,120 @@ pub(super) fn sweep(
     Ok(())
 }
 
+/// Rule 7: lexes, in near-miss mode, every byte outside the carved objects,
+/// xref tables, trailers and `startxref` values except the data of each
+/// [`Orphan::Stream`]. So an orphan's header, its dictionary, its `stream`
+/// keyword and what follows its data (`endstream`, `endobj`) are read, as
+/// is every [`Orphan::Dict`] and unexplained span. Each run between two
+/// skipped ranges is lexed on its own, with nothing past its end in view.
+///
+/// A [`LexNote::NearMissKeyword`] is kept only when the keyword stands
+/// where the file structure would put it ([`framed`]), so ordinary text in
+/// a junk prefix or after `%%EOF` (`see the Stream logs`) gives no note.
+/// Kept notes go to the report's own notes; no other lexer note is kept,
+/// and nothing the carve found changes. At most [`MAX_NEAR_MISSES`] notes
+/// are kept, then [`CarveNote::CapHit`]. `poll` ticks once per gap, so one
+/// very large gap is lexed with no cancel check inside it.
+pub(super) fn near_misses(
+    buf: &[u8],
+    lm: &Landmarks,
+    poll: &mut Poll<'_>,
+    report: &mut CarveReport,
+) -> Result<(), Cancelled> {
+    // Orphans are pushed gap by gap, so their data ranges are in order.
+    let skipped: Vec<Range<usize>> = (report.orphans.iter())
+        .filter_map(|o| match o {
+            Orphan::Stream { data, .. } => Some(range(*data)),
+            Orphan::Dict { .. } => None,
+        })
+        .collect();
+    let mut found = Vec::new();
+    let mut capped = false;
+    for gap in gaps(buf, lm, report) {
+        poll.tick()?;
+        let first = skipped.partition_point(|d| d.end <= gap.start);
+        let mut from = gap.start;
+        for d in skipped[first..].iter().take_while(|d| d.start < gap.end) {
+            capped |= lex_near_misses(buf, from..d.start.clamp(from, gap.end), &mut found);
+            from = from.max(d.end.min(gap.end));
+        }
+        capped |= lex_near_misses(buf, from..gap.end.max(from), &mut found);
+        if capped {
+            break;
+        }
+    }
+    report.notes.extend(
+        found
+            .into_iter()
+            .map(|at| CarveNote::Lex(LexNote::NearMissKeyword { at })),
+    );
+    if capped {
+        report.notes.push(CarveNote::CapHit(Cap::NearMisses));
+    }
+    Ok(())
+}
+
+/// Adds the offset of each framed near-miss keyword in `buf[within]` to
+/// `found`, read with nothing past `within.end` in view. Returns whether
+/// `found` reached [`MAX_NEAR_MISSES`] with more left to read.
+fn lex_near_misses(buf: &[u8], within: Range<usize>, found: &mut Vec<u64>) -> bool {
+    if within.is_empty() {
+        return false;
+    }
+    let mut lx = Lexer::new(&buf[..within.end], within.start).with_near_miss(true);
+    loop {
+        let kw = match lx.next() {
+            Tok::Eof => return false,
+            Tok::Kw(kw) => Some(kw),
+            _ => None,
+        };
+        for note in lx.take_notes() {
+            let (LexNote::NearMissKeyword { at }, Some(kw)) = (note, kw) else {
+                continue;
+            };
+            if !framed(buf, at as usize, kw) {
+                continue;
+            }
+            if found.len() == MAX_NEAR_MISSES {
+                return true;
+            }
+            found.push(at);
+        }
+    }
+}
+
+/// Whether a keyword read one byte off at `at` (read as `kw`) stands where
+/// the file structure puts that keyword: `obj` after two integers
+/// (`2 0 obk`); `stream`, `endstream` and `endobj` at the start of a line
+/// or after `>>`, with only spaces and tabs between.
+fn framed(buf: &[u8], at: usize, kw: &[u8]) -> bool {
+    let before = &buf[..at.min(buf.len())];
+    if kw == b"obj" {
+        let int_before = |s: &[u8]| -> Option<usize> {
+            let ws = s.iter().rev().take_while(|&&b| is_ws(b)).count();
+            let digits = (s[..s.len() - ws].iter().rev())
+                .take_while(|b| b.is_ascii_digit())
+                .count();
+            (ws > 0 && digits > 0).then_some(s.len() - ws - digits)
+        };
+        let Some(generation) = int_before(before) else {
+            return false;
+        };
+        let Some(number) = int_before(&before[..generation]) else {
+            return false;
+        };
+        return number == 0 || !is_reg(before[number - 1]);
+    }
+    let blank = (before.iter().rev())
+        .take_while(|&&b| matches!(b, b' ' | b'\t'))
+        .count();
+    let rest = &before[..before.len() - blank];
+    rest.is_empty() || rest.ends_with(b"\n") || rest.ends_with(b"\r") || rest.ends_with(b">>")
+}
+
 /// The maximal runs of the file no object, xref table, trailer or
 /// `startxref` value covers, in byte order.
-fn gaps(ladder: &Ladder<'_>, report: &CarveReport) -> Vec<Range<usize>> {
-    let (buf, lm) = (ladder.buf, ladder.lm);
+fn gaps(buf: &[u8], lm: &Landmarks, report: &CarveReport) -> Vec<Range<usize>> {
     let mut covered: Vec<Range<usize>> = report
         .objects
         .iter()
