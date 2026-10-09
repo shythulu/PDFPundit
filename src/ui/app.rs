@@ -168,8 +168,7 @@ fn shell() -> io::Result<()> {
     }
 
     let mut app = App::new(&config.ui, caps, config_path);
-    app.warn_above = runner_options(&config).analyze.max_file_bytes;
-    app.prompt_unresolved = config.fonts.prompt_unresolved;
+    app.configure(&config);
     app.log(format!(
         "handshake: kitty {}, {} bytes discarded",
         handshake.kitty, handshake.discarded
@@ -501,6 +500,13 @@ impl App {
                 "dropped {n} inputs that came before the first frame"
             ));
         }
+    }
+
+    /// What the app takes from the configuration beyond `[ui]`: the drop
+    /// size it warns above and `[fonts] prompt_unresolved`.
+    fn configure(&mut self, config: &Config) {
+        self.warn_above = runner_options(config).analyze.max_file_bytes;
+        self.prompt_unresolved = config.fonts.prompt_unresolved;
     }
 
     fn log(&mut self, line: String) {
@@ -1119,17 +1125,31 @@ impl App {
             // runner, and a kept clone would keep a cancelled job waiting.
             // A question already answered (`prompt_unresolved = false`, or
             // the file's earlier answer for its family) is answered at once;
-            // any other parks in the row until the user answers it.
+            // any other parks in the row until the user answers it. The
+            // engine records such an answer as the user's (its contract has
+            // no answer source yet), so the log names each one and where it
+            // came from.
             JobEvent::NeedsInteraction { request, .. } => {
                 let known = if self.prompt_unresolved {
-                    self.answers.known(id, entry, &request)
+                    self.answers
+                        .known(id, entry, &request)
+                        .map(|(r, o)| (r, o.to_string()))
                 } else {
-                    Some(InteractionReply::UseBest)
+                    let why = "[fonts] prompt_unresolved = false (best guess)";
+                    Some((InteractionReply::UseBest, why.to_owned()))
                 };
                 match known {
-                    Some(reply) => {
+                    Some((reply, from)) => {
                         let reply = questions::reply_for(&request, reply);
+                        let (page, slot) = questions::asked_at(&request);
+                        let line = format!(
+                            "font question: {}: slot {slot} on p.{} answered {reply:?} \
+                             without asking, from {from}",
+                            entry.name,
+                            u64::from(page) + 1
+                        );
                         self.replies.push((id, reply));
+                        self.log(line);
                     }
                     None => entry.state = EntryState::WaitingOnUser(request),
                 }
@@ -1328,6 +1348,9 @@ impl App {
         let mut modal = FontPickModal::for_entry(e, &view);
         modal.question = Some((at + 1, parked.len().max(1)));
         modal.all = parked.len() > 1;
+        if let InteractionRequest::FontUnreproducible(r) = request {
+            modal.unreproducible = Some(&r.reason);
+        }
         modal.draw(c, &view, selected, &self.theme);
         // The file's name is drawn as literal text over blanks, never read
         // as markup.
@@ -1367,15 +1390,8 @@ fn modal_status(c: &mut Canvas, vm: &ViewModel, state: &str, theme: &Theme) -> i
         right.push_str(&format!(" {{c}}│{{W}} {h:02}:{m:02}"));
     }
     let (w, h) = FULL_SIZE;
-    lightbar::status_bar(c, i32::from(h) - 1, i32::from(w), &parts, &right, theme);
-    // The bar's left side is " APP VERSION " then "│ part " per part.
-    let before = format!(
-        " {} {} │ {} │ ",
-        strings::APP_NAME,
-        strings::VERSION,
-        parts[0]
-    );
-    i32::try_from(super::canvas::plain_len(&before)).unwrap_or(0)
+    let starts = lightbar::status_bar(c, i32::from(h) - 1, i32::from(w), &parts, &right, theme);
+    starts.get(1).copied().unwrap_or(0)
 }
 
 /// The whole of `path`, if it is at most `limit` bytes.

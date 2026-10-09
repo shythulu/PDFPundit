@@ -9,14 +9,23 @@
 //! - any other answer holds for the rest of the font's family in that file.
 //!   A family is the `/BaseFont` without its subset tag and style suffix
 //!   ([`family`]), so `NotoSans-Regular` and `NotoSans-Bold` ask once. A
-//!   pick is carried to the same font when the later question lists it,
-//!   else to the later question's first candidate of the picked font's
-//!   family, else to the same font id.
+//!   pick is carried only to a font the later question lists: the same
+//!   font, else its first candidate of the picked font's family. When it
+//!   lists neither, the question is asked: the engine takes any pick as
+//!   the user's, so carrying a font the scorer did not rank for the slot
+//!   would grade an unseen guess as fixed.
 //!
-//! A slot whose base font is not known, or is a `CIDFont+Fn` name, has no
-//! family and is asked on its own. The two kinds of question are remembered
-//! apart: `Skip` means "keep the best guess" to a font pick and "leave the
-//! font as found" to an unreproducible font.
+//! A question's family comes from the analysis's `/BaseFont` for its slot,
+//! never from the request's own name (an unreproducible font without a
+//! `/BaseFont` is named after its slot, and slot names such as `F1` repeat
+//! across pages). A slot whose base font is not known, or is a `CIDFont+Fn`
+//! name, has no family and is asked on its own. The two kinds of question
+//! are remembered apart: `Skip` means "keep the best guess" to a font pick
+//! and "leave the font as found" to an unreproducible font.
+//!
+//! An answer given this way reaches the engine as an ordinary reply, so the
+//! run's interaction record cannot tell it from one the user gave; the app
+//! log names each one and the answer it came from.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -39,22 +48,57 @@ struct Given {
     reply: InteractionReply,
     /// A pick's candidate family, to carry the pick to another face.
     picked_family: Option<String>,
+    /// The `(page, slot)` the answer was given for, for the log.
+    from: (u32, String),
+}
+
+/// Where an answer the app gives on its own came from, for the log.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum Origin {
+    /// "Use best for both" or "apply best to all" for the file.
+    BestForFile,
+    /// The answer given for the same family: the family and the
+    /// `(page, slot)` it was given for.
+    Family {
+        family: String,
+        page: u32,
+        slot: String,
+    },
+}
+
+impl std::fmt::Display for Origin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Origin::BestForFile => f.write_str("the best guess the user chose for the whole file"),
+            Origin::Family { family, page, slot } => write!(
+                f,
+                "the answer for slot {slot} on p.{} (family {family})",
+                u64::from(*page) + 1
+            ),
+        }
+    }
 }
 
 impl Answers {
-    /// The answer `request`, asked by job `job` about `entry`, already has.
+    /// The answer `request`, asked by job `job` about `entry`, already has,
+    /// and where it came from.
     pub(super) fn known(
         &self,
         job: JobId,
         entry: &QueueEntry,
         request: &InteractionRequest,
-    ) -> Option<InteractionReply> {
+    ) -> Option<(InteractionReply, Origin)> {
         if self.best.contains(&job) {
-            return Some(InteractionReply::UseBest);
+            return Some((InteractionReply::UseBest, Origin::BestForFile));
         }
         let key = key_of(entry, request)?;
         let given = self.given.get(&job)?.iter().find(|g| g.key == key)?;
-        Some(carry(given, request))
+        let (page, slot) = given.from.clone();
+        // The key is the kind, a space, then the family.
+        let family = key.split_once(' ').map_or(key.as_str(), |(_, f)| f);
+        let family = family.to_owned();
+        let origin = Origin::Family { family, page, slot };
+        Some((carry(given, request)?, origin))
     }
 
     /// The user answered `request` with `reply`; with `whole_file`, every
@@ -86,6 +130,7 @@ impl Answers {
             key,
             reply: reply.clone(),
             picked_family,
+            from: asked_at(request),
         });
     }
 
@@ -107,29 +152,50 @@ fn key_of(entry: &QueueEntry, request: &InteractionRequest) -> Option<String> {
                 .or_else(|| slots.iter().find(|s| s.slot == r.slot))?;
             family(slot.base_font.as_deref()?).map(|f| format!("pick {f}"))
         }
-        InteractionRequest::FontUnreproducible(r) => {
-            family(&r.family).map(|f| format!("unreproducible {f}"))
-        }
+        // `r.family` is the slot's name when the font has no `/BaseFont`,
+        // so the key comes from the analysis's base font for its slots.
+        InteractionRequest::FontUnreproducible(r) => r
+            .slots
+            .iter()
+            .find_map(|(page, name)| {
+                let slots = &entry.font_resolutions;
+                slots
+                    .iter()
+                    .find(|s| &s.slot == name && s.page == *page)?
+                    .base_font
+                    .as_deref()
+            })
+            .and_then(family)
+            .map(|f| format!("unreproducible {f}")),
     }
 }
 
-/// A remembered answer, made fit for `request`.
-fn carry(given: &Given, request: &InteractionRequest) -> InteractionReply {
+/// The `(page, slot)` `request` is asked about.
+pub(super) fn asked_at(request: &InteractionRequest) -> (u32, String) {
+    match request {
+        InteractionRequest::FontPick(r) => (r.page, r.slot.clone()),
+        InteractionRequest::FontUnreproducible(r) => r
+            .slots
+            .first()
+            .cloned()
+            .unwrap_or_else(|| (0, r.family.clone())),
+    }
+}
+
+/// A remembered answer, made fit for `request`, or `None` when it does not
+/// fit: a pick whose font the later question does not list, nor any font
+/// of the picked font's family.
+fn carry(given: &Given, request: &InteractionRequest) -> Option<InteractionReply> {
     let (InteractionRequest::FontPick(r), InteractionReply::Pick(id)) = (request, &given.reply)
     else {
-        return given.reply.clone();
+        return Some(given.reply.clone());
     };
     if r.candidates.iter().any(|c| &c.font_id == id) {
-        return given.reply.clone();
+        return Some(given.reply.clone());
     }
-    given
-        .picked_family
-        .as_ref()
-        .and_then(|f| r.candidates.iter().find(|c| &c.family == f))
-        .map_or_else(
-            || given.reply.clone(),
-            |c| InteractionReply::Pick(c.font_id.clone()),
-        )
+    let family = given.picked_family.as_ref()?;
+    let c = r.candidates.iter().find(|c| &c.family == family)?;
+    Some(InteractionReply::Pick(c.font_id.clone()))
 }
 
 /// Style words a PostScript name's suffix is made of (`Bold`, `Italic`,
@@ -311,6 +377,16 @@ mod tests {
         })
     }
 
+    /// The reply `known` gives, without its origin.
+    fn reply_of(
+        a: &Answers,
+        job: JobId,
+        e: &QueueEntry,
+        q: &InteractionRequest,
+    ) -> Option<InteractionReply> {
+        a.known(job, e, q).map(|(reply, _)| reply)
+    }
+
     fn entry() -> QueueEntry {
         let mut e = QueueEntry::queued(JobId(1), "a.pdf".into(), None, 1);
         e.font_resolutions = vec![
@@ -319,6 +395,10 @@ mod tests {
             slot(0, "F3", Some("/CIDFont+F1")),
             slot(0, "F4", Some("/CIDFont+F2")),
             slot(0, "F5", Some("/NotoSerif-Bold")),
+            slot(3, "F7", Some("/Garamond-Regular")),
+            slot(4, "F7", Some("/ABCDEF+Garamond-Italic")),
+            slot(5, "F1", None),
+            slot(6, "F1", None),
         ];
         e
     }
@@ -336,7 +416,7 @@ mod tests {
                 candidate("noto-sans-bold", "Noto Sans"),
             ],
         );
-        assert_eq!(a.known(one, &e, &regular), None);
+        assert_eq!(reply_of(&a, one, &e, &regular), None);
         a.record(
             one,
             &e,
@@ -346,13 +426,13 @@ mod tests {
         );
         // The bold face takes the pick, carried to its own Noto Sans face.
         assert_eq!(
-            a.known(one, &e, &bold),
+            reply_of(&a, one, &e, &bold),
             Some(InteractionReply::Pick("noto-sans-bold".into()))
         );
         // Another family, another file, or a nameless slot still asks.
-        assert_eq!(a.known(one, &e, &pick("F5", Vec::new())), None);
-        assert_eq!(a.known(JobId(2), &e, &bold), None);
-        assert_eq!(a.known(one, &e, &pick("F9", Vec::new())), None);
+        assert_eq!(reply_of(&a, one, &e, &pick("F5", Vec::new())), None);
+        assert_eq!(reply_of(&a, JobId(2), &e, &bold), None);
+        assert_eq!(reply_of(&a, one, &e, &pick("F9", Vec::new())), None);
         a.record(
             one,
             &e,
@@ -360,7 +440,7 @@ mod tests {
             &InteractionReply::Skip,
             false,
         );
-        assert_eq!(a.known(one, &e, &pick("F4", Vec::new())), None);
+        assert_eq!(reply_of(&a, one, &e, &pick("F4", Vec::new())), None);
         // A skip is carried as it is.
         a.record(
             one,
@@ -370,13 +450,17 @@ mod tests {
             false,
         );
         let serif = pick("F5", vec![candidate("x", "X")]);
-        assert_eq!(a.known(one, &e, &serif), Some(InteractionReply::Skip));
+        assert_eq!(reply_of(&a, one, &e, &serif), Some(InteractionReply::Skip));
         a.forget(one);
-        assert_eq!(a.known(one, &e, &bold), None, "forgotten when the job ends");
+        assert_eq!(
+            reply_of(&a, one, &e, &bold),
+            None,
+            "forgotten when the job ends"
+        );
     }
 
     #[test]
-    fn a_pick_is_kept_when_the_later_question_lists_it_or_has_no_match() {
+    fn a_pick_is_carried_only_to_a_font_the_later_question_lists() {
         let e = entry();
         let mut a = Answers::default();
         let one = JobId(1);
@@ -396,21 +480,35 @@ mod tests {
             ],
         );
         assert_eq!(
-            a.known(one, &e, &listed),
+            reply_of(&a, one, &e, &listed),
             Some(InteractionReply::Pick("noto-sans".into()))
         );
-        let unlisted = pick("F2", vec![candidate("other", "Other")]);
+        // Neither the font nor its family is listed: the scorer did not
+        // rank the pick for this slot, so the user is asked.
+        let unlisted = pick(
+            "F2",
+            vec![
+                candidate("noto-serif-bold", "Noto Serif"),
+                candidate("liberation-sans-bold", "Liberation Sans"),
+            ],
+        );
+        assert_eq!(reply_of(&a, one, &e, &unlisted), None);
+        // The origin names the slot the answer was given for.
         assert_eq!(
-            a.known(one, &e, &unlisted),
-            Some(InteractionReply::Pick("noto-sans".into()))
+            a.known(one, &e, &listed).map(|(_, o)| o),
+            Some(Origin::Family {
+                family: "notosans".into(),
+                page: 0,
+                slot: "F1".into(),
+            })
         );
     }
 
-    fn unreproducible(family: &str) -> InteractionRequest {
+    fn unreproducible(family: &str, page: u32, slot: &str) -> InteractionRequest {
         InteractionRequest::FontUnreproducible(UnreproducibleRequest {
             id: InteractionRequestId(0),
             family: family.into(),
-            slots: vec![(3, "F7".into())],
+            slots: vec![(page, slot.into())],
             reason: "no font covers it".into(),
             options: vec![SubstituteChoice {
                 font_id: "noto-sans".into(),
@@ -430,10 +528,13 @@ mod tests {
             &InteractionReply::UseBest,
             true,
         );
-        for q in [pick("F4", Vec::new()), unreproducible("Whatever")] {
-            assert_eq!(a.known(JobId(1), &e, &q), Some(InteractionReply::UseBest));
+        for q in [pick("F4", Vec::new()), unreproducible("Whatever", 9, "F9")] {
+            assert_eq!(
+                a.known(JobId(1), &e, &q),
+                Some((InteractionReply::UseBest, Origin::BestForFile))
+            );
         }
-        assert_eq!(a.known(JobId(2), &e, &pick("F4", Vec::new())), None);
+        assert_eq!(reply_of(&a, JobId(2), &e, &pick("F4", Vec::new())), None);
     }
 
     #[test]
@@ -443,20 +544,43 @@ mod tests {
         a.record(
             JobId(1),
             &e,
-            &unreproducible("NotoSans-Regular"),
+            &unreproducible("Garamond-Regular", 3, "F7"),
             &InteractionReply::Skip,
             false,
         );
         assert_eq!(
-            a.known(JobId(1), &e, &unreproducible("ABCDEF+NotoSans-Bold")),
+            reply_of(
+                &a,
+                JobId(1),
+                &e,
+                &unreproducible("Garamond-Italic", 4, "F7")
+            ),
             Some(InteractionReply::Skip)
         );
-        assert_eq!(a.known(JobId(1), &e, &pick("F2", Vec::new())), None);
+        let garamond = pick("F7", Vec::new());
+        assert_eq!(reply_of(&a, JobId(1), &e, &garamond), None);
+    }
+
+    /// A font without a `/BaseFont` is named after its slot; two such fonts
+    /// in slots called `F1` on different pages are asked about apart.
+    #[test]
+    fn nameless_unreproducible_fonts_are_asked_on_their_own() {
+        let e = entry();
+        let mut a = Answers::default();
+        let first = unreproducible("F1", 5, "F1");
+        let second = unreproducible("F1", 6, "F1");
+        assert_eq!(reply_of(&a, JobId(1), &e, &first), None);
+        a.record(JobId(1), &e, &first, &InteractionReply::Skip, false);
+        assert_eq!(reply_of(&a, JobId(1), &e, &second), None);
+        // Nor does the request's own name stand in for a slot the analysis
+        // does not list.
+        let unlisted = unreproducible("Garamond-Regular", 8, "F8");
+        assert_eq!(reply_of(&a, JobId(1), &e, &unlisted), None);
     }
 
     #[test]
     fn an_unreproducible_font_is_shown_as_its_options() {
-        let q = unreproducible("Garamond");
+        let q = unreproducible("Garamond", 3, "F7");
         let view = pick_view(&q);
         assert_eq!((view.page, view.slot.as_str()), (3, "F7"));
         assert_eq!(view.candidates.len(), 1);

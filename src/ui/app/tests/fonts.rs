@@ -317,7 +317,10 @@ fn prompt_unresolved_false_never_opens_the_modal() {
     let engine = Arc::new(FakeEngine::new().always_asks());
     let (mut runner, rx) = runner_on(&engine);
     let (mut app, mut screen) = started(112, 38, &config::Ui::default());
-    app.prompt_unresolved = false;
+    let mut config = Config::default();
+    config.fonts.prompt_unresolved = false;
+    app.configure(&config);
+    assert!(!app.prompt_unresolved, "taken from [fonts]");
 
     let asked = drive(
         &mut app,
@@ -342,6 +345,12 @@ fn prompt_unresolved_false_never_opens_the_modal() {
     assert_eq!(app.state.screen, Screen::Main, "nothing to resolve");
     assert_eq!(engine.replies(), [InteractionReply::UseBest]);
     assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
+    assert!(
+        app.debug_log
+            .iter()
+            .any(|l| l.contains("without asking") && l.contains("prompt_unresolved")),
+        "the policy answer is logged"
+    );
     assert!(runner.shutdown(Duration::from_secs(5)));
 }
 
@@ -390,6 +399,12 @@ fn one_family_asks_once() {
     );
     assert_eq!(app.state.batch.entries[0].state, EntryState::Done);
     assert_eq!(app.state.screen, Screen::Main, "asked once");
+    // The engine records the carried answer as the user's: the log names it.
+    let line = app.debug_log.iter().find(|l| l.contains("without asking"));
+    let line = line.expect("the carried answer is logged");
+    assert!(line.contains("a.pdf"), "{line}");
+    assert!(line.contains("slot F2 on p.1"), "{line}");
+    assert!(line.contains("slot F1 on p.1 (family notosans)"), "{line}");
     assert!(runner.shutdown(Duration::from_secs(5)));
 }
 

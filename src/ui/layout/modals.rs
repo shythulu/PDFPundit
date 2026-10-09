@@ -131,6 +131,11 @@ pub struct FontPickModal<'a> {
     pub question: Option<(usize, usize)>,
     /// More than one question is parked: the keys row offers "best for all".
     pub all: bool,
+    /// The question is about a font no bundled font reproduces, for this
+    /// reason (the engine's text, drawn literally): its options are
+    /// substitutes with no score or preview, `b` takes the generic one, and
+    /// Skip leaves the font as found rather than keeping a best guess.
+    pub unreproducible: Option<&'a str>,
 }
 
 /// What a key does in the font pick.
@@ -190,6 +195,7 @@ impl<'a> FontPickModal<'a> {
             slot: at.map(|i| lost[i]),
             question: at.map(|i| (i + 1, lost.len())),
             all: false,
+            unreproducible: None,
         }
     }
 
@@ -213,7 +219,11 @@ impl<'a> FontPickModal<'a> {
         // The title is drawn with blanks where the file's name goes, then the
         // name over them as literal text, cut to leave the top edge between
         // the title and the note.
-        let label = strings::PICK_A_FONT;
+        let label = if self.unreproducible.is_some() {
+            strings::SUBSTITUTE_A_FONT
+        } else {
+            strings::PICK_A_FONT
+        };
         let name_x = x + 3 + 1 + to_i32(label.chars().count()) + 1;
         let limit = match &note {
             Some(n) => x + w - 4 - (to_i32(plain_len(n)) + 2) - 1,
@@ -242,20 +252,35 @@ impl<'a> FontPickModal<'a> {
                 }
                 None => None,
             };
-            if let Some(why) = why {
-                b.line(c, y + 3, &format!(" {why}"), theme);
+            match (self.unreproducible, why) {
+                (Some(reason), _) => {
+                    let at = b.line(c, y + 3, " ", theme);
+                    let room = usize::try_from(x + w - 2 - at).unwrap_or(0);
+                    c.text(at, y + 3, &fit(reason, room), r.body, None);
+                }
+                (None, Some(why)) => {
+                    b.line(c, y + 3, &format!(" {why}"), theme);
+                }
+                (None, None) => {}
             }
-            b.line(
-                c,
-                y + 4,
-                &format!(" {}", strings::PICK_THE_CANDIDATE),
-                theme,
-            );
+            let ask = if self.unreproducible.is_some() {
+                strings::PICK_A_SUBSTITUTE
+            } else {
+                strings::PICK_THE_CANDIDATE
+            };
+            b.line(c, y + 4, &format!(" {ask}"), theme);
         });
 
         let sep = [r.bg, r.accent, r.needs_input];
         b.sep(c, y + 5, Some(&sep), theme);
-        for (hx, head) in HEAD_XS.into_iter().zip(strings::CANDIDATE_COLUMNS) {
+        // A substitute has no score, fit, confidence or preview.
+        let plain = self.unreproducible.is_some();
+        let heads = if plain { 1 } else { HEAD_XS.len() };
+        for (hx, head) in HEAD_XS
+            .into_iter()
+            .zip(strings::CANDIDATE_COLUMNS)
+            .take(heads)
+        {
             c.text(hx, y + 6, head, r.dim, None);
         }
         let shown = req.candidates.len().min(CANDIDATES);
@@ -274,6 +299,9 @@ impl<'a> FontPickModal<'a> {
             c.rich(NAME_X - 2, ry, mark, None, theme);
             let family = format!("{:<NAME_W$}", fit(&cand.family, NAME_W));
             c.text(NAME_X, ry, &family, name_fg, None);
+            if plain {
+                continue;
+            }
             vu(c, METER.0, ry, METER.1, cand.score, theme);
             let k = if sel { 'W' } else { 'D' };
             let numbers = format!(
@@ -300,18 +328,27 @@ impl<'a> FontPickModal<'a> {
 
         b.sep(c, SOURCE_Y - 1, Some(&sep), theme);
         b.line(c, SOURCE_Y, &format!(" {}", strings::FONT_SOURCE), theme);
-        let buttons = [
-            strings::PICK_BUTTON,
-            strings::USE_BEST_BUTTON,
-            strings::SKIP_BUTTON,
-        ];
+        let buttons = if plain {
+            [
+                strings::PICK_BUTTON,
+                strings::USE_GENERIC_BUTTON,
+                strings::LEAVE_BUTTON,
+            ]
+        } else {
+            [
+                strings::PICK_BUTTON,
+                strings::USE_BEST_BUTTON,
+                strings::SKIP_BUTTON,
+            ]
+        };
         for (bx, button) in BUTTON_XS.into_iter().zip(buttons) {
             c.rich(bx, BUTTONS_Y, button, None, theme);
         }
-        let keys = if self.all {
-            strings::FONT_PICK_KEYS_ALL
-        } else {
-            strings::FONT_PICK_KEYS
+        let keys = match (plain, self.all) {
+            (false, false) => strings::FONT_PICK_KEYS,
+            (false, true) => strings::FONT_PICK_KEYS_ALL,
+            (true, false) => strings::SUBSTITUTE_KEYS,
+            (true, true) => strings::SUBSTITUTE_KEYS_ALL,
         };
         c.rich(KEYS_AT.0, KEYS_AT.1, keys, None, theme);
     }
@@ -1009,6 +1046,7 @@ mod tests {
             slot: None,
             question: None,
             all: false,
+            unreproducible: None,
         };
         let mut other = req.clone();
         other.candidates[0].language = "ur".into();
@@ -1036,6 +1074,39 @@ mod tests {
         let mut c = blank();
         modal.draw(&mut c, &req, 0, theme());
         assert!(row_text(&c, 30).contains("(file stays parked)"));
+        modal.all = true;
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        let row = row_text(&c, 30);
+        assert!(row.contains("· a best for all ·"), "{row:?}");
+        assert_eq!(row.chars().nth(103), Some('║'), "inside the box");
+    }
+
+    /// A font no bundled font reproduces: its own title, the engine's reason
+    /// on the why line, no meters or best-guess mark, and Skip says it
+    /// leaves the font as found.
+    #[test]
+    fn an_unreproducible_font_says_what_skip_does() {
+        let entry = mockup_entry();
+        let mut req = mockup_request();
+        for c in &mut req.candidates {
+            c.preview = String::new();
+        }
+        let mut modal = FontPickModal::for_entry(&entry, &req);
+        modal.unreproducible = Some("no {font} maps every character");
+        let mut c = blank();
+        modal.draw(&mut c, &req, 0, theme());
+        let all: Vec<String> = (0..38).map(|y| row_text(&c, y)).collect();
+        let text = all.join("\n");
+        assert!(text.contains("SUBSTiTUTE A FONT »"), "{text}");
+        assert!(!text.contains("PiCK A FONT"), "{text}");
+        assert!(row_text(&c, 6).contains("no {font} maps every character"));
+        assert!(text.contains("leaves the font as found"), "{text}");
+        assert!(text.contains("Generic for both"), "{text}");
+        assert!(text.contains("s leave as found"), "{text}");
+        for gone in ["best guess", "keeps best guess", "score", "conf", "preview"] {
+            assert!(!text.contains(gone), "{gone:?} in {text}");
+        }
         modal.all = true;
         let mut c = blank();
         modal.draw(&mut c, &req, 0, theme());
@@ -1165,6 +1236,11 @@ mod tests {
             strings::SKIP_BUTTON,
             strings::FONT_PICK_KEYS,
             strings::FONT_PICK_KEYS_ALL,
+            strings::PICK_A_SUBSTITUTE,
+            strings::USE_GENERIC_BUTTON,
+            strings::LEAVE_BUTTON,
+            strings::SUBSTITUTE_KEYS,
+            strings::SUBSTITUTE_KEYS_ALL,
             strings::COLOUR_SUPPORT,
             strings::PALETTE_SOURCE,
             strings::THEME_KEYS,
@@ -1184,6 +1260,7 @@ mod tests {
         }
         for s in [
             strings::PICK_A_FONT,
+            strings::SUBSTITUTE_A_FONT,
             strings::BEST_GUESS,
             strings::LANGUAGE_GUESS,
             strings::RESOLVING_FILE,
