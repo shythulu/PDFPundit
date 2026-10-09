@@ -30,12 +30,12 @@
 //! glyph runs (visible and invisible), `path_fills` fills, `images` image
 //! draws, `glyph_count` glyphs. With a [`Baseline::CarveProxy`] (the input
 //! did not load in hayro) `text_ops` is the output's show operators over the
-//! input's, `glyph_count` the output's glyphs over the input's show-string
-//! bytes (advisory, D-054), `images` the image objects carved from the output
-//! over those carved from the input, and `path_fills` has no input count, so
-//! its denominator is 0. `content_bytes` is always carved data: the raw
-//! (still filtered) bytes of the `/Contents` streams of the output's pages
-//! over those of every page the carver found in the input. It depends on
+//! input's, `glyph_count` the output's glyphs over the codes the input's
+//! show strings hold (advisory, D-054), `images` the image objects carved
+//! from the output over those carved from the input, and `path_fills` has no
+//! input count, so its denominator is 0. `content_bytes` is always carved
+//! data: the raw (still filtered) bytes of the `/Contents` streams of the
+//! output's pages over those of every page the carver found in the input. It depends on
 //! encoding, not only on what was kept: a C9 repair writes a `Repaired`
 //! stream with its ASCII stages dropped (smaller) and a `ChecksumMismatch` or
 //! `Prefix` stream uncompressed (often several times larger), so a stream
@@ -45,6 +45,20 @@
 //! the output's blank pages ([`is_blank`]) less the baseline's: a page that
 //! was blank in the input is not a loss. A zero denominator means the
 //! baseline had none of the thing; [`Ratio`] orders `0/0` as zero.
+//!
+//! **Glyphs drawn through the fallback font (D-088).** When a font does not
+//! resolve, hayro draws its text with a fallback Helvetica that reads one
+//! byte per code, so a Type 0 font's two-byte codes would count as two
+//! glyphs each and a perfect repair would score 1/2. A side (the input or
+//! the output) on which hayro drew any glyph that way counts glyphs from the
+//! carve instead: the codes its show strings hold ([`show_counts`]), each
+//! string read at the code width of the font its `Tf` selected
+//! ([`CodeWidths`]). So each code counts once, whichever font drew it. When
+//! some string's width is not known (its font name is bound to no font, or
+//! to fonts of both widths, and the file's fonts are not all of one width)
+//! the side keeps hayro's count. The carve count takes in every content
+//! stream and Form XObject, annotation appearances included, which T-36
+//! leaves out, so it is advisory too.
 //!
 //! **V2, plausibility** of the output's extracted text: unmapped glyphs and
 //! glyphs that map to U+FFFD over all glyphs, and the share of letter-bearing
@@ -57,11 +71,11 @@
 mod tests;
 
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use lopdf::{Document, LoadOptions, Object};
+use lopdf::{Dictionary, Document, LoadOptions, Object};
 use serde::{Deserialize, Serialize};
 
 use crate::engine::SalvageBudget;
@@ -71,9 +85,10 @@ use crate::pdf::graph::{ObjectGraph, winning_copies};
 use crate::pdf::model::{
     CorruptionClass, Finding, FindingKind, Location, ObjId, ObjectKind, PaintCounts, Ratio,
 };
+use crate::pdf::rebuild::{Held, IdRemap, plan_ids};
 use crate::pdf::streams::salvage::{CarveSource, SalvageIndex, salvage_all};
 use crate::pdf::streams::{DEFAULT_CAP, content_ops, decode_chain, filters_of};
-use crate::pdf::text::{ExtractOptions, PageText, extract_text};
+use crate::pdf::text::{ExtractOptions, FontKey, PageText, extract_text};
 
 /// One candidate output's verification, against the input's baseline.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,19 +157,25 @@ pub struct Plausibility {
 /// [`baseline`].
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Baseline {
-    /// T-36 on the input, when hayro loads it.
-    Extracted(Vec<PageText>),
+    /// T-36 on the input, when hayro loads it. `codes` is the carve's count
+    /// of the codes the input shows ([`show_counts`]) when hayro drew any of
+    /// its glyphs with the fallback font and every code width is known, else
+    /// `None` (D-088).
+    Extracted {
+        pages: Vec<PageText>,
+        codes: Option<u64>,
+    },
     /// When it does not: the `Tj`, `TJ`, `'` and `"` operators over every
-    /// carved content stream and Form XObject, and the bytes of the strings
-    /// they show.
-    CarveProxy { show_ops: u64, string_bytes: u64 },
+    /// carved content stream and Form XObject, and the codes of the strings
+    /// they show ([`show_counts`]).
+    CarveProxy { show_ops: u64, codes: u64 },
 }
 
 impl Baseline {
     /// The kind the verification record carries.
     pub(crate) fn kind(&self) -> BaselineKind {
         match self {
-            Baseline::Extracted(_) => BaselineKind::Extracted,
+            Baseline::Extracted { .. } => BaselineKind::Extracted,
             Baseline::CarveProxy { .. } => BaselineKind::CarveProxy,
         }
     }
@@ -163,14 +184,19 @@ impl Baseline {
 /// The input's baseline: T-36's pages when hayro loads `input`, else the
 /// carve proxy over `carve`, which must come from `input`.
 pub(crate) fn baseline(input: &[u8], carve: &CarveReport) -> Baseline {
+    let shown = || show_counts(input, carve, &classify_only(carve, input));
     match extract_text(input, &ExtractOptions::default()) {
-        Ok(pages) => Baseline::Extracted(pages),
+        Ok(pages) => {
+            let codes = drew_with_fallback(&pages)
+                .then(shown)
+                .and_then(|s| s.exact.then_some(s.codes));
+            Baseline::Extracted { pages, codes }
+        }
         Err(_) => {
-            let salvage = classify_only(carve, input);
-            let (show_ops, string_bytes) = show_counts(input, carve, &salvage);
+            let s = shown();
             Baseline::CarveProxy {
-                show_ops,
-                string_bytes,
+                show_ops: s.ops,
+                codes: s.codes,
             }
         }
     }
@@ -231,8 +257,9 @@ fn verify_spending(
         contents_bytes(&out_carve, &out_graph, &reached),
         contents_bytes(carve, &in_graph, &in_graph.pages_in_doc_order()),
     );
+    let shown = || show_counts(output, &out_carve, &out_salvage);
     let v1 = match input_text {
-        Baseline::Extracted(base) => {
+        Baseline::Extracted { pages: base, codes } => {
             let (o, b) = (Tally::of(&text), Tally::of(base));
             Retention {
                 text_ops: ratio(o.runs, b.runs),
@@ -240,21 +267,22 @@ fn verify_spending(
                 images: ratio(o.images, b.images),
                 content_bytes,
                 blank_pages: o.blank.saturating_sub(b.blank),
-                glyph_count: ratio(o.glyphs, b.glyphs),
+                glyph_count: ratio(
+                    glyphs_counted(&text, o.glyphs, shown),
+                    codes.unwrap_or(b.glyphs),
+                ),
             }
         }
-        Baseline::CarveProxy {
-            show_ops,
-            string_bytes,
-        } => {
+        Baseline::CarveProxy { show_ops, codes } => {
             let o = Tally::of(&text);
+            let out = shown();
             Retention {
-                text_ops: ratio(show_counts(output, &out_carve, &out_salvage).0, *show_ops),
+                text_ops: ratio(out.ops, *show_ops),
                 path_fills: ratio(o.fills, 0),
                 images: ratio(image_objects(&out_carve), image_objects(carve)),
                 content_bytes,
                 blank_pages: o.blank,
-                glyph_count: ratio(o.glyphs, *string_bytes),
+                glyph_count: ratio(glyphs_counted(&text, o.glyphs, || out), *codes),
             }
         }
     };
@@ -465,6 +493,25 @@ impl Tally {
     }
 }
 
+/// Whether hayro drew any glyph of `pages` with its fallback font: an
+/// unkeyed glyph that is not a Type 3 one ([`GlyphItem::font`]).
+///
+/// [`GlyphItem::font`]: crate::pdf::text::GlyphItem::font
+fn drew_with_fallback(pages: &[PageText]) -> bool {
+    (pages.iter().flat_map(|p| &p.glyphs)).any(|g| g.font == FontKey::UNKEYED && !g.type3)
+}
+
+/// The glyphs V1 counts on one side (D-088): hayro's `drawn`, unless it drew
+/// any of `pages`' glyphs with its fallback font and every code width of
+/// the side's show strings is known, then the codes they hold.
+fn glyphs_counted(pages: &[PageText], drawn: u64, shown: impl FnOnce() -> Shown) -> u64 {
+    if !drew_with_fallback(pages) {
+        return drawn;
+    }
+    let s = shown();
+    if s.exact { s.codes } else { drawn }
+}
+
 /// Raw bytes of the distinct `/Contents` streams of `pages`.
 fn contents_bytes(carve: &CarveReport, graph: &ObjectGraph, pages: &[ObjId]) -> u64 {
     let winners = winning_copies(carve);
@@ -492,11 +539,18 @@ fn image_objects(carve: &CarveReport) -> u64 {
         .count() as u64
 }
 
-/// The show operators (`Tj`, `TJ`, `'`, `"`) and the bytes of the strings
+/// The show operators (`Tj`, `TJ`, `'`, `"`) and the codes of the strings
 /// they show, over every carved content stream and Form XObject (one copy
 /// per id) and every orphan stream of those kinds. Damaged Flate data counts
 /// as far as it decodes (`salvage` must come from `carve` and `bytes`).
-fn show_counts(bytes: &[u8], carve: &CarveReport, salvage: &SalvageIndex) -> (u64, u64) {
+///
+/// A string holds its bytes over the code width of the font name the
+/// stream's last `Tf` selected ([`CodeWidths::of`]), rounded down. Before any
+/// `Tf` in the stream the width is the file's own, if its fonts agree. A
+/// string whose width is not known is read a byte a code and clears
+/// [`Shown::exact`]. A stream is read on its own: a font selected in the
+/// stream before it (a split `/Contents`, a form's caller) is not carried in.
+fn show_counts(bytes: &[u8], carve: &CarveReport, salvage: &SalvageIndex) -> Shown {
     let shows_text =
         |kind: &ObjectKind| matches!(kind, ObjectKind::ContentStream | ObjectKind::Form);
     let source = CarveSource::new(carve, bytes);
@@ -519,27 +573,151 @@ fn show_counts(bytes: &[u8], carve: &CarveReport, salvage: &SalvageIndex) -> (u6
             }
         }
     }
-    let (mut ops, mut strings) = (0u64, 0u64);
+    let widths = CodeWidths::of_carve(carve);
+    let mut shown = Shown {
+        ops: 0,
+        codes: 0,
+        exact: true,
+    };
     for content in &decoded {
+        let mut width = widths.of(None);
         for op in content_ops(content) {
+            if op.op == b"Tf" {
+                width = match op.operands.first() {
+                    Some(Object::Name(name)) => widths.of(Some(name)),
+                    _ => widths.of(None),
+                };
+                continue;
+            }
             if !matches!(op.op, b"Tj" | b"TJ" | b"'" | b"\"") {
                 continue;
             }
-            ops += 1;
-            strings += match op.operands.last() {
-                Some(Object::String(s, _)) => s.len() as u64,
-                Some(Object::Array(items)) if op.op == b"TJ" => items
-                    .iter()
-                    .map(|i| match i {
-                        Object::String(s, _) => s.len() as u64,
-                        _ => 0,
-                    })
-                    .sum(),
-                _ => 0,
+            shown.ops += 1;
+            let strings: &[Object] = match op.operands.last() {
+                Some(Object::Array(items)) if op.op == b"TJ" => items,
+                Some(last) => std::slice::from_ref(last),
+                None => &[],
             };
+            for s in strings.iter().filter_map(|o| o.as_str().ok()) {
+                shown.exact &= width.is_some();
+                shown.codes += s.len() as u64 / width.unwrap_or(1);
+            }
         }
     }
-    (ops, strings)
+    shown
+}
+
+/// What [`show_counts`] found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Shown {
+    /// `Tj`, `TJ`, `'` and `"` operators.
+    ops: u64,
+    /// The codes of the strings they show.
+    codes: u64,
+    /// Every string was read at a known code width.
+    exact: bool,
+}
+
+/// The code widths in bytes of a file's fonts (D-088): 2 for a Type 0 font
+/// (as the font slots count them), 1 for any other.
+#[derive(Debug, Default)]
+struct CodeWidths {
+    /// Every font name the `/Font` dictionary of some `/Resources` binds:
+    /// its width, or `None` when it is bound to fonts of both widths.
+    names: BTreeMap<Vec<u8>, Option<u64>>,
+    /// The width every font of the file has, if they agree: its font
+    /// dictionaries (a Type 0 font's descendant aside) and the fonts the
+    /// names bind.
+    file: Option<u64>,
+}
+
+impl CodeWidths {
+    /// The widths of `carve`. Resources and fonts are read from every
+    /// winning copy and every orphan. A reference resolves as the rebuild
+    /// resolves it ([`plan_ids`]), so a font whose header was stripped (C5)
+    /// is still found through the orphan the rebuild matched to it.
+    fn of_carve(carve: &CarveReport) -> CodeWidths {
+        let remap = plan_ids(carve, &ObjectGraph::from_carve(carve));
+        let held_dict = |held: Held| held_dict(carve, held);
+        let resolve = |v| resolve_dict(carve, &remap, v);
+        let holders: Vec<&Dictionary> = (winning_copies(carve).into_values().map(Held::Object))
+            .chain((0..carve.orphans.len()).map(Held::Orphan))
+            .filter_map(held_dict)
+            .collect();
+        let mut seen = BTreeSet::new();
+        let mut names: BTreeMap<Vec<u8>, Option<u64>> = BTreeMap::new();
+        for holder in &holders {
+            seen.extend(font_width(holder));
+            let Some(fonts) = (holder.get(b"Resources").ok().and_then(resolve))
+                .and_then(|r| r.get(b"Font").ok().and_then(resolve))
+            else {
+                continue;
+            };
+            for (name, v) in fonts.iter() {
+                let Some(width) = resolve(v).and_then(font_width) else {
+                    continue;
+                };
+                seen.insert(width);
+                names
+                    .entry(name.clone())
+                    .and_modify(|w| {
+                        if *w != Some(width) {
+                            *w = None;
+                        }
+                    })
+                    .or_insert(Some(width));
+            }
+        }
+        let file = match (seen.first(), seen.last()) {
+            (Some(a), Some(b)) if a == b => Some(*a),
+            _ => None,
+        };
+        CodeWidths { names, file }
+    }
+
+    /// The width a `Tf` of `name` selects (no name: before any `Tf`): the
+    /// name's own, else the file's, else not known.
+    fn of(&self, name: Option<&[u8]>) -> Option<u64> {
+        name.and_then(|n| self.names.get(n).copied().flatten())
+            .or(self.file)
+    }
+}
+
+/// The code width of `dict` if it is a font a `Tf` can select: 2 for Type 0,
+/// 1 for a simple font; `None` for anything else, a CID font (a Type 0
+/// font's descendant) included.
+fn font_width(dict: &Dictionary) -> Option<u64> {
+    match dict.get(b"Subtype").ok()?.as_name().ok()? {
+        b"Type0" => Some(2),
+        b"Type1" | b"MMType1" | b"TrueType" | b"Type3" | b"OpenType" => Some(1),
+        _ => None,
+    }
+}
+
+/// The dictionary of a carved object or orphan; a stream's dictionary.
+fn held_dict(carve: &CarveReport, held: Held) -> Option<&Dictionary> {
+    match held {
+        Held::Object(at) => match &carve.objects[at].body {
+            Body::Dict(d) | Body::Stream { dict: d, .. } => Some(d),
+            _ => None,
+        },
+        Held::Orphan(i) => match &carve.orphans[i] {
+            Orphan::Dict { dict, .. } | Orphan::Stream { dict, .. } => Some(dict),
+        },
+    }
+}
+
+/// `v` as a dictionary: itself, or what the reference names under `remap`.
+fn resolve_dict<'c>(
+    carve: &'c CarveReport,
+    remap: &IdRemap,
+    v: &'c Object,
+) -> Option<&'c Dictionary> {
+    match v {
+        Object::Dictionary(d) => Some(d),
+        Object::Reference(id) => held_dict(carve, remap.target(*id)?),
+        _ => None,
+    }
 }
 
 // ── V2 ───────────────────────────────────────────────────────────────────

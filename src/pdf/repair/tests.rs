@@ -208,19 +208,18 @@ fn golden_glyphs() -> usize {
 
 // ── the structural fixtures ──────────────────────────────────────────────
 
-/// The seeds whose corruption leaves every page recoverable and whose input
-/// hayro reads without a fallback font. C4 seeds 2 and 4 cut into page 1's
-/// own dictionary, so that page is gone from the input. C5 seeds 2 to 4 strip
-/// the font's header: hayro draws the input with a fallback font and counts
-/// each two-byte code as two glyphs, so the baseline holds twice the glyphs
-/// and V1's glyph fraction is 1/2 for a perfect output (the next test checks
-/// those outputs against the golden's text instead).
+/// The seeds whose corruption leaves every page recoverable. C4 seeds 2 and
+/// 4 cut into page 1's own dictionary, so that page is gone from the input.
+/// Every C5 seed is here: seeds 2 and 4 strip the Type 0 font's header, so
+/// hayro draws the input with its fallback font one glyph per byte, and seed
+/// 3 strips the catalog's, so the input gets a carve proxy; V1 counts each
+/// two-byte code once in both (D-088).
 const SEEDS: [(CorruptionClass, &[u64]); 6] = [
     (C1Header, &[0, 1, 2]),
     (C2XrefMissing, &[0]),
     (C3TrailerDamaged, &[0]),
     (C4PageTreeBroken, &[0, 1, 3, 5]),
-    (C5ObjectTagStripped, &[0, 1, 5]),
+    (C5ObjectTagStripped, &[0, 1, 2, 3, 4, 5]),
     (C10Truncated, &[0]),
 ];
 
