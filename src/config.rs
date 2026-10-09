@@ -179,6 +179,9 @@ pub enum Warning {
     BadValue { key: String, expected: &'static str },
     /// A relative `output_dir`, resolved against the home directory.
     RelativeOutputDir { given: PathBuf, resolved: PathBuf },
+    /// `fonts.source = "system"`: system fonts are not built yet (M5,
+    /// D-035), so it behaves as `"bundled"`.
+    SystemFontsNotBuilt,
 }
 
 impl fmt::Display for Warning {
@@ -199,6 +202,11 @@ impl fmt::Display for Warning {
                 "config: `general.output_dir` {} is relative; using {}",
                 given.display(),
                 resolved.display()
+            ),
+            Warning::SystemFontsNotBuilt => write!(
+                f,
+                "config: `fonts.source = \"system\"`: system fonts are not built yet, \
+                 so the bundled fonts are used"
             ),
         }
     }
@@ -467,6 +475,9 @@ pub(crate) fn parse(text: &str, home: Option<&Path>) -> (Config, Vec<Warning>) {
             }
         }
     }
+    if config.fonts.source == FontSourcePolicy::BundledThenSystem {
+        w.push(Warning::SystemFontsNotBuilt);
+    }
     (config, w)
 }
 
@@ -721,7 +732,7 @@ request_resize = true
                     [fonts]\nsource = \"system\"\nunreproducible = \"text_only\"\n\
                     [general]\ndefault_page_size = \"Letter\"\n";
         let (config, warnings) = parse(text, home());
-        assert_eq!(warnings, []);
+        assert_eq!(warnings, [Warning::SystemFontsNotBuilt]);
         let opts = config.repair_options();
         let budget = opts.analyze.salvage_budget;
         assert_eq!(
@@ -738,6 +749,23 @@ request_resize = true
         assert_eq!(opts.unreproducible, UnreproduciblePolicy::TextOnly);
         assert_eq!(opts.default_page_size, PageSize::Letter);
         assert_eq!(opts.analyze.threads, AnalyzeOptions::default().threads);
+    }
+
+    /// System fonts are not built (M5): `source = "system"` warns once, at
+    /// start-up, that the bundled fonts are used; `"bundled"` says nothing.
+    #[test]
+    fn system_fonts_warn_that_the_bundled_fonts_are_used() {
+        let (config, warnings) = parse("[fonts]\nsource = \"system\"\n", home());
+        assert_eq!(warnings, [Warning::SystemFontsNotBuilt]);
+        assert_eq!(config.fonts.source, FontSourcePolicy::BundledThenSystem);
+        let line = warnings[0].to_string();
+        assert!(line.contains("fonts.source"), "{line}");
+        assert!(line.contains("bundled fonts are used"), "{line}");
+        let (_, warnings) = parse("[fonts]\nsource = \"bundled\"\n", home());
+        assert_eq!(warnings, []);
+        let (_, warnings) = parse("[fonts]\nsource = \"nope\"\n", home());
+        assert_eq!(warnings.len(), 1, "a bad value warns as one, not twice");
+        assert!(!warnings.contains(&Warning::SystemFontsNotBuilt));
     }
 
     #[test]
@@ -896,7 +924,8 @@ request_resize = true
                 request_resize: false,
             },
         };
-        assert_eq!(parse(&config.to_toml(), home()), (config, vec![]));
+        let warned = vec![Warning::SystemFontsNotBuilt];
+        assert_eq!(parse(&config.to_toml(), home()), (config, warned));
         let default = Config::default();
         assert_eq!(parse(&default.to_toml(), home()), (default, vec![]));
     }

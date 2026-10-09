@@ -23,16 +23,28 @@ pub fn hotkeys<K: Display>(c: &mut Canvas, x: i32, y: i32, keys: &[(K, &str)], t
 
 /// The status bar on row `y`, `w` cells wide: the app's name and version,
 /// then each of `parts` (markup) behind a `│`; `right` (markup) against the
-/// right edge, drawn last so it stays whole when the two meet.
-pub fn status_bar(c: &mut Canvas, y: i32, w: i32, parts: &[String], right: &str, theme: &Theme) {
+/// right edge, drawn last so it stays whole when the two meet. Returns the
+/// column each part starts at, so a caller can draw literal text over one.
+pub fn status_bar(
+    c: &mut Canvas,
+    y: i32,
+    w: i32,
+    parts: &[String],
+    right: &str,
+    theme: &Theme,
+) -> Vec<i32> {
     let bar = theme.roles.lightbar;
     c.fill(0, y, w, 1, theme.roles.body, bar);
-    let mut left = format!(" {{Y}}{}{{W}} {} ", strings::APP_NAME, strings::VERSION);
+    let name = format!(" {{Y}}{}{{W}} {} ", strings::APP_NAME, strings::VERSION);
+    let mut x = c.rich(0, y, &name, Some(bar), theme);
+    let mut starts = Vec::with_capacity(parts.len());
     for p in parts {
-        left.push_str(&format!("{{c}}│{{W}} {p} "));
+        x = c.rich(x, y, "{c}│{W} ", Some(bar), theme);
+        starts.push(x);
+        x = c.rich(x, y, &format!("{{W}}{p} "), Some(bar), theme);
     }
-    c.rich(0, y, &left, Some(bar), theme);
     let right = format!("{right} ");
     let x = w - i32::try_from(plain_len(&right)).unwrap_or(w);
     c.rich(x, y, &right, Some(bar), theme);
+    starts
 }

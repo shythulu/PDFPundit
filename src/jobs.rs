@@ -7,10 +7,10 @@
 //! [`JobRunner::on_job_event`] so the runner can move jobs along.
 #![allow(clippy::disallowed_types)]
 // The loop (T-23a) drives the runner, the drop gate (T-23b) and kitty drops
-// (T-31, `JobInput::Dropped`) submit jobs and the file menu asks for exports
-// (T-32b), but replies and cancellation (no key sends them yet) and path-less
-// `JobInput::Memory` inputs are still built only by tests.
-// TODO(T-24): remove this allow once the font pick sends replies.
+// (T-31, `JobInput::Dropped`) submit jobs, the file menu asks for exports
+// (T-32b) and the font pick sends replies (F-01). Cancellation (no key sends
+// it yet), path-less `JobInput::Memory` inputs, the parked list and some
+// event fields and batch helpers are still read only by tests.
 #![allow(dead_code)]
 
 use std::cell::RefCell;
@@ -1428,6 +1428,7 @@ mod fake {
         replies: Mutex<Vec<InteractionReply>>,
         repaired_states: Mutex<Vec<StateHandle>>,
         images: Vec<(String, Vec<u8>)>,
+        font_slots: Vec<FontSlot>,
     }
 
     impl Default for FakeEngine {
@@ -1441,6 +1442,7 @@ mod fake {
                 replies: Mutex::new(Vec::new()),
                 repaired_states: Mutex::new(Vec::new()),
                 images: Vec::new(),
+                font_slots: Vec::new(),
             }
         }
     }
@@ -1463,6 +1465,12 @@ mod fake {
         /// Every repair extracts these images (`RepairOutcome.images`).
         pub(crate) fn with_images(mut self, images: Vec<(String, Vec<u8>)>) -> Self {
             self.images = images;
+            self
+        }
+
+        /// Every analysis lists these font slots (`AnalysisResult.font_slots`).
+        pub(crate) fn with_font_slots(mut self, slots: Vec<FontSlot>) -> Self {
+            self.font_slots = slots;
             self
         }
 
@@ -1582,7 +1590,7 @@ mod fake {
                 meta: FileMeta::default(),
                 findings,
                 carve: CarveSummary::default(),
-                font_slots: Vec::new(),
+                font_slots: self.font_slots.clone(),
                 stats: AnalyzeStats {
                     bytes: bytes.len() as u64,
                     salvage_work_total: profile.salvage_work_total,
