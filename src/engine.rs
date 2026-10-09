@@ -507,6 +507,9 @@ pub trait Progress {
     // No phase of this version reports a count within it.
     #[cfg_attr(not(test), allow(dead_code))]
     fn progress(&mut self, done: u64, total: Option<u64>);
+    /// A finding, as soon as it is found. A finding whose id was told
+    /// before replaces it: analysis tells each damaged stream's C9 finding
+    /// as provisional before its salvage search, then graded (F-09).
     fn finding(&mut self, f: &Finding);
     fn log(&mut self, level: LogLevel, msg: String);
     fn cancelled(&self) -> bool;
