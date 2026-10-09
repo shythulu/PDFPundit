@@ -1,0 +1,6 @@
+Questions asked
+Answers marked * were given in an earlier run, started 2026-10-08 13:41:52Z,
+that has no custody record; not given in this run. They were replayed here.
+#   Page  Slot  Answer                Answered by
+1*  2     F3    font dejavu-sans      user, on screen, earlier run
+2*  3     F5    font dejavu-sans      carried from #1, not shown, earlier run

@@ -1,0 +1,368 @@
+PDFPUNDIT TOOL RUN RECORD                                            Page 1 of 7
+Record invoice_scan_2024.repaired.pdf.custody.json
+JSON SHA-256    7c569cca28868f73dcabc8a462bed08847c9b421f437f8c881f0390782b15804
+================================================================================
+This is a tool run record. It supports an examiner's report and is not one. It
+states no opinion on the document's content, authorship or authenticity.
+
+Part A, run context, is true of this run only. Part B, reproducible result, is
+the same on every re-run with the same input, build, settings and answers.
+Abbreviations are listed in part C. JSON SHA-256 in the page header is the
+SHA-256 of the record file this text was rendered from. That file is written
+first, so the hash ties every printed page to one machine record.
+
+A. RUN CONTEXT
+--------------------------------------------------------------------------------
+Case reference  2026-0412
+Examiner        J. Doe
+Submission ref  Lab request 26-0412-07
+                applies to the 1 file of this batch; the item itself is
+                identified by its input SHA-256
+Authority/notes Authority: warrant 26-1187.
+                Typed at the custody prompt; not verified by PDFPundit.
+Batch           custody log entry 41, file 1 of 1
+Started (UTC)   2026-10-08 14:03:11Z, before the job first read the input's file
+                state
+Ended (UTC)     2026-10-08 14:03:19Z, before the record was written
+Host UTC offset UTC-04:00 at Started, from the /etc/localtime zone file
+Host zone name  America/Toronto (from /etc/localtime link; unverified)
+Host            EXAM-WS-07 (macOS)
+Binary SHA-256  9a3a45d01531a20e89ac6ae10b0b0beb0492acd7216a368aa062d1a5fecaf9cd
+
+A.1 Input file (as received by PDFPundit)
+PDFPundit cannot tell whether this file is the original evidence or a working
+copy.
+Name            invoice_scan_2024.pdf
+Path            /Volumes/EXHIBIT-JD3/exhibits/invoice_scan_2024.pdf
+Received        by path; first opened by the job, after the file state below was
+                read
+Size            482,113 bytes
+SHA-256 before  f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf
+SHA-256 after   f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf
+MD5 legacy      3c7775b0a27a60274cc65fa82c84d37d
+SHA-1 legacy    190bba18a0fd345b373fe63d00764f58539eccb3
+Content         UNCHANGED. SHA-256 before equals SHA-256 after.
+Opened          read-only; PDFPundit never writes to its input
+
+File state      before                          after
+  Modified      2026-10-01 09:12:44.000000000Z  same
+  Changed       2026-10-02 16:40:05.120000000Z  same
+  Accessed      2026-10-07 18:22:31.004000000Z  2026-10-08 14:03:11.402000000Z
+  Created       2026-10-01 09:12:44.000000000Z  same
+  Read-only     yes                             same
+  Mode          444                             same
+Differences     accessed. Reading a file can update its access time. The content
+                hash above is unaffected.
+PDFPUNDIT TOOL RUN RECORD                                            Page 2 of 7
+Record invoice_scan_2024.repaired.pdf.custody.json
+JSON SHA-256    7c569cca28868f73dcabc8a462bed08847c9b421f437f8c881f0390782b15804
+================================================================================
+A.2 Files written
+Destination     /Cases/2026-0412/work
+                set by output_dir, which custody mode requires; never an input's
+                own folder
+
+File 1          invoice_scan_2024.repaired.pdf
+  Kind          repaired pdf
+  Size          489,302 bytes
+  SHA-256       915a4fded8dc1ab2e2b2ed7a0fb99cfaf6f9c098c5f079a6abb3bc8cd4be533d
+  MD5 legacy    fb972408d1eb9128d8f876eacf6d7aed
+  SHA-1 legacy  db578c7a23ab2ee75ecd2439f56a0e0e868e9c51
+  Check         re-read after writing; matches part B
+
+File 2          f7c39aa7.images/1b48e21282963dfb.jpg
+  Kind          image
+  Size          211,876 bytes
+  SHA-256       1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9
+  MD5 legacy    2f6f0eb5cc2c15df39fee0e84285812c
+  SHA-1 legacy  014c3808ba7c76eaea56461402e8e7bedf8004ff
+  Check         re-read after writing; matches part B
+
+File 3          f7c39aa7.images/d013614dc14a37ee.repaired.png
+  Kind          image
+  Size          9,871 bytes
+  SHA-256       d013614dc14a37ee20fe92005737ab7d3427e7e93580ad56ef8a42205e7f7a4e
+  MD5 legacy    edbbdc3d21d008abbfa759d1d7f1ea26
+  SHA-1 legacy  01cd9ac66b03257c54e767745c2e9285502761d9
+  Check         re-read after writing; matches part B
+
+File 4          f7c39aa7.images/images.json
+  Kind          images index
+  Size          6,196 bytes
+  SHA-256       977e42299a55c62c0c19ce87d4189e4c4b490b2e8cf875d446acf2a04ebb35a7
+  MD5 legacy    a5c67da734313f3ecd5c65bd7fe60dee
+  SHA-1 legacy  94ef93d7e1cf238359002439816737e413ab4b9b
+  Check         re-read after writing; matches part B
+
+File 5          f7c39aa7.images/SHA256SUMS
+  Kind          images checksums
+  Size          261 bytes
+  SHA-256       113f8e25bbded892b25c735410384677b8f594f06318727ca2e89c87345fdcf9
+  MD5 legacy    cd358fa1e8f2d42d07e5745734c0a630
+  SHA-1 legacy  770f55991e7b04241da720a4eaa3982577fea4cc
+  Check         re-read after writing; matches part B
+Folder          /Cases/2026-0412/work/f7c39aa7.images (created)
+
+B. REPRODUCIBLE RESULT
+--------------------------------------------------------------------------------
+Part B SHA-256  6a4b244b215df5007efa4a1d3d1d498e425f520e55d4b9253e3a1768e0a355c3
+Part B SHA-256 is the hash of the 'reproducible' member of the JSON record in
+compact form. A re-run that gives the same hash gave the same result.
+PDFPUNDIT TOOL RUN RECORD                                            Page 3 of 7
+Record invoice_scan_2024.repaired.pdf.custody.json
+JSON SHA-256    7c569cca28868f73dcabc8a462bed08847c9b421f437f8c881f0390782b15804
+================================================================================
+B.1 Tool
+Tool            PDFPundit 0.1.0
+Build commit    4015b57a143aec5156fd1444a017a32137a3fd0f
+Build origin    release build, as reported by the program
+Platform        macOS, aarch64; part of the build for re-runs
+Font DB SHA-256 8b85da72b2520c0f15cfb0e0f8b9b9597b47af910c613e90bd81b5e63ff61f30
+Report schema   version 2; custody schema version 1
+
+B.2 Settings
+Passes          all (C1 to C10)
+Salvage work    700,000,000 (deep 10,000,000,000, pool 80,000,000,000)
+Search limit    4,194,304 bytes
+Font source     bundled
+Font questions  asked on screen
+Image views     none
+No-match fonts  ask
+Page size       a4
+Unplaced images extracted
+Type3 glyphs    counted only
+Font auto-pick  confidence 35/100 or higher
+Font candidates at most 5
+
+B.3 Input and outcome
+Input SHA-256   f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf
+Input size      482,113 bytes, PDF 1.6, 3 pages found
+Outcome         REPAIRED
+Method          template assemble, chosen over resave
+Output SHA-256  915a4fded8dc1ab2e2b2ed7a0fb99cfaf6f9c098c5f079a6abb3bc8cd4be533d
+Output checks   reloads; every page renders; re-diagnosis clean;
+                page count matches; catalog and page tree present
+Kept            compared with what was readable in the damaged input, not with
+                the undamaged document (baseline: extracted)
+                text operators 1,412/1,412; images 2/2; glyphs 5,120/5,120
+
+B.4 Findings
+Objects are named as in the input. A finding still present after the repair is
+named as in the output.
+ID           Class  Severity  Where      Before -> after
+C2-001       C2     error     file       found -> gone
+             no cross-reference table or stream
+C9-001       C9     warning   obj 14 0   found -> gone
+             the Flate data of 14 0 obj is damaged: repaired; every single-byte
+             replacement in its window that passed the Adler-32 gave the same
+             output
+C7-001       C7     error     obj 23 0   found -> gone
+             the font program of CIDFont+F1 is gone: its /FontFile2 names 24 0
+             R, which is not a stream
+C7-002       C7     error     obj 29 0   found -> gone
+             the font program of CIDFont+F3 is gone: its /FontFile2 names 30 0
+             R, which is not a stream
+C7-003       C7     error     obj 35 0   found -> gone
+             the font program of CIDFont+F5 is gone: its /FontFile2 names 36 0
+             R, which is not a stream
+NOEMBED-001  -      info      obj 41 0   found -> found, obj 13 0
+             the font ArialMT is not embedded
+PDFPUNDIT TOOL RUN RECORD                                            Page 4 of 7
+Record invoice_scan_2024.repaired.pdf.custody.json
+JSON SHA-256    7c569cca28868f73dcabc8a462bed08847c9b421f437f8c881f0390782b15804
+================================================================================
+B.5 Repair actions
+Pass  Object   Grade   Action
+C2    file     -       C2-001: resolved by re-emission
+C7    23 0     -       font program substituted: liberation-serif
+C7    29 0     -       font program substituted: dejavu-sans
+C7    35 0     -       font program substituted: dejavu-sans
+C9    14 0     exact   Flate data repaired (byte 1207 0x3a -> 0x7a); every
+                       single-byte replacement in its window was tried, and
+                       every one that passed the Adler-32 gave this output
+
+B.6 Compressed-stream salvage
+Damaged streams 1: repaired 1 (Exact 1, Accepted 0, Ambiguous 0); unverified 0;
+                cut short 0; unrecoverable 0; not searched 0
+obj 14 0        repaired, graded Exact
+  Pass 1        zlib; inflate error at offset 1,294 of the stream data
+  Window        error window: 4,096 bytes before the inflate error to 8 after
+  Searched      bytes 0 to 1,302 of the stream data; single-byte replacements
+                tried 332,010 of 332,010
+  Check         Adler-32
+  Passed check  1 replacement, 1 distinct output
+  Edit          offset 1,207 in the stream data (file offset 234,217), 0x3a ->
+                0x7a
+
+B.7 Font slots and answers
+Questions asked
+#   Page  Slot  Answer                Answered by
+1   2     F3    font dejavu-sans      user, on screen, 14:03:16
+2   3     F5    font dejavu-sans      carried from #1, not shown, 14:03:16
+Times are UTC, when the answer was given in this run.
+
+Every font slot
+Page  Slot  Object  Font               Basis
+1     F1    21 0    liberation-serif   chosen without asking: confidence 77/100
+                                       >= 35/100, hit 94/100 >= 1/2, 431 chars
+                                       >= 20; coverage 100/100 (needs 95/100);
+                                       /ToUnicode missing
+2     F3    27 0    dejavu-sans        answer #1; asked because confidence
+                                       25/100 < 35/100 and hit 48/100 < 1/2;
+                                       /ToUnicode missing, so coverage not
+                                       required
+3     F5    33 0    dejavu-sans        answer #2, not asked: carried from #1;
+                                       the score alone would have asked,
+                                       confidence 26/100 < 35/100; /ToUnicode
+                                       missing, so coverage not required
+PDFPUNDIT TOOL RUN RECORD                                            Page 5 of 7
+Record invoice_scan_2024.repaired.pdf.custody.json
+JSON SHA-256    7c569cca28868f73dcabc8a462bed08847c9b421f437f8c881f0390782b15804
+================================================================================
+B.8 Extracted images
+img-0001        f7c39aa7.images/1b48e21282963dfb.jpg
+  Source        obj 9 0 (obj 5 0 in repaired PDF), xobject
+  Pages         1
+  Filters       DCTDecode
+  Image         1240 x 1754, 8 bit, /DeviceRGB
+  In input file offset 20,311, 211,876 bytes
+  Raw SHA-256   1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9
+  File SHA-256  1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9
+  Status        intact
+  File holds    the stream bytes as found, unchanged
+
+img-0002        f7c39aa7.images/d013614dc14a37ee.repaired.png
+  Source        obj 14 0 (obj 8 0 in repaired PDF), xobject
+  Pages         2, 3
+  Filters       FlateDecode
+  Image         600 x 200, 8 bit, /DeviceGray
+  In input file offset 233,010, 18,402 bytes
+  Raw SHA-256   548430417123e2a2ea1f043941e56afbbc529274f270e716a32bfb32ff8d0d10
+  File SHA-256  d013614dc14a37ee20fe92005737ab7d3427e7e93580ad56ef8a42205e7f7a4e
+  Status        repaired, graded exact
+  Search        see B.6, obj 14 0
+  File holds    decoded samples after PDFPundit's salvage, as PNG; not an
+                as-found extraction. The name says 'repaired'
+
+B.9 Limitations
+Standing limits of this version:
+- text marked with ActualText is extracted as drawn; the ActualText is not used
+- glyphs carry an origin and a size but no bounding box
+- text drawn in render mode 7 (clip only) is not extracted
+- the interpreter gives no warning for a dropped compressed stream or an
+  unresolved font; unmapped glyphs and the glyph count per page are the
+  integrity signals
+- image files hold the image as stored, or its decoded samples re-encoded as PNG
+  or TIFF with the same sample values; colour spaces, /Decode arrays and masks
+  are recorded, not applied; an image whose stream was repaired, cut short or
+  left unverified holds those samples, its file name says so, and its record
+  gives the search
+- a repaired file is a new document: it is not the input and carries none of the
+  input's signatures
+Limits of this run:
+- 1 compressed stream was graded Exact: every single-byte replacement in the
+  searched window was tried, and every one that passed the check gave the same
+  output; damage of other kinds is not searched, and the grade does not show the
+  repaired bytes equal the original bytes
+- 3 font programs were substituted from the bundled font database; glyph shapes
+  are the bundled font's, not those of the font the input embedded
+- 1 of 3 font slots was matched without asking, because its score cleared the
+  auto-accept setting; part B.7 gives the basis for every slot
+- 1 of 2 answers was carried from an earlier answer and not shown to the user
+PDFPUNDIT TOOL RUN RECORD                                            Page 6 of 7
+Record invoice_scan_2024.repaired.pdf.custody.json
+JSON SHA-256    7c569cca28868f73dcabc8a462bed08847c9b421f437f8c881f0390782b15804
+================================================================================
+B.10 Statements
+Part B is identical, byte for byte, whenever the same input bytes are processed
+by the same PDFPundit build with the same settings and the same recorded
+answers. The same build means the same version and build commit, compiled for
+the same operating system and processor architecture; part B records all four.
+Identity across platforms is not claimed. This shows the result is repeatable.
+It does not show the repair is correct.
+
+PDFPundit has not been validated by an independent body, such as NIST CFTT, and
+claims no accreditation. Its test suite is in its source repository at the build
+commit recorded in part B. Its corpus tests use a third-party corpus that the
+repository names but does not contain.
+
+Version, build commit and build origin are reported by the program itself, and
+whoever builds it can set them. Releases are unsigned. Each release publishes
+the SHA-256 of every executable it ships. To confirm the build, compare the
+binary SHA-256 in part A with the value published for this version and platform.
+
+PDFPundit cannot tell whether its input is the original evidence or a working
+copy. It opens the input read-only and never writes to it. It is not a write
+blocker. Unchanged means the SHA-256 of the input's content was the same before
+and after the run. File-system times before and after the run are recorded in
+part A. Reading a file can itself update its access time. In custody mode,
+outputs and records are written only to the output folder named in part A.
+Custody mode does not start while no output folder is set, or while it is the
+folder of an input.
+
+Case reference, examiner, submission reference and notes are typed at the
+custody prompt, once per batch. PDFPundit records them as typed and does not
+verify them.
+
+Times come from the host clock, in UTC, and are not independently verified.
+Started is read just before the job first reads the input's file state. An input
+received whole at the drop was read before that, before the custody prompt; part
+A says how the input was received. Ended is read just after the input's file
+state is read again, before the record files are written. The log entry for this
+record is timed after those files are written.
+
+The custody log is hash-chained. It is tamper-evident, not tamper-proof. The
+chain shows a changed or removed entry only while the entries after it are
+unchanged: anyone who can write the file can recompute every later entry, and
+the chain then verifies. Only a log head copied outside the log, such as the one
+shown when a batch closes, or an unedited copy of the log catches that; such a
+head pins the log up to its entry. PDFPundit also compares the log with the last
+head kept in its history when custody mode starts, and starts a new log naming
+the old one when they differ; a change made to both is not detected.
+
+MD5 and SHA-1 are included only to match older case systems. Neither is
+collision-resistant. SHA-256 is the integrity hash.
+PDFPUNDIT TOOL RUN RECORD                                            Page 7 of 7
+Record invoice_scan_2024.repaired.pdf.custody.json
+JSON SHA-256    7c569cca28868f73dcabc8a462bed08847c9b421f437f8c881f0390782b15804
+================================================================================
+C. ABBREVIATIONS
+--------------------------------------------------------------------------------
+C1..C10     the ten damage classes PDFPundit repairs; listed in its manual
+Exact       every single-byte replacement in the searched window was tried, and
+            every one that passed the check gave the same output. Damage of
+            other kinds is not searched. The grade does not show the repaired
+            bytes equal the original bytes
+Accepted    the work limit ran out before every single-byte replacement in the
+            window was tried; every one that passed the check up to then gave
+            the same output
+Ambiguous   replacements that passed the check gave two or more different
+            outputs, or the stream is raw deflate with no Adler-32; a fixed
+            order chose one
+unverified  decoded bytes no checksum confirms; written decoded, with no grade
+obj N G     PDF object number N, generation G
+SHA-256     integrity hash; MD5 and SHA-1 are legacy hashes
+resave      one of two ways PDFPundit builds an output: the damaged file
+            re-written; see its manual
+template assemble
+            the other way: the same, with damaged font programs substituted from
+            the bundled fonts
+UTC         Coordinated Universal Time
+
+D. CUSTODY LOG AND SIGN-OFF
+--------------------------------------------------------------------------------
+Custody log     /Users/examiner/Library/Application Support/PDFPundit/
+                custody.log
+Log identity    922810eecc0e7fe58cce3e60b63032561a2b2cad348f3b1d7dcff0926a572c28
+This record     entry 42
+Log entry before this record
+  Entry         41, batch opened
+  SHA-256       fdd8424fa998f4e9c6f49ccffe7feb0d234cb63dbf257afeedf6d249fd6685f7
+This page cannot show the log head after this record. The log entry for this
+record holds this page's hash, so it is written after this page. When the batch
+closes, PDFPundit shows the log head on screen, and Verify prints it later. Copy
+it into your notes. It pins the log, this record included, at that point.
+
+Reviewed by (name): ______________________________________________
+
+Signature: ___________________________   Date: ____________________

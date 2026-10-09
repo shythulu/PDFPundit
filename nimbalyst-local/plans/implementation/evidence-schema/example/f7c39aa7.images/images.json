@@ -1,0 +1,245 @@
+{
+  "format": "pdfpundit-images",
+  "images_schema_version": 1,
+  "input_sha256": "f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf",
+  "tool": {
+    "name": "PDFPundit",
+    "version": "0.1.0"
+  },
+  "settings_sha256": "0ea13a9d9b5d7ff919a2de653ae07518eda65db44c55de9717e807f208e3e888",
+  "type3_glyph_images": 0,
+  "records": [
+    {
+      "id": "img-0001",
+      "file": "1b48e21282963dfb.jpg",
+      "file_sha256": "1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9",
+      "file_len": 211876,
+      "format": "jpg",
+      "view_file": null,
+      "view_sha256": null,
+      "source": {
+        "kind": "xobject",
+        "copy": "winner",
+        "object": "9 0",
+        "output_object": "5 0",
+        "parent": null,
+        "inline_origin": null,
+        "raw": {
+          "domain": "file",
+          "span": {
+            "start": 20311,
+            "end": 232187
+          },
+          "container_object": null,
+          "container_file_span": null
+        },
+        "raw_len": 211876,
+        "raw_sha256": "1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9",
+        "length_source": "declared"
+      },
+      "encoding": {
+        "filters": [
+          "DCTDecode"
+        ],
+        "decode_parms": [
+          null
+        ],
+        "codec": "jpeg",
+        "jbig2_globals": null
+      },
+      "description": {
+        "width": 1240,
+        "height": 1754,
+        "actual_width": 1240,
+        "actual_height": 1754,
+        "bits_per_component": 8,
+        "components": 3,
+        "colour_space": "/DeviceRGB",
+        "icc": null,
+        "palette_entries": null,
+        "decode": null,
+        "image_mask": false,
+        "interpolate": false,
+        "intent": null,
+        "needs_pdf_context": false
+      },
+      "placements": [
+        {
+          "page_in": 1,
+          "page_out": 1,
+          "paint_order": 0,
+          "bbox_mpt": [
+            36000,
+            51000,
+            559000,
+            791000
+          ],
+          "matrix_micro": [
+            523000000,
+            0,
+            0,
+            740000000,
+            36000000,
+            51000000
+          ],
+          "form_chain": []
+        }
+      ],
+      "integrity": {
+        "status": "intact",
+        "rows_written": null,
+        "rows_declared": null,
+        "salvage": null,
+        "repaired_stream_sha256": null,
+        "samples_sha256": null,
+        "warnings": []
+      }
+    },
+    {
+      "id": "img-0002",
+      "file": "d013614dc14a37ee.repaired.png",
+      "file_sha256": "d013614dc14a37ee20fe92005737ab7d3427e7e93580ad56ef8a42205e7f7a4e",
+      "file_len": 9871,
+      "format": "png",
+      "view_file": null,
+      "view_sha256": null,
+      "source": {
+        "kind": "xobject",
+        "copy": "winner",
+        "object": "14 0",
+        "output_object": "8 0",
+        "parent": null,
+        "inline_origin": null,
+        "raw": {
+          "domain": "file",
+          "span": {
+            "start": 233010,
+            "end": 251412
+          },
+          "container_object": null,
+          "container_file_span": null
+        },
+        "raw_len": 18402,
+        "raw_sha256": "548430417123e2a2ea1f043941e56afbbc529274f270e716a32bfb32ff8d0d10",
+        "length_source": "declared"
+      },
+      "encoding": {
+        "filters": [
+          "FlateDecode"
+        ],
+        "decode_parms": [
+          "<</BitsPerComponent 8 /Colors 1 /Columns 600 /Predictor 15>>"
+        ],
+        "codec": null,
+        "jbig2_globals": null
+      },
+      "description": {
+        "width": 600,
+        "height": 200,
+        "actual_width": 600,
+        "actual_height": 200,
+        "bits_per_component": 8,
+        "components": 1,
+        "colour_space": "/DeviceGray",
+        "icc": null,
+        "palette_entries": null,
+        "decode": null,
+        "image_mask": false,
+        "interpolate": false,
+        "intent": null,
+        "needs_pdf_context": false
+      },
+      "placements": [
+        {
+          "page_in": 2,
+          "page_out": 2,
+          "paint_order": 3,
+          "bbox_mpt": [
+            400000,
+            60000,
+            550000,
+            110000
+          ],
+          "matrix_micro": [
+            150000000,
+            0,
+            0,
+            50000000,
+            400000000,
+            60000000
+          ],
+          "form_chain": []
+        },
+        {
+          "page_in": 3,
+          "page_out": 3,
+          "paint_order": 1,
+          "bbox_mpt": [
+            400000,
+            60000,
+            550000,
+            110000
+          ],
+          "matrix_micro": [
+            150000000,
+            0,
+            0,
+            50000000,
+            400000000,
+            60000000
+          ],
+          "form_chain": []
+        }
+      ],
+      "integrity": {
+        "status": "repaired",
+        "rows_written": 200,
+        "rows_declared": 200,
+        "salvage": {
+          "outcome": "repaired",
+          "grade": "exact",
+          "adler_rerun": false,
+          "trailer_edit": false,
+          "predictor_stopped": false,
+          "prefix": null,
+          "edit_domain": {
+            "kind": "raw_stream_data",
+            "filters_before": []
+          },
+          "passes": [
+            {
+              "mode": "zlib",
+              "damage": {
+                "kind": "inflate_error",
+                "at": 1294
+              },
+              "localizer": "error_window",
+              "check": "adler32",
+              "deep": false,
+              "window": [
+                {
+                  "start": 0,
+                  "end": 1302
+                }
+              ],
+              "candidates_in_window": 332010,
+              "candidates_tried": 332010
+            }
+          ],
+          "passing_edits": 1,
+          "distinct_outputs": 1,
+          "edits": [
+            [
+              1207,
+              58,
+              122
+            ]
+          ]
+        },
+        "repaired_stream_sha256": "94c0f68728561aa1dd9996ff3b13da2e9625145c65d11c9b72a837054482ea6e",
+        "samples_sha256": "2d46fdb3cf07a1a3d7faa7644202678229c138ac5c866c50934d041fd0465910",
+        "warnings": []
+      }
+    }
+  ]
+}

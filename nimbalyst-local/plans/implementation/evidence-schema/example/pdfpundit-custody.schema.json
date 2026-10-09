@@ -1,0 +1,3870 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pdfpundit:schema:custody:1",
+  "title": "PDFPundit tool run record (custody record)",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "pdfpundit-custody"
+    },
+    "custody_schema_version": {
+      "const": 1
+    },
+    "reproducible_sha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "reproducible": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/reproducible"
+        }
+      ]
+    },
+    "run": {
+      "$ref": "#/$defs/run"
+    }
+  },
+  "required": [
+    "format",
+    "custody_schema_version",
+    "reproducible_sha256",
+    "reproducible",
+    "run"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "hex64": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "objref": {
+      "type": "string",
+      "pattern": "^[0-9]+ [0-9]+$",
+      "description": "PDF object number and generation, 'num gen'"
+    },
+    "ratio": {
+      "type": "object",
+      "properties": {
+        "num": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "den": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "additionalProperties": false
+    },
+    "span": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": false
+    },
+    "hashes": {
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sha1": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          ]
+        },
+        "md5": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sha256",
+        "sha1",
+        "md5"
+      ],
+      "additionalProperties": false
+    },
+    "class": {
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10"
+      ]
+    },
+    "grade": {
+      "enum": [
+        "exact",
+        "accepted",
+        "ambiguous",
+        "unsearched"
+      ]
+    },
+    "location": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "file"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "span"
+            },
+            "span": {
+              "$ref": "#/$defs/span"
+            }
+          },
+          "required": [
+            "type",
+            "span"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "object": {
+              "$ref": "#/$defs/objref"
+            },
+            "span": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/span"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "object",
+            "span"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "page"
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "object": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/objref"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "page",
+            "object"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "finding_detail": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "signed"
+            },
+            "fields": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          },
+          "required": [
+            "type",
+            "fields"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "outlined_text"
+            },
+            "glyph_runs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "contours": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          },
+          "required": [
+            "type",
+            "glyph_runs",
+            "contours"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "type3_text"
+            },
+            "font": {
+              "$ref": "#/$defs/objref"
+            }
+          },
+          "required": [
+            "type",
+            "font"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "font_not_embedded"
+            },
+            "font": {
+              "$ref": "#/$defs/objref"
+            },
+            "base_font": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            }
+          },
+          "required": [
+            "type",
+            "font",
+            "base_font"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "pages_outside_tree"
+            },
+            "pages": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "type",
+            "pages"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[ -~]*$"
+        },
+        "kind": {
+          "enum": [
+            "corruption",
+            "encrypted",
+            "signed",
+            "outlined_text",
+            "type3_text",
+            "font_not_embedded",
+            "pages_outside_tree"
+          ]
+        },
+        "class": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/class"
+            }
+          ]
+        },
+        "detail": {
+          "$ref": "#/$defs/finding_detail"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "summary": {
+          "type": "string",
+          "pattern": "^[ -~]*$"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "class",
+        "detail",
+        "severity",
+        "location",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "object": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/objref"
+            }
+          ]
+        },
+        "what": {
+          "type": "string",
+          "pattern": "^[ -~]*$"
+        },
+        "grade": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/grade"
+            }
+          ]
+        }
+      },
+      "required": [
+        "object",
+        "what",
+        "grade"
+      ],
+      "additionalProperties": false
+    },
+    "pass": {
+      "type": "object",
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/class"
+        },
+        "outcome": {
+          "enum": [
+            "fixed",
+            "partial",
+            "skipped"
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      },
+      "required": [
+        "class",
+        "outcome",
+        "note",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "reply": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "pick"
+            },
+            "font_id": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            }
+          },
+          "required": [
+            "type",
+            "font_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "use_best"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "skip"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "substitute"
+            },
+            "choice": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            }
+          },
+          "required": [
+            "type",
+            "choice"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "text_only"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "interaction": {
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "enum": [
+            "font_pick",
+            "font_unreproducible"
+          ]
+        },
+        "page": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "slot": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[ -~]*$"
+          }
+        },
+        "reply": {
+          "$ref": "#/$defs/reply"
+        },
+        "source": {
+          "enum": [
+            "user",
+            "batched",
+            "policy"
+          ]
+        },
+        "carried_from": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "this_record"
+                },
+                "seq": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "type",
+                "seq"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "another_file"
+                },
+                "input_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "type",
+                "input_sha256"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "policy_setting": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        }
+      },
+      "required": [
+        "seq",
+        "kind",
+        "page",
+        "slot",
+        "candidates",
+        "reply",
+        "source",
+        "carried_from",
+        "policy_setting"
+      ],
+      "additionalProperties": false
+    },
+    "edit_domain": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "raw_stream_data",
+            "flate_input"
+          ]
+        },
+        "filters_before": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[ -~]*$"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "filters_before"
+      ],
+      "additionalProperties": false
+    },
+    "search_pass": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "zlib",
+            "raw_deflate"
+          ]
+        },
+        "damage": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "inflate_error",
+                "adler_mismatch",
+                "header_rejected"
+              ]
+            },
+            "at": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "at"
+          ],
+          "additionalProperties": false
+        },
+        "localizer": {
+          "enum": [
+            "error_window",
+            "adler_only",
+            "ttf_tables",
+            "widened"
+          ]
+        },
+        "check": {
+          "enum": [
+            "adler32",
+            "adler32_after_ttf_table_checksum",
+            "none_raw_deflate"
+          ]
+        },
+        "deep": {
+          "type": "boolean"
+        },
+        "window": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "candidates_in_window": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidates_tried": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "mode",
+        "damage",
+        "localizer",
+        "check",
+        "deep",
+        "window",
+        "candidates_in_window",
+        "candidates_tried"
+      ],
+      "additionalProperties": false
+    },
+    "salvage_search": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "enum": [
+            "repaired",
+            "checksum_mismatch",
+            "prefix",
+            "unrecoverable",
+            "unsearched"
+          ]
+        },
+        "grade": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/grade"
+            }
+          ]
+        },
+        "adler_rerun": {
+          "type": "boolean"
+        },
+        "trailer_edit": {
+          "type": "boolean"
+        },
+        "predictor_stopped": {
+          "type": "boolean"
+        },
+        "prefix": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "in_used": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "in_total": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "in_used",
+                "in_total"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "edit_domain": {
+          "$ref": "#/$defs/edit_domain"
+        },
+        "passes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/search_pass"
+          }
+        },
+        "passing_edits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "distinct_outputs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "edits": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minItems": 3,
+            "maxItems": 3
+          }
+        }
+      },
+      "required": [
+        "outcome",
+        "grade",
+        "adler_rerun",
+        "trailer_edit",
+        "predictor_stopped",
+        "prefix",
+        "edit_domain",
+        "passes",
+        "passing_edits",
+        "distinct_outputs",
+        "edits"
+      ],
+      "additionalProperties": false
+    },
+    "ftime": {
+      "type": "object",
+      "properties": {
+        "sec": {
+          "type": "integer"
+        },
+        "nsec": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999999999
+        }
+      },
+      "required": [
+        "sec",
+        "nsec"
+      ],
+      "additionalProperties": false
+    },
+    "file_stat": {
+      "type": "object",
+      "properties": {
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modified": {
+          "$ref": "#/$defs/ftime"
+        },
+        "changed": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/ftime"
+            }
+          ]
+        },
+        "accessed": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/ftime"
+            }
+          ]
+        },
+        "created": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/ftime"
+            }
+          ]
+        },
+        "read_only": {
+          "type": "boolean"
+        },
+        "unix_mode": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "source": {
+          "enum": [
+            "unix_stat",
+            "windows_file_info"
+          ]
+        }
+      },
+      "required": [
+        "size_bytes",
+        "modified",
+        "changed",
+        "accessed",
+        "created",
+        "read_only",
+        "unix_mode",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "font_evidence": {
+      "type": "object",
+      "properties": {
+        "top_candidate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "confidence": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/ratio"
+            }
+          ]
+        },
+        "hit": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/ratio"
+            }
+          ]
+        },
+        "margin": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/ratio"
+            }
+          ]
+        },
+        "threshold": {
+          "$ref": "#/$defs/ratio"
+        },
+        "min_hit": {
+          "$ref": "#/$defs/ratio"
+        },
+        "inference": {
+          "type": "object",
+          "properties": {
+            "lang": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "script": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "n_chars": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "n_runs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "lang",
+            "script",
+            "n_chars",
+            "n_runs"
+          ],
+          "additionalProperties": false
+        },
+        "sample_floor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tounicode": {
+          "enum": [
+            "present",
+            "missing",
+            "unparsable"
+          ]
+        },
+        "best_coverage": {
+          "$ref": "#/$defs/ratio"
+        },
+        "best_coverage_font": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "min_coverage": {
+          "$ref": "#/$defs/ratio"
+        },
+        "decision": {
+          "enum": [
+            "auto_accept",
+            "ask",
+            "unreproducible",
+            "text_only"
+          ]
+        }
+      },
+      "required": [
+        "top_candidate",
+        "confidence",
+        "hit",
+        "margin",
+        "threshold",
+        "min_hit",
+        "inference",
+        "sample_floor",
+        "tounicode",
+        "best_coverage",
+        "best_coverage_font",
+        "min_coverage",
+        "decision"
+      ],
+      "additionalProperties": false
+    },
+    "font_decision": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "slot": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "object": {
+          "$ref": "#/$defs/objref"
+        },
+        "basis": {
+          "enum": [
+            "named_match",
+            "auto_accept",
+            "user",
+            "batched",
+            "policy",
+            "unsupported"
+          ]
+        },
+        "font_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "interaction_seq": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/font_evidence"
+            }
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        }
+      },
+      "required": [
+        "page",
+        "slot",
+        "object",
+        "basis",
+        "font_id",
+        "interaction_seq",
+        "evidence",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "placement": {
+      "type": "object",
+      "properties": {
+        "page_in": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "page_out": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "paint_order": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "bbox_mpt": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "matrix_micro": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 6,
+          "maxItems": 6
+        },
+        "form_chain": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/objref"
+          }
+        }
+      },
+      "required": [
+        "page_in",
+        "page_out",
+        "paint_order",
+        "bbox_mpt",
+        "matrix_micro",
+        "form_chain"
+      ],
+      "additionalProperties": false
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^img-[0-9]{4,}$"
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "file_sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "file_len": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "format": {
+          "enum": [
+            "jpg",
+            "jp2",
+            "j2k",
+            "png",
+            "tif",
+            "ccitt",
+            "jb2e",
+            "jb2g",
+            "bin",
+            "none"
+          ]
+        },
+        "view_file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "view_sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "xobject",
+                "inline",
+                "smask",
+                "mask",
+                "stencil",
+                "thumb",
+                "jbig2_globals"
+              ]
+            },
+            "copy": {
+              "enum": [
+                "winner",
+                "shadow",
+                "headerless",
+                "unreferenced"
+              ]
+            },
+            "object": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/objref"
+                }
+              ]
+            },
+            "output_object": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/objref"
+                }
+              ]
+            },
+            "parent": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[ -~]*$"
+            },
+            "inline_origin": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "stream_object": {
+                      "$ref": "#/$defs/objref"
+                    },
+                    "bi_ordinal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    },
+                    "bi_offset": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "stream_object",
+                    "bi_ordinal",
+                    "bi_offset"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "raw": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "const": "file"
+                    },
+                    "span": {
+                      "$ref": "#/$defs/span"
+                    },
+                    "container_object": {
+                      "type": "null"
+                    },
+                    "container_file_span": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "domain",
+                    "span",
+                    "container_object",
+                    "container_file_span"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "const": "decoded_content_stream"
+                    },
+                    "span": {
+                      "$ref": "#/$defs/span"
+                    },
+                    "container_object": {
+                      "$ref": "#/$defs/objref"
+                    },
+                    "container_file_span": {
+                      "$ref": "#/$defs/span"
+                    }
+                  },
+                  "required": [
+                    "domain",
+                    "span",
+                    "container_object",
+                    "container_file_span"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "raw_len": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "raw_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "length_source": {
+              "enum": [
+                "declared",
+                "inflate_probe",
+                "scanned_endstream",
+                "truncated_at_eof"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "copy",
+            "object",
+            "output_object",
+            "parent",
+            "inline_origin",
+            "raw",
+            "raw_len",
+            "raw_sha256",
+            "length_source"
+          ],
+          "additionalProperties": false
+        },
+        "encoding": {
+          "type": "object",
+          "properties": {
+            "filters": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[ -~]*$"
+              }
+            },
+            "decode_parms": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[ -~]*$"
+              }
+            },
+            "codec": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "enum": [
+                    "jpeg",
+                    "jpeg2000",
+                    "ccitt",
+                    "jbig2"
+                  ]
+                }
+              ]
+            },
+            "jbig2_globals": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[ -~]*$"
+            }
+          },
+          "required": [
+            "filters",
+            "decode_parms",
+            "codec",
+            "jbig2_globals"
+          ],
+          "additionalProperties": false
+        },
+        "description": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "height": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "actual_width": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "actual_height": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bits_per_component": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "components": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "colour_space": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[ -~]*$"
+            },
+            "icc": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "$ref": "#/$defs/objref"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "sha256"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "palette_entries": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "decode": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[ -~]*$"
+            },
+            "image_mask": {
+              "type": "boolean"
+            },
+            "interpolate": {
+              "type": "boolean"
+            },
+            "intent": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[ -~]*$"
+            },
+            "needs_pdf_context": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "actual_width",
+            "actual_height",
+            "bits_per_component",
+            "components",
+            "colour_space",
+            "icc",
+            "palette_entries",
+            "decode",
+            "image_mask",
+            "interpolate",
+            "intent",
+            "needs_pdf_context"
+          ],
+          "additionalProperties": false
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/placement"
+          }
+        },
+        "integrity": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "intact",
+                "repaired",
+                "partial",
+                "truncated",
+                "unverified",
+                "undecoded",
+                "unrecoverable",
+                "over_cap",
+                "no_dimensions"
+              ]
+            },
+            "rows_written": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "rows_declared": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "salvage": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/salvage_search"
+                }
+              ]
+            },
+            "repaired_stream_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              ]
+            },
+            "samples_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              ]
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[ -~]*$"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "rows_written",
+            "rows_declared",
+            "salvage",
+            "repaired_stream_sha256",
+            "samples_sha256",
+            "warnings"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "file",
+        "file_sha256",
+        "file_len",
+        "format",
+        "view_file",
+        "view_sha256",
+        "source",
+        "encoding",
+        "description",
+        "placements",
+        "integrity"
+      ],
+      "additionalProperties": false
+    },
+    "product": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "repaired_pdf",
+            "markdown",
+            "image",
+            "image_view",
+            "images_index",
+            "images_checksums"
+          ]
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ -~]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "role",
+        "file",
+        "sha256",
+        "size_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "salvage_work": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "salvage_deep_work": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "salvage_deep_pool": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_search_stream": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passes": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/class"
+              }
+            }
+          ]
+        },
+        "font_policy": {
+          "enum": [
+            "bundled",
+            "bundled_then_system"
+          ]
+        },
+        "font_source_effective": {
+          "enum": [
+            "bundled",
+            "bundled_then_system"
+          ]
+        },
+        "prompt_unresolved": {
+          "type": "boolean"
+        },
+        "derived_image_views": {
+          "type": "boolean"
+        },
+        "unreproducible": {
+          "enum": [
+            "ask",
+            "substitute_generic",
+            "text_only"
+          ]
+        },
+        "default_page_size": {
+          "oneOf": [
+            {
+              "enum": [
+                "a4",
+                "letter"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "custom": {
+                  "type": "object",
+                  "properties": {
+                    "w_pt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    },
+                    "h_pt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    }
+                  },
+                  "required": [
+                    "w_pt",
+                    "h_pt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "custom"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "extract_unplaceable_images": {
+          "type": "boolean"
+        },
+        "extract_type3_glyph_images": {
+          "type": "boolean"
+        },
+        "auto_accept_confidence": {
+          "$ref": "#/$defs/ratio"
+        },
+        "max_font_candidates": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "salvage_work",
+        "salvage_deep_work",
+        "salvage_deep_pool",
+        "max_search_stream",
+        "passes",
+        "font_policy",
+        "font_source_effective",
+        "prompt_unresolved",
+        "derived_image_views",
+        "unreproducible",
+        "default_page_size",
+        "extract_unplaceable_images",
+        "extract_type3_glyph_images",
+        "auto_accept_confidence",
+        "max_font_candidates"
+      ],
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "baseline": {
+          "enum": [
+            "extracted",
+            "carve_proxy",
+            "none"
+          ]
+        },
+        "gates": {
+          "type": "object",
+          "properties": {
+            "lopdf_reload": {
+              "type": "boolean"
+            },
+            "hayro_render_all_pages": {
+              "type": "boolean"
+            },
+            "rediagnose_clean": {
+              "type": "boolean"
+            },
+            "page_count_ok": {
+              "type": "boolean"
+            },
+            "root_and_pages_present": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "lopdf_reload",
+            "hayro_render_all_pages",
+            "rediagnose_clean",
+            "page_count_ok",
+            "root_and_pages_present"
+          ],
+          "additionalProperties": false
+        },
+        "retention": {
+          "type": "object",
+          "properties": {
+            "text_ops": {
+              "$ref": "#/$defs/ratio"
+            },
+            "path_fills": {
+              "$ref": "#/$defs/ratio"
+            },
+            "images": {
+              "$ref": "#/$defs/ratio"
+            },
+            "content_bytes": {
+              "$ref": "#/$defs/ratio"
+            },
+            "blank_pages": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "glyph_count": {
+              "$ref": "#/$defs/ratio"
+            }
+          },
+          "required": [
+            "text_ops",
+            "path_fills",
+            "images",
+            "content_bytes",
+            "blank_pages",
+            "glyph_count"
+          ],
+          "additionalProperties": false
+        },
+        "plausibility": {
+          "type": "object",
+          "properties": {
+            "unmapped_glyph": {
+              "$ref": "#/$defs/ratio"
+            },
+            "fffd": {
+              "$ref": "#/$defs/ratio"
+            },
+            "script_consistency": {
+              "$ref": "#/$defs/ratio"
+            },
+            "dictionary_hit": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/ratio"
+                }
+              ]
+            }
+          },
+          "required": [
+            "unmapped_glyph",
+            "fffd",
+            "script_consistency",
+            "dictionary_hit"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "baseline",
+        "gates",
+        "retention",
+        "plausibility"
+      ],
+      "additionalProperties": false
+    },
+    "reproducible": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "enum": [
+            "repair",
+            "repair_and_export",
+            "export"
+          ]
+        },
+        "tool": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "const": "PDFPundit"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "build_commit": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                }
+              ]
+            },
+            "build_origin": {
+              "enum": [
+                "release",
+                "local",
+                "unknown"
+              ]
+            },
+            "platform": {
+              "type": "object",
+              "properties": {
+                "os": {
+                  "enum": [
+                    "macos",
+                    "windows",
+                    "linux"
+                  ]
+                },
+                "arch": {
+                  "enum": [
+                    "aarch64",
+                    "x86_64"
+                  ]
+                }
+              },
+              "required": [
+                "os",
+                "arch"
+              ],
+              "additionalProperties": false
+            },
+            "report_schema_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "font_db_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "name",
+            "version",
+            "build_commit",
+            "build_origin",
+            "platform",
+            "report_schema_version",
+            "font_db_sha256"
+          ],
+          "additionalProperties": false
+        },
+        "settings": {
+          "$ref": "#/$defs/settings"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pdf_version": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[ -~]*$"
+            },
+            "pages_discovered": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "signed_fields": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "encrypted": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "sha256",
+            "size_bytes",
+            "pdf_version",
+            "pages_discovered",
+            "signed_fields",
+            "encrypted"
+          ],
+          "additionalProperties": false
+        },
+        "interactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interaction"
+          }
+        },
+        "font_decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/font_decision"
+          }
+        },
+        "outcome": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "repaired",
+                "partial",
+                "clean",
+                "failed",
+                "encrypted"
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[ -~]*$"
+              }
+            },
+            "chosen_toolpath": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "enum": [
+                    "resave",
+                    "template_assemble"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "reasons",
+            "chosen_toolpath"
+          ],
+          "additionalProperties": false
+        },
+        "findings_before": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "findings_after": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "passes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pass"
+          }
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "toolpath": {
+                "enum": [
+                  "resave",
+                  "template_assemble"
+                ]
+              },
+              "chosen": {
+                "type": "boolean"
+              },
+              "verification": {
+                "$ref": "#/$defs/verification"
+              }
+            },
+            "required": [
+              "toolpath",
+              "chosen",
+              "verification"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "stream_salvage": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "object",
+              "properties": {
+                "streams_damaged": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "repaired": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "exact": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "accepted": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "ambiguous": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "checksum_mismatch": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "prefix": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "unrecoverable": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "unsearched": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                }
+              },
+              "required": [
+                "streams_damaged",
+                "repaired",
+                "exact",
+                "accepted",
+                "ambiguous",
+                "checksum_mismatch",
+                "prefix",
+                "unrecoverable",
+                "unsearched"
+              ],
+              "additionalProperties": false
+            },
+            "streams": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "object": {
+                    "$ref": "#/$defs/objref"
+                  },
+                  "search": {
+                    "$ref": "#/$defs/salvage_search"
+                  }
+                },
+                "required": [
+                  "object",
+                  "search"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "filter_rewrites": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "object": {
+                    "$ref": "#/$defs/objref"
+                  },
+                  "before": {
+                    "type": "string",
+                    "pattern": "^[ -~]*$"
+                  },
+                  "after": {
+                    "type": "string",
+                    "pattern": "^[ -~]*$"
+                  }
+                },
+                "required": [
+                  "object",
+                  "before",
+                  "after"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "summary",
+            "streams",
+            "filter_rewrites"
+          ],
+          "additionalProperties": false
+        },
+        "shadows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "object": {
+                "$ref": "#/$defs/objref"
+              },
+              "span": {
+                "$ref": "#/$defs/span"
+              }
+            },
+            "required": [
+              "object",
+              "span"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "reals_narrowed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "text_warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "enum": [
+                  "input",
+                  "output"
+                ]
+              },
+              "warning": {
+                "enum": [
+                  "hidden_layers",
+                  "scanned_pages"
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "warning"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "products": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/product"
+          }
+        },
+        "images": {
+          "type": "object",
+          "properties": {
+            "dir": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[ -~]*$"
+            },
+            "type3_glyph_images": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "records": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/image"
+              }
+            }
+          },
+          "required": [
+            "dir",
+            "type3_glyph_images",
+            "records"
+          ],
+          "additionalProperties": false
+        },
+        "limitations": {
+          "type": "object",
+          "properties": {
+            "standing": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[ -~]*$"
+              }
+            },
+            "this_run": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[ -~]*$"
+              }
+            }
+          },
+          "required": [
+            "standing",
+            "this_run"
+          ],
+          "additionalProperties": false
+        },
+        "statements": {
+          "type": "object",
+          "properties": {
+            "role": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "reproducibility": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "validation": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "tool_identity": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "input_file": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "case_details": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "times": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "log": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            },
+            "legacy_hashes": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            }
+          },
+          "required": [
+            "role",
+            "reproducibility",
+            "validation",
+            "tool_identity",
+            "input_file",
+            "case_details",
+            "times",
+            "log",
+            "legacy_hashes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "job",
+        "tool",
+        "settings",
+        "input",
+        "interactions",
+        "font_decisions",
+        "outcome",
+        "findings_before",
+        "findings_after",
+        "passes",
+        "candidates",
+        "stream_salvage",
+        "shadows",
+        "reals_narrowed",
+        "text_warnings",
+        "products",
+        "images",
+        "limitations",
+        "statements"
+      ],
+      "additionalProperties": false
+    },
+    "record_ref": {
+      "type": "object",
+      "properties": {
+        "record": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "log_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "log_seq": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "record",
+        "sha256",
+        "log_id",
+        "log_seq"
+      ],
+      "additionalProperties": false
+    },
+    "replay_source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "none"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "custody_record"
+            },
+            "record": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "log_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "log_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "seqs": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "type",
+            "record",
+            "sha256",
+            "log_id",
+            "log_seq",
+            "seqs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "run_without_record"
+            },
+            "input_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "started_utc": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+                }
+              ]
+            },
+            "history_run": {
+              "type": "boolean"
+            },
+            "seqs": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "type",
+            "input_sha256",
+            "started_utc",
+            "history_run",
+            "seqs"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "placed_file": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "repaired_pdf",
+            "markdown",
+            "image",
+            "image_view",
+            "images_index",
+            "images_checksums"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hashes": {
+          "$ref": "#/$defs/hashes"
+        },
+        "placement": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "atomic",
+                "linked",
+                "claimed_then_renamed",
+                "create_new",
+                "reused_identical"
+              ]
+            }
+          ]
+        },
+        "matches_product": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "role",
+        "name",
+        "path",
+        "size_bytes",
+        "hashes",
+        "placement",
+        "matches_product",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "properties": {
+        "job_status": {
+          "enum": [
+            "completed",
+            "cancelled",
+            "failed_before_engine",
+            "input_changed",
+            "record_only"
+          ]
+        },
+        "batch": {
+          "type": "object",
+          "properties": {
+            "log_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "position": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "log_seq",
+            "position",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        "case": {
+          "type": "object",
+          "properties": {
+            "prompt_shown": {
+              "type": "boolean"
+            },
+            "case_reference": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "examiner": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "submission_reference": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "prompt_shown",
+            "case_reference",
+            "examiner",
+            "submission_reference",
+            "notes"
+          ],
+          "additionalProperties": false
+        },
+        "clock": {
+          "type": "object",
+          "properties": {
+            "started_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "ended_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "host_utc_offset_minutes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": -1440,
+              "maximum": 1440
+            },
+            "host_utc_offset_from": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "enum": [
+                    "etc_localtime_tzif",
+                    "windows_local_file_time"
+                  ]
+                }
+              ]
+            },
+            "host_zone_hint": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "enum": [
+                        "etc_localtime_link",
+                        "windows_time_zone_info"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "from"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "source": {
+              "const": "host_clock_unverified"
+            }
+          },
+          "required": [
+            "started_utc",
+            "ended_utc",
+            "host_utc_offset_minutes",
+            "host_utc_offset_from",
+            "host_zone_hint",
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "answer_times": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "shown_utc": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+                  }
+                ]
+              },
+              "answered_utc": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+              }
+            },
+            "required": [
+              "seq",
+              "shown_utc",
+              "answered_utc"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "host": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "os": {
+              "enum": [
+                "macos",
+                "windows",
+                "linux"
+              ]
+            },
+            "tool_binary_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "os",
+            "tool_binary_sha256"
+          ],
+          "additionalProperties": false
+        },
+        "custody_settings": {
+          "type": "object",
+          "properties": {
+            "hashes": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "sha256",
+                  "sha1",
+                  "md5"
+                ]
+              },
+              "minItems": 1
+            },
+            "ask_case_details": {
+              "type": "boolean"
+            },
+            "require_case_details": {
+              "type": "boolean"
+            },
+            "record_host_name": {
+              "type": "boolean"
+            },
+            "case_jsonld": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "hashes",
+            "ask_case_details",
+            "require_case_details",
+            "record_host_name",
+            "case_jsonld"
+          ],
+          "additionalProperties": false
+        },
+        "input_file": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "path_kind": {
+              "enum": [
+                "file",
+                "dropped",
+                "memory"
+              ]
+            },
+            "first_read": {
+              "enum": [
+                "job_start",
+                "drop"
+              ]
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hashes_before": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/hashes"
+                }
+              ]
+            },
+            "hashes_after": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/hashes"
+                }
+              ]
+            },
+            "unchanged": {
+              "enum": [
+                "yes",
+                "no",
+                "not_rechecked"
+              ]
+            },
+            "not_rechecked_reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "stat_before": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/file_stat"
+                }
+              ]
+            },
+            "stat_after": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/file_stat"
+                }
+              ]
+            },
+            "stat_changed": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "size_bytes",
+                  "modified",
+                  "changed",
+                  "accessed",
+                  "created",
+                  "read_only",
+                  "unix_mode"
+                ]
+              }
+            }
+          },
+          "required": [
+            "name",
+            "path",
+            "path_kind",
+            "first_read",
+            "size_bytes",
+            "hashes_before",
+            "hashes_after",
+            "unchanged",
+            "not_rechecked_reason",
+            "stat_before",
+            "stat_after",
+            "stat_changed"
+          ],
+          "additionalProperties": false
+        },
+        "destination": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "placed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/placed_file"
+          }
+        },
+        "images_dir": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "enum": [
+                    "created",
+                    "reused_identical",
+                    "renamed_after_clash"
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "name",
+                "outcome"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "processing": {
+          "type": "object",
+          "properties": {
+            "analysis_state": {
+              "enum": [
+                "reused",
+                "rebuilt"
+              ]
+            },
+            "rebuilt_reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "config_path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "analysis_state",
+            "rebuilt_reason",
+            "config_path"
+          ],
+          "additionalProperties": false
+        },
+        "record_files": {
+          "type": "object",
+          "properties": {
+            "json": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "checksums": {
+              "type": "string"
+            },
+            "case_jsonld": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "json",
+            "text",
+            "checksums",
+            "case_jsonld"
+          ],
+          "additionalProperties": false
+        },
+        "earlier_records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record_ref"
+          }
+        },
+        "earlier_records_logs": {
+          "type": "object",
+          "properties": {
+            "searched": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "minItems": 1
+            },
+            "missing": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              ]
+            }
+          },
+          "required": [
+            "searched",
+            "missing"
+          ],
+          "additionalProperties": false
+        },
+        "answers_replayed_from": {
+          "$ref": "#/$defs/replay_source"
+        },
+        "log": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "log_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "prev_entry_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "path",
+            "log_id",
+            "seq",
+            "prev_entry_sha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "job_status",
+        "batch",
+        "case",
+        "clock",
+        "answer_times",
+        "host",
+        "custody_settings",
+        "input_file",
+        "destination",
+        "placed",
+        "images_dir",
+        "processing",
+        "record_files",
+        "earlier_records",
+        "earlier_records_logs",
+        "answers_replayed_from",
+        "log"
+      ],
+      "additionalProperties": false
+    },
+    "log_entry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "log_created"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "tool": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "pattern": "^[ -~]*$"
+                },
+                "build_commit": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    }
+                  ]
+                },
+                "build_origin": {
+                  "enum": [
+                    "release",
+                    "local",
+                    "unknown"
+                  ]
+                }
+              },
+              "required": [
+                "version",
+                "build_commit",
+                "build_origin"
+              ],
+              "additionalProperties": false
+            },
+            "nonce": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "tool",
+            "nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "log_continued"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "reason": {
+              "enum": [
+                "chain_broken",
+                "previous_log_missing",
+                "head_mismatch"
+              ]
+            },
+            "previous_log_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "previous_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "previous_head_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "known_from": {
+              "enum": [
+                "log_walk",
+                "history"
+              ]
+            },
+            "tool": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "pattern": "^[ -~]*$"
+                },
+                "build_commit": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    }
+                  ]
+                },
+                "build_origin": {
+                  "enum": [
+                    "release",
+                    "local",
+                    "unknown"
+                  ]
+                }
+              },
+              "required": [
+                "version",
+                "build_commit",
+                "build_origin"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "reason",
+            "previous_log_id",
+            "previous_seq",
+            "previous_head_sha256",
+            "known_from",
+            "tool"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "batch_opened"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "prompt_shown": {
+              "type": "boolean"
+            },
+            "tool": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "pattern": "^[ -~]*$"
+                },
+                "build_commit": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    }
+                  ]
+                },
+                "build_origin": {
+                  "enum": [
+                    "release",
+                    "local",
+                    "unknown"
+                  ]
+                }
+              },
+              "required": [
+                "version",
+                "build_commit",
+                "build_origin"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "files",
+            "prompt_shown",
+            "tool"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "record"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "batch_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "input_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "outcome": {
+              "enum": [
+                "repaired",
+                "partial",
+                "clean",
+                "failed",
+                "encrypted",
+                "not_run"
+              ]
+            },
+            "input_unchanged": {
+              "enum": [
+                "yes",
+                "no",
+                "not_rechecked"
+              ]
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "json",
+                      "text",
+                      "checksums",
+                      "case_jsonld"
+                    ]
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "role",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "batch_seq",
+            "input_sha256",
+            "outcome",
+            "input_unchanged",
+            "files"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "record_write_failed"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "batch_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "input_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "outputs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "pattern": "^[ -~]*$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "role",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "error_kind": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "batch_seq",
+            "input_sha256",
+            "outputs",
+            "error_kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "verify"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "record_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "record_json_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "verify_n": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "checks": {
+              "type": "object"
+            },
+            "head_after_record": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "record_seq",
+            "record_json_sha256",
+            "verify_n",
+            "text_sha256",
+            "checks",
+            "head_after_record"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "batch_closed"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "batch_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "records": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "batch_seq",
+            "records",
+            "failed"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "batch_cancelled"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "prompt_shown": {
+              "type": "boolean"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "received": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "prompt_shown",
+            "files",
+            "received"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "kind": {
+              "const": "batch_unclosed"
+            },
+            "time_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "batch_seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "records": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          },
+          "required": [
+            "seq",
+            "kind",
+            "time_utc",
+            "prev",
+            "batch_seq",
+            "files",
+            "records",
+            "failed"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "images_index": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "pdfpundit-images"
+        },
+        "images_schema_version": {
+          "const": 1
+        },
+        "input_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tool": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "const": "PDFPundit"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[ -~]*$"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        "settings_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "type3_glyph_images": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/image"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "images_schema_version",
+        "input_sha256",
+        "tool",
+        "settings_sha256",
+        "type3_glyph_images",
+        "records"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -12,7 +12,11 @@ panel could not settle are in `decision-log.md` with a recommended answer.
 | `decision-log.md` | Every question the session could not determine: user decisions, reversible defaults, research still pending. |
 | `map-resolutions.md` | Proposed resolution for the map and each ticket #2–#15, and what to post to each issue. |
 | `grill-log.md` | Every grilling question and how it was disposed. |
+| `evidence-schema.md` | The evidence and report schema (revision 5): custody records, image extraction, the engine text they quote. |
+| `evidence-schema/` | Its machine-checked companions: the worked example (`example/`) and the scripts that generate and validate it (`work/`). |
 
 The fact-finding reports the plan cites (FR-xx, eng-*, goal-*, lead-* ids) live
 outside the repository in the session's working folder, because they contain
 machine-specific notes; their conclusions are restated in the plan and log.
+The four research files the evidence schema cites (`research-*.md`) stay
+outside for the same reason; the schema restates what it uses from them.

@@ -1,0 +1,305 @@
+{
+  "@context": {
+    "kb": "urn:pdfpundit:",
+    "case-investigation": "https://ontology.caseontology.org/case/investigation/",
+    "uco-action": "https://ontology.unifiedcyberontology.org/uco/action/",
+    "uco-core": "https://ontology.unifiedcyberontology.org/uco/core/",
+    "uco-identity": "https://ontology.unifiedcyberontology.org/uco/identity/",
+    "uco-observable": "https://ontology.unifiedcyberontology.org/uco/observable/",
+    "uco-tool": "https://ontology.unifiedcyberontology.org/uco/tool/",
+    "uco-types": "https://ontology.unifiedcyberontology.org/uco/types/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#"
+  },
+  "@graph": [
+    {
+      "@id": "kb:tool-f0a9bb41-0771-5ea2-b3b4-9c04a92da237",
+      "@type": "uco-tool:Tool",
+      "uco-core:name": "PDFPundit",
+      "uco-tool:version": "0.1.0"
+    },
+    {
+      "@id": "kb:file-bf174b93-17b0-5a49-96be-b458a6a1b500",
+      "@type": "uco-observable:File",
+      "uco-core:hasFacet": [
+        {
+          "@id": "kb:filefacet-1bc43547-c345-5cbd-9fe1-3d9d2e048c07",
+          "@type": "uco-observable:FileFacet",
+          "uco-observable:fileName": "invoice_scan_2024.pdf",
+          "uco-observable:sizeInBytes": 482113
+        },
+        {
+          "@id": "kb:contentfacet-f9177442-07af-58bb-936d-24bcde017811",
+          "@type": "uco-observable:ContentDataFacet",
+          "uco-observable:hash": [
+            {
+              "@id": "kb:hash-5bcbf26d-c14f-5f0c-b2a0-5d0b80c0bda0",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA256",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf"
+              }
+            },
+            {
+              "@id": "kb:hash-e1ead795-7669-566e-b671-11f4e5fb3c71",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA1",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "190bba18a0fd345b373fe63d00764f58539eccb3"
+              }
+            },
+            {
+              "@id": "kb:hash-e2efde6c-c922-589e-be35-c6fd6d572097",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "MD5",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "3c7775b0a27a60274cc65fa82c84d37d"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "kb:file-35a1957b-6121-5127-ac9e-366b78a0a040",
+      "@type": "uco-observable:File",
+      "uco-core:hasFacet": [
+        {
+          "@id": "kb:filefacet-6a89a6d0-a815-5d02-89ff-c993d3b85505",
+          "@type": "uco-observable:FileFacet",
+          "uco-observable:fileName": "invoice_scan_2024.repaired.pdf",
+          "uco-observable:sizeInBytes": 489302
+        },
+        {
+          "@id": "kb:contentfacet-d0f486cd-3981-5f45-8420-3b8eb04c4508",
+          "@type": "uco-observable:ContentDataFacet",
+          "uco-observable:hash": [
+            {
+              "@id": "kb:hash-097ced00-0f06-5fe5-a841-7f6970412aa5",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA256",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "915a4fded8dc1ab2e2b2ed7a0fb99cfaf6f9c098c5f079a6abb3bc8cd4be533d"
+              }
+            },
+            {
+              "@id": "kb:hash-62c8354b-b52c-51da-9f2a-ef3cf42f09cf",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA1",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "db578c7a23ab2ee75ecd2439f56a0e0e868e9c51"
+              }
+            },
+            {
+              "@id": "kb:hash-b2ff6cf3-d8fe-5d48-a000-22743fe64536",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "MD5",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "fb972408d1eb9128d8f876eacf6d7aed"
+              }
+            }
+          ]
+        }
+      ],
+      "case-investigation:wasDerivedFrom": {
+        "@id": "kb:file-bf174b93-17b0-5a49-96be-b458a6a1b500"
+      }
+    },
+    {
+      "@id": "kb:file-735fd1ac-72cd-5ec6-a1ff-bd340f4b632e",
+      "@type": "uco-observable:File",
+      "uco-core:hasFacet": [
+        {
+          "@id": "kb:filefacet-c20f185f-40a8-512f-b73a-c2429ac7ad57",
+          "@type": "uco-observable:FileFacet",
+          "uco-observable:fileName": "f7c39aa7.images/1b48e21282963dfb.jpg",
+          "uco-observable:sizeInBytes": 211876
+        },
+        {
+          "@id": "kb:contentfacet-e918de20-cd12-51b0-9d53-8beb3f554f7d",
+          "@type": "uco-observable:ContentDataFacet",
+          "uco-observable:hash": [
+            {
+              "@id": "kb:hash-98ad8e0f-9af9-52d7-aacb-853f3e945e93",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA256",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9"
+              }
+            },
+            {
+              "@id": "kb:hash-3ac0514e-f7a4-58e0-9a5d-3e207fbe0a16",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA1",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "014c3808ba7c76eaea56461402e8e7bedf8004ff"
+              }
+            },
+            {
+              "@id": "kb:hash-8cd70b56-8332-514a-b554-b227c23c82cf",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "MD5",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "2f6f0eb5cc2c15df39fee0e84285812c"
+              }
+            }
+          ]
+        },
+        {
+          "@id": "kb:rasterfacet-0af7bd0a-667d-5939-ab13-fb862a669c50",
+          "@type": "uco-observable:RasterPictureFacet",
+          "uco-observable:pictureWidth": 1240,
+          "uco-observable:pictureHeight": 1754,
+          "uco-observable:pictureType": "jpg",
+          "uco-observable:bitsPerPixel": 24
+        }
+      ],
+      "case-investigation:wasDerivedFrom": {
+        "@id": "kb:file-bf174b93-17b0-5a49-96be-b458a6a1b500"
+      }
+    },
+    {
+      "@id": "kb:file-a5eaaa33-b289-56c2-9bb5-c015a3ca9ce6",
+      "@type": "uco-observable:File",
+      "uco-core:hasFacet": [
+        {
+          "@id": "kb:filefacet-52b08eed-58b7-5095-93ac-7e12528d308c",
+          "@type": "uco-observable:FileFacet",
+          "uco-observable:fileName": "f7c39aa7.images/d013614dc14a37ee.repaired.png",
+          "uco-observable:sizeInBytes": 9871
+        },
+        {
+          "@id": "kb:contentfacet-103e6c97-c326-5dc0-87a2-ea26bc1c5900",
+          "@type": "uco-observable:ContentDataFacet",
+          "uco-observable:hash": [
+            {
+              "@id": "kb:hash-55edcc21-ced1-5a03-a761-89ff89bf6af5",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA256",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "d013614dc14a37ee20fe92005737ab7d3427e7e93580ad56ef8a42205e7f7a4e"
+              }
+            },
+            {
+              "@id": "kb:hash-283849d3-2afc-5116-9081-fcf6dbae654e",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "SHA1",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "01cd9ac66b03257c54e767745c2e9285502761d9"
+              }
+            },
+            {
+              "@id": "kb:hash-3c4c568f-565b-5242-a162-1567ca62f12a",
+              "@type": "uco-types:Hash",
+              "uco-types:hashMethod": "MD5",
+              "uco-types:hashValue": {
+                "@type": "xsd:hexBinary",
+                "@value": "edbbdc3d21d008abbfa759d1d7f1ea26"
+              }
+            }
+          ]
+        },
+        {
+          "@id": "kb:rasterfacet-2ed4e064-69c2-5f86-8433-080d057ebefa",
+          "@type": "uco-observable:RasterPictureFacet",
+          "uco-observable:pictureWidth": 600,
+          "uco-observable:pictureHeight": 200,
+          "uco-observable:pictureType": "png",
+          "uco-observable:bitsPerPixel": 8
+        }
+      ],
+      "case-investigation:wasDerivedFrom": {
+        "@id": "kb:file-bf174b93-17b0-5a49-96be-b458a6a1b500"
+      }
+    },
+    {
+      "@id": "kb:identity-75650e83-83df-58e3-8c49-43b09813573c",
+      "@type": "uco-identity:Identity",
+      "uco-core:name": "J. Doe"
+    },
+    {
+      "@id": "kb:action-deb934b5-d3b4-50c4-8b24-c5c8fd6b991d",
+      "@type": "case-investigation:InvestigativeAction",
+      "uco-core:name": "Repair PDF",
+      "uco-action:startTime": {
+        "@type": "xsd:dateTime",
+        "@value": "2026-10-08T14:03:11Z"
+      },
+      "uco-action:endTime": {
+        "@type": "xsd:dateTime",
+        "@value": "2026-10-08T14:03:19Z"
+      },
+      "uco-action:instrument": {
+        "@id": "kb:tool-f0a9bb41-0771-5ea2-b3b4-9c04a92da237"
+      },
+      "uco-action:object": [
+        {
+          "@id": "kb:file-bf174b93-17b0-5a49-96be-b458a6a1b500"
+        }
+      ],
+      "uco-action:result": [
+        {
+          "@id": "kb:file-35a1957b-6121-5127-ac9e-366b78a0a040"
+        }
+      ],
+      "uco-action:performer": {
+        "@id": "kb:identity-75650e83-83df-58e3-8c49-43b09813573c"
+      }
+    },
+    {
+      "@id": "kb:action-3e9e6492-fd8f-5b6c-9338-52c23b53dca1",
+      "@type": "case-investigation:InvestigativeAction",
+      "uco-core:name": "Extract images",
+      "uco-action:startTime": {
+        "@type": "xsd:dateTime",
+        "@value": "2026-10-08T14:03:11Z"
+      },
+      "uco-action:endTime": {
+        "@type": "xsd:dateTime",
+        "@value": "2026-10-08T14:03:19Z"
+      },
+      "uco-action:instrument": {
+        "@id": "kb:tool-f0a9bb41-0771-5ea2-b3b4-9c04a92da237"
+      },
+      "uco-action:object": [
+        {
+          "@id": "kb:file-bf174b93-17b0-5a49-96be-b458a6a1b500"
+        }
+      ],
+      "uco-action:result": [
+        {
+          "@id": "kb:file-735fd1ac-72cd-5ec6-a1ff-bd340f4b632e"
+        },
+        {
+          "@id": "kb:file-a5eaaa33-b289-56c2-9bb5-c015a3ca9ce6"
+        }
+      ],
+      "uco-action:performer": {
+        "@id": "kb:identity-75650e83-83df-58e3-8c49-43b09813573c"
+      }
+    },
+    {
+      "@id": "kb:investigation-3ed8beaf-ee72-5f50-94c1-b0b6a4bc35dd",
+      "@type": "case-investigation:Investigation",
+      "uco-core:name": "2026-0412",
+      "uco-core:object": [
+        {
+          "@id": "kb:action-deb934b5-d3b4-50c4-8b24-c5c8fd6b991d"
+        },
+        {
+          "@id": "kb:action-3e9e6492-fd8f-5b6c-9338-52c23b53dca1"
+        }
+      ]
+    }
+  ]
+}

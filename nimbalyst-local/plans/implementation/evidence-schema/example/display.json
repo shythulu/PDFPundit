@@ -1,0 +1,792 @@
+{
+  "format": "pdfpundit-custody",
+  "custody_schema_version": 1,
+  "reproducible_sha256": "6a4b244b215df5007efa4a1d3d1d498e425f520e55d4b9253e3a1768e0a355c3",
+  "reproducible": {
+    "job": "repair",
+    "tool": {
+      "name": "PDFPundit",
+      "version": "0.1.0",
+      "build_commit": "4015b57a143aec5156fd1444a017a32137a3fd0f",
+      "build_origin": "release",
+      "platform": {"os": "macos", "arch": "aarch64"},
+      "report_schema_version": 2,
+      "font_db_sha256": "8b85da72b2520c0f15cfb0e0f8b9b9597b47af910c613e90bd81b5e63ff61f30"
+    },
+    "settings": {
+      "salvage_work": 700000000,
+      "salvage_deep_work": 10000000000,
+      "salvage_deep_pool": 80000000000,
+      "max_search_stream": 4194304,
+      "passes": null,
+      "font_policy": "bundled",
+      "font_source_effective": "bundled",
+      "prompt_unresolved": true,
+      "derived_image_views": false,
+      "unreproducible": "ask",
+      "default_page_size": "a4",
+      "extract_unplaceable_images": true,
+      "extract_type3_glyph_images": false,
+      "auto_accept_confidence": {"num": 35, "den": 100},
+      "max_font_candidates": 5
+    },
+    "input": {
+      "sha256": "f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf",
+      "size_bytes": 482113,
+      "pdf_version": "1.6",
+      "pages_discovered": 3,
+      "signed_fields": 0,
+      "encrypted": false
+    },
+    "interactions": [
+      {
+        "seq": 1,
+        "kind": "font_pick",
+        "page": 2,
+        "slot": "F3",
+        "candidates": ["dejavu-sans", "liberation-sans", "noto-sans"],
+        "reply": {"type": "pick", "font_id": "dejavu-sans"},
+        "source": "user",
+        "carried_from": null,
+        "policy_setting": null
+      },
+      {
+        "seq": 2,
+        "kind": "font_pick",
+        "page": 3,
+        "slot": "F5",
+        "candidates": ["dejavu-sans", "liberation-sans", "noto-sans"],
+        "reply": {"type": "pick", "font_id": "dejavu-sans"},
+        "source": "batched",
+        "carried_from": {"type": "this_record", "seq": 1},
+        "policy_setting": null
+      }
+    ],
+    "font_decisions": [
+      {
+        "page": 1,
+        "slot": "F1",
+        "object": "21 0",
+        "basis": "auto_accept",
+        "font_id": "liberation-serif",
+        "interaction_seq": null,
+        "evidence": {
+          "top_candidate": "liberation-serif",
+          "confidence": {"num": 77, "den": 100},
+          "hit": {"num": 94, "den": 100},
+          "margin": {"num": 60, "den": 100},
+          "threshold": {"num": 35, "den": 100},
+          "min_hit": {"num": 1, "den": 2},
+          "inference": {"lang": "en", "script": "Latn", "n_chars": 431, "n_runs": 37},
+          "sample_floor": 20,
+          "tounicode": "missing",
+          "best_coverage": {"num": 100, "den": 100},
+          "best_coverage_font": "liberation-serif",
+          "min_coverage": {"num": 95, "den": 100},
+          "decision": "auto_accept"
+        },
+        "reason": null
+      },
+      {
+        "page": 2,
+        "slot": "F3",
+        "object": "27 0",
+        "basis": "user",
+        "font_id": "dejavu-sans",
+        "interaction_seq": 1,
+        "evidence": {
+          "top_candidate": "dejavu-sans",
+          "confidence": {"num": 25, "den": 100},
+          "hit": {"num": 48, "den": 100},
+          "margin": {"num": 2, "den": 100},
+          "threshold": {"num": 35, "den": 100},
+          "min_hit": {"num": 1, "den": 2},
+          "inference": {"lang": "en", "script": "Latn", "n_chars": 212, "n_runs": 19},
+          "sample_floor": 20,
+          "tounicode": "missing",
+          "best_coverage": {"num": 97, "den": 100},
+          "best_coverage_font": "dejavu-sans",
+          "min_coverage": {"num": 95, "den": 100},
+          "decision": "ask"
+        },
+        "reason": null
+      },
+      {
+        "page": 3,
+        "slot": "F5",
+        "object": "33 0",
+        "basis": "batched",
+        "font_id": "dejavu-sans",
+        "interaction_seq": 2,
+        "evidence": {
+          "top_candidate": "dejavu-sans",
+          "confidence": {"num": 26, "den": 100},
+          "hit": {"num": 51, "den": 100},
+          "margin": {"num": 1, "den": 100},
+          "threshold": {"num": 35, "den": 100},
+          "min_hit": {"num": 1, "den": 2},
+          "inference": {"lang": "en", "script": "Latn", "n_chars": 188, "n_runs": 16},
+          "sample_floor": 20,
+          "tounicode": "missing",
+          "best_coverage": {"num": 97, "den": 100},
+          "best_coverage_font": "dejavu-sans",
+          "min_coverage": {"num": 95, "den": 100},
+          "decision": "ask"
+        },
+        "reason": null
+      }
+    ],
+    "outcome": {
+      "status": "repaired",
+      "reasons": [],
+      "chosen_toolpath": "template_assemble"
+    },
+    "findings_before": [
+      {
+        "id": "C2-001",
+        "kind": "corruption",
+        "class": "C2",
+        "severity": "error",
+        "location": {"type": "file"},
+        "summary": "no cross-reference table or stream",
+        "detail": null
+      },
+      {
+        "id": "C9-001",
+        "kind": "corruption",
+        "class": "C9",
+        "severity": "warning",
+        "location": {
+          "type": "object",
+          "object": "14 0",
+          "span": {"start": 232950, "end": 251431}
+        },
+        "summary": "the Flate data of 14 0 obj is damaged: repaired; every single-byte replacement in its window that passed the Adler-32 gave the same output",
+        "detail": null
+      },
+      {
+        "id": "C7-001",
+        "kind": "corruption",
+        "class": "C7",
+        "severity": "error",
+        "location": {
+          "type": "object",
+          "object": "23 0",
+          "span": {"start": 252100, "end": 252412}
+        },
+        "summary": "the font program of CIDFont+F1 is gone: its /FontFile2 names 24 0 R, which is not a stream",
+        "detail": null
+      },
+      {
+        "id": "C7-002",
+        "kind": "corruption",
+        "class": "C7",
+        "severity": "error",
+        "location": {
+          "type": "object",
+          "object": "29 0",
+          "span": {"start": 255300, "end": 255611}
+        },
+        "summary": "the font program of CIDFont+F3 is gone: its /FontFile2 names 30 0 R, which is not a stream",
+        "detail": null
+      },
+      {
+        "id": "C7-003",
+        "kind": "corruption",
+        "class": "C7",
+        "severity": "error",
+        "location": {
+          "type": "object",
+          "object": "35 0",
+          "span": {"start": 258700, "end": 259013}
+        },
+        "summary": "the font program of CIDFont+F5 is gone: its /FontFile2 names 36 0 R, which is not a stream",
+        "detail": null
+      },
+      {
+        "id": "NOEMBED-001",
+        "kind": "font_not_embedded",
+        "class": null,
+        "severity": "info",
+        "location": {
+          "type": "object",
+          "object": "41 0",
+          "span": {"start": 262040, "end": 262318}
+        },
+        "summary": "the font ArialMT is not embedded",
+        "detail": {"type": "font_not_embedded", "font": "40 0", "base_font": "ArialMT"}
+      }
+    ],
+    "findings_after": [
+      {
+        "id": "NOEMBED-001",
+        "kind": "font_not_embedded",
+        "class": null,
+        "severity": "info",
+        "location": {
+          "type": "object",
+          "object": "13 0",
+          "span": {"start": 30411, "end": 30690}
+        },
+        "summary": "the font ArialMT is not embedded",
+        "detail": {"type": "font_not_embedded", "font": "12 0", "base_font": "ArialMT"}
+      }
+    ],
+    "passes": [
+      {
+        "class": "C2",
+        "outcome": "fixed",
+        "note": null,
+        "actions": [
+          {"object": null, "what": "C2-001: resolved by re-emission", "grade": null}
+        ]
+      },
+      {
+        "class": "C7",
+        "outcome": "fixed",
+        "note": null,
+        "actions": [
+          {
+            "object": "23 0",
+            "what": "font program substituted: liberation-serif",
+            "grade": null
+          },
+          {"object": "29 0", "what": "font program substituted: dejavu-sans", "grade": null},
+          {"object": "35 0", "what": "font program substituted: dejavu-sans", "grade": null}
+        ]
+      },
+      {
+        "class": "C9",
+        "outcome": "fixed",
+        "note": null,
+        "actions": [
+          {
+            "object": "14 0",
+            "what": "Flate data repaired (byte 1207 0x3a -> 0x7a); every single-byte replacement in its window was tried, and every one that passed the Adler-32 gave this output",
+            "grade": "exact"
+          }
+        ]
+      }
+    ],
+    "candidates": [
+      {
+        "toolpath": "resave",
+        "chosen": false,
+        "verification": {
+          "baseline": "extracted",
+          "gates": {
+            "lopdf_reload": true,
+            "hayro_render_all_pages": true,
+            "rediagnose_clean": true,
+            "page_count_ok": true,
+            "root_and_pages_present": true
+          },
+          "retention": {
+            "text_ops": {"num": 1412, "den": 1412},
+            "path_fills": {"num": 88, "den": 88},
+            "images": {"num": 2, "den": 2},
+            "content_bytes": {"num": 61230, "den": 61230},
+            "blank_pages": 0,
+            "glyph_count": {"num": 5120, "den": 5120}
+          },
+          "plausibility": {
+            "unmapped_glyph": {"num": 1840, "den": 5120},
+            "fffd": {"num": 0, "den": 5120},
+            "script_consistency": {"num": 5120, "den": 5120},
+            "dictionary_hit": {"num": 902, "den": 940}
+          }
+        }
+      },
+      {
+        "toolpath": "template_assemble",
+        "chosen": true,
+        "verification": {
+          "baseline": "extracted",
+          "gates": {
+            "lopdf_reload": true,
+            "hayro_render_all_pages": true,
+            "rediagnose_clean": true,
+            "page_count_ok": true,
+            "root_and_pages_present": true
+          },
+          "retention": {
+            "text_ops": {"num": 1412, "den": 1412},
+            "path_fills": {"num": 88, "den": 88},
+            "images": {"num": 2, "den": 2},
+            "content_bytes": {"num": 61230, "den": 61230},
+            "blank_pages": 0,
+            "glyph_count": {"num": 5120, "den": 5120}
+          },
+          "plausibility": {
+            "unmapped_glyph": {"num": 0, "den": 5120},
+            "fffd": {"num": 0, "den": 5120},
+            "script_consistency": {"num": 5120, "den": 5120},
+            "dictionary_hit": {"num": 902, "den": 940}
+          }
+        }
+      }
+    ],
+    "stream_salvage": {
+      "summary": {
+        "streams_damaged": 1,
+        "repaired": 1,
+        "exact": 1,
+        "accepted": 0,
+        "ambiguous": 0,
+        "checksum_mismatch": 0,
+        "prefix": 0,
+        "unrecoverable": 0,
+        "unsearched": 0
+      },
+      "streams": [
+        {
+          "object": "14 0",
+          "search": {
+            "outcome": "repaired",
+            "grade": "exact",
+            "adler_rerun": false,
+            "trailer_edit": false,
+            "predictor_stopped": false,
+            "prefix": null,
+            "edit_domain": {
+              "kind": "raw_stream_data",
+              "filters_before": []
+            },
+            "passes": [
+              {
+                "mode": "zlib",
+                "damage": {"kind": "inflate_error", "at": 1294},
+                "localizer": "error_window",
+                "check": "adler32",
+                "deep": false,
+                "window": [
+                  {"start": 0, "end": 1302}
+                ],
+                "candidates_in_window": 332010,
+                "candidates_tried": 332010
+              }
+            ],
+            "passing_edits": 1,
+            "distinct_outputs": 1,
+            "edits": [[1207, 58, 122]]
+          }
+        }
+      ],
+      "filter_rewrites": []
+    },
+    "shadows": [],
+    "reals_narrowed": 0,
+    "text_warnings": [],
+    "products": [
+      {
+        "role": "repaired_pdf",
+        "file": null,
+        "sha256": "915a4fded8dc1ab2e2b2ed7a0fb99cfaf6f9c098c5f079a6abb3bc8cd4be533d",
+        "size_bytes": 489302
+      },
+      {
+        "role": "image",
+        "file": "1b48e21282963dfb.jpg",
+        "sha256": "1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9",
+        "size_bytes": 211876
+      },
+      {
+        "role": "image",
+        "file": "d013614dc14a37ee.repaired.png",
+        "sha256": "d013614dc14a37ee20fe92005737ab7d3427e7e93580ad56ef8a42205e7f7a4e",
+        "size_bytes": 9871
+      },
+      {
+        "role": "images_index",
+        "file": "images.json",
+        "sha256": "977e42299a55c62c0c19ce87d4189e4c4b490b2e8cf875d446acf2a04ebb35a7",
+        "size_bytes": 6196
+      },
+      {
+        "role": "images_checksums",
+        "file": "SHA256SUMS",
+        "sha256": "113f8e25bbded892b25c735410384677b8f594f06318727ca2e89c87345fdcf9",
+        "size_bytes": 261
+      }
+    ],
+    "images": {
+      "dir": "f7c39aa7.images",
+      "type3_glyph_images": 0,
+      "records": [
+        {
+          "id": "img-0001",
+          "file": "1b48e21282963dfb.jpg",
+          "file_sha256": "1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9",
+          "file_len": 211876,
+          "format": "jpg",
+          "view_file": null,
+          "view_sha256": null,
+          "source": {
+            "kind": "xobject",
+            "copy": "winner",
+            "object": "9 0",
+            "output_object": "5 0",
+            "parent": null,
+            "inline_origin": null,
+            "raw": {
+              "domain": "file",
+              "span": {"start": 20311, "end": 232187},
+              "container_object": null,
+              "container_file_span": null
+            },
+            "raw_len": 211876,
+            "raw_sha256": "1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9",
+            "length_source": "declared"
+          },
+          "encoding": {
+            "filters": ["DCTDecode"],
+            "decode_parms": [null],
+            "codec": "jpeg",
+            "jbig2_globals": null
+          },
+          "description": {
+            "width": 1240,
+            "height": 1754,
+            "actual_width": 1240,
+            "actual_height": 1754,
+            "bits_per_component": 8,
+            "components": 3,
+            "colour_space": "/DeviceRGB",
+            "icc": null,
+            "palette_entries": null,
+            "decode": null,
+            "image_mask": false,
+            "interpolate": false,
+            "intent": null,
+            "needs_pdf_context": false
+          },
+          "placements": [
+            {
+              "page_in": 1,
+              "page_out": 1,
+              "paint_order": 0,
+              "bbox_mpt": [36000, 51000, 559000, 791000],
+              "matrix_micro": [523000000, 0, 0, 740000000, 36000000, 51000000],
+              "form_chain": []
+            }
+          ],
+          "integrity": {
+            "status": "intact",
+            "rows_written": null,
+            "rows_declared": null,
+            "salvage": null,
+            "repaired_stream_sha256": null,
+            "samples_sha256": null,
+            "warnings": []
+          }
+        },
+        {
+          "id": "img-0002",
+          "file": "d013614dc14a37ee.repaired.png",
+          "file_sha256": "d013614dc14a37ee20fe92005737ab7d3427e7e93580ad56ef8a42205e7f7a4e",
+          "file_len": 9871,
+          "format": "png",
+          "view_file": null,
+          "view_sha256": null,
+          "source": {
+            "kind": "xobject",
+            "copy": "winner",
+            "object": "14 0",
+            "output_object": "8 0",
+            "parent": null,
+            "inline_origin": null,
+            "raw": {
+              "domain": "file",
+              "span": {"start": 233010, "end": 251412},
+              "container_object": null,
+              "container_file_span": null
+            },
+            "raw_len": 18402,
+            "raw_sha256": "548430417123e2a2ea1f043941e56afbbc529274f270e716a32bfb32ff8d0d10",
+            "length_source": "declared"
+          },
+          "encoding": {
+            "filters": ["FlateDecode"],
+            "decode_parms": ["<</BitsPerComponent 8 /Colors 1 /Columns 600 /Predictor 15>>"],
+            "codec": null,
+            "jbig2_globals": null
+          },
+          "description": {
+            "width": 600,
+            "height": 200,
+            "actual_width": 600,
+            "actual_height": 200,
+            "bits_per_component": 8,
+            "components": 1,
+            "colour_space": "/DeviceGray",
+            "icc": null,
+            "palette_entries": null,
+            "decode": null,
+            "image_mask": false,
+            "interpolate": false,
+            "intent": null,
+            "needs_pdf_context": false
+          },
+          "placements": [
+            {
+              "page_in": 2,
+              "page_out": 2,
+              "paint_order": 3,
+              "bbox_mpt": [400000, 60000, 550000, 110000],
+              "matrix_micro": [150000000, 0, 0, 50000000, 400000000, 60000000],
+              "form_chain": []
+            },
+            {
+              "page_in": 3,
+              "page_out": 3,
+              "paint_order": 1,
+              "bbox_mpt": [400000, 60000, 550000, 110000],
+              "matrix_micro": [150000000, 0, 0, 50000000, 400000000, 60000000],
+              "form_chain": []
+            }
+          ],
+          "integrity": {
+            "status": "repaired",
+            "rows_written": 200,
+            "rows_declared": 200,
+            "salvage": {
+              "outcome": "repaired",
+              "grade": "exact",
+              "adler_rerun": false,
+              "trailer_edit": false,
+              "predictor_stopped": false,
+              "prefix": null,
+              "edit_domain": {
+                "kind": "raw_stream_data",
+                "filters_before": []
+              },
+              "passes": [
+                {
+                  "mode": "zlib",
+                  "damage": {"kind": "inflate_error", "at": 1294},
+                  "localizer": "error_window",
+                  "check": "adler32",
+                  "deep": false,
+                  "window": [
+                    {"start": 0, "end": 1302}
+                  ],
+                  "candidates_in_window": 332010,
+                  "candidates_tried": 332010
+                }
+              ],
+              "passing_edits": 1,
+              "distinct_outputs": 1,
+              "edits": [[1207, 58, 122]]
+            },
+            "repaired_stream_sha256": "94c0f68728561aa1dd9996ff3b13da2e9625145c65d11c9b72a837054482ea6e",
+            "samples_sha256": "2d46fdb3cf07a1a3d7faa7644202678229c138ac5c866c50934d041fd0465910",
+            "warnings": []
+          }
+        }
+      ]
+    },
+    "limitations": {
+      "standing": [
+        "text marked with ActualText is extracted as drawn; the ActualText is not used",
+        "glyphs carry an origin and a size but no bounding box",
+        "text drawn in render mode 7 (clip only) is not extracted",
+        "the interpreter gives no warning for a dropped compressed stream or an unresolved font; unmapped glyphs and the glyph count per page are the integrity signals",
+        "image files hold the image as stored, or its decoded samples re-encoded as PNG or TIFF with the same sample values; colour spaces, /Decode arrays and masks are recorded, not applied; an image whose stream was repaired, cut short or left unverified holds those samples, its file name says so, and its record gives the search",
+        "a repaired file is a new document: it is not the input and carries none of the input's signatures"
+      ],
+      "this_run": [
+        "1 compressed stream was graded Exact: every single-byte replacement in the searched window was tried, and every one that passed the check gave the same output; damage of other kinds is not searched, and the grade does not show the repaired bytes equal the original bytes",
+        "3 font programs were substituted from the bundled font database; glyph shapes are the bundled font's, not those of the font the input embedded",
+        "1 of 3 font slots was matched without asking, because its score cleared the auto-accept setting; part B.7 gives the basis for every slot",
+        "1 of 2 answers was carried from an earlier answer and not shown to the user"
+      ]
+    },
+    "statements": {
+      "role": "This is a tool run record. It supports an examiner's report and is not one. It states no opinion on the document's content, authorship or authenticity.",
+      "reproducibility": "Part B is identical, byte for byte, whenever the same input bytes are processed by the same PDFPundit build with the same settings and the same recorded answers. The same build means the same version and build commit, compiled for the same operating system and processor architecture; part B records all four. Identity across platforms is not claimed. This shows the result is repeatable. It does not show the repair is correct.",
+      "validation": "PDFPundit has not been validated by an independent body, such as NIST CFTT, and claims no accreditation. Its test suite is in its source repository at the build commit recorded in part B. Its corpus tests use a third-party corpus that the repository names but does not contain.",
+      "tool_identity": "Version, build commit and build origin are reported by the program itself, and whoever builds it can set them. Releases are unsigned. Each release publishes the SHA-256 of every executable it ships. To confirm the build, compare the binary SHA-256 in part A with the value published for this version and platform.",
+      "input_file": "PDFPundit cannot tell whether its input is the original evidence or a working copy. It opens the input read-only and never writes to it. It is not a write blocker. Unchanged means the SHA-256 of the input's content was the same before and after the run. File-system times before and after the run are recorded in part A. Reading a file can itself update its access time. In custody mode, outputs and records are written only to the output folder named in part A. Custody mode does not start while no output folder is set, or while it is the folder of an input.",
+      "case_details": "Case reference, examiner, submission reference and notes are typed at the custody prompt, once per batch. PDFPundit records them as typed and does not verify them.",
+      "times": "Times come from the host clock, in UTC, and are not independently verified. Started is read just before the job first reads the input's file state. An input received whole at the drop was read before that, before the custody prompt; part A says how the input was received. Ended is read just after the input's file state is read again, before the record files are written. The log entry for this record is timed after those files are written.",
+      "log": "The custody log is hash-chained. It is tamper-evident, not tamper-proof. The chain shows a changed or removed entry only while the entries after it are unchanged: anyone who can write the file can recompute every later entry, and the chain then verifies. Only a log head copied outside the log, such as the one shown when a batch closes, or an unedited copy of the log catches that; such a head pins the log up to its entry. PDFPundit also compares the log with the last head kept in its history when custody mode starts, and starts a new log naming the old one when they differ; a change made to both is not detected.",
+      "legacy_hashes": "MD5 and SHA-1 are included only to match older case systems. Neither is collision-resistant. SHA-256 is the integrity hash."
+    }
+  },
+  "run": {
+    "job_status": "completed",
+    "batch": {"log_seq": 41, "position": 1, "count": 1},
+    "case": {
+      "prompt_shown": true,
+      "case_reference": "2026-0412",
+      "examiner": "J. Doe",
+      "submission_reference": "Lab request 26-0412-07",
+      "notes": "Authority: warrant 26-1187."
+    },
+    "clock": {
+      "started_utc": "2026-10-08T14:03:11Z",
+      "ended_utc": "2026-10-08T14:03:19Z",
+      "host_utc_offset_minutes": -240,
+      "host_utc_offset_from": "etc_localtime_tzif",
+      "host_zone_hint": {"name": "America/Toronto", "from": "etc_localtime_link"},
+      "source": "host_clock_unverified"
+    },
+    "answer_times": [
+      {"seq": 1, "shown_utc": "2026-10-08T14:03:13Z", "answered_utc": "2026-10-08T14:03:16Z"},
+      {"seq": 2, "shown_utc": null, "answered_utc": "2026-10-08T14:03:16Z"}
+    ],
+    "host": {
+      "name": "EXAM-WS-07",
+      "os": "macos",
+      "tool_binary_sha256": "9a3a45d01531a20e89ac6ae10b0b0beb0492acd7216a368aa062d1a5fecaf9cd"
+    },
+    "custody_settings": {
+      "hashes": ["sha256", "sha1", "md5"],
+      "ask_case_details": true,
+      "require_case_details": false,
+      "record_host_name": true,
+      "case_jsonld": false
+    },
+    "input_file": {
+      "name": "invoice_scan_2024.pdf",
+      "path": "/Volumes/EXHIBIT-JD3/exhibits/invoice_scan_2024.pdf",
+      "path_kind": "file",
+      "first_read": "job_start",
+      "size_bytes": 482113,
+      "hashes_before": {
+        "sha256": "f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf",
+        "sha1": "190bba18a0fd345b373fe63d00764f58539eccb3",
+        "md5": "3c7775b0a27a60274cc65fa82c84d37d"
+      },
+      "hashes_after": {
+        "sha256": "f7c39aa7e478d51b7d49669703d94df49f158ea1d73b58760601f9c1857c4bdf",
+        "sha1": "190bba18a0fd345b373fe63d00764f58539eccb3",
+        "md5": "3c7775b0a27a60274cc65fa82c84d37d"
+      },
+      "unchanged": "yes",
+      "not_rechecked_reason": null,
+      "stat_before": {
+        "size_bytes": 482113,
+        "modified": {"sec": 1790845964, "nsec": 0},
+        "changed": {"sec": 1790959205, "nsec": 120000000},
+        "accessed": {"sec": 1791397351, "nsec": 4000000},
+        "created": {"sec": 1790845964, "nsec": 0},
+        "read_only": true,
+        "unix_mode": 33060,
+        "source": "unix_stat"
+      },
+      "stat_after": {
+        "size_bytes": 482113,
+        "modified": {"sec": 1790845964, "nsec": 0},
+        "changed": {"sec": 1790959205, "nsec": 120000000},
+        "accessed": {"sec": 1791468191, "nsec": 402000000},
+        "created": {"sec": 1790845964, "nsec": 0},
+        "read_only": true,
+        "unix_mode": 33060,
+        "source": "unix_stat"
+      },
+      "stat_changed": ["accessed"]
+    },
+    "destination": {"path": "/Cases/2026-0412/work"},
+    "placed": [
+      {
+        "role": "repaired_pdf",
+        "name": "invoice_scan_2024.repaired.pdf",
+        "path": "/Cases/2026-0412/work/invoice_scan_2024.repaired.pdf",
+        "size_bytes": 489302,
+        "hashes": {
+          "sha256": "915a4fded8dc1ab2e2b2ed7a0fb99cfaf6f9c098c5f079a6abb3bc8cd4be533d",
+          "sha1": "db578c7a23ab2ee75ecd2439f56a0e0e868e9c51",
+          "md5": "fb972408d1eb9128d8f876eacf6d7aed"
+        },
+        "placement": "atomic",
+        "matches_product": true,
+        "note": null
+      },
+      {
+        "role": "image",
+        "name": "f7c39aa7.images/1b48e21282963dfb.jpg",
+        "path": "/Cases/2026-0412/work/f7c39aa7.images/1b48e21282963dfb.jpg",
+        "size_bytes": 211876,
+        "hashes": {
+          "sha256": "1b48e21282963dfba2ffff3a4c331471242fe42fd0a51161e56df72085c445c9",
+          "sha1": "014c3808ba7c76eaea56461402e8e7bedf8004ff",
+          "md5": "2f6f0eb5cc2c15df39fee0e84285812c"
+        },
+        "placement": "create_new",
+        "matches_product": true,
+        "note": null
+      },
+      {
+        "role": "image",
+        "name": "f7c39aa7.images/d013614dc14a37ee.repaired.png",
+        "path": "/Cases/2026-0412/work/f7c39aa7.images/d013614dc14a37ee.repaired.png",
+        "size_bytes": 9871,
+        "hashes": {
+          "sha256": "d013614dc14a37ee20fe92005737ab7d3427e7e93580ad56ef8a42205e7f7a4e",
+          "sha1": "01cd9ac66b03257c54e767745c2e9285502761d9",
+          "md5": "edbbdc3d21d008abbfa759d1d7f1ea26"
+        },
+        "placement": "create_new",
+        "matches_product": true,
+        "note": null
+      },
+      {
+        "role": "images_index",
+        "name": "f7c39aa7.images/images.json",
+        "path": "/Cases/2026-0412/work/f7c39aa7.images/images.json",
+        "size_bytes": 6196,
+        "hashes": {
+          "sha256": "977e42299a55c62c0c19ce87d4189e4c4b490b2e8cf875d446acf2a04ebb35a7",
+          "sha1": "94ef93d7e1cf238359002439816737e413ab4b9b",
+          "md5": "a5c67da734313f3ecd5c65bd7fe60dee"
+        },
+        "placement": "create_new",
+        "matches_product": true,
+        "note": null
+      },
+      {
+        "role": "images_checksums",
+        "name": "f7c39aa7.images/SHA256SUMS",
+        "path": "/Cases/2026-0412/work/f7c39aa7.images/SHA256SUMS",
+        "size_bytes": 261,
+        "hashes": {
+          "sha256": "113f8e25bbded892b25c735410384677b8f594f06318727ca2e89c87345fdcf9",
+          "sha1": "770f55991e7b04241da720a4eaa3982577fea4cc",
+          "md5": "cd358fa1e8f2d42d07e5745734c0a630"
+        },
+        "placement": "create_new",
+        "matches_product": true,
+        "note": null
+      }
+    ],
+    "images_dir": {
+      "path": "/Cases/2026-0412/work/f7c39aa7.images",
+      "name": "f7c39aa7.images",
+      "outcome": "created"
+    },
+    "processing": {
+      "analysis_state": "reused",
+      "rebuilt_reason": null,
+      "config_path": "/Users/examiner/Library/Application Support/PDFPundit/config.toml"
+    },
+    "record_files": {
+      "json": "invoice_scan_2024.repaired.pdf.custody.json",
+      "text": "invoice_scan_2024.repaired.pdf.custody.txt",
+      "checksums": "invoice_scan_2024.repaired.pdf.custody.sha256",
+      "case_jsonld": null
+    },
+    "earlier_records": [],
+    "earlier_records_logs": {
+      "searched": ["922810eecc0e7fe58cce3e60b63032561a2b2cad348f3b1d7dcff0926a572c28"],
+      "missing": null
+    },
+    "answers_replayed_from": {"type": "none"},
+    "log": {
+      "path": "/Users/examiner/Library/Application Support/PDFPundit/custody.log",
+      "log_id": "922810eecc0e7fe58cce3e60b63032561a2b2cad348f3b1d7dcff0926a572c28",
+      "seq": 42,
+      "prev_entry_sha256": "fdd8424fa998f4e9c6f49ccffe7feb0d234cb63dbf257afeedf6d249fd6685f7"
+    }
+  }
+}
