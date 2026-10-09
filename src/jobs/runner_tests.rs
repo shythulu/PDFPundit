@@ -686,6 +686,145 @@ fn a_re_run_replays_every_earlier_reply() {
     );
 }
 
+// ── The resume slot (D-103 b) ──────────────────────────────────────────
+
+/// Three files that each park on `FakeEngine::standard_question` (after any
+/// `on_repair` steps) and are evicted at once (cap 0); analysis is slow
+/// enough that two re-runs started together would overlap.
+fn three_evicted(dir: &ScratchDir, repair: Vec<FakeStep>) -> (Harness, Vec<JobId>) {
+    let engine = FakeEngine::new()
+        .on_analyze(vec![FakeStep::Slow {
+            steps: 5,
+            pause_ms: 4,
+        }])
+        .on_repair(repair)
+        .always_asks();
+    let mut h = Harness::new(
+        engine,
+        RunnerOptions {
+            parked_cap: 0,
+            ..opts()
+        },
+    );
+    let ids: Vec<JobId> = (0..3)
+        .map(|i| {
+            let p = write(dir, &format!("e{i}.pdf"), format!("evicted {i}").as_bytes());
+            h.submit(&p)
+        })
+        .collect();
+    h.pump_until("all three evicted", |h| h.count(is_evicted) == 3);
+    h.drain();
+    (h, ids)
+}
+
+/// The jobs whose re-runs started in `seen`, in start order. Fails if one
+/// started while another was still running: a re-run holds the slot from its
+/// `Started("analyze")` until it is done, fails, is cancelled or asks again.
+fn re_runs_one_at_a_time(seen: &[(JobId, Seen)]) -> Vec<JobId> {
+    let mut running: Option<JobId> = None;
+    let mut starts = Vec::new();
+    for (id, s) in seen {
+        match s {
+            Seen::Started("analyze") => {
+                assert_eq!(running, None, "{id:?} started beside {running:?}");
+                running = Some(*id);
+                starts.push(*id);
+            }
+            Seen::Done(_) | Seen::Asked(_) | Seen::Failed(..) | Seen::Cancelled
+                if running == Some(*id) =>
+            {
+                running = None;
+            }
+            _ => {}
+        }
+    }
+    starts
+}
+
+#[test]
+fn evicted_jobs_answered_at_once_re_run_one_at_a_time_in_answer_order() {
+    let dir = ScratchDir::new("jobs-resume-slot");
+    let (mut h, ids) = three_evicted(&dir, Vec::new());
+    let from = h.seen.len();
+    let answered = [ids[2], ids[0], ids[1]];
+    for id in answered {
+        assert!(
+            h.runner()
+                .reply(id, Answer::user(InteractionReply::UseBest))
+        );
+    }
+    h.pump_until("all three repaired", |h| {
+        ids.iter().all(|id| h.finished(*id))
+    });
+
+    assert_eq!(re_runs_one_at_a_time(&h.seen[from..]), answered);
+    assert_eq!(h.engine.most_concurrent_analyses(), 1);
+    for (i, id) in ids.iter().enumerate() {
+        assert_eq!(h.done(*id).expect("done").analysis_state, rebuilt());
+        assert_eq!(
+            fs::read(dir.join(&format!("e{i}.repaired.pdf"))).expect("output"),
+            format!("evicted {i}").as_bytes()
+        );
+    }
+}
+
+#[test]
+fn a_re_run_that_parks_again_frees_the_resume_slot() {
+    let dir = ScratchDir::new("jobs-resume-repark");
+    let first = InteractionRequest::FontUnreproducible(UnreproducibleRequest {
+        id: InteractionRequestId(9),
+        family: "Garamond".into(),
+        slots: vec![(0, "F2".into())],
+        reason: "no font".into(),
+        options: Vec::new(),
+    });
+    let (mut h, ids) = three_evicted(&dir, vec![FakeStep::Ask(first)]);
+    let from = h.seen.len();
+    for id in &ids {
+        assert!(
+            h.runner()
+                .reply(*id, Answer::user(InteractionReply::TextOnly))
+        );
+    }
+    h.pump_until("every re-run asks its second question", |h| {
+        h.count(|s| *s == Seen::Asked(FakeEngine::standard_question())) == 3
+    });
+    assert_eq!(re_runs_one_at_a_time(&h.seen[from..]), ids);
+
+    let from = h.seen.len();
+    for id in &ids {
+        assert!(
+            h.runner()
+                .reply(*id, Answer::user(InteractionReply::UseBest))
+        );
+    }
+    h.pump_until("all three repaired", |h| {
+        ids.iter().all(|id| h.finished(*id))
+    });
+    assert_eq!(re_runs_one_at_a_time(&h.seen[from..]), ids);
+    assert_eq!(h.engine.most_concurrent_analyses(), 1);
+    assert!(ids.iter().all(|id| h.done(*id).is_some()));
+}
+
+#[test]
+fn a_re_run_waiting_for_the_slot_can_be_cancelled() {
+    let dir = ScratchDir::new("jobs-resume-cancel");
+    let (mut h, ids) = three_evicted(&dir, Vec::new());
+    let from = h.seen.len();
+    for id in &ids {
+        assert!(
+            h.runner()
+                .reply(*id, Answer::user(InteractionReply::UseBest))
+        );
+    }
+    h.runner().cancel(ids[2]);
+    h.pump_until("all three ended", |h| ids.iter().all(|id| h.finished(*id)));
+
+    assert_eq!(h.rows[&ids[2]], EntryState::Cancelled);
+    assert_eq!(re_runs_one_at_a_time(&h.seen[from..]), ids[..2]);
+    assert!(h.done(ids[0]).is_some() && h.done(ids[1]).is_some());
+}
+
 #[test]
 fn a_released_input_that_changed_on_disk_is_refused() {
     let dir = ScratchDir::new("jobs-changed");
