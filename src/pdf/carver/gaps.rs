@@ -66,29 +66,42 @@ pub(super) fn sweep(
     Ok(())
 }
 
-/// Rule 7: lexes, in near-miss mode, every run of the file outside the
-/// objects, orphans, xref tables, trailers and `startxref` values (the gaps
-/// less their orphans, which holds every unexplained span), and adds each
-/// [`LexNote::NearMissKeyword`] it reads to the report's own notes. No other
-/// lexer note is kept, and nothing the carve found changes. At most
-/// [`MAX_NEAR_MISSES`] notes are kept, then [`CarveNote::CapHit`]. `poll`
-/// ticks once per gap.
+/// Rule 7: lexes, in near-miss mode, every byte outside the carved objects,
+/// xref tables, trailers and `startxref` values except the data of each
+/// [`Orphan::Stream`]. So an orphan's header, its dictionary, its `stream`
+/// keyword and what follows its data (`endstream`, `endobj`) are read, as
+/// is every [`Orphan::Dict`] and unexplained span. Each run between two
+/// skipped ranges is lexed on its own, with nothing past its end in view.
+///
+/// A [`LexNote::NearMissKeyword`] is kept only when the keyword stands
+/// where the file structure would put it ([`framed`]), so ordinary text in
+/// a junk prefix or after `%%EOF` (`see the Stream logs`) gives no note.
+/// Kept notes go to the report's own notes; no other lexer note is kept,
+/// and nothing the carve found changes. At most [`MAX_NEAR_MISSES`] notes
+/// are kept, then [`CarveNote::CapHit`]. `poll` ticks once per gap, so one
+/// very large gap is lexed with no cancel check inside it.
 pub(super) fn near_misses(
     buf: &[u8],
     lm: &Landmarks,
     poll: &mut Poll<'_>,
     report: &mut CarveReport,
 ) -> Result<(), Cancelled> {
-    let orphans: Vec<Range<usize>> = report.orphans.iter().map(|o| range(o.span())).collect();
+    // Orphans are pushed gap by gap, so their data ranges are in order.
+    let skipped: Vec<Range<usize>> = (report.orphans.iter())
+        .filter_map(|o| match o {
+            Orphan::Stream { data, .. } => Some(range(*data)),
+            Orphan::Dict { .. } => None,
+        })
+        .collect();
     let mut found = Vec::new();
     let mut capped = false;
     for gap in gaps(buf, lm, report) {
         poll.tick()?;
-        let first = orphans.partition_point(|o| o.end <= gap.start);
+        let first = skipped.partition_point(|d| d.end <= gap.start);
         let mut from = gap.start;
-        for o in orphans[first..].iter().take_while(|o| o.start < gap.end) {
-            capped |= lex_near_misses(buf, from..o.start.max(from), &mut found);
-            from = from.max(o.end);
+        for d in skipped[first..].iter().take_while(|d| d.start < gap.end) {
+            capped |= lex_near_misses(buf, from..d.start.clamp(from, gap.end), &mut found);
+            from = from.max(d.end.min(gap.end));
         }
         capped |= lex_near_misses(buf, from..gap.end.max(from), &mut found);
         if capped {
@@ -106,25 +119,62 @@ pub(super) fn near_misses(
     Ok(())
 }
 
-/// Adds the offset of each near-miss keyword in `buf[within]` to `found`,
-/// read with nothing past `within.end` in view. Returns whether `found`
-/// reached [`MAX_NEAR_MISSES`] with more left to read.
+/// Adds the offset of each framed near-miss keyword in `buf[within]` to
+/// `found`, read with nothing past `within.end` in view. Returns whether
+/// `found` reached [`MAX_NEAR_MISSES`] with more left to read.
 fn lex_near_misses(buf: &[u8], within: Range<usize>, found: &mut Vec<u64>) -> bool {
     if within.is_empty() {
         return false;
     }
     let mut lx = Lexer::new(&buf[..within.end], within.start).with_near_miss(true);
-    while lx.next() != Tok::Eof {
+    loop {
+        let kw = match lx.next() {
+            Tok::Eof => return false,
+            Tok::Kw(kw) => Some(kw),
+            _ => None,
+        };
         for note in lx.take_notes() {
-            if let LexNote::NearMissKeyword { at } = note {
-                if found.len() == MAX_NEAR_MISSES {
-                    return true;
-                }
-                found.push(at);
+            let (LexNote::NearMissKeyword { at }, Some(kw)) = (note, kw) else {
+                continue;
+            };
+            if !framed(buf, at as usize, kw) {
+                continue;
             }
+            if found.len() == MAX_NEAR_MISSES {
+                return true;
+            }
+            found.push(at);
         }
     }
-    false
+}
+
+/// Whether a keyword read one byte off at `at` (read as `kw`) stands where
+/// the file structure puts that keyword: `obj` after two integers
+/// (`2 0 obk`); `stream`, `endstream` and `endobj` at the start of a line
+/// or after `>>`, with only spaces and tabs between.
+fn framed(buf: &[u8], at: usize, kw: &[u8]) -> bool {
+    let before = &buf[..at.min(buf.len())];
+    if kw == b"obj" {
+        let int_before = |s: &[u8]| -> Option<usize> {
+            let ws = s.iter().rev().take_while(|&&b| is_ws(b)).count();
+            let digits = (s[..s.len() - ws].iter().rev())
+                .take_while(|b| b.is_ascii_digit())
+                .count();
+            (ws > 0 && digits > 0).then_some(s.len() - ws - digits)
+        };
+        let Some(generation) = int_before(before) else {
+            return false;
+        };
+        let Some(number) = int_before(&before[..generation]) else {
+            return false;
+        };
+        return number == 0 || !is_reg(before[number - 1]);
+    }
+    let blank = (before.iter().rev())
+        .take_while(|&&b| matches!(b, b' ' | b'\t'))
+        .count();
+    let rest = &before[..before.len() - blank];
+    rest.is_empty() || rest.ends_with(b"\n") || rest.ends_with(b"\r") || rest.ends_with(b">>")
 }
 
 /// The maximal runs of the file no object, xref table, trailer or

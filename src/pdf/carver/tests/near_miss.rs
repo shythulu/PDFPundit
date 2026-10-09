@@ -1,6 +1,7 @@
 //! F-07 acceptance: the near-miss lex over what the carve left outside every
-//! object (rule 7). It reads the gaps and unexplained spans, never a carved
-//! object or orphan, and adds only `NearMissKeyword` notes.
+//! object (rule 7). It reads the gaps, orphans and unexplained spans, never a
+//! carved object or an orphan's stream data, and adds only framed
+//! `NearMissKeyword` notes.
 
 use super::*;
 
@@ -52,7 +53,7 @@ fn a_short_gap_is_read_too() {
 }
 
 #[test]
-fn carved_objects_and_orphans_are_never_lexed() {
+fn carved_objects_and_orphan_stream_data_are_never_lexed() {
     // A damaged `endobj` inside object 1 (it ends at the next header), and a
     // dictionary-less orphan stream whose data holds a near-miss bareword.
     let mut buf = b"1 0 obj\n<< /A 1 >>\nendobk\n".to_vec();
@@ -71,6 +72,49 @@ fn a_near_miss_after_an_orphan_in_the_same_gap_is_noted() {
     let r = carved(buf);
     assert_eq!(r.orphans.len(), 1, "{:?}", r.notes);
     assert_eq!(near_misses(&r), [at(buf, b"obk")]);
+}
+
+#[test]
+fn a_damaged_header_before_a_dictionary_and_stream_in_a_gap_is_noted() {
+    // The orphan starts at `2`, its first solid byte: its header and
+    // dictionary are lexed, its data is not.
+    let buf = b"1 0 obj\n1\nendobj\n2 0 obk\n<< /Length 10 >>\nstream\n0123456789\nendstream\nendobj\n3 0 obj\n3\nendobj\n";
+    let r = carved(buf);
+    assert_eq!(ids(&r), [(1, 0), (3, 0)]);
+    assert_eq!(r.orphans.len(), 1, "{:?}", r.notes);
+    assert_eq!(near_misses(&r), [at(buf, b"obk")]);
+}
+
+#[test]
+fn a_damaged_header_on_a_golden_stream_object_is_noted() {
+    let mut buf = fixtures::golden_pdf();
+    let stream = at(&buf, b"stream") as usize;
+    let header = memmem::rfind(&buf[..stream], b" obj").expect("a header") + 1;
+    buf[header + 2] = b'k';
+    let r = carved(&buf);
+    assert_eq!(near_misses(&r), [header as u64], "{:?}", r.notes);
+}
+
+#[test]
+fn text_outside_the_structure_is_not_a_near_miss() {
+    // `Stream` is one byte off `stream`, and `obk` one off `obj`, but
+    // neither stands where the structure puts its keyword.
+    let mut buf = fixtures::golden_pdf();
+    buf.extend_from_slice(b"\nNote: the job ran; see Obs and Stream logs, or obk.\n");
+    let r = carved(&buf);
+    assert!(near_misses(&r).is_empty(), "{:?}", r.notes);
+    // At a line start it is framed, and noted.
+    let mut buf = fixtures::golden_pdf();
+    buf.extend_from_slice(b"\nStream logs follow.\n");
+    let r = carved(&buf);
+    assert_eq!(near_misses(&r), [at(&buf, b"Stream")]);
+}
+
+#[test]
+fn a_damaged_closing_keyword_after_a_dictionary_is_noted() {
+    let buf = b"1 0 obj\n1\nendobj\n<< /Type /Font /Subtype /Type1 >> endobk\n3 0 obj\n3\nendobj\n";
+    let r = carved(buf);
+    assert_eq!(near_misses(&r), [at(buf, b"endobk")]);
 }
 
 #[test]
@@ -119,7 +163,7 @@ fn clean_files_and_builders_have_no_near_misses() {
 #[test]
 fn the_near_miss_notes_are_capped() {
     let mut buf = b"1 0 obj\n1\nendobj\n".to_vec();
-    buf.extend(b"obk ".repeat(MAX_NEAR_MISSES + 10));
+    buf.extend(b"2 0 obk\n".repeat(MAX_NEAR_MISSES + 10));
     let r = carved(&buf);
     assert_eq!(near_misses(&r).len(), MAX_NEAR_MISSES);
     let caps = r
@@ -131,7 +175,7 @@ fn the_near_miss_notes_are_capped() {
 
 #[test]
 fn the_near_miss_lex_polls_cancel() {
-    let buf = b"1 0 obj\n1\nendobj\nobk\n2 0 obj\n2\nendobj\n";
+    let buf = b"1 0 obj\n1\nendobj\n3 0 obk\n2 0 obj\n2\nendobj\n";
     let mut report = carved(buf);
     report.notes.clear();
     let mut poll = Poll {

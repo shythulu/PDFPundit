@@ -255,7 +255,19 @@ fn a_near_miss_header_outside_every_object_is_c9_and_gone_after_repair() {
     let pass = (out.report.passes.iter())
         .find(|p| p.class == C9ZlibTampered)
         .expect("a C9 pass");
-    assert_eq!(pass.outcome, PassOutcome::Fixed, "{pass:?}");
+    // No object to act on: the pass names the span instead of claiming a fix.
+    let PassOutcome::Partial(why) = &pass.outcome else {
+        panic!("{pass:?}");
+    };
+    let Location::Span(span) = c9[0].location else {
+        unreachable!()
+    };
+    assert!(
+        why.contains(&format!("bytes {}..{}", span.start, span.end))
+            && why.contains("not re-emitted"),
+        "{why}"
+    );
+    assert!(pass.actions.is_empty(), "{pass:?}");
 }
 
 #[test]

@@ -56,8 +56,10 @@
 //!   and is `Partial("unrecoverable stream")` or `Partial("stream over
 //!   max_search_stream, not searched")`. The pass fills the report's
 //!   `c9_summary` (`accepted` apart from `exact`) and `c9_survivors` (every
-//!   repaired stream's surviving edit lists). A `C9-outside-stream` keyword is
-//!   resolved by re-emission.
+//!   repaired stream's surviving edit lists). A `C9-outside-stream` keyword in
+//!   an object is resolved by re-emission. One outside every object (located
+//!   by its byte span) has no object to act on and is not re-emitted, so the
+//!   pass is `Partial` and names the span.
 //! - **C6** (T-13b; RR change #3), per (page, slot): the slot is re-linked
 //!   in the page's `/Resources` to one of the fonts no reference from the
 //!   catalog reaches (diagnose's re-link candidates, [`orphan_fonts`]). A
@@ -606,8 +608,20 @@ impl RepairPass for Salvaged {
         let mut summary = C9Summary::default();
         let mut survivors_of = Vec::new();
         for f in findings {
-            let Location::Object { id, .. } = f.location else {
-                continue;
+            let id = match f.location {
+                Location::Object { id, .. } => id,
+                Location::Span(span) => {
+                    // No object to act on, and the output keeps no byte
+                    // outside the objects: say so rather than claim a fix.
+                    partial.push(format!(
+                        "bytes {}..{}: a keyword one byte off outside every object, not \
+                         re-emitted; what it framed is kept only if the carve recovered it",
+                        span.start, span.end
+                    ));
+                    ctx.notes.partial.push((C9ZlibTampered, f.location));
+                    continue;
+                }
+                _ => continue,
             };
             let entry = ctx.salvage.by_obj.get(&id);
             let Some(entry) = entry.filter(|_| salvage_name(f) != Some(OUTSIDE_STREAM)) else {

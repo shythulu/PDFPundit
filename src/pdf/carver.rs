@@ -84,13 +84,17 @@
 //!    once, so the sweep stays linear however many orphans a gap holds.
 //!
 //! F-07's rule (D-130):
-//! 7. **Near-miss lex** (`gaps`): once the carve is done, every run outside
-//!    the objects, orphans, xref tables, trailers and `startxref` values is
-//!    lexed in near-miss mode ([`Lexer::with_near_miss`]), and each keyword
-//!    read one byte off (`2 0 obk`, `endob]`) becomes a file-level
+//! 7. **Near-miss lex** (`gaps`): once the carve is done, every byte
+//!    outside the carved objects, xref tables, trailers and `startxref`
+//!    values is lexed in near-miss mode ([`Lexer::with_near_miss`]), except
+//!    the data of each [`Orphan::Stream`]: an orphan's header, dictionary
+//!    and closing keywords are read. Each keyword read one byte off that
+//!    stands where the structure puts it (`2 0 obk` after two integers,
+//!    `endob]` at a line start or after `>>`) becomes a file-level
 //!    [`CarveNote::Lex`] of a [`LexNote::NearMissKeyword`], at most
-//!    [`MAX_NEAR_MISSES`] of them. Carved objects and orphans are never lexed
-//!    this way, and nothing the earlier rules found changes.
+//!    [`MAX_NEAR_MISSES`] of them. Carved objects and orphan stream data are
+//!    never lexed this way, nothing the earlier rules found changes, and
+//!    cancel is polled once per gap.
 // T-09 is the first caller outside the tests.
 #![cfg_attr(not(test), allow(dead_code))]
 
