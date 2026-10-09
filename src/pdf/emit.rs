@@ -192,6 +192,15 @@ impl RebuildDoc {
         self.relinks.get(&page)
     }
 
+    /// Whether the `/Resources` of the page written as `page`, at `index`
+    /// in document order, is written as a new dictionary: a pass re-linked
+    /// or substituted a font on it ([`Self::relink_font`],
+    /// [`Self::substitute`]).
+    pub(crate) fn rebuilds_resources(&self, index: u32, page: u32) -> bool {
+        self.relinks.contains_key(&page)
+            || (self.assembled.iter()).any(|(slots, _)| slots.iter().any(|(i, _)| *i == index))
+    }
+
     /// Maps `slot` to the input object `font` in the `/Resources` of the
     /// page written as `page` (module docs, "Pages").
     pub(crate) fn relink_font(&mut self, page: u32, slot: Vec<u8>, font: ObjId) {

@@ -81,10 +81,31 @@
 //! orphan, which has none, by the number the rebuild gave it; a finding
 //! about the whole file by `(0, 0)`.
 //!
+//! **References** (D-133). The rebuild re-links every dangling reference it
+//! can match and writes the rest as `null` (T-10, [`crate::pdf::rebuild`],
+//! step 3), whichever passes run; a reference whose object a pass dropped
+//! (the C10 pass's cut objects) is written as `null` too. Each such repair
+//! is a [`RepairAction`] on the referrer, one per reference: the reference,
+//! what it now names and how it was matched, or that it was written as
+//! `null`. Where the referrer is a page and the reference is a whole
+//! `/Resources`, `/MediaBox`, `/CropBox` or `/Rotate` value, the page's
+//! pinned attribute replaces it, and the action says with what (an
+//! ancestor's value, the MediaBox chain's, the value read in place, or the
+//! key removed). A referrer the output leaves out is not listed. Known
+//! limit: a font subtree template assembly replaces is dropped while the
+//! output is written, after the actions are made, so a reference to it
+//! from outside the replaced font is written as `null` unlisted. The
+//! actions go in the C5
+//! pass's report (a stripped header is what step 3 repairs), else the C10
+//! pass's (a cut file loses what its references name), else the first
+//! report in pass order, each only when its pass ran; with none run, the
+//! first report. No output byte changes: the rebuild did this before it
+//! was reported.
+//!
 //! A `Partial` pass excuses its findings' locations from verification's
-//! "clean for the targeted classes" (D-074): the locations the pass left
-//! partial when it names them ([`PassNotes::partial`]), every finding of
-//! its class otherwise.
+//! "clean for the targeted classes" (D-074), for findings of its own class
+//! only (D-137): the locations the pass left partial when it names them
+//! ([`PassNotes::partial`]), every finding of its class otherwise.
 //!
 //! **Selection** (SE Q2; fixed tiers in v1, D-008). Candidates compare
 //! lexicographically by [`compare`]:
@@ -120,7 +141,7 @@ use crate::pdf::carver::{Body, CarveReport, Orphan, carve};
 use crate::pdf::diagnose::{OUTSIDE_STREAM, orphan_fonts};
 use crate::pdf::emit::{EmitCtx, EmitNotes, RebuildDoc, emit_doc};
 use crate::pdf::fontdb::dict::Dictionary as WordList;
-use crate::pdf::graph::{ObjectGraph, winning_copies};
+use crate::pdf::graph::{KeyPath, ObjectGraph, winning_copies};
 use crate::pdf::lexer;
 use crate::pdf::meta::info_object;
 use crate::pdf::model::{
@@ -128,7 +149,8 @@ use crate::pdf::model::{
     MetricValue, ObjId, Ratio, Repairability,
 };
 use crate::pdf::rebuild::{
-    BoxSource, CatalogPlan, Held, IdRemap, PageTreePlan, plan_ids, rebuild_page_tree,
+    BoxSource, CatalogPlan, Held, IdRemap, PagePlan, PageTreePlan, dropped_refs, plan_ids,
+    rebuild_page_tree,
 };
 use crate::pdf::streams::salvage::{CarveSource, Grade, Salvage, SalvageIndex};
 use crate::pdf::streams::{DEFAULT_CAP, content_ops};
@@ -1147,8 +1169,10 @@ pub(crate) fn generate_and_validate(
             sink: &mut *sink,
             notes: PassNotes::default(),
         };
-        let passes = run_passes(&schedule, &mut ctx)?;
+        let mut passes = run_passes(&schedule, &mut ctx)?;
         let pass_notes = std::mem::take(&mut ctx.notes);
+        let references = reference_actions(input.carve, input.graph, &remap, &tree, &doc);
+        report_references(&mut passes, references);
         interactions.extend(pass_notes.interactions.iter().cloned());
         let (targeted, partial) = targets(&passes, &schedule, &pass_notes, doc.remap());
         let mut emit = EmitCtx {
@@ -1335,15 +1359,80 @@ fn run_passes(
     Ok(reports)
 }
 
+/// The rebuild's repairs to references (module docs, "References"): each
+/// reference to an id `plan` matched, by match in the order it made them;
+/// then each reference it could not match, in the referrers' byte order;
+/// then each reference whose object a pass dropped. `doc` holds what the
+/// passes left; a reference whose referrer it no longer holds is not in
+/// the output and is not listed. `tree` must come from `plan`.
+fn reference_actions(
+    carve: &CarveReport,
+    graph: &ObjectGraph,
+    plan: &IdRemap,
+    tree: &PageTreePlan,
+    doc: &RebuildDoc,
+) -> Vec<RepairAction> {
+    let written = doc.remap();
+    let pages: BTreeMap<u32, (u32, &PagePlan)> = (tree.pages.iter().enumerate())
+        .map(|(i, p)| (p.id, (u32::try_from(i).unwrap_or(u32::MAX), p)))
+        .collect();
+    // What the output page holds at `path`, when `from` is a page and
+    // `path` an attribute pinned on it.
+    let pinned = |from: ObjId, path: &KeyPath| {
+        let n = written.number(from)?;
+        let &(index, page) = pages.get(&n)?;
+        page.pinned(path, doc.rebuilds_resources(index, n))
+    };
+    let kept = |from: ObjId| written.number(from).is_some();
+    let action = |object: ObjId, what: String| RepairAction {
+        object,
+        what,
+        grade: None,
+    };
+    let matched = (plan.reconciled().iter()).flat_map(|r| {
+        (r.refs.iter())
+            .filter(|(from, _)| kept(*from))
+            .map(move |(from, path)| {
+                action(*from, r.what(path, carve, written, pinned(*from, path)))
+            })
+    });
+    let nulled = (plan.unmatched().iter())
+        .filter(|u| kept(u.from))
+        .map(|u| action(u.from, u.what(pinned(u.from, &u.path))));
+    let dropped = dropped_refs(carve, graph, plan, written)
+        .into_iter()
+        .map(|d| action(d.from, d.what(pinned(d.from, &d.path))));
+    matched.chain(nulled).chain(dropped).collect()
+}
+
+/// The classes whose pass reports the rebuild's repairs to references, in
+/// order of preference (module docs, "References").
+const REFERENCE_OWNERS: [CorruptionClass; 2] = [C5ObjectTagStripped, C10Truncated];
+
+/// Appends `actions` to the report that carries them (module docs,
+/// "References"): C5's, else C10's, else the first in pass order, each
+/// only when its pass ran; with none run, the first report.
+fn report_references(reports: &mut [PassReport], actions: Vec<RepairAction>) {
+    let ran = |p: &PassReport| !matches!(p.outcome, PassOutcome::Skipped(_));
+    let owner = (REFERENCE_OWNERS.iter())
+        .find_map(|&c| reports.iter().position(|p| p.class == c && ran(p)))
+        .or_else(|| reports.iter().position(ran))
+        .or((!reports.is_empty()).then_some(0));
+    if let Some(i) = owner {
+        reports[i].actions.extend(actions);
+    }
+}
+
 /// The classes verification targets (every pass that ran and did not skip
-/// itself), and the output locations each `Partial` one left partial: those
-/// it listed in `notes`, or else all of its findings'.
+/// itself), and the output locations each `Partial` one left partial, each
+/// with its pass's class (D-137): those it listed in `notes`, or else all
+/// of its findings'.
 fn targets(
     reports: &[PassReport],
     schedule: &[(CorruptionClass, Scheduled)],
     notes: &PassNotes,
     remap: &IdRemap,
-) -> (Vec<CorruptionClass>, Vec<Location>) {
+) -> (Vec<CorruptionClass>, Vec<(CorruptionClass, Location)>) {
     let mut targeted = Vec::new();
     let mut partial = Vec::new();
     for (report, (_, scheduled)) in reports.iter().zip(schedule) {
@@ -1362,7 +1451,12 @@ fn targets(
                 } else {
                     listed
                 };
-                partial.extend(locations.into_iter().filter_map(|l| in_output(l, remap)));
+                let class = report.class;
+                partial.extend(
+                    (locations.into_iter())
+                        .filter_map(|l| in_output(l, remap))
+                        .map(|l| (class, l)),
+                );
             }
             PassOutcome::Fixed => {}
         }

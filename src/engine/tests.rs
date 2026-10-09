@@ -267,7 +267,16 @@ fn a_near_miss_header_outside_every_object_is_c9_and_gone_after_repair() {
             && why.contains("not re-emitted"),
         "{why}"
     );
-    assert!(pass.actions.is_empty(), "{pass:?}");
+    // The pass acts on no object of its own. Its only action is the
+    // rebuild's repair to the reference that named the lost object 3, which
+    // lands here because no C5 or C10 pass ran (F-08).
+    assert_eq!(pass.actions.len(), 1, "{pass:?}");
+    let action = &pass.actions[0];
+    assert!(
+        action.what.contains("names 3 0 R") && action.what.contains("null"),
+        "{action:?}"
+    );
+    assert_eq!(action.grade, None, "{action:?}");
 }
 
 #[test]

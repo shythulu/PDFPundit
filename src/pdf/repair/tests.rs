@@ -59,6 +59,7 @@ use crate::pdf::diagnose::diagnose;
 use crate::pdf::fixtures::{GOLDEN_TEXT, corrupt, golden_pdf, golden_pdf_objstm};
 use crate::pdf::model::{FindingKind, Ratio};
 use crate::pdf::plan::plan;
+use crate::pdf::rebuild::MatchedBy;
 use crate::pdf::streams::salvage::{CarveSource, salvage_all};
 use crate::pdf::verify::{Plausibility, Retention};
 use crate::pdf::write::Writer;
@@ -317,14 +318,342 @@ fn the_c4_pass_records_the_flat_tree_and_the_c5_pass_the_placed_orphan() {
     let (g, _) = run(&input);
     let c5 = pass(&g, C5ObjectTagStripped);
     assert_eq!(c5.outcome, PassOutcome::Fixed);
-    assert_eq!(c5.actions.len(), 1);
+    let placed: Vec<&RepairAction> = (c5.actions.iter())
+        .filter(|a| a.what.starts_with("the headerless "))
+        .collect();
+    assert_eq!(placed.len(), 1, "{:?}", c5.actions);
     assert!(
-        c5.actions[0]
+        placed[0]
             .what
             .starts_with("the headerless dictionary at byte "),
         "{:?}",
-        c5.actions[0]
+        placed[0]
     );
+}
+
+// ── references the rebuild repaired (F-08) ───────────────────────────────
+
+/// The golden with `edit` applied to it and its first page's id, written
+/// afresh with its header damaged (C1) so it is repaired. Returns the
+/// bytes and the page's id.
+fn golden_edited(edit: impl FnOnce(&mut Document, ObjId)) -> (Vec<u8>, ObjId) {
+    let mut doc = Document::load_mem(&golden_pdf()).expect("loads");
+    let page = *doc.get_pages().values().next().expect("a page");
+    assert!(!doc.objects.keys().any(|k| k.0 == 99));
+    edit(&mut doc, page);
+    let root = doc
+        .trailer
+        .get(b"Root")
+        .and_then(Object::as_reference)
+        .unwrap();
+    let mut w = Writer::with_version("1.7");
+    for (&(n, _), o) in &doc.objects {
+        w.add(n, o.clone());
+    }
+    w.trailer(root, [7; 32], None);
+    let full = w.finish().expect("writes");
+    (corrupt(C1Header, &full, 0), page)
+}
+
+fn dict_mut(doc: &mut Document, id: ObjId) -> &mut Dictionary {
+    doc.get_object_mut(id)
+        .and_then(Object::as_dict_mut)
+        .expect("a dictionary")
+}
+
+/// The golden with `/Thumb 99 0 R` on its first page, a reference to an
+/// object the file never had (see [`golden_edited`]).
+fn golden_with_dangling_thumb() -> (Vec<u8>, ObjId) {
+    golden_edited(|doc, page| dict_mut(doc, page).set("Thumb", Object::Reference((99, 0))))
+}
+
+/// The first page of `out`, and its dictionary.
+fn first_out_page(out: &[u8]) -> (Document, ObjId) {
+    let doc = Document::load_mem(out).expect("loads");
+    let page = *doc.get_pages().values().next().expect("a page");
+    (doc, page)
+}
+
+/// The one action, across every pass, that mentions `99 0 R`.
+fn the_99_action(g: &Generated) -> &RepairAction {
+    let found: Vec<&RepairAction> = (g.passes.iter())
+        .flat_map(|p| &p.actions)
+        .filter(|a| a.what.contains("99 0 R"))
+        .collect();
+    assert_eq!(found.len(), 1, "{:?}", g.passes);
+    found[0]
+}
+
+#[test]
+fn a_dangling_reference_written_as_null_is_listed_in_the_report() {
+    let (bytes, page) = golden_with_dangling_thumb();
+    let input = analysed(bytes);
+    assert_eq!(input.classes(), [C1Header]);
+    let (g, _) = run(&input);
+    let out = g.output.as_deref().expect("an output");
+
+    // No C5 or C10 pass ran, so the first pass that ran carries it.
+    let c1 = pass(&g, C1Header);
+    let nulled: Vec<&RepairAction> = (c1.actions.iter())
+        .filter(|a| a.what.contains("99 0 R"))
+        .collect();
+    assert_eq!(nulled.len(), 1, "{:?}", c1.actions);
+    assert_eq!(nulled[0].object, page);
+    assert_eq!(nulled[0].grade, None);
+    assert_eq!(
+        nulled[0].what,
+        "/Thumb names 99 0 R, which no carved object matches: written as null"
+    );
+    assert_eq!(
+        (g.passes.iter())
+            .flat_map(|p| &p.actions)
+            .filter(|a| a.what.contains("99 0 R"))
+            .count(),
+        1,
+        "listed once"
+    );
+
+    // As before: the output's reference is null.
+    let doc = Document::load_mem(out).expect("loads");
+    let out_page = *doc.get_pages().values().next().expect("a page");
+    let thumb = doc
+        .get_dictionary(out_page)
+        .expect("the page")
+        .get(b"Thumb")
+        .expect("kept");
+    assert_eq!(thumb, &Object::Null);
+}
+
+#[test]
+fn a_dangling_page_resources_taken_from_the_ancestor_is_reported_so() {
+    // The page's own /Resources moves to its parent and the page names a
+    // missing object instead: the output page carries the parent's.
+    let (bytes, page) = golden_edited(|doc, page| {
+        let own = dict_mut(doc, page)
+            .get(b"Resources")
+            .expect("the page has resources")
+            .clone();
+        let parent = (dict_mut(doc, page).get(b"Parent"))
+            .and_then(Object::as_reference)
+            .expect("a parent");
+        dict_mut(doc, parent).set("Resources", own);
+        dict_mut(doc, page).set("Resources", Object::Reference((99, 0)));
+    });
+    let input = analysed(bytes);
+    assert_eq!(input.classes(), [C1Header]);
+    let (g, _) = run(&input);
+    let action = the_99_action(&g);
+    assert_eq!(action.object, page);
+    assert_eq!(
+        action.what,
+        "/Resources names 99 0 R, which no carved object matches: the page takes its \
+         nearest ancestor's /Resources instead"
+    );
+
+    let (doc, out_page) = first_out_page(g.output.as_deref().expect("an output"));
+    let resources = (doc.get_dictionary(out_page).expect("the page"))
+        .get(b"Resources")
+        .expect("pinned on the page");
+    assert_ne!(resources, &Object::Null, "not written as null");
+    let resources = match resources {
+        Object::Reference(id) => doc.get_dictionary(*id).expect("a dictionary"),
+        other => other.as_dict().expect("a dictionary"),
+    };
+    assert!(
+        resources.has(b"Font"),
+        "the parent's dictionary: {resources:?}"
+    );
+}
+
+#[test]
+fn a_dangling_page_attribute_no_ancestor_has_is_reported_removed() {
+    let (bytes, page) = golden_edited(|doc, page| {
+        dict_mut(doc, page).set("CropBox", Object::Reference((99, 0)));
+    });
+    let input = analysed(bytes);
+    assert_eq!(input.classes(), [C1Header]);
+    let (g, _) = run(&input);
+    let action = the_99_action(&g);
+    assert_eq!(action.object, page);
+    assert_eq!(
+        action.what,
+        "/CropBox names 99 0 R, which no carved object matches: /CropBox is removed from \
+         the page, as no ancestor has one"
+    );
+
+    let (doc, out_page) = first_out_page(g.output.as_deref().expect("an output"));
+    let d = doc.get_dictionary(out_page).expect("the page");
+    assert!(!d.has(b"CropBox"), "removed, not null: {d:?}");
+}
+
+#[test]
+fn a_dangling_page_resources_no_ancestor_has_is_reported_removed() {
+    let (bytes, page) = golden_edited(|doc, page| {
+        dict_mut(doc, page).set("Resources", Object::Reference((99, 0)));
+    });
+    let input = analysed(bytes);
+    assert_eq!(input.classes(), [C1Header]);
+    let (g, _) = run(&input);
+    let action = the_99_action(&g);
+    assert_eq!(action.object, page);
+    assert_eq!(
+        action.what,
+        "/Resources names 99 0 R, which no carved object matches: /Resources is removed \
+         from the page, as no ancestor has one"
+    );
+
+    let (doc, out_page) = first_out_page(g.output.as_deref().expect("an output"));
+    let d = doc.get_dictionary(out_page).expect("the page");
+    assert!(!d.has(b"Resources"), "removed, not null: {d:?}");
+}
+
+#[test]
+fn a_dangling_page_mediabox_is_reported_with_the_box_the_chain_gave() {
+    let (bytes, _) = golden_edited(|doc, page| {
+        dict_mut(doc, page).set("MediaBox", Object::Reference((99, 0)));
+    });
+    let input = analysed(bytes);
+    let (g, _) = run(&input);
+    let what = &the_99_action(&g).what;
+    assert!(what.starts_with("/MediaBox names 99 0 R"), "{what}");
+    assert!(!what.contains("null"), "{what}");
+
+    let (doc, out_page) = first_out_page(g.output.as_deref().expect("an output"));
+    let d = doc.get_dictionary(out_page).expect("the page");
+    assert!(
+        matches!(d.get(b"MediaBox"), Ok(Object::Array(a)) if a.len() == 4),
+        "{d:?}"
+    );
+}
+
+#[test]
+fn every_kept_referrer_of_a_match_or_of_a_dropped_object_is_listed() {
+    // Pages 1 and 2 both name 5 1 R, which the generation fallback matches
+    // to 5 0; page 2 also names 4 0 R. A pass then drops page 1 (the
+    // referrer the match was made for) and object 4.
+    let bytes = b"%PDF-1.7\n\
+        1 0 obj\n<< /Type /Page /Contents 5 1 R >>\nendobj\n\
+        2 0 obj\n<< /Type /Page /Contents 5 1 R /Thumb 4 0 R >>\nendobj\n\
+        4 0 obj\n<< /Kind /Thumb >>\nendobj\n\
+        5 0 obj\n<< /Length 2 >>\nstream\nBT\nendstream\nendobj\n%%EOF\n";
+    let input = analysed(bytes.to_vec());
+    let plan = plan_ids(&input.carve, &input.graph);
+    let rec = plan.reconciled();
+    assert_eq!(rec.len(), 1, "{rec:?}");
+    assert_eq!(rec[0].from, (1, 0));
+    let tree = rebuild_page_tree(
+        &input.carve,
+        &input.graph,
+        &plan,
+        RepairOptions::default().default_page_size,
+    );
+    let mut doc = RebuildDoc::new(plan.clone());
+    doc.forget(plan.target((1, 0)).expect("page 1"));
+    doc.forget(plan.target((4, 0)).expect("object 4"));
+
+    let actions = reference_actions(&input.carve, &input.graph, &plan, &tree, &doc);
+    let lines: Vec<(ObjId, &str)> = (actions.iter())
+        .map(|a| (a.object, a.what.as_str()))
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            (
+                (2, 0),
+                "/Contents names 5 1 R, which no carved object carries: re-linked to output \
+                 object 5, matched by generation: 5 0 obj, the same number"
+            ),
+            (
+                (2, 0),
+                "/Thumb names 4 0 R, which a repair pass dropped: written as null"
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_reference_matched_by_position_is_listed_with_how_it_was_matched() {
+    let input = analysed(corrupt(C5ObjectTagStripped, &golden_pdf(), 2));
+    let rec = plan_ids(&input.carve, &input.graph).reconciled().to_vec();
+    assert_eq!(rec.len(), 1, "{rec:?}");
+    let MatchedBy::Position { delta } = rec[0].by else {
+        panic!("{rec:?}");
+    };
+    let (g, _) = run(&input);
+    let c5 = pass(&g, C5ObjectTagStripped);
+    let (n, gen_) = rec[0].missing;
+    let relinked: Vec<&RepairAction> = (c5.actions.iter())
+        .filter(|a| a.what.contains(&format!("names {n} {gen_} R")))
+        .collect();
+    // One line per reference to it: both pages name the font.
+    let referrers: Vec<ObjId> = rec[0].refs.iter().map(|(from, _)| *from).collect();
+    assert_eq!(referrers.len(), 2, "{rec:?}");
+    assert_eq!(referrers[0], rec[0].from);
+    let objects: Vec<ObjId> = relinked.iter().map(|a| a.object).collect();
+    assert_eq!(objects, referrers, "{:?}", c5.actions);
+    let (fnum, fgen) = rec[0].from;
+    for a in relinked {
+        let what = &a.what;
+        assert!(what.contains("re-linked to output object "), "{what}");
+        assert!(what.contains("matched by position"), "{what}");
+        assert!(
+            what.contains(&format!("{delta} bytes from {fnum} {fgen} obj")),
+            "{what}"
+        );
+    }
+}
+
+#[test]
+fn a_partial_location_carries_its_pass_class() {
+    let page = Location::Page {
+        index: 0,
+        obj: None,
+    };
+    let finding = |class: CorruptionClass| Finding {
+        id: format!("{}-001", class.code()),
+        class: FindingKind::Corruption(class),
+        severity: crate::pdf::model::Severity::Error,
+        location: page,
+        summary: class.label().to_owned(),
+        evidence: Vec::new(),
+        repair: Repairability::Auto,
+    };
+    let schedule = vec![
+        (
+            C9ZlibTampered,
+            Scheduled::Run(
+                pass_for(C9ZlibTampered).unwrap(),
+                vec![finding(C9ZlibTampered)],
+            ),
+        ),
+        (
+            C6FontMapLost,
+            Scheduled::Run(
+                pass_for(C6FontMapLost).unwrap(),
+                vec![finding(C6FontMapLost)],
+            ),
+        ),
+    ];
+    let reports = [
+        PassReport {
+            class: C9ZlibTampered,
+            outcome: PassOutcome::Partial("unrecoverable stream".into()),
+            actions: Vec::new(),
+        },
+        PassReport {
+            class: C6FontMapLost,
+            outcome: PassOutcome::Fixed,
+            actions: Vec::new(),
+        },
+    ];
+    let (targeted, partial) = targets(
+        &reports,
+        &schedule,
+        &PassNotes::default(),
+        &IdRemap::default(),
+    );
+    assert_eq!(targeted, [C9ZlibTampered, C6FontMapLost]);
+    assert_eq!(partial, [(C9ZlibTampered, page)]);
 }
 
 #[test]

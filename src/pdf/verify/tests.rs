@@ -553,12 +553,19 @@ fn clean_means_no_targeted_finding_outside_the_partial_locations() {
 
     assert!(!clean_for(&found, &[C9ZlibTampered], &[]));
     // A pass reported object 4 Partial: its finding may stay.
-    let partial_4 = Location::Object {
-        id: (4, 0),
-        span: None,
-    };
+    let partial_4 = (
+        C9ZlibTampered,
+        Location::Object {
+            id: (4, 0),
+            span: None,
+        },
+    );
     assert!(clean_for(&found, &[C9ZlibTampered], &[partial_4]));
-    assert!(!clean_for(&found, &[C9ZlibTampered], &[at(5)]));
+    assert!(!clean_for(
+        &found,
+        &[C9ZlibTampered],
+        &[(C9ZlibTampered, at(5))]
+    ));
     // Untargeted classes do not count; targeted ones elsewhere do.
     assert!(!clean_for(
         &found,
@@ -568,10 +575,45 @@ fn clean_means_no_targeted_finding_outside_the_partial_locations() {
     assert!(clean_for(
         &found,
         &[C9ZlibTampered, C6FontMapLost],
-        &[partial_4, page(1)]
+        &[partial_4, (C6FontMapLost, page(1))]
     ));
     assert!(clean_for(&found, &[C4PageTreeBroken], &[]));
     assert!(clean_for(&[], &CorruptionClass::ALL, &[]));
+}
+
+#[test]
+fn a_partial_excuses_only_a_finding_of_its_own_class() {
+    let page = |index, obj: Option<u32>| Location::Page {
+        index,
+        obj: obj.map(|n| (n, 0)),
+    };
+    let targeted = [C6FontMapLost, C9ZlibTampered];
+    let c6_on_page_1 = [finding(C6FontMapLost, page(1, None))];
+    // A C9 Partial on page 1 no longer excuses the C6 finding there.
+    assert!(!clean_for(
+        &c6_on_page_1,
+        &targeted,
+        &[(C9ZlibTampered, page(1, None))]
+    ));
+    assert!(!clean_for(
+        &c6_on_page_1,
+        &targeted,
+        &[(C9ZlibTampered, page(1, Some(7)))]
+    ));
+    // A C6 Partial at the same site does.
+    assert!(clean_for(
+        &c6_on_page_1,
+        &targeted,
+        &[(C6FontMapLost, page(1, Some(7)))]
+    ));
+    // The same holds for an object location.
+    let obj = |n| Location::Object {
+        id: (n, 0),
+        span: None,
+    };
+    let c9_at_7 = [finding(C9ZlibTampered, obj(7))];
+    assert!(!clean_for(&c9_at_7, &targeted, &[(C6FontMapLost, obj(7))]));
+    assert!(clean_for(&c9_at_7, &targeted, &[(C9ZlibTampered, obj(7))]));
 }
 
 #[test]
@@ -688,10 +730,13 @@ fn an_unrecoverable_stream_reported_partial_passes_v0() {
     let out = resave(&input);
     let base = baseline(&input, &carve);
     // The C9 pass reported object 4 `Partial("unrecoverable stream")`.
-    let partial = [Location::Object {
-        id: (4, 0),
-        span: None,
-    }];
+    let partial = [(
+        C9ZlibTampered,
+        Location::Object {
+            id: (4, 0),
+            span: None,
+        },
+    )];
     let (v, spent) = verify_spending(&out, &carve, &base, &[C9ZlibTampered], &partial);
     assert!(v.v0.all_pass(), "{:?}", v.v0);
     assert_eq!(spent, 0);
@@ -707,7 +752,7 @@ fn an_unrecoverable_stream_reported_partial_passes_v0() {
         &classify_only(&out_carve, &out),
     );
     let c9_at_4 = findings.iter().any(|f| {
-        f.class == FindingKind::Corruption(C9ZlibTampered) && same_site(&f.location, &partial[0])
+        f.class == FindingKind::Corruption(C9ZlibTampered) && same_site(&f.location, &partial[0].1)
     });
     if c9_at_4 {
         let (bare, _) = verify_spending(&out, &carve, &base, &[C9ZlibTampered], &[]);
@@ -784,8 +829,14 @@ fn nothing_outside_the_render_gate_touches_pixels() {
 }
 
 /// `verify`'s signature: the output's bytes, the input's carve, the
-/// baseline, classes and locations. No pixel buffer.
-type VerifyFn = fn(&[u8], &CarveReport, &Baseline, &[CorruptionClass], &[Location]) -> Verification;
+/// baseline, classes and class-qualified locations. No pixel buffer.
+type VerifyFn = fn(
+    &[u8],
+    &CarveReport,
+    &Baseline,
+    &[CorruptionClass],
+    &[(CorruptionClass, Location)],
+) -> Verification;
 
 #[test]
 fn verify_takes_no_pixel_buffer() {

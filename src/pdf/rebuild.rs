@@ -31,14 +31,22 @@
 //!      kind ([`Want`], TD's table), the unclaimed orphan of that kind
 //!      nearest that referrer in bytes, ties to the earlier; when no orphan
 //!      of the kind is left, the nearest unclaimed shadow of it (TD: shadows
-//!      stay unreferenced "unless step 3 claims them"). The match carries
-//!      `Evidence::Metric{"matched_by_position_delta"}`, the candidate's
-//!      start less the referrer's;
-//!    - (c) else each reference to it is [`Unmatched`], a Warning finding
-//!      input (the object may be genuinely gone), and [`IdRemap::rewrite`]
-//!      turns it into `null`, since its number may now be a fresh object's.
-//!      A dangling `/Parent`, or a catalog's dangling `/Pages`, is not
-//!      reported: the flat page tree replaces those links.
+//!      stay unreferenced "unless step 3 claims them"). The match records
+//!      the candidate's start less the referrer's ([`MatchedBy::Position`]);
+//!    - (c) else each reference to it is [`Unmatched`] (the object may be
+//!      genuinely gone), and [`IdRemap::rewrite`] turns it into `null`,
+//!      since its number may now be a fresh object's. A dangling `/Parent`,
+//!      or a catalog's dangling `/Pages`, is not reported: the flat page
+//!      tree replaces those links.
+//!
+//!    Every reference to a matched id, every unmatched reference, and
+//!    every reference to an object a repair pass later dropped
+//!    ([`dropped_refs`]) is a report action, one per reference
+//!    ([`Reconciled::what`], [`Unmatched::what`], [`Dropped::what`];
+//!    D-133): a repair to a reference is reported, never hidden. Where the
+//!    referrer is a page and the reference is a whole inheritable
+//!    attribute, the page tree's pinned value replaces it, and the line
+//!    says with what ([`PagePlan::pinned`]), not that it became `null`.
 //!
 //! [`rebuild_page_tree`] then lays every page under one flat `/Pages` node,
 //! in document order (the catalog's tree, else each surviving root `/Pages`
@@ -60,7 +68,7 @@ use lopdf::{Dictionary, Object};
 use crate::engine::PageSize;
 use crate::pdf::carver::{Body, CarveReport, Orphan};
 use crate::pdf::graph::{KeyPath, MAX_TREE_DEPTH, ObjectGraph, PathSeg, winning_copies};
-use crate::pdf::model::{ByteSpan, Evidence, Location, MetricValue, ObjId, ObjectKind, Severity};
+use crate::pdf::model::{ByteSpan, ObjId, ObjectKind};
 
 /// A carved object the output can hold: an index into
 /// [`CarveReport::objects`] or into [`CarveReport::orphans`].
@@ -98,28 +106,62 @@ pub(crate) struct Reconciled {
     pub(crate) path: KeyPath,
     pub(crate) target: Held,
     pub(crate) by: MatchedBy,
+    /// Every reference to `missing` the output keeps as a link, in the
+    /// graph's order: all of them but those the flat page tree replaces
+    /// ([`page_tree_owns`]). Each is a report line ([`Self::what`]).
+    pub(crate) refs: Vec<(ObjId, KeyPath)>,
 }
 
 impl Reconciled {
-    /// What the report records for the match.
-    pub(crate) fn evidence(&self) -> Vec<Evidence> {
-        let metric = match self.by {
-            MatchedBy::Generation { generation } => Evidence::Metric {
-                name: "matched_by_generation".into(),
-                value: MetricValue::Int(i64::from(generation)),
-            },
-            MatchedBy::Position { delta } => Evidence::Metric {
-                name: "matched_by_position_delta".into(),
-                value: MetricValue::Int(delta),
-            },
+    /// The report's line for the reference at `path`, one of [`Self::refs`]
+    /// (module docs, step 3): what it named, how that was matched, and what
+    /// the output holds there. `written` is the numbering the repair passes
+    /// left, so a match whose object a pass then dropped reads as written
+    /// as `null`. `pinned` is what the output page holds at `path` when the
+    /// referrer is a page and `path` one of the attributes pinned on it
+    /// ([`PagePlan::pinned`]). Object numbers are the input's, except the
+    /// one labelled as the output's.
+    pub(crate) fn what(
+        &self,
+        path: &KeyPath,
+        carve: &CarveReport,
+        written: &IdRemap,
+        pinned: Option<Pinned>,
+    ) -> String {
+        let (n, g) = self.missing;
+        let path = path_text(path);
+        let how = match self.by {
+            MatchedBy::Generation { generation } => {
+                format!("matched by generation: {n} {generation} obj, the same number")
+            }
+            MatchedBy::Position { delta } => {
+                let candidate = match self.target {
+                    Held::Orphan(_) => "headerless object".to_owned(),
+                    Held::Object(at) => {
+                        let (sn, sg) = carve.objects[at].declared_id;
+                        format!("losing copy of {sn} {sg} obj")
+                    }
+                };
+                let (fnum, fgen) = self.from;
+                format!(
+                    "matched by position: the nearest {candidate} of the kind it names, \
+                     {delta} bytes from {fnum} {fgen} obj"
+                )
+            }
         };
-        vec![
-            Evidence::ObjectRef(self.missing),
-            Evidence::Text(path_text(&self.path)),
-            metric,
-        ]
+        let head = format!("{path} names {n} {g} R, which no carved object carries");
+        if let Some(fate) = pinned.and_then(|p| p.fate(&path)) {
+            return format!("{head}: {how}; {fate}");
+        }
+        match written.number(self.missing) {
+            Some(to) => format!("{head}: re-linked to output object {to}, {how}"),
+            None => format!("{head}: {how}, then dropped by a repair pass: {NULLED}"),
+        }
     }
 }
+
+/// How the report says a reference was written as `null`.
+const NULLED: &str = "written as null";
 
 /// A reference to an id nothing could be matched to.
 #[derive(Debug, Clone, PartialEq)]
@@ -131,33 +173,83 @@ pub(crate) struct Unmatched {
     pub(crate) missing: ObjId,
 }
 
-/// The parts of a [`crate::pdf::model::Finding`] an [`Unmatched`] reference
-/// supplies; diagnosis gives it its id, class and repairability.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct FindingInput {
-    pub(crate) severity: Severity,
-    pub(crate) location: Location,
-    pub(crate) summary: String,
-    pub(crate) evidence: Vec<Evidence>,
-}
-
 impl Unmatched {
-    /// A Warning: the object may be genuinely gone.
-    pub(crate) fn finding_input(&self) -> FindingInput {
+    /// The report's line for the reference: the object may be genuinely
+    /// gone, and [`IdRemap::rewrite`] writes the reference as `null`,
+    /// unless the referrer is a page and `path` one of the attributes
+    /// pinned on it: then `pinned` says what the page holds there.
+    pub(crate) fn what(&self, pinned: Option<Pinned>) -> String {
         let (n, g) = self.missing;
         let path = path_text(&self.path);
-        FindingInput {
-            severity: Severity::Warning,
-            location: Location::Object {
-                id: self.from,
-                span: self.from_span,
-            },
-            summary: format!(
-                "{path} of {} {} obj names {n} {g} R, which no carved object matches",
-                self.from.0, self.from.1
-            ),
-            evidence: vec![Evidence::ObjectRef(self.missing), Evidence::Text(path)],
-        }
+        let fate = pinned.and_then(|p| p.fate(&path));
+        let fate = fate.as_deref().unwrap_or(NULLED);
+        format!("{path} names {n} {g} R, which no carved object matches: {fate}")
+    }
+}
+
+/// A reference whose object a repair pass left out ([`dropped_refs`]).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Dropped {
+    pub(crate) from: ObjId,
+    pub(crate) path: KeyPath,
+    pub(crate) to: ObjId,
+}
+
+impl Dropped {
+    /// The report's line for the reference, as [`Unmatched::what`].
+    pub(crate) fn what(&self, pinned: Option<Pinned>) -> String {
+        let (n, g) = self.to;
+        let path = path_text(&self.path);
+        let fate = pinned.and_then(|p| p.fate(&path));
+        let fate = fate.as_deref().unwrap_or(NULLED);
+        format!("{path} names {n} {g} R, which a repair pass dropped: {fate}")
+    }
+}
+
+/// What an output page holds at one of the inheritable attributes
+/// (`/Resources`, `/MediaBox`, `/CropBox`, `/Rotate`) pinned on it, which
+/// replace whatever reference the page had there (module docs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Pinned {
+    /// The page's own value, a reference, written as [`IdRemap::rewrite`]
+    /// makes it (only `/Resources` is written as the reference it is).
+    Reference,
+    /// The page's own value, read through the reference and written in
+    /// place.
+    InPlace,
+    /// The nearest `/Parent` ancestor's value.
+    Ancestor,
+    /// The box most of the other pages have (`/MediaBox`).
+    ModalSibling,
+    /// The configured default page size (`/MediaBox`).
+    Default,
+    /// Nothing: the key is removed from the page.
+    Removed,
+    /// A new `/Resources` dictionary holding the fonts a repair pass
+    /// re-linked.
+    Rebuilt,
+}
+
+impl Pinned {
+    /// The report's words for what the page holds at `key` (`/MediaBox`,
+    /// say), in place of the reference; `None` for [`Pinned::Reference`],
+    /// which is the reference itself.
+    fn fate(self, key: &str) -> Option<String> {
+        Some(match self {
+            Pinned::Reference => return None,
+            Pinned::InPlace => "the page holds its value in place".to_owned(),
+            Pinned::Ancestor => format!("the page takes its nearest ancestor's {key} instead"),
+            Pinned::ModalSibling => {
+                "the page takes the /MediaBox most other pages have instead".to_owned()
+            }
+            Pinned::Default => "the page takes the default page size instead".to_owned(),
+            Pinned::Removed => {
+                format!("{key} is removed from the page, as no ancestor has one")
+            }
+            Pinned::Rebuilt => "the page holds a new /Resources dictionary with the fonts a \
+                                repair pass re-linked"
+                .to_owned(),
+        })
     }
 }
 
@@ -449,17 +541,22 @@ pub(crate) fn plan_ids(carve: &CarveReport, graph: &ObjectGraph) -> IdRemap {
                     remap.fresh(target);
                 }
                 remap.targets.insert(missing, target);
+                let refs = (refs.into_iter())
+                    .filter(|(_, f, p)| !page_tree_owns(carve, &remap, *f, p))
+                    .map(|(_, f, p)| (f, p))
+                    .collect();
                 remap.reconciled.push(Reconciled {
                     missing,
                     from,
                     path,
                     target,
                     by,
+                    refs,
                 });
             }
             None => {
                 for (i, from, path) in refs {
-                    if page_tree_owns(carve, &winners, from, &path) {
+                    if page_tree_owns(carve, &remap, from, &path) {
                         continue;
                     }
                     let from_span = referrer_span(carve, &winners, from);
@@ -483,19 +580,49 @@ pub(crate) fn plan_ids(carve: &CarveReport, graph: &ObjectGraph) -> IdRemap {
 /// Whether [`rebuild_page_tree`] replaces the link at `path` in `from`:
 /// every `/Parent`, and the catalog's `/Pages`, now name the flat node, so a
 /// dangling one is not reported (diagnosis reports the broken tree as C4).
-fn page_tree_owns(
-    carve: &CarveReport,
-    winners: &BTreeMap<ObjId, usize>,
-    from: ObjId,
-    path: &KeyPath,
-) -> bool {
+fn page_tree_owns(carve: &CarveReport, remap: &IdRemap, from: ObjId, path: &KeyPath) -> bool {
     match path.0.as_slice() {
         [PathSeg::Key(k)] if k == b"Parent" => true,
-        [PathSeg::Key(k)] if k == b"Pages" => winners
-            .get(&from)
-            .is_some_and(|&at| carve.objects[at].kind == ObjectKind::Catalog),
+        [PathSeg::Key(k)] if k == b"Pages" => matches!(
+            remap.target(from),
+            Some(Held::Object(at)) if carve.objects[at].kind == ObjectKind::Catalog
+        ),
         _ => false,
     }
+}
+
+/// Every reference whose object a repair pass left out: `plan` numbers it,
+/// `written` (the numbering the passes left) does not, so
+/// [`IdRemap::rewrite`] writes the reference as `null`. A missing id step
+/// 3 matched is [`Reconciled::what`]'s to report, and a referrer `written`
+/// leaves out, or a link the flat page tree replaces, is not listed. By the
+/// dropped object's id, then the graph's order.
+pub(crate) fn dropped_refs(
+    carve: &CarveReport,
+    graph: &ObjectGraph,
+    plan: &IdRemap,
+    written: &IdRemap,
+) -> Vec<Dropped> {
+    let matched: BTreeSet<ObjId> = plan.reconciled.iter().map(|r| r.missing).collect();
+    let mut out = Vec::new();
+    for (&to, &held) in &plan.targets {
+        let dropped = plan.number_of(held).is_some() && written.number_of(held).is_none();
+        if !dropped || matched.contains(&to) {
+            continue;
+        }
+        for edge in graph.referrers(to) {
+            let path = KeyPath::clone(&edge.path);
+            if written.number(edge.from).is_some() && !page_tree_owns(carve, plan, edge.from, &path)
+            {
+                out.push(Dropped {
+                    from: edge.from,
+                    path,
+                    to,
+                });
+            }
+        }
+    }
+    out
 }
 
 /// Another generation of `missing`'s number among the declared ids: the
@@ -701,6 +828,52 @@ pub(crate) struct PagePlan {
     pub(crate) rotate: Option<i64>,
     /// Where `mediabox` came from.
     pub(crate) source: BoxSource,
+    /// Which of `resources`, `cropbox` and `rotate` are the page's own
+    /// values; the others that are set are an ancestor's.
+    pub(crate) own: OwnAttrs,
+}
+
+/// Which inheritable attributes of a [`PagePlan`] the page itself gave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct OwnAttrs {
+    pub(crate) resources: bool,
+    pub(crate) cropbox: bool,
+    pub(crate) rotate: bool,
+}
+
+impl PagePlan {
+    /// What the output page holds where `path` points, when `path` is one
+    /// of the inheritable attributes pinned on it (a whole value, not a
+    /// reference inside one): those replace the page's own value, so a
+    /// reference there is not simply rewritten. `rebuilt` says a repair
+    /// pass re-linked fonts on the page, so its `/Resources` is a new
+    /// dictionary. `None` for any other path.
+    pub(crate) fn pinned(&self, path: &KeyPath, rebuilt: bool) -> Option<Pinned> {
+        let [PathSeg::Key(key)] = path.0.as_slice() else {
+            return None;
+        };
+        let set_by = |own: bool, set: bool| match (own, set) {
+            (true, _) => Pinned::InPlace,
+            (false, true) => Pinned::Ancestor,
+            (false, false) => Pinned::Removed,
+        };
+        Some(match key.as_slice() {
+            b"Resources" if rebuilt => Pinned::Rebuilt,
+            b"Resources" => match (self.own.resources, &self.resources) {
+                (true, Some(Object::Reference(_))) => Pinned::Reference,
+                (own, r) => set_by(own, r.is_some()),
+            },
+            b"MediaBox" => match self.source {
+                BoxSource::Own => Pinned::InPlace,
+                BoxSource::Inherited => Pinned::Ancestor,
+                BoxSource::ModalSibling => Pinned::ModalSibling,
+                BoxSource::Default => Pinned::Default,
+            },
+            b"CropBox" => set_by(self.own.cropbox, self.cropbox.is_some()),
+            b"Rotate" => set_by(self.own.rotate, self.rotate.is_some()),
+            _ => return None,
+        })
+    }
 }
 
 /// The document catalog the output uses.
@@ -755,9 +928,9 @@ pub(crate) fn rebuild_page_tree(
     struct Found {
         id: u32,
         mediabox: Option<([Object; 4], BoxSource)>,
-        resources: Option<Object>,
-        cropbox: Option<[Object; 4]>,
-        rotate: Option<i64>,
+        resources: Option<(Object, bool)>,
+        cropbox: Option<([Object; 4], bool)>,
+        rotate: Option<(i64, bool)>,
     }
     let found: Vec<Found> = order
         .iter()
@@ -778,20 +951,14 @@ pub(crate) fn rebuild_page_tree(
                             },
                         )
                     }),
-                resources: view
-                    .inherited(dict, b"Resources", |v| match v {
-                        Object::Dictionary(_) => Some(v.clone()),
-                        // A reference to nothing falls through to the ancestors.
-                        Object::Reference(r) => remap.target(*r).map(|_| v.clone()),
-                        _ => None,
-                    })
-                    .map(|(r, _)| r),
-                cropbox: view
-                    .inherited(dict, b"CropBox", |v| view.rect(v))
-                    .map(|(r, _)| r),
-                rotate: view
-                    .inherited(dict, b"Rotate", |v| rotation(view.resolve(v)))
-                    .map(|(r, _)| r),
+                resources: view.inherited(dict, b"Resources", |v| match v {
+                    Object::Dictionary(_) => Some(v.clone()),
+                    // A reference to nothing falls through to the ancestors.
+                    Object::Reference(r) => remap.target(*r).map(|_| v.clone()),
+                    _ => None,
+                }),
+                cropbox: view.inherited(dict, b"CropBox", |v| view.rect(v)),
+                rotate: view.inherited(dict, b"Rotate", |v| rotation(view.resolve(v))),
             })
         })
         .collect();
@@ -809,13 +976,19 @@ pub(crate) fn rebuild_page_tree(
                 Some(m) => (m.clone(), BoxSource::ModalSibling),
                 None => (default.clone(), BoxSource::Default),
             });
+            let own = OwnAttrs {
+                resources: f.resources.as_ref().is_some_and(|r| r.1),
+                cropbox: f.cropbox.as_ref().is_some_and(|r| r.1),
+                rotate: f.rotate.is_some_and(|r| r.1),
+            };
             PagePlan {
                 id: f.id,
                 mediabox,
-                resources: f.resources,
-                cropbox: f.cropbox,
-                rotate: f.rotate,
+                resources: f.resources.map(|r| r.0),
+                cropbox: f.cropbox.map(|r| r.0),
+                rotate: f.rotate.map(|r| r.0),
                 source,
+                own,
             }
         })
         .collect();

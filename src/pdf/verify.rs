@@ -15,8 +15,9 @@
 //!   a gate on the output only, never a detector;
 //! - `rediagnose_clean`: the output is carved and diagnosed again under a
 //!   zero salvage budget (classify only, never search, D-074) and carries no
-//!   finding of a targeted class, except at a location a pass already
-//!   reported `Partial` (the `partial` argument; see [`clean_for`]);
+//!   finding of a targeted class, except a finding of a pass's own class
+//!   at a location that pass already reported `Partial` (the `partial`
+//!   argument; see [`clean_for`]);
 //! - `page_count_ok`: the output's page tree holds at least one page and at
 //!   least as many as the carver discovered in the input
 //!   (`pages_in_doc_order`). The tree is walked by lopdf when the output
@@ -177,8 +178,9 @@ pub(crate) fn baseline(input: &[u8], carve: &CarveReport) -> Baseline {
 
 /// V0, V1 and V2 of `output` (module docs). `carve` is the input's carve,
 /// `input_text` its [`baseline`], `targeted` the classes the passes set out
-/// to fix, and `partial` the locations that a pass reported `Partial` (a
-/// finding there may stay, D-074).
+/// to fix, and `partial` the locations that a pass reported `Partial`, each
+/// with that pass's class (a finding of that class there may stay, D-074,
+/// D-137).
 ///
 /// `partial` is not in the plan's interface: without it `verify` cannot tell
 /// which findings a pass already owned up to. Its locations are in the
@@ -189,7 +191,7 @@ pub(crate) fn verify(
     carve: &CarveReport,
     input_text: &Baseline,
     targeted: &[CorruptionClass],
-    partial: &[Location],
+    partial: &[(CorruptionClass, Location)],
 ) -> Verification {
     verify_spending(output, carve, input_text, targeted, partial).0
 }
@@ -201,7 +203,7 @@ fn verify_spending(
     carve: &CarveReport,
     input_text: &Baseline,
     targeted: &[CorruptionClass],
-    partial: &[Location],
+    partial: &[(CorruptionClass, Location)],
 ) -> (Verification, u64) {
     let out_carve = carve_all(output);
     let out_graph = ObjectGraph::from_carve(&out_carve);
@@ -367,13 +369,18 @@ fn gate_scale(w: f32, h: f32) -> f32 {
     (RENDER_MAX_SIDE / side).min(0.125)
 }
 
-/// No finding of a `targeted` class outside the `partial` locations
-/// (D-074): a location a pass reported `Partial` (an unrecoverable,
-/// ambiguous or unsearched stream, a truncated tail) may keep its finding.
-fn clean_for(findings: &[Finding], targeted: &[CorruptionClass], partial: &[Location]) -> bool {
+/// No finding of a `targeted` class outside the `partial` locations of its
+/// own class (D-074, D-137): a location a pass reported `Partial` (an
+/// unrecoverable, ambiguous or unsearched stream, a truncated tail) may
+/// keep a finding of that pass's class, and no other.
+fn clean_for(
+    findings: &[Finding],
+    targeted: &[CorruptionClass],
+    partial: &[(CorruptionClass, Location)],
+) -> bool {
     findings.iter().all(|f| match f.class {
         FindingKind::Corruption(class) if targeted.contains(&class) => {
-            partial.iter().any(|p| same_site(&f.location, p))
+            (partial.iter()).any(|(c, p)| *c == class && same_site(&f.location, p))
         }
         _ => true,
     })

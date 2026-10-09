@@ -1,8 +1,8 @@
 //! T-10 acceptance: D-032's duplicate rule on its two fixtures, keys by
 //! `(num, gen)`, fresh numbers for orphans, the generation fallback before
-//! positional matching, nearest-orphan matching with delta evidence, the
-//! Warning input for an unmatched reference, the flat page tree of the C4
-//! fixture and each rung of the MediaBox chain.
+//! positional matching, nearest-orphan matching with its delta, the report
+//! lines for a match and for an unmatched reference (F-08), the flat page
+//! tree of the C4 fixture and each rung of the MediaBox chain.
 
 use std::collections::BTreeSet;
 
@@ -11,7 +11,7 @@ use crate::engine::Cancelled;
 use crate::pdf::carver::carve;
 use crate::pdf::fixtures;
 use crate::pdf::graph::PathSeg;
-use crate::pdf::model::{CorruptionClass, LengthSource, Location, MetricValue, Severity};
+use crate::pdf::model::{CorruptionClass, LengthSource};
 
 fn carved(buf: &[u8]) -> CarveReport {
     match carve(buf, &|| false) {
@@ -84,14 +84,17 @@ fn headerless(data: &str) -> Part {
 
 const CONTENT: &str = "BT /F1 12 Tf 72 720 Td (Hello, orphan) Tj ET";
 
-fn evidence_delta(r: &Reconciled) -> Option<i64> {
-    r.evidence().iter().find_map(|e| match e {
-        Evidence::Metric {
-            name,
-            value: MetricValue::Int(v),
-        } if name == "matched_by_position_delta" => Some(*v),
-        _ => None,
-    })
+/// The report line for the reference a match was made for.
+fn line(r: &Reconciled, carve: &CarveReport, remap: &IdRemap) -> String {
+    r.what(&r.path, carve, remap, None)
+}
+
+/// The delta a positional match's report line states.
+fn stated_delta(r: &Reconciled, carve: &CarveReport, remap: &IdRemap) -> Option<i64> {
+    let what = line(r, carve, remap);
+    let (_, tail) = what.split_once("matched by position: ")?;
+    let (head, _) = tail.split_once(" bytes from ")?;
+    head.rsplit(", ").next()?.parse().ok()
 }
 
 // ── D-032: duplicates ────────────────────────────────────────────────────
@@ -286,13 +289,13 @@ fn dangling_contents_match_the_nearest_orphan_stream_with_delta_evidence() {
     let delta0 = carve.orphans[0].span().start as i64 - span_of(3).start as i64;
     assert!(delta0 < 0);
     assert_eq!(rec[0].by, MatchedBy::Position { delta: delta0 });
-    assert_eq!(evidence_delta(&rec[0]), Some(delta0));
+    assert_eq!(stated_delta(&rec[0], &carve, &remap), Some(delta0));
 
     // Page 4's is the other, once the first is claimed.
     assert_eq!(rec[1].missing, id(8));
     assert_eq!(rec[1].target, Held::Orphan(1));
     let delta1 = carve.orphans[1].span().start as i64 - span_of(4).start as i64;
-    assert_eq!(evidence_delta(&rec[1]), Some(delta1));
+    assert_eq!(stated_delta(&rec[1], &carve, &remap), Some(delta1));
 
     // References follow the match.
     assert_eq!(remap.number(id(7)), remap.number_of(Held::Orphan(0)));
@@ -322,16 +325,26 @@ fn the_generation_fallback_comes_before_positional_matching() {
         headerless(CONTENT),
         obj(5, &stream(CONTENT)),
     ]);
-    let (_, _, remap) = planned(&buf);
+    let (carve, _, remap) = planned(&buf);
     let rec = remap.reconciled();
     assert_eq!(rec.len(), 1);
     assert_eq!(rec[0].missing, (5, 1));
     assert_eq!(rec[0].target, Held::Object(1));
     assert_eq!(rec[0].by, MatchedBy::Generation { generation: 0 });
-    assert!(rec[0].evidence().contains(&Evidence::Metric {
-        name: "matched_by_generation".into(),
-        value: MetricValue::Int(0),
-    }));
+    assert_eq!(rec[0].refs, [(id(1), rec[0].path.clone())]);
+    assert_eq!(
+        line(&rec[0], &carve, &remap),
+        "/Contents names 5 1 R, which no carved object carries: re-linked to output \
+         object 5, matched by generation: 5 0 obj, the same number"
+    );
+    // A pass that then drops the matched object leaves a null, said so.
+    let mut written = remap.clone();
+    written.forget(Held::Object(1));
+    assert_eq!(
+        line(&rec[0], &carve, &written),
+        "/Contents names 5 1 R, which no carved object carries: matched by generation: \
+         5 0 obj, the same number, then dropped by a repair pass: written as null"
+    );
     assert_eq!(remap.number((5, 1)), Some(5));
     assert_eq!(
         remap.number_of(Held::Orphan(0)),
@@ -421,26 +434,19 @@ fn the_key_path_tail_decides_the_kind_an_orphan_must_have() {
 }
 
 #[test]
-fn an_unmatched_dangling_reference_is_a_warning_input_and_becomes_null() {
+fn an_unmatched_dangling_reference_is_reported_and_becomes_null() {
     let buf = pdf(&[obj(3, "<< /Type /Page /Contents 9 0 R /Rotate 0 >>")]);
     let (carve, _, remap) = planned(&buf);
     assert!(remap.reconciled().is_empty());
     let un = remap.unmatched();
     assert_eq!(un.len(), 1);
     assert_eq!(un[0].from, id(3));
+    assert_eq!(un[0].from_span, Some(carve.objects[0].span));
     assert_eq!(un[0].missing, id(9));
-    let input = un[0].finding_input();
-    assert_eq!(input.severity, Severity::Warning);
     assert_eq!(
-        input.location,
-        Location::Object {
-            id: id(3),
-            span: Some(carve.objects[0].span),
-        }
+        un[0].what(None),
+        "/Contents names 9 0 R, which no carved object matches: written as null"
     );
-    assert!(input.evidence.contains(&Evidence::ObjectRef(id(9))));
-    assert!(input.evidence.contains(&Evidence::Text("/Contents".into())));
-    assert!(input.summary.contains("9 0 R"), "{}", input.summary);
 
     // The missing number may later be a fresh one, so the reference goes.
     let mut v = Object::Reference(id(9));
@@ -457,11 +463,19 @@ fn a_shadow_is_claimed_only_when_no_orphan_of_the_kind_is_left() {
         obj(2, "<< /Type /Page /Contents 8 0 R >>"),
         headerless(CONTENT),
     ]);
-    let (_, _, remap) = planned(&buf);
+    let (carve, _, remap) = planned(&buf);
     let rec = remap.reconciled();
     assert_eq!(rec.len(), 2);
     assert_eq!(rec[0].target, Held::Orphan(0), "the orphan first");
     assert_eq!(rec[1].target, Held::Object(0), "then the shadow");
+    let what = line(&rec[1], &carve, &remap);
+    assert!(
+        what.contains(
+            "re-linked to output object 7, matched by position: the nearest losing copy of \
+             5 0 obj"
+        ),
+        "{what}"
+    );
     assert_eq!(remap.shadows()[0].at, 0, "still listed as a shadow");
     assert_eq!(remap.number_of(Held::Orphan(0)), Some(6));
     assert_eq!(remap.number(id(8)), Some(7), "a claimed shadow is written");
@@ -478,11 +492,10 @@ fn c5_references_to_the_stripped_object_find_its_orphan() {
         let (carve, graph, remap) = planned(&damaged);
         // A missing id only the page tree links to is neither matched nor
         // reported; every other one is one or the other.
-        let winners = winning_copies(&carve);
         let missing: BTreeSet<ObjId> = graph
             .dangling_refs()
             .iter()
-            .filter(|(from, path, _)| !page_tree_owns(&carve, &winners, *from, path))
+            .filter(|(from, path, _)| !page_tree_owns(&carve, &remap, *from, path))
             .map(|d| d.2)
             .collect();
         for r in remap.reconciled() {
