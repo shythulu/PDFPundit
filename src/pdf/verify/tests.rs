@@ -20,7 +20,8 @@ use crate::pdf::text::{FontKey, GlyphItem};
 use crate::pdf::write::Writer;
 
 use CorruptionClass::{
-    C1Header, C3TrailerDamaged, C4PageTreeBroken, C6FontMapLost, C9ZlibTampered,
+    C1Header, C3TrailerDamaged, C4PageTreeBroken, C5ObjectTagStripped, C6FontMapLost,
+    C9ZlibTampered,
 };
 
 fn carved(bytes: &[u8]) -> CarveReport {
@@ -313,7 +314,7 @@ fn the_blank_case_fixture_scores_exactly_the_unpainted_pages() {
     // Against a baseline that knows no blank page, verify counts all four.
     let proxy = Baseline::CarveProxy {
         show_ops: 5,
-        string_bytes: 26,
+        codes: 26,
     };
     let carve = carved(&pdf);
     let v = verify(&pdf, &carve, &proxy, &[], &[]);
@@ -338,10 +339,10 @@ fn an_unrepaired_c6_file_fails_v2() {
     assert!(v.v2.unmapped_glyph >= r(1, 3), "{:?}", v.v2.unmapped_glyph);
     assert!(v.v2.unmapped_glyph > golden.v2.unmapped_glyph);
     assert!(v.v2.script_consistency <= golden.v2.script_consistency);
-    // The baseline is the damaged input's own extraction, which is garbage
-    // too: V1 sees no loss, V2 sees the damage.
-    assert_eq!(v.v1.glyph_count.num, v.v1.glyph_count.den);
-    assert!(v.v1.glyph_count.den > golden_counts().0);
+    // Both sides draw the page through the fallback font, so both count the
+    // codes the content shows, once each (D-088): V1 sees no loss, V2 sees
+    // the damage.
+    assert_eq!(v.v1.glyph_count, all(golden_counts().0));
 }
 
 #[test]
@@ -419,23 +420,24 @@ fn a_c1_input_hayro_cannot_load_gets_a_carve_proxy() {
     let carve = carved(&input);
     let base = baseline(&input, &carve);
     let (glyphs, runs) = golden_counts();
-    // Every `Tj` of the golden, and two bytes per glyph (Identity-H).
+    // Every `Tj` of the golden, and one code per glyph: two bytes each under
+    // its Identity-H font (D-088).
     assert_eq!(
         base,
         Baseline::CarveProxy {
             show_ops: runs,
-            string_bytes: 2 * glyphs,
+            codes: glyphs,
         }
     );
     assert_eq!(base.kind(), BaselineKind::CarveProxy);
 
     // Verified against the golden itself (what a perfect repair would give):
-    // the proxy kind is recorded, the show operators all come back, and the
-    // glyph count is glyphs over string bytes.
+    // the proxy kind is recorded, and the show operators and the glyphs all
+    // come back.
     let v = verify(&golden_pdf(), &carve, &base, &[C1Header], &[]);
     assert_eq!(v.baseline, BaselineKind::CarveProxy);
     assert_eq!(v.v1.text_ops, all(runs));
-    assert_eq!(v.v1.glyph_count, r(glyphs, 2 * glyphs));
+    assert_eq!(v.v1.glyph_count, all(glyphs));
     assert_eq!(v.v1.images, all(1));
 }
 
@@ -444,10 +446,324 @@ fn a_loading_input_gets_an_extracted_baseline() {
     let golden = golden_pdf();
     let base = baseline(&golden, &carved(&golden));
     assert_eq!(base.kind(), BaselineKind::Extracted);
-    let Baseline::Extracted(pages) = base else {
+    let Baseline::Extracted { pages, codes } = base else {
         unreachable!()
     };
     assert_eq!(pages.len(), GOLDEN_TEXT.len());
+    // Every glyph had its own font: hayro's count stands.
+    assert_eq!(codes, None);
+}
+
+// ── glyphs drawn through hayro's fallback font (D-088) ───────────────────
+
+/// C5 seeds 2 and 4 strip the header of the golden's Type 0 font: hayro
+/// draws the input with its fallback Helvetica, one glyph per byte, and the
+/// two-byte codes would count twice.
+#[test]
+fn a_baseline_drawn_with_the_fallback_font_counts_each_code_once() {
+    let (glyphs, _) = golden_counts();
+    for seed in [2, 4] {
+        let input = corrupt(C5ObjectTagStripped, &golden_pdf(), seed);
+        let carve = carved(&input);
+        let base = baseline(&input, &carve);
+        let Baseline::Extracted { pages, codes } = &base else {
+            panic!("seed {seed}: {:?}", base.kind())
+        };
+        let drawn: usize = pages.iter().map(|p| p.glyphs.len()).sum();
+        assert_eq!(drawn as u64, 2 * glyphs, "seed {seed}: one glyph per byte");
+        // The font reference names the headerless object; the rebuild's
+        // match resolves it, so the codes are two bytes each.
+        assert_eq!(*codes, Some(glyphs), "seed {seed}");
+        // A perfect repair keeps every glyph.
+        let v = verify(&golden_pdf(), &carve, &base, &[C5ObjectTagStripped], &[]);
+        assert_eq!(v.v1.glyph_count, all(glyphs), "seed {seed}");
+    }
+}
+
+/// A two-page file whose pages bind font names by `fonts` (one `/Font`
+/// dictionary per page) and show `content` (one stream per page). Objects
+/// 5, 6, ... are fonts of the `subtypes`, in order.
+fn fonts_pdf(subtypes: &[&[u8]], fonts: [&[(&str, u32)]; 2], content: [&[u8]; 2]) -> Vec<u8> {
+    let mut w = Writer::with_version("1.7");
+    let font_dict = |entries: &[(&str, u32)]| {
+        let mut d = Dictionary::new();
+        for &(name, id) in entries {
+            d.set(name, Object::Reference((id, 0)));
+        }
+        d
+    };
+    let mut pages = Dictionary::new();
+    pages.set("Type", Object::Name(b"Pages".to_vec()));
+    pages.set(
+        "Kids",
+        Object::Array(vec![Object::Reference((3, 0)), Object::Reference((4, 0))]),
+    );
+    pages.set("Count", Object::Integer(2));
+    let mut catalog = Dictionary::new();
+    catalog.set("Type", Object::Name(b"Catalog".to_vec()));
+    catalog.set("Pages", Object::Reference((2, 0)));
+    w.add(1, Object::Dictionary(catalog));
+    w.add(2, Object::Dictionary(pages));
+    let first_stream = 5 + subtypes.len() as u32;
+    for (i, n) in [3u32, 4].into_iter().enumerate() {
+        let mut resources = Dictionary::new();
+        resources.set("Font", Object::Dictionary(font_dict(fonts[i])));
+        let mut page = Dictionary::new();
+        page.set("Type", Object::Name(b"Page".to_vec()));
+        page.set("Parent", Object::Reference((2, 0)));
+        page.set(
+            "MediaBox",
+            Object::Array([0, 0, 612, 792].map(Object::Integer).to_vec()),
+        );
+        page.set("Resources", Object::Dictionary(resources));
+        let stream = first_stream + i as u32;
+        page.set("Contents", Object::Reference((stream, 0)));
+        w.add(n, Object::Dictionary(page));
+        w.add_stream_uncompressed(stream, Dictionary::new(), content[i].to_vec());
+    }
+    for (n, subtype) in (5u32..).zip(subtypes) {
+        let mut font = Dictionary::new();
+        font.set("Type", Object::Name(b"Font".to_vec()));
+        font.set("Subtype", Object::Name(subtype.to_vec()));
+        font.set("BaseFont", Object::Name(b"Example".to_vec()));
+        w.add(n, Object::Dictionary(font));
+    }
+    w.trailer((1, 0), [5; 32], None);
+    w.finish().expect("write")
+}
+
+/// Object 5 a Type 0 font, object 6 a TrueType one.
+const MIXED: &[&[u8]] = &[b"Type0", b"TrueType"];
+
+/// `show_counts` of `pdf`.
+fn shown(pdf: &[u8]) -> Shown {
+    let carve = carved(pdf);
+    let graph = ObjectGraph::from_carve(&carve);
+    show_counts(pdf, &carve, &graph, &classify_only(&carve, pdf))
+}
+
+fn shown_as(ops: u64, codes: u64, exact: bool, wide: bool) -> Shown {
+    Shown {
+        ops,
+        codes,
+        exact,
+        wide,
+    }
+}
+
+#[test]
+fn the_carve_count_reads_each_code_at_its_fonts_width() {
+    // `/F1` (Type 0): two bytes a code; `/F2` (TrueType): one.
+    let page: &[u8] = b"BT /F1 12 Tf <00410042> Tj /F2 12 Tf (ABC) Tj [(AB) -20 <0043>] TJ ET";
+    let pdf = fonts_pdf(
+        MIXED,
+        [&[("F1", 5), ("F2", 6)], &[("F2", 6)]],
+        [page, b"BT /F2 12 Tf (D) Tj ET"],
+    );
+    // 2 codes under /F1; 3, then 2 + 2, then 1 under /F2.
+    assert_eq!(shown(&pdf), shown_as(4, 2 + 3 + 4 + 1, true, true));
+}
+
+#[test]
+fn a_font_name_bound_to_two_widths_counts_one_byte_a_code_and_is_not_exact() {
+    // `/F1` is the Type 0 font on page 1 and the TrueType font on page 2:
+    // which one a stream means is not known.
+    let pdf = fonts_pdf(
+        MIXED,
+        [&[("F1", 5)], &[("F1", 6)]],
+        [b"BT /F1 12 Tf <00410042> Tj ET", b"BT /F1 12 Tf (AB) Tj ET"],
+    );
+    assert_eq!(shown(&pdf), shown_as(2, 4 + 2, false, false));
+}
+
+#[test]
+fn an_unbound_name_takes_the_width_the_files_fonts_agree_on() {
+    // `/F9` is bound nowhere (as after C6), and before the first `Tf` no
+    // font is selected: every font of the file is Type 0, so two bytes a
+    // code.
+    let page: &[u8] = b"BT <0041> Tj /F9 12 Tf <00410042> Tj ET";
+    let pdf = fonts_pdf(&[b"Type0", b"Type0"], [&[("F1", 5)], &[]], [page, b""]);
+    assert_eq!(shown(&pdf), shown_as(2, 1 + 2, true, true));
+    // With fonts of both widths in the file the width is not known.
+    let pdf = fonts_pdf(MIXED, [&[("F1", 5)], &[("F2", 6)]], [page, b""]);
+    assert_eq!(shown(&pdf), shown_as(2, 2 + 4, false, false));
+}
+
+#[test]
+fn a_fallback_baseline_whose_widths_are_not_known_keeps_hayros_count() {
+    // hayro resolves none of these skeletal fonts and draws every string
+    // with its fallback font, one glyph per byte (all of them ASCII).
+    let page: &[u8] = b"BT /F9 12 Tf <00410042> Tj ET";
+    let unknown = fonts_pdf(MIXED, [&[("F1", 5)], &[("F2", 6)]], [page, b""]);
+    let Baseline::Extracted { pages, codes } = baseline(&unknown, &carved(&unknown)) else {
+        panic!("hayro loads it")
+    };
+    assert_eq!(pages.iter().map(|p| p.glyphs.len()).sum::<usize>(), 4);
+    assert_eq!(codes, None);
+    // When the file's fonts agree on two bytes, the codes are known.
+    let known = fonts_pdf(&[b"Type0"], [&[("F1", 5)], &[]], [page, b""]);
+    let Baseline::Extracted { codes, .. } = baseline(&known, &carved(&known)) else {
+        panic!("hayro loads it")
+    };
+    assert_eq!(codes, Some(2));
+}
+
+#[test]
+fn q_and_big_q_restore_the_font_a_string_is_read_at() {
+    // `/F1` (Type 0) is selected inside `q` .. `Q`; after `Q` the font in
+    // force is `/F2` (TrueType) again. The stray `Q` first is ignored.
+    let page: &[u8] = b"Q BT /F2 12 Tf ET q BT /F1 12 Tf <00410042> Tj ET Q BT (AB) Tj ET";
+    let pdf = fonts_pdf(MIXED, [&[("F1", 5), ("F2", 6)], &[]], [page, b""]);
+    assert_eq!(shown(&pdf), shown_as(2, 2 + 2, true, true));
+    // Nested deeper than the saved levels: the outer levels still restore.
+    let deep = [
+        &b"BT /F2 12 Tf ET "[..],
+        &b"q ".repeat(SAVED_FONTS + 1),
+        b"BT /F1 12 Tf ET ",
+        &b"Q ".repeat(SAVED_FONTS + 1),
+        b"BT (AB) Tj ET",
+    ]
+    .concat();
+    let pdf = fonts_pdf(MIXED, [&[("F1", 5), ("F2", 6)], &[]], [&deep, b""]);
+    assert_eq!(shown(&pdf), shown_as(1, 2, true, false));
+}
+
+/// A one-page file whose page binds `/F1` to a font of `subtype` with base
+/// font Helvetica (object 5) and shows `page`. A FreeText annotation's
+/// normal appearance, a form, shows `appearance` through `/F1`. With
+/// `font_file`, object 8 is a `FontFile3` stream of subtype `/OpenType`.
+fn annotated_pdf(subtype: &[u8], page: &[u8], appearance: &[u8], font_file: bool) -> Vec<u8> {
+    let name = |n: &[u8]| Object::Name(n.to_vec());
+    let rect = || Object::Array([0, 0, 612, 792].map(Object::Integer).to_vec());
+    let fonts = || {
+        let mut fonts = Dictionary::new();
+        fonts.set("F1", Object::Reference((5, 0)));
+        let mut resources = Dictionary::new();
+        resources.set("Font", Object::Dictionary(fonts));
+        Object::Dictionary(resources)
+    };
+    let mut w = Writer::with_version("1.7");
+    let mut catalog = Dictionary::new();
+    catalog.set("Type", name(b"Catalog"));
+    catalog.set("Pages", Object::Reference((2, 0)));
+    w.add(1, Object::Dictionary(catalog));
+    let mut pages = Dictionary::new();
+    pages.set("Type", name(b"Pages"));
+    pages.set("Kids", Object::Array(vec![Object::Reference((3, 0))]));
+    pages.set("Count", Object::Integer(1));
+    w.add(2, Object::Dictionary(pages));
+    let mut leaf = Dictionary::new();
+    leaf.set("Type", name(b"Page"));
+    leaf.set("Parent", Object::Reference((2, 0)));
+    leaf.set("MediaBox", rect());
+    leaf.set("Resources", fonts());
+    leaf.set("Contents", Object::Reference((4, 0)));
+    leaf.set("Annots", Object::Array(vec![Object::Reference((6, 0))]));
+    w.add(3, Object::Dictionary(leaf));
+    let text = |show: &[u8]| [&b"BT 72 700 Td "[..], show, b" ET"].concat();
+    w.add_stream_uncompressed(4, Dictionary::new(), text(page));
+    let mut font = Dictionary::new();
+    font.set("Type", name(b"Font"));
+    font.set("Subtype", name(subtype));
+    font.set("BaseFont", name(b"Helvetica"));
+    w.add(5, Object::Dictionary(font));
+    let mut ap = Dictionary::new();
+    ap.set("N", Object::Reference((7, 0)));
+    let mut annot = Dictionary::new();
+    annot.set("Type", name(b"Annot"));
+    annot.set("Subtype", name(b"FreeText"));
+    annot.set("Rect", rect());
+    annot.set("DA", Object::string_literal("/F1 12 Tf 0 g"));
+    annot.set("AP", Object::Dictionary(ap));
+    w.add(6, Object::Dictionary(annot));
+    let mut form = Dictionary::new();
+    form.set("Type", name(b"XObject"));
+    form.set("Subtype", name(b"Form"));
+    form.set("BBox", rect());
+    form.set("Resources", fonts());
+    w.add_stream_uncompressed(7, form, text(appearance));
+    if font_file {
+        let mut file = Dictionary::new();
+        file.set("Subtype", name(b"OpenType"));
+        w.add_stream_uncompressed(8, file, b"OTTO".to_vec());
+    }
+    w.trailer((1, 0), [8; 32], None);
+    w.finish().expect("write")
+}
+
+/// The glyphs hayro drew on `pages`, and whether any through its fallback.
+fn drawn(pages: &[PageText]) -> (u64, bool) {
+    let n = pages.iter().map(|p| p.glyphs.len() as u64).sum();
+    (n, drew_with_fallback(pages))
+}
+
+#[test]
+fn a_one_byte_fallback_keeps_hayros_count_and_leaves_annotations_out() {
+    // The page shows `(ABC)` through `/F9`, bound nowhere, so hayro draws it
+    // with its fallback font. The annotation shows `(WXYZ)` through `/F1`,
+    // and T-36 does not draw annotations.
+    let input = annotated_pdf(
+        b"Type1",
+        b"/F9 12 Tf (ABC) Tj",
+        b"/F1 12 Tf (WXYZ) Tj",
+        false,
+    );
+    let carve = carved(&input);
+    let base = baseline(&input, &carve);
+    let Baseline::Extracted { pages, codes } = &base else {
+        panic!("hayro loads it")
+    };
+    assert_eq!(drawn(pages), (3, true));
+    // One byte a code everywhere: hayro's count is already right.
+    assert_eq!(*codes, None);
+    // The repaired page, whose `/F1` hayro draws, keeps every glyph; the
+    // unrepaired input does not score higher.
+    let fixed = annotated_pdf(
+        b"Type1",
+        b"/F1 12 Tf (ABC) Tj",
+        b"/F1 12 Tf (WXYZ) Tj",
+        false,
+    );
+    let fixed_text = extract_text(&fixed, &ExtractOptions::default()).expect("loads");
+    assert_eq!(drawn(&fixed_text), (3, false));
+    let perfect = verify(&fixed, &carve, &base, &[], &[]).v1.glyph_count;
+    let unrepaired = verify(&input, &carve, &base, &[], &[]).v1.glyph_count;
+    assert_eq!(perfect, all(3));
+    assert!(unrepaired <= perfect, "{unrepaired:?} > {perfect:?}");
+}
+
+#[test]
+fn a_two_byte_fallback_counts_only_the_codes_the_pages_show() {
+    // hayro does not resolve the skeletal Type 0 `/F1` and draws the page's
+    // two codes as four fallback glyphs. The annotation's code is in no
+    // page's content.
+    let input = annotated_pdf(
+        b"Type0",
+        b"/F1 12 Tf <00410042> Tj",
+        b"/F1 12 Tf <0043> Tj",
+        false,
+    );
+    let carve = carved(&input);
+    let base = baseline(&input, &carve);
+    let Baseline::Extracted { pages, codes } = &base else {
+        panic!("hayro loads it")
+    };
+    assert_eq!(drawn(pages), (4, true));
+    assert_eq!(*codes, Some(2));
+    // Every stream, the appearance included, holds three codes.
+    assert_eq!(shown(&input), shown_as(2, 3, true, true));
+    // The input as its own output counts the same way on both sides.
+    let v = verify(&input, &carve, &base, &[], &[]);
+    assert_eq!(v.v1.glyph_count, all(2));
+}
+
+#[test]
+fn an_opentype_font_file_is_not_taken_for_a_one_byte_font() {
+    // The Type 0 font is the file's only font; its `FontFile3` stream's
+    // `/Subtype /OpenType` is not a font of width 1. So `/F9`, bound
+    // nowhere, takes the file's two bytes a code.
+    let pdf = annotated_pdf(b"Type0", b"/F9 12 Tf <00410042> Tj", b"", true);
+    assert_eq!(shown(&pdf), shown_as(1, 2, true, true));
 }
 
 // ── V0 ───────────────────────────────────────────────────────────────────
@@ -848,8 +1164,10 @@ fn verify_takes_no_pixel_buffer() {
 /// sha256 of the JSON verification record of the unrepaired C6 fixture's
 /// Resave (golden, seed 7), whose V2 counts unmapped glyphs. Its V0 fails
 /// `rediagnose_clean`: Resave repairs nothing, so the output still carries
-/// the targeted C6 finding. The `test` job runs this on all three CI OSes.
-const C6_RECORD_SHA256: &str = "e4fcece5d82b9116bc5a079db7eec22e159bceedf36b96b5d13fea7fa039bd8e";
+/// the targeted C6 finding. Its V1 glyph count is the codes the content
+/// shows, as hayro draws the font-less page with its fallback font (D-088).
+/// The `test` job runs this on all three CI OSes.
+const C6_RECORD_SHA256: &str = "1665c82b8672feb502f21a2b1b4a29f7935de73d5960dc9aa8d9485ffe0b0f32";
 
 #[test]
 fn the_verification_record_is_the_committed_one() {

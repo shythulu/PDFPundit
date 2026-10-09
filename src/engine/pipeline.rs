@@ -144,7 +144,7 @@ pub(super) fn analyze(
         streams_by_salvage: streams_by_salvage(&salvage),
         baseline_kind: base.kind(),
         paint_counts: match &base {
-            Baseline::Extracted(pages) => pages.iter().map(|p| p.paint).collect(),
+            Baseline::Extracted { pages, .. } => pages.iter().map(|p| p.paint).collect(),
             Baseline::CarveProxy { .. } => Vec::new(),
         },
     };
