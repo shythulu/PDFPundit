@@ -206,7 +206,7 @@ Show one finished file: where the copy went, what was wrong, what the copy kept,
 | 16 | `text 96%` bar | `images 31/32` bar | Chosen `CandidateReport.verification.v1.images`, printed as `num/den` |
 | 17 to 18 | `images 31/32` bar, `1 unplaceable → thesis_ar.images/p041-im2.jp2` | The C9 count line, wrapped at spaces | `C9Summary.repaired`, `.exact`, `.accepted`, as `c9_line` in `src/ui/view.rs` builds it |
 | 23 | `F7 unknown bundled Noto Sans partial bold→reg` | `F7 unknown bundled Noto Sans (picked)` | `SubstituteChoice.label`, and the slot's `InteractionRecord.source` is `User` |
-| 8, queue box | `invoice_scan.pdf partial · 88% salvaged` | `invoice_scan.pdf partial · C9` | The class code of the first `RepairReport.partial_reasons` entry, the text before its first `:`. The engine writes each entry as `PassReport.class.code()`, `: `, then the pass's reason. No pass emits a percentage |
+| 8, queue box | `invoice_scan.pdf partial · 88% salvaged` | `invoice_scan.pdf partial · C9` | The class code of the first `RepairReport.partial_reasons` entry, the text before its first `:`. The engine writes each entry as `PassReport.class.code()`, `: `, then the pass's reason. No pass emits a percentage. The file menu covers this row's status in frame 05, so its golden does not change; frame 14 shows it |
 
 Row 22's `Noto Naskh Arabic (picked)` stays. The family comes from the font database, looked up by `FontResolutionKind::Picked.font_id`. "(picked)" means the matching `InteractionRecord.source` is `User`.
 
