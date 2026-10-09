@@ -38,6 +38,13 @@
 //! - **Signed** (D-052): any dictionary with `/Type /Sig` or a `/ByteRange`
 //!   array, in any copy of any object (a shadow revision too) or orphan: one
 //!   Info finding for the file, `fields` counting the objects that hold one.
+//! - **PagesOutsideTree** (D-112 (c)): the pages T-10's flat tree appends
+//!   because no page-tree walk reaches them ([`pages_outside_tree`]): a
+//!   page an incremental update took out of `/Kids`, or one a damaged tree
+//!   lost. One Info finding, `NotApplicable`, at the first of them, naming
+//!   each by object id (a headerless one by its place) and counting them.
+//!   It fires beside C4 too: the pages a broken tree dropped are reported,
+//!   never hidden.
 //!
 //! T-11b's font and stream rules, each with tests in `tests::content`. The
 //! page rules read every page's content through T-09's `page_content` (its
@@ -110,7 +117,7 @@ use crate::pdf::model::{
     ByteSpan, CorruptionClass, Evidence, Finding, FindingKind, HexWindow, InteractionKind,
     LengthSource, Location, MetricValue, ObjId, ObjectKind, Ratio, Repairability, Severity,
 };
-use crate::pdf::rebuild::{Held, IdRemap, plan_ids};
+use crate::pdf::rebuild::{Held, IdRemap, outside_tree_note, pages_outside_tree, plan_ids};
 use crate::pdf::streams::salvage::{CarveSource, Edit, Grade, Salvage, SalvageIndex};
 use crate::pdf::streams::{DEFAULT_CAP, content_ops};
 
@@ -169,6 +176,7 @@ pub(crate) fn diagnose(
     drafts.extend(c5);
     drafts.extend(encrypted);
     drafts.extend(signed(&cx));
+    drafts.extend(outside_tree(&cx));
     drafts.extend(content);
     number(drafts)
 }
@@ -229,6 +237,7 @@ fn prefix(kind: &FindingKind) -> (&'static str, usize) {
         FindingKind::OutlinedText { .. } => ("OUTLINE", 12),
         FindingKind::Type3Text { .. } => ("TYPE3", 13),
         FindingKind::FontNotEmbedded { .. } => ("NOEMBED", 14),
+        FindingKind::PagesOutsideTree { .. } => ("OFFTREE", 15),
     }
 }
 
@@ -1117,6 +1126,27 @@ fn signed(cx: &Cx<'_>) -> Option<Draft> {
         severity: Severity::Info,
         location,
         summary: SIGNED_SUMMARY.to_owned(),
+        evidence,
+        repair: Repairability::NotApplicable,
+    })
+}
+
+/// The pages the rebuild appends because no page-tree walk reaches them
+/// (module docs): one Info finding at the first of them.
+fn outside_tree(cx: &Cx<'_>) -> Option<Draft> {
+    let pages = pages_outside_tree(cx.carve, cx.graph, &cx.remap);
+    let (location, at, _) = cx.place(*pages.first()?);
+    let mut evidence: Vec<Evidence> = (pages.iter())
+        .filter_map(|&p| cx.place(p).2.map(Evidence::ObjectRef))
+        .collect();
+    let count = u32::try_from(pages.len()).unwrap_or(u32::MAX);
+    evidence.push(metric("pages", i64::from(count)));
+    Some(Draft {
+        at,
+        kind: FindingKind::PagesOutsideTree { pages: count },
+        severity: Severity::Info,
+        location,
+        summary: outside_tree_note(cx.carve, &pages),
         evidence,
         repair: Repairability::NotApplicable,
     })

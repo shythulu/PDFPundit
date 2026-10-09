@@ -24,7 +24,8 @@ use lopdf::{Document, LoadOptions};
 
 use super::*;
 use crate::pdf::fixtures::{
-    GOLDEN_TEXT, corrupt, golden_pdf, golden_pdf_signed, word_style_arial_page,
+    GOLDEN_TEXT, corrupt, golden_pdf, golden_pdf_signed, incremental_page_removed,
+    word_style_arial_page,
 };
 
 use CorruptionClass::{
@@ -853,6 +854,79 @@ fn a_font_never_embedded_is_a_note_that_asks_nothing() {
     assert!(ask.asked.is_empty(), "{:#?}", ask.asked);
     assert!(out.report.interactions.is_empty());
     assert_eq!(classes(&out.report.findings_after), []);
+}
+
+/// The line D-112 (c) puts in the findings and the report for page 4.
+const PAGE_4_APPENDED: &str = "1 page not reachable from the page tree was appended: 4 0 obj";
+
+/// Every report action that says pages were appended outside the tree.
+fn appended_actions(report: &RepairReport) -> Vec<&RepairAction> {
+    (report.passes.iter())
+        .flat_map(|p| &p.actions)
+        .filter(|a| a.what.contains("not reachable from the page tree"))
+        .collect()
+}
+
+#[test]
+fn a_page_an_update_removed_comes_back_and_the_report_says_so() {
+    // D-112 (c): the update deleted page 4 from `/Kids`; its bytes are still
+    // there, the carve finds them and the flat tree appends them. A damaged
+    // header makes the file need a repair.
+    let intact = incremental_page_removed();
+    let analysis = analysed(&intact);
+    assert_eq!(classes(&analysis.findings), []);
+    let notes: Vec<&Finding> = (analysis.findings.iter())
+        .filter(|f| matches!(f.class, FindingKind::PagesOutsideTree { .. }))
+        .collect();
+    assert_eq!(notes.len(), 1, "{:#?}", analysis.findings);
+    assert_eq!(notes[0].class, FindingKind::PagesOutsideTree { pages: 1 });
+    assert_eq!(notes[0].summary, PAGE_4_APPENDED);
+    assert_eq!(
+        (notes[0].severity, &notes[0].repair),
+        (Severity::Info, &Repairability::NotApplicable)
+    );
+    assert!(notes[0].evidence.contains(&Evidence::ObjectRef((4, 0))));
+    assert_eq!(analysis.meta.pages, 2);
+
+    let bytes = corrupt(C1Header, &intact, 0);
+    let analysis = analysed(&bytes);
+    assert_eq!(classes(&analysis.findings), [C1Header]);
+    let out = repaired(&bytes, &analysis);
+    let output = out.output.as_deref().expect("an output");
+    let doc = strict_load(output).expect("strict reload");
+    assert_eq!(doc.get_pages().len(), 2, "page 4 is back");
+    let actions = appended_actions(&out.report);
+    assert_eq!(actions.len(), 1, "{:#?}", out.report.passes);
+    assert_eq!(
+        (actions[0].object, actions[0].what.as_str()),
+        ((0, 0), PAGE_4_APPENDED)
+    );
+    assert!(
+        (out.report.findings_before.iter()).any(|f| f.summary == PAGE_4_APPENDED),
+        "{:#?}",
+        out.report.findings_before
+    );
+    assert!(
+        !(out.report.findings_after.iter())
+            .any(|f| matches!(f.class, FindingKind::PagesOutsideTree { .. })),
+        "the output's tree holds every page: {:#?}",
+        out.report.findings_after
+    );
+}
+
+#[test]
+fn an_intact_page_tree_reports_no_page_outside_it() {
+    let bytes = corrupt(C1Header, &golden_pdf(), 0);
+    let analysis = analysed(&bytes);
+    assert!(
+        !(analysis.findings.iter())
+            .any(|f| matches!(f.class, FindingKind::PagesOutsideTree { .. })),
+        "{:#?}",
+        analysis.findings
+    );
+    let out = repaired(&bytes, &analysis);
+    assert!(out.output.is_some());
+    assert_eq!(appended_actions(&out.report), Vec::<&RepairAction>::new());
 }
 
 #[test]

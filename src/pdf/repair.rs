@@ -102,6 +102,14 @@
 //! first report. No output byte changes: the rebuild did this before it
 //! was reported.
 //!
+//! **Pages outside the tree** (D-112 (c)). The flat page tree appends the
+//! pages no page-tree walk reached ([`crate::pdf::rebuild`]), whichever
+//! passes run, so a page an incremental update took out of `/Kids` comes
+//! back. That is one [`RepairAction`] on the whole file, worded as
+//! diagnose's `PagesOutsideTree` finding is, in the C4 pass's report when
+//! that pass ran, else in the first report in pass order whose pass ran;
+//! with none run, the first report.
+//!
 //! A `Partial` pass excuses its findings' locations from verification's
 //! "clean for the targeted classes" (D-074), for findings of its own class
 //! only (D-137): the locations the pass left partial when it names them
@@ -153,8 +161,8 @@ use crate::pdf::model::{
     MetricValue, ObjId, Ratio, Repairability,
 };
 use crate::pdf::rebuild::{
-    BoxSource, CatalogPlan, Held, IdRemap, PagePlan, PageTreePlan, dropped_refs, plan_ids,
-    rebuild_page_tree,
+    BoxSource, CatalogPlan, Held, IdRemap, PagePlan, PageTreePlan, dropped_refs, outside_tree_note,
+    plan_ids, rebuild_page_tree,
 };
 use crate::pdf::streams::salvage::{CarveSource, Grade, Salvage, SalvageIndex};
 use crate::pdf::streams::{DEFAULT_CAP, content_ops};
@@ -1180,7 +1188,12 @@ pub(crate) fn generate_and_validate(
         let mut passes = run_passes(&schedule, &mut ctx)?;
         let pass_notes = std::mem::take(&mut ctx.notes);
         let references = reference_actions(input.carve, input.graph, &remap, &tree, &doc);
-        report_references(&mut passes, references);
+        report_in(&mut passes, &REFERENCE_OWNERS, references);
+        report_in(
+            &mut passes,
+            &[C4PageTreeBroken],
+            outside_tree(input.carve, &tree),
+        );
         interactions.extend(pass_notes.interactions.iter().cloned());
         let (targeted, partial) = targets(&passes, &schedule, &pass_notes, doc.remap());
         let mut emit = EmitCtx {
@@ -1417,12 +1430,30 @@ fn reference_actions(
 /// order of preference (module docs, "References").
 const REFERENCE_OWNERS: [CorruptionClass; 2] = [C5ObjectTagStripped, C10Truncated];
 
+/// The report action for the pages the flat tree appends because no
+/// page-tree walk reached them (module docs, "Pages outside the tree");
+/// none when there are none.
+fn outside_tree(carve: &CarveReport, tree: &PageTreePlan) -> Vec<RepairAction> {
+    if tree.appended.is_empty() {
+        return Vec::new();
+    }
+    vec![RepairAction {
+        object: FILE,
+        what: outside_tree_note(carve, &tree.appended),
+        grade: None,
+    }]
+}
+
 /// Appends `actions` to the report that carries them (module docs,
-/// "References"): C5's, else C10's, else the first in pass order, each
-/// only when its pass ran; with none run, the first report.
-fn report_references(reports: &mut [PassReport], actions: Vec<RepairAction>) {
+/// "References" and "Pages outside the tree"): the first of `owners`'
+/// reports whose pass ran, else the first in pass order whose pass ran;
+/// with none run, the first report.
+fn report_in(reports: &mut [PassReport], owners: &[CorruptionClass], actions: Vec<RepairAction>) {
+    if actions.is_empty() {
+        return;
+    }
     let ran = |p: &PassReport| !matches!(p.outcome, PassOutcome::Skipped(_));
-    let owner = (REFERENCE_OWNERS.iter())
+    let owner = (owners.iter())
         .find_map(|&c| reports.iter().position(|p| p.class == c && ran(p)))
         .or_else(|| reports.iter().position(ran))
         .or((!reports.is_empty()).then_some(0));

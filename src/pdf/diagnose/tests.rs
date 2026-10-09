@@ -76,6 +76,7 @@ fn check_ids(found: &[Finding]) {
             FindingKind::OutlinedText { .. } => "OUTLINE",
             FindingKind::Type3Text { .. } => "TYPE3",
             FindingKind::FontNotEmbedded { .. } => "NOEMBED",
+            FindingKind::PagesOutsideTree { .. } => "OFFTREE",
         };
         assert_eq!(prefix, want, "{}", f.id);
     }
@@ -606,6 +607,103 @@ fn no_catalog_with_a_page_tree_is_c4() {
     );
     let found = findings(&buf);
     assert_eq!(structural(&found), BTreeSet::from([C4PageTreeBroken]));
+}
+
+// ── pages outside the page tree ─────────────────────────────────────────
+
+fn outside_tree(found: &[Finding]) -> Vec<&Finding> {
+    (found.iter())
+        .filter(|f| matches!(f.class, FindingKind::PagesOutsideTree { .. }))
+        .collect()
+}
+
+#[test]
+fn a_page_an_update_removed_from_kids_is_a_note_naming_it() {
+    // D-112 (c): an intact file whose incremental update deleted page 4.
+    let found = findings(&fixtures::incremental_page_removed());
+    assert_eq!(found.len(), 1, "{found:#?}");
+    let f = &found[0];
+    assert_eq!(f.id, "OFFTREE-001");
+    assert_eq!(f.class, FindingKind::PagesOutsideTree { pages: 1 });
+    assert_eq!(
+        (f.severity, &f.repair),
+        (Severity::Info, &Repairability::NotApplicable)
+    );
+    assert_eq!(
+        f.summary,
+        "1 page not reachable from the page tree was appended: 4 0 obj"
+    );
+    assert!(
+        matches!(f.location, Location::Object { id: (4, 0), .. }),
+        "{:?}",
+        f.location
+    );
+    assert_eq!(f.evidence.first(), Some(&Evidence::ObjectRef((4, 0))));
+    assert_eq!(metric(f, "pages"), Some(&MetricValue::Int(1)));
+}
+
+#[test]
+fn pages_outside_the_tree_are_one_note_listing_each() {
+    // Page 4 is in no `/Kids`, and a headerless page follows it (C5).
+    let headerless = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n";
+    let buf = classic(
+        &[
+            obj(1, CATALOG),
+            obj(2, &pages(&[3], 1)),
+            obj(3, &page(2)),
+            obj(4, &page(2)),
+            Part::Raw(headerless.to_owned()),
+        ],
+        "",
+    );
+    let at = rfind(&buf, headerless.as_bytes()).expect("the headerless page");
+    let found = findings(&buf);
+    let notes = outside_tree(&found);
+    assert_eq!(notes.len(), 1, "{found:#?}");
+    assert_eq!(notes[0].class, FindingKind::PagesOutsideTree { pages: 2 });
+    assert_eq!(
+        notes[0].summary,
+        format!(
+            "2 pages not reachable from the page tree were appended: 4 0 obj, the headerless \
+             page at byte {at}"
+        )
+    );
+    assert_eq!(structural(&found), BTreeSet::from([C5ObjectTagStripped]));
+}
+
+#[test]
+fn a_tree_that_reaches_every_page_gives_no_note() {
+    for (name, buf) in [
+        ("golden", fixtures::golden_pdf()),
+        ("signed golden", fixtures::golden_pdf_signed()),
+        ("objstm golden", fixtures::golden_pdf_objstm()),
+        ("word-style", fixtures::word_style_arial_page()),
+        ("blank cases", fixtures::blank_cases_pdf()),
+    ] {
+        assert_eq!(
+            outside_tree(&findings(&buf)),
+            Vec::<&Finding>::new(),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn the_pages_a_damaged_tree_dropped_are_noted_beside_c4() {
+    // The C4 cut takes the page-tree node: the pages the carve still finds
+    // are appended, and the note says so (D-112: never hidden).
+    let golden = fixtures::golden_pdf();
+    for seed in 0..4 {
+        let buf = fixtures::corrupt(C4PageTreeBroken, &golden, seed);
+        let found = findings(&buf);
+        let notes = outside_tree(&found);
+        assert_eq!(notes.len(), 1, "seed {seed}: {found:#?}");
+        assert!(
+            notes[0].evidence.contains(&Evidence::ObjectRef((4, 0))),
+            "seed {seed}: {:#?}",
+            notes[0]
+        );
+    }
 }
 
 // ── C5 ──────────────────────────────────────────────────────────────────

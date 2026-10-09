@@ -711,14 +711,16 @@ fn partial_reason(run: &crate::jobs::RepairRun) -> Option<String> {
     })
 }
 
-/// Signatures, outlined text, Type 3 text and fonts never embedded are
-/// notes, whatever severity they carry; encryption is always an error.
+/// Signatures, outlined text, Type 3 text, fonts never embedded and pages
+/// outside the page tree are notes, whatever severity they carry;
+/// encryption is always an error.
 fn level_of(f: &Finding) -> Level {
     match f.class {
         FindingKind::Signed { .. }
         | FindingKind::OutlinedText { .. }
         | FindingKind::Type3Text { .. }
-        | FindingKind::FontNotEmbedded { .. } => Level::Info,
+        | FindingKind::FontNotEmbedded { .. }
+        | FindingKind::PagesOutsideTree { .. } => Level::Info,
         FindingKind::Encrypted => Level::Error,
         FindingKind::Corruption(_) => match f.severity {
             Severity::Info => Level::Info,
@@ -1590,6 +1592,7 @@ mod tests {
                 font: (5, 0),
                 base_font: "Arial".into(),
             },
+            FindingKind::PagesOutsideTree { pages: 1 },
         ];
         let mut app = AppState::mockup_batch();
         let invoice = &mut app.batch.entries[4];
@@ -1609,6 +1612,7 @@ mod tests {
         assert_eq!(
             levels,
             [
+                (Level::Info, None),
                 (Level::Info, None),
                 (Level::Info, None),
                 (Level::Info, None),
