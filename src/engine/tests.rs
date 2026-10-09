@@ -842,7 +842,7 @@ fn a_font_never_embedded_is_a_note_that_asks_nothing() {
     assert!(analysis.font_slots.iter().all(|s| !s.embedded));
 
     // No font question: an unscripted one panics.
-    let mut ask = Scripted::new([]);
+    let mut ask = Scripted::answering([]);
     let out = repaired_with(
         &bytes,
         &analysis,
