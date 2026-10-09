@@ -711,13 +711,14 @@ fn partial_reason(run: &crate::jobs::RepairRun) -> Option<String> {
     })
 }
 
-/// Signatures, outlined text and Type 3 text are notes, whatever severity
-/// they carry; encryption is always an error.
+/// Signatures, outlined text, Type 3 text and fonts never embedded are
+/// notes, whatever severity they carry; encryption is always an error.
 fn level_of(f: &Finding) -> Level {
     match f.class {
         FindingKind::Signed { .. }
         | FindingKind::OutlinedText { .. }
-        | FindingKind::Type3Text { .. } => Level::Info,
+        | FindingKind::Type3Text { .. }
+        | FindingKind::FontNotEmbedded { .. } => Level::Info,
         FindingKind::Encrypted => Level::Error,
         FindingKind::Corruption(_) => match f.severity {
             Severity::Info => Level::Info,
@@ -739,7 +740,7 @@ fn finding_rows(e: &QueueEntry) -> Vec<FindingRow> {
         .iter()
         .map(|f| {
             let level = level_of(f);
-            let code = match (f.class, level) {
+            let code = match (&f.class, level) {
                 (FindingKind::Corruption(c), Level::Warning | Level::Error) => Some(c.code()),
                 _ => None,
             };
@@ -1585,13 +1586,17 @@ mod tests {
                 contours: 900,
             },
             FindingKind::Type3Text { font: (12, 0) },
+            FindingKind::FontNotEmbedded {
+                font: (5, 0),
+                base_font: "Arial".into(),
+            },
         ];
         let mut app = AppState::mockup_batch();
         let invoice = &mut app.batch.entries[4];
         // Even when a finding carries a higher severity than its kind allows.
         invoice.findings = kinds
-            .iter()
-            .map(|&k| finding("X-001", k, Severity::Error, "note"))
+            .into_iter()
+            .map(|k| finding("X-001", k, Severity::Error, "note"))
             .collect();
         invoice.findings.push(finding(
             "ENC-001",
@@ -1604,6 +1609,7 @@ mod tests {
         assert_eq!(
             levels,
             [
+                (Level::Info, None),
                 (Level::Info, None),
                 (Level::Info, None),
                 (Level::Info, None),

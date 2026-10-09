@@ -508,7 +508,7 @@ fn font_file(font: &str, descriptor: &str, extra: &[Part]) -> Vec<u8> {
 }
 
 #[test]
-fn a_descriptor_without_a_font_program_is_c7_unless_standard_14() {
+fn a_descriptor_that_never_had_a_font_program_is_not_embedded_not_c7() {
     let tounicode = obj(
         7,
         &stream_body(
@@ -524,7 +524,13 @@ fn a_descriptor_without_a_font_program_is_c7_unless_standard_14() {
     );
     let found = findings(&buf);
     assert_eq!(found.len(), 1, "{found:#?}");
-    assert_eq!(found[0].class, FindingKind::Corruption(C7FontStreamDeleted));
+    assert_eq!(
+        found[0].class,
+        FindingKind::FontNotEmbedded {
+            font: (5, 0),
+            base_font: "Garamond".into(),
+        }
+    );
 
     let helvetica = font_file(
         "/BaseFont /Helvetica ",
@@ -532,6 +538,40 @@ fn a_descriptor_without_a_font_program_is_c7_unless_standard_14() {
         &[],
     );
     assert_eq!(findings(&helvetica), vec![], "standard 14: not embedded");
+}
+
+#[test]
+fn a_font_program_that_dangles_or_is_not_a_reference_is_still_c7() {
+    let tounicode = || {
+        obj(
+            7,
+            &stream_body("", "begincmap 1 beginbfchar <01> <0041> endbfchar endcmap"),
+        )
+    };
+    for descriptor in [
+        "/FontName /Garamond /FontFile2 9 0 R ",
+        "/FontName /Garamond /FontFile2 /Gone ",
+    ] {
+        let buf = font_file(
+            "/BaseFont /Garamond /ToUnicode 7 0 R ",
+            descriptor,
+            &[tounicode()],
+        );
+        let found = findings(&buf);
+        assert_eq!(found.len(), 1, "{descriptor}: {found:#?}");
+        let f = &found[0];
+        assert_eq!(
+            f.class,
+            FindingKind::Corruption(C7FontStreamDeleted),
+            "{descriptor}"
+        );
+        assert_eq!(f.severity, Severity::Error);
+        assert!(f.summary.contains("gone"), "{f:#?}");
+        assert_eq!(
+            f.repair,
+            Repairability::Interactive(InteractionKind::FontPick)
+        );
+    }
 }
 
 #[test]
@@ -556,8 +596,11 @@ fn a_font_file_that_does_not_sniff_as_a_font_is_c7() {
 fn a_surviving_but_unparsable_tounicode_is_c8() {
     let buf = font_file(
         "/BaseFont /Garamond /ToUnicode 7 0 R ",
-        "/FontName /Garamond ",
-        &[obj(7, &stream_body("", "random words, no cmap here"))],
+        "/FontName /Garamond /FontFile2 8 0 R ",
+        &[
+            obj(7, &stream_body("", "random words, no cmap here")),
+            obj(8, &stream_body("", "this is not a font program at all")),
+        ],
     );
     let found = findings(&buf);
     assert_eq!(found.len(), 1, "{found:#?}");
@@ -568,11 +611,9 @@ fn a_surviving_but_unparsable_tounicode_is_c8() {
 }
 
 #[test]
-fn a_font_never_embedded_is_c7_or_c8_as_the_table_has_it() {
-    // Pinned on purpose: #14 makes any non-standard-14 font without a
-    // program C7, and C8 with no `/ToUnicode`, even a Word-style system font
-    // left out deliberately. Whether such a font should be a Warning is a
-    // pending decision; until then this is the behaviour.
+fn a_word_style_font_never_embedded_is_an_info_finding_not_damage() {
+    // D-084 (b): a system font left out on purpose is not C7 or C8, even
+    // with no `/ToUnicode`, and asks nothing.
     let arial = font_file(
         "/BaseFont /Arial /Encoding /WinAnsiEncoding ",
         "/FontName /Arial ",
@@ -581,15 +622,19 @@ fn a_font_never_embedded_is_c7_or_c8_as_the_table_has_it() {
     let found = findings(&arial);
     assert_eq!(found.len(), 1, "{found:#?}");
     let f = &found[0];
-    assert_eq!(f.class, FindingKind::Corruption(C8FontResourcesDeleted));
     assert_eq!(
-        f.summary,
-        "the font program of Arial is not embedded, and its /ToUnicode is lost"
+        f.class,
+        FindingKind::FontNotEmbedded {
+            font: (5, 0),
+            base_font: "Arial".into(),
+        }
     );
-    assert_eq!(
-        f.repair,
-        Repairability::Interactive(InteractionKind::FontPick)
-    );
+    assert_eq!(f.id, "NOEMBED-001");
+    assert_eq!(f.severity, Severity::Info);
+    assert_eq!(f.repair, Repairability::NotApplicable);
+    assert_eq!(f.summary, "the font Arial is not embedded");
+    assert!(matches!(f.location, Location::Object { id: (6, 0), .. }));
+    assert_eq!(refs(f), vec![(6, 0), (5, 0)]);
 }
 
 #[test]
@@ -616,7 +661,7 @@ fn a_font_program_that_only_decodes_blank_keeps_its_c9() {
         Salvage::ChecksumMismatch { data: Vec::new() },
     )]);
     let found = findings_with(&buf, &index);
-    let classes: Vec<FindingKind> = found.iter().map(|f| f.class).collect();
+    let classes: Vec<FindingKind> = found.iter().map(|f| f.class.clone()).collect();
     assert_eq!(
         classes,
         vec![
@@ -1088,7 +1133,7 @@ fn under_a_real_salvage_the_font_corruptors_are_not_also_c9() {
     for class in [C6FontMapLost, C7FontStreamDeleted, C8FontResourcesDeleted] {
         let buf = fixtures::corrupt(class, &golden, 0);
         let found = findings_with(&buf, &salvaged(&buf));
-        let classes: Vec<FindingKind> = found.iter().map(|f| f.class).collect();
+        let classes: Vec<FindingKind> = found.iter().map(|f| f.class.clone()).collect();
         assert_eq!(
             classes,
             vec![FindingKind::Corruption(class)],
@@ -1136,7 +1181,7 @@ fn an_encrypted_file_gets_no_content_findings_under_a_real_salvage() {
         let at = trailer + find(&buf[trailer..], b"<<").expect("trailer dict") + 2;
         let buf = insert(&buf, at, b"/Encrypt 99 0 R");
         let found = findings_with(&buf, &salvaged(&buf));
-        let classes: Vec<FindingKind> = found.iter().map(|f| f.class).collect();
+        let classes: Vec<FindingKind> = found.iter().map(|f| f.class.clone()).collect();
         assert_eq!(
             classes,
             vec![FindingKind::Encrypted],

@@ -771,6 +771,27 @@
         }
       ],
       "repair": "NotApplicable"
+    },
+    {
+      "id": "NOEMBED-001",
+      "class": {
+        "FontNotEmbedded": {
+          "font": [
+            5,
+            0
+          ],
+          "base_font": "Arial"
+        }
+      },
+      "severity": "Info",
+      "location": "File",
+      "summary": "the font Arial is not embedded",
+      "evidence": [
+        {
+          "Text": "the font Arial is not embedded"
+        }
+      ],
+      "repair": "NotApplicable"
     }
   ],
   "findings_after": [

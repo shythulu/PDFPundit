@@ -589,6 +589,48 @@ pub fn type3_only_page() -> Vec<u8> {
     single_page(fonts, content.into_bytes(), extra)
 }
 
+/// One page that shows "Hello" through a Word-style system font: a
+/// `/TrueType /Arial /WinAnsiEncoding` font whose descriptor has no
+/// `/FontFile*` key and no `/ToUnicode`, never embedded on purpose (D-084).
+pub fn word_style_arial_page() -> Vec<u8> {
+    const FONT: u32 = 6;
+    const DESCRIPTOR: u32 = 7;
+    let widths = [722, 556, 222, 222, 556].map(int).to_vec();
+    let mut extra = BTreeMap::new();
+    extra.insert(
+        FONT,
+        Object::Dictionary(dict(vec![
+            ("Type", name(b"Font")),
+            ("Subtype", name(b"TrueType")),
+            ("BaseFont", name(b"Arial")),
+            ("Encoding", name(b"WinAnsiEncoding")),
+            ("FirstChar", int(i64::from(b'H'))),
+            ("LastChar", int(i64::from(b'o'))),
+            ("Widths", Object::Array(widths)),
+            ("FontDescriptor", r(DESCRIPTOR)),
+        ])),
+    );
+    extra.insert(
+        DESCRIPTOR,
+        Object::Dictionary(dict(vec![
+            ("Type", name(b"FontDescriptor")),
+            ("FontName", name(b"Arial")),
+            ("Flags", int(32)),
+            (
+                "FontBBox",
+                Object::Array([-665, -325, 2000, 1040].map(int).to_vec()),
+            ),
+            ("ItalicAngle", int(0)),
+            ("Ascent", int(905)),
+            ("Descent", int(-212)),
+            ("CapHeight", int(716)),
+            ("StemV", int(80)),
+        ])),
+    );
+    let content = b"BT\n/F1 16 Tf\n72 720 Td\n(Hello) Tj\nET\n".to_vec();
+    single_page(BTreeMap::from([("F1", FONT)]), content, extra)
+}
+
 /// The blank-case constructions (goal-r2-fr2 §3): one content stream per
 /// page of [`blank_cases_pdf`], in page order.
 pub const BLANK_CASES: [&str; 11] = [
