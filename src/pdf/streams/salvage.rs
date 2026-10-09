@@ -160,9 +160,10 @@ pub(crate) enum Salvage {
         in_total: usize,
     },
     /// Damaged, no repair, and nothing kept: nothing decoded, nothing left
-    /// once the predictor stopped at an invalid row, or a decode past T-06's
-    /// 256 MiB inflate cap (which `decode_chain` refuses too, and which the
-    /// memory bound will not keep).
+    /// once the predictor stopped at an invalid row, a raw-deflate read that
+    /// failed short of the input's end (a guess, never kept), or a decode
+    /// past T-06's 256 MiB inflate cap (which `decode_chain` refuses too, and
+    /// which the memory bound will not keep).
     Unrecoverable,
     /// Damaged and over the size limit, so never searched. It keeps no
     /// bytes; [`SalvageIndex::decoded`] gives what a `ChecksumMismatch` or
@@ -284,7 +285,12 @@ impl SalvageIndex {
             let input = decode_chain(raw, earlier, DEFAULT_CAP)?;
             let out = match read(&input) {
                 Read::Clean(out) | Read::Truncated { out, .. } | Read::Damaged { out, .. } => out,
-                Read::Header { .. } => raw_fallback(&input).map(|(_, out)| out).unwrap_or_default(),
+                Read::Header { .. } => raw_fallback(&input)
+                    .filter(|(damage, _)| {
+                        matches!(*damage, Damage::Error { k } if raw_kept(k, input.len()))
+                    })
+                    .map(|(_, out)| out)
+                    .unwrap_or_default(),
                 Read::CapHit => return Err(DecodeError::CapHit),
             };
             if out.len() > cap {
@@ -996,12 +1002,22 @@ fn read(input: &[u8]) -> Read {
 /// A stream whose zlib header was rejected, read as raw deflate: searchable
 /// only when the raw decode fails on invalid data after decoding something.
 /// A raw decode that runs out of input or reaches the cap is dropped, as
-/// T-06's inflate drops it: bytes that are not raw deflate often decode a
-/// little by chance, and a salvage must not keep such a prefix. (A raw
-/// `Done` never gets here: T-06's inflate already returned it.)
+/// T-06's inflate drops it. (A raw `Done` never gets here: T-06's inflate
+/// already returned it.) The search may start from a failed raw decode, but
+/// its output is never kept as the stream's own unless [`raw_kept`] says so.
 fn raw_fallback(input: &[u8]) -> Option<(Damage, Vec<u8>)> {
     let b = baseline(input, Mode::Raw, false);
     (b.end == End::Failed && !b.out.is_empty()).then_some((Damage::Error { k: b.consumed }, b.out))
+}
+
+/// Whether a failed raw-deflate decode that stopped after `k` of `in_total`
+/// input bytes may be kept as a `Prefix`: only when it stopped within
+/// [`RAW_END_SLACK`] of the end, T-06's rule for a raw `Done` (D-128). Bytes
+/// that are not raw deflate often decode a little by chance before they
+/// fail, and a salvage must not keep bytes such a guess invented: anything
+/// else is `Unrecoverable`, written raw (D-074).
+fn raw_kept(k: usize, in_total: usize) -> bool {
+    k.saturating_add(RAW_END_SLACK) >= in_total
 }
 
 /// The inflater's buffer is sized for growth; the search keeps the bytes.
@@ -1112,6 +1128,9 @@ impl Pending {
                 Damage::Adler { .. } => Salvage::ChecksumMismatch {
                     data: self.fallback,
                 },
+                Damage::Error { k } if self.mode == Mode::Raw && !raw_kept(k, self.in_total) => {
+                    Salvage::Unrecoverable
+                }
                 Damage::Error { k } => prefix(self.fallback, k, self.in_total),
             };
             return Outcome { salvage, work };
