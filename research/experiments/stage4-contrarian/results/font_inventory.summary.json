@@ -1,0 +1,115 @@
+{
+ "pypdf": "6.19.0",
+ "inventory": {
+  "saveas|orig": {
+   "files": 50,
+   "fonts_total": 2130,
+   "tounicode_total": 618,
+   "programs_total": 1512,
+   "cmap_streams_total": 618,
+   "program_streams_total": 948,
+   "files_with_any_tounicode": 50,
+   "files_with_any_program": 50
+  },
+  "saveas|C6": {
+   "files": 50,
+   "fonts_total": 2085,
+   "tounicode_total": 606,
+   "programs_total": 1479,
+   "cmap_streams_total": 606,
+   "program_streams_total": 926,
+   "files_with_any_tounicode": 49,
+   "files_with_any_program": 49
+  },
+  "saveas|C7": {
+   "files": 50,
+   "fonts_total": 2130,
+   "tounicode_total": 618,
+   "programs_total": 0,
+   "cmap_streams_total": 769,
+   "program_streams_total": 0,
+   "files_with_any_tounicode": 50,
+   "files_with_any_program": 0
+  },
+  "saveas|C8": {
+   "files": 50,
+   "fonts_total": 2130,
+   "tounicode_total": 0,
+   "programs_total": 0,
+   "cmap_streams_total": 0,
+   "program_streams_total": 0,
+   "files_with_any_tounicode": 0,
+   "files_with_any_program": 0
+  },
+  "print|orig": {
+   "files": 50,
+   "fonts_total": 889,
+   "tounicode_total": 889,
+   "programs_total": 889,
+   "cmap_streams_total": 889,
+   "program_streams_total": 889,
+   "files_with_any_tounicode": 50,
+   "files_with_any_program": 50
+  },
+  "print|C6": {
+   "files": 50,
+   "fonts_total": 889,
+   "tounicode_total": 889,
+   "programs_total": 889,
+   "cmap_streams_total": 889,
+   "program_streams_total": 889,
+   "files_with_any_tounicode": 50,
+   "files_with_any_program": 50
+  },
+  "print|C7": {
+   "files": 50,
+   "fonts_total": 1778,
+   "tounicode_total": 1778,
+   "programs_total": 0,
+   "cmap_streams_total": 889,
+   "program_streams_total": 0,
+   "files_with_any_tounicode": 50,
+   "files_with_any_program": 0
+  },
+  "print|C8": {
+   "files": 50,
+   "fonts_total": 1778,
+   "tounicode_total": 0,
+   "programs_total": 0,
+   "cmap_streams_total": 0,
+   "program_streams_total": 0,
+   "files_with_any_tounicode": 0,
+   "files_with_any_program": 0
+  }
+ },
+ "leakage": {
+  "saveas": {
+   "documents": 50,
+   "documents_with_tounicode_entries": 50,
+   "tounicode_entries": 32475,
+   "covered_by_other_documents_same_font_name": 30236,
+   "covered_share": 0.9311,
+   "agree_share_of_covered": 0.9397,
+   "per_document_covered_share_min_median_max": [
+    0.8499,
+    0.9369,
+    0.9668
+   ],
+   "documents_with_any_covered_entry": 50
+  },
+  "print": {
+   "documents": 50,
+   "documents_with_tounicode_entries": 50,
+   "tounicode_entries": 35802,
+   "covered_by_other_documents_same_font_name": 28920,
+   "covered_share": 0.8078,
+   "agree_share_of_covered": 0.7321,
+   "per_document_covered_share_min_median_max": [
+    0.4215,
+    0.8404,
+    0.9822
+   ],
+   "documents_with_any_covered_entry": 50
+  }
+ }
+}

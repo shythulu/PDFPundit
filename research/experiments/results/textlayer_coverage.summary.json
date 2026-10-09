@@ -1,0 +1,101 @@
+{
+ "kind": "feasibility check, not a benchmark",
+ "seed": 20260927,
+ "tools": {
+  "pymupdf": "1.28.2",
+  "pypdfium2": "5.13.0",
+  "pdfium": "153.0.7999.0",
+  "tesseract": "tesseract 5.5.3"
+ },
+ "n_pages": 19,
+ "by_kind": {
+  "text": 16,
+  "text+img": 3
+ },
+ "flagged_layer_incomplete": [
+  "print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)",
+  "print/text/UrbanRide_Electric_Bike_Scooter_Series(print)"
+ ],
+ "flagged_by_kind": {
+  "text": 1,
+  "text+img": 1
+ },
+ "inputs": [
+  {
+   "path": "original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf",
+   "sha256": "cdb302f65f276e5a926c12287df6b9b92d6effa56557c2cdb80e55e4943346d3"
+  },
+  {
+   "path": "original/print/text+img/global_ev_market_growth_statistics(print).pdf",
+   "sha256": "617d5cd2b699ac53cf572e819b94b1f3830145883c3f342e30a7401e0135173c"
+  },
+  {
+   "path": "original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf",
+   "sha256": "41d80a4981420fa42391ce3fea612a0decd3b1090a5aa66b8446580a062ee9ef"
+  },
+  {
+   "path": "original/print/text/AI_Development_MultiLanguage(print).pdf",
+   "sha256": "1a9cb4ea860c92868e01e379893f2927ec05ad0a0c2e33de182243807d3a8762"
+  },
+  {
+   "path": "original/print/text/Evolution_Biodegradable_Plastics(print).pdf",
+   "sha256": "74ab8bc8050c4c16a832571397c28331675334202df9ef67340813f0aee489c5"
+  },
+  {
+   "path": "original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf",
+   "sha256": "2b40f31930042d2e74b96e3d2d4addd9885bbaca8b8b6b56ea5686b367894058"
+  },
+  {
+   "path": "original/print/text/Next_Decade_Space_Exploration(print).pdf",
+   "sha256": "f8789bab516f38ac72ad291b12db95436078c419d6b6a5dc50fd7f3b8686b3c8"
+  },
+  {
+   "path": "original/print/text/PetPal_Smart_PetCare_Products(print).pdf",
+   "sha256": "e37ff10ac6b30a3ae723cef846900f0d10c7c2e3e020765ed47bd9c73b3ef6e7"
+  },
+  {
+   "path": "original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf",
+   "sha256": "822f5ff5ca3a3779615f23b658381fa28ac7b8ea3644c37197943506a9f90446"
+  },
+  {
+   "path": "original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf",
+   "sha256": "b3321b909f475421434f5606e9cdb17b1ec2adaadb769b7bf358f83e683ff3fb"
+  },
+  {
+   "path": "original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf",
+   "sha256": "5ec446d953a791d250ec2298e47bb78f58af39667007e41ed717e8c3f174f367"
+  },
+  {
+   "path": "original/print/text/remote_work_home_office_guidelines(print).pdf",
+   "sha256": "a767e0d9aa900eb553905f6c049d4fa4a59a08c55d247ad9a29141fb47090aca"
+  },
+  {
+   "path": "original/print/text/smart_factory_robot_malfunction_analysis(print).pdf",
+   "sha256": "97964574ac3a91c9ae530ef1da2b08bbbc68437bca73cd1b94a009f63af68cdc"
+  },
+  {
+   "path": "original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf",
+   "sha256": "1cee7bc9543df9e7989c01c69e903fb1f54d4c4cff65a71c7e9463027e79630d"
+  },
+  {
+   "path": "original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf",
+   "sha256": "06c2690e250aee3cbdf317f67199c2d716e42349257ca04118f4f1468a0ef9ab"
+  },
+  {
+   "path": "original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf",
+   "sha256": "8f8fe4cec36b842933ab60d4fef1ffb1d0544496351b343bca83ec72ee3914be"
+  },
+  {
+   "path": "original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf",
+   "sha256": "60d4fc79a56f450564de15bf91f6de0a2142253339954d3cd164f459ee70a7b5"
+  },
+  {
+   "path": "original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf",
+   "sha256": "5ec27bbfb9d8841f375ddf165b9ce2ca3a76b1fceaf130d91c7308507e1f5cd0"
+  },
+  {
+   "path": "original/saveas/text/remote_work_home_office_guidelines(saveas).pdf",
+   "sha256": "3b30faea9ec2bfdb913af25b4797108cfc3f2c7ade158c65dce24891777c843f"
+  }
+ ]
+}

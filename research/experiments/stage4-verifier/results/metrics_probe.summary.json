@@ -1,0 +1,346 @@
+{
+ "kind": "feasibility probe, not a benchmark",
+ "tools": {
+  "scikit-image": "0.26.0",
+  "lpips": "0.1.4 (alex)",
+  "torch": "2.14.0+cpu",
+  "pymupdf": "1.28.2",
+  "pypdfium2": "5.13.0",
+  "pdfium": "153.0.7999.0",
+  "tesseract": "tesseract 5.5.3",
+  "doctr": "v1.1.0",
+  "dinglehopper": "0.11.0",
+  "jiwer": "4.0.0",
+  "deepdiff": "9.1.0",
+  "qpdf": "qpdf version 12.4.2"
+ },
+ "renderer_floor": {
+  "n": 19,
+  "ssim_min": 0.9039,
+  "ssim_median": 0.9414,
+  "pix_diff_max": 0.09292,
+  "lpips_max": 0.0485
+ },
+ "damage": [
+  {
+   "class": "C6",
+   "renderer": "mupdf",
+   "ssim": 0.8609,
+   "pix_diff": 0.05175,
+   "lpips": 0.2259
+  },
+  {
+   "class": "C6",
+   "renderer": "pdfium",
+   "ssim": 0.8423,
+   "pix_diff": 0.05747,
+   "lpips": 0.2373
+  },
+  {
+   "class": "C6",
+   "renderer": "mupdf",
+   "ssim": 0.674,
+   "pix_diff": 0.12888,
+   "lpips": 0.2994
+  },
+  {
+   "class": "C6",
+   "renderer": "pdfium",
+   "ssim": 0.6527,
+   "pix_diff": 0.13442,
+   "lpips": 0.2768
+  },
+  {
+   "class": "C7",
+   "renderer": "mupdf",
+   "ssim": 0.9626,
+   "pix_diff": 0.02505,
+   "lpips": 0.029
+  },
+  {
+   "class": "C7",
+   "renderer": "pdfium",
+   "ssim": 0.9252,
+   "pix_diff": 0.04156,
+   "lpips": 0.0939
+  },
+  {
+   "class": "C7",
+   "renderer": "mupdf",
+   "ssim": 0.8971,
+   "pix_diff": 0.0547,
+   "lpips": 0.0536
+  },
+  {
+   "class": "C7",
+   "renderer": "pdfium",
+   "ssim": 0.9021,
+   "pix_diff": 0.05262,
+   "lpips": 0.0463
+  },
+  {
+   "class": "C8",
+   "renderer": "mupdf",
+   "ssim": 0.921,
+   "pix_diff": 0.08381,
+   "lpips": 0.048
+  },
+  {
+   "class": "C8",
+   "renderer": "pdfium",
+   "ssim": 0.9146,
+   "pix_diff": 0.08415,
+   "lpips": 0.0693
+  },
+  {
+   "class": "C8",
+   "renderer": "mupdf",
+   "ssim": 0.9661,
+   "pix_diff": 0.0279,
+   "lpips": 0.021
+  },
+  {
+   "class": "C8",
+   "renderer": "pdfium",
+   "ssim": 0.8856,
+   "pix_diff": 0.06115,
+   "lpips": 0.1034
+  },
+  {
+   "class": "C9",
+   "renderer": "mupdf",
+   "ssim": 0.8007,
+   "pix_diff": 0.07396,
+   "lpips": 0.4272
+  },
+  {
+   "class": "C9",
+   "renderer": "pdfium",
+   "ssim": 0.8007,
+   "pix_diff": 0.07563,
+   "lpips": 0.4246
+  },
+  {
+   "class": "C9",
+   "renderer": "mupdf",
+   "ssim": 0.7619,
+   "pix_diff": 0.07649,
+   "lpips": 0.5652
+  },
+  {
+   "class": "C9",
+   "renderer": "pdfium",
+   "ssim": 0.7633,
+   "pix_diff": 0.07777,
+   "lpips": 0.5312
+  }
+ ],
+ "lpips_seconds_per_pair_72dpi": 0.37,
+ "doctr_model_load_s": 5.2,
+ "ocr": [
+  {
+   "doc": "print/text+img/global_agriculture_food_security_climate_impact(print)",
+   "engine": "tesseract",
+   "seconds": 1.2,
+   "ref_chars": 2057,
+   "hyp_chars": 2057,
+   "cer": 0.0,
+   "cer_dinglehopper": 0,
+   "wer": 0.0
+  },
+  {
+   "doc": "print/text+img/global_agriculture_food_security_climate_impact(print)",
+   "engine": "doctr",
+   "seconds": 11.4,
+   "ref_chars": 2057,
+   "hyp_chars": 2057,
+   "cer": 0.0005,
+   "cer_dinglehopper": 0.0005,
+   "wer": 0.0038
+  },
+  {
+   "doc": "print/text+img/global_ev_market_growth_statistics(print)",
+   "engine": "tesseract",
+   "seconds": 0.9,
+   "ref_chars": 1531,
+   "hyp_chars": 1590,
+   "cer": 0.0385,
+   "cer_dinglehopper": 0.0385,
+   "wer": 0.0569
+  },
+  {
+   "doc": "print/text+img/global_ev_market_growth_statistics(print)",
+   "engine": "doctr",
+   "seconds": 9.5,
+   "ref_chars": 1531,
+   "hyp_chars": 1571,
+   "cer": 0.0274,
+   "cer_dinglehopper": 0.0274,
+   "wer": 0.0521
+  },
+  {
+   "doc": "print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)",
+   "engine": "tesseract",
+   "seconds": 1.1,
+   "ref_chars": 858,
+   "hyp_chars": 1721,
+   "cer": 1.007,
+   "cer_dinglehopper": 1.007,
+   "wer": 1.1071
+  },
+  {
+   "doc": "print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)",
+   "engine": "doctr",
+   "seconds": 9.9,
+   "ref_chars": 858,
+   "hyp_chars": 1721,
+   "cer": 1.007,
+   "cer_dinglehopper": 1.007,
+   "wer": 1.1071
+  },
+  {
+   "doc": "print/text/AI_Development_MultiLanguage(print)",
+   "engine": "tesseract",
+   "seconds": 1.2,
+   "ref_chars": 1800,
+   "hyp_chars": 1800,
+   "cer": 0.0039,
+   "cer_dinglehopper": 0.0039,
+   "wer": 0.0246
+  },
+  {
+   "doc": "print/text/AI_Development_MultiLanguage(print)",
+   "engine": "doctr",
+   "seconds": 10.5,
+   "ref_chars": 1800,
+   "hyp_chars": 1799,
+   "cer": 0.0044,
+   "cer_dinglehopper": 0.0044,
+   "wer": 0.0328
+  }
+ ],
+ "structural_diff": [
+  {
+   "doc": "print/text+img/global_agriculture_food_security_climate_impact(print)",
+   "class": "C2",
+   "seconds": 0.11,
+   "type_changes": 53,
+   "values_changed": 147,
+   "dictionary_item_added": 6,
+   "dictionary_item_removed": 9,
+   "iterable_item_added": 69,
+   "iterable_item_removed": 452
+  },
+  {
+   "doc": "print/text/Next_Decade_Space_Exploration(print)",
+   "class": "C2",
+   "seconds": 0.14,
+   "type_changes": 66,
+   "values_changed": 209,
+   "dictionary_item_added": 5,
+   "dictionary_item_removed": 6,
+   "iterable_item_added": 312,
+   "iterable_item_removed": 367
+  },
+  {
+   "doc": "print/text/UrbanRide_Electric_Bike_Scooter_Series(print)",
+   "class": "C7",
+   "seconds": 0.13,
+   "type_changes": 75,
+   "values_changed": 161,
+   "dictionary_item_added": 5,
+   "dictionary_item_removed": 31,
+   "iterable_item_added": 290,
+   "iterable_item_removed": 201
+  },
+  {
+   "doc": "saveas/text/open_source_software_contribution_guidelines_multilang(saveas)",
+   "class": "C7",
+   "seconds": 1.13,
+   "type_changes": 63,
+   "values_changed": 4835,
+   "dictionary_item_added": 15,
+   "dictionary_item_removed": 28,
+   "iterable_item_added": 1597,
+   "iterable_item_removed": 1813
+  }
+ ],
+ "inputs": [
+  {
+   "path": "original/print/text/AI_Development_MultiLanguage(print).pdf",
+   "sha256": "1a9cb4ea860c92868e01e379893f2927ec05ad0a0c2e33de182243807d3a8762"
+  },
+  {
+   "path": "original/print/text/Evolution_Biodegradable_Plastics(print).pdf",
+   "sha256": "74ab8bc8050c4c16a832571397c28331675334202df9ef67340813f0aee489c5"
+  },
+  {
+   "path": "original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf",
+   "sha256": "2b40f31930042d2e74b96e3d2d4addd9885bbaca8b8b6b56ea5686b367894058"
+  },
+  {
+   "path": "original/print/text/Next_Decade_Space_Exploration(print).pdf",
+   "sha256": "f8789bab516f38ac72ad291b12db95436078c419d6b6a5dc50fd7f3b8686b3c8"
+  },
+  {
+   "path": "original/print/text/PetPal_Smart_PetCare_Products(print).pdf",
+   "sha256": "e37ff10ac6b30a3ae723cef846900f0d10c7c2e3e020765ed47bd9c73b3ef6e7"
+  },
+  {
+   "path": "original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf",
+   "sha256": "822f5ff5ca3a3779615f23b658381fa28ac7b8ea3644c37197943506a9f90446"
+  },
+  {
+   "path": "original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf",
+   "sha256": "b3321b909f475421434f5606e9cdb17b1ec2adaadb769b7bf358f83e683ff3fb"
+  },
+  {
+   "path": "original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf",
+   "sha256": "5ec446d953a791d250ec2298e47bb78f58af39667007e41ed717e8c3f174f367"
+  },
+  {
+   "path": "original/print/text/remote_work_home_office_guidelines(print).pdf",
+   "sha256": "a767e0d9aa900eb553905f6c049d4fa4a59a08c55d247ad9a29141fb47090aca"
+  },
+  {
+   "path": "original/print/text/smart_factory_robot_malfunction_analysis(print).pdf",
+   "sha256": "97964574ac3a91c9ae530ef1da2b08bbbc68437bca73cd1b94a009f63af68cdc"
+  },
+  {
+   "path": "original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf",
+   "sha256": "cdb302f65f276e5a926c12287df6b9b92d6effa56557c2cdb80e55e4943346d3"
+  },
+  {
+   "path": "original/print/text+img/global_ev_market_growth_statistics(print).pdf",
+   "sha256": "617d5cd2b699ac53cf572e819b94b1f3830145883c3f342e30a7401e0135173c"
+  },
+  {
+   "path": "original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf",
+   "sha256": "41d80a4981420fa42391ce3fea612a0decd3b1090a5aa66b8446580a062ee9ef"
+  },
+  {
+   "path": "original/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas).pdf",
+   "sha256": "1cee7bc9543df9e7989c01c69e903fb1f54d4c4cff65a71c7e9463027e79630d"
+  },
+  {
+   "path": "original/saveas/text/Evolution_Biodegradable_Plastics(saveas).pdf",
+   "sha256": "06c2690e250aee3cbdf317f67199c2d716e42349257ca04118f4f1468a0ef9ab"
+  },
+  {
+   "path": "original/saveas/text/Lumina_Interior_Lighting_Designbook(saveas).pdf",
+   "sha256": "8f8fe4cec36b842933ab60d4fef1ffb1d0544496351b343bca83ec72ee3914be"
+  },
+  {
+   "path": "original/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas).pdf",
+   "sha256": "60d4fc79a56f450564de15bf91f6de0a2142253339954d3cd164f459ee70a7b5"
+  },
+  {
+   "path": "original/saveas/text/open_source_software_contribution_guidelines_multilang(saveas).pdf",
+   "sha256": "5ec27bbfb9d8841f375ddf165b9ce2ca3a76b1fceaf130d91c7308507e1f5cd0"
+  },
+  {
+   "path": "original/saveas/text/remote_work_home_office_guidelines(saveas).pdf",
+   "sha256": "3b30faea9ec2bfdb913af25b4797108cfc3f2c7ade158c65dce24891777c843f"
+  }
+ ]
+}

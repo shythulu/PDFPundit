@@ -1,0 +1,43 @@
+{
+ "date": "2026-10-05",
+ "results": [
+  {
+   "label": "core",
+   "url": "https://api.core.ac.uk/v3/search/works?q=pdf+repair&limit=1",
+   "method": "GET",
+   "status": 429,
+   "error": null,
+   "elapsed_s": 0.994,
+   "headers": {
+    "x-ratelimit-limit": "10",
+    "x-ratelimit-remaining": "0",
+    "content-type": "text/html; charset=UTF-8",
+    "server": "cloudflare"
+   },
+   "bytes": 0,
+   "sha256": null,
+   "body_head": null,
+   "is_pdf": false
+  }
+ ],
+ "proxy_recent_relay_failures": [
+  {
+   "ts": "2026-10-05T18:11:19.733Z",
+   "kind": "connect_rejected",
+   "detail": "gateway answered 502 to CONNECT (policy denial or upstream failure)",
+   "host": "repdf.site:443"
+  },
+  {
+   "ts": "2026-10-05T18:11:32.197Z",
+   "kind": "ws_closed_mid_exchange",
+   "detail": "tunnel closed (code 1006, Connection ended) after 12s; 517 B sent, 39 B received, client reading, 0 B still queued in the relay",
+   "host": "web.archive.org:443"
+  },
+  {
+   "ts": "2026-10-05T18:27:59.236Z",
+   "kind": "ws_closed_mid_exchange",
+   "detail": "tunnel closed (code 1006, Connection ended) after 8s; 517 B sent, 39 B received, client reading, 0 B still queued in the relay",
+   "host": "cdn-lfs-cn-1.modelscope.cn:443"
+  }
+ ]
+}

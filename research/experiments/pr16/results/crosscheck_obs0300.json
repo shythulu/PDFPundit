@@ -1,0 +1,66 @@
+{
+ "pr16_damaged_flate_streams": 1445,
+ "probe_damaged_flate_streams": 1442,
+ "matched": 1442,
+ "matched_outcomes": {
+  "same_outcome": 1442
+ },
+ "only_in_pr16": [
+  {
+   "file": "print/text+img/mobile_payment_and_fintech_service_expansion(print)_stream_zlib.pdf",
+   "off": 11649,
+   "clen": 41864,
+   "dlen": 120308,
+   "status": "adler",
+   "kind": "font",
+   "probe_body_len": 41863,
+   "raw_body_len": 41865,
+   "last_zlib_byte": 13,
+   "bytes_after_zlib_data": [
+    10
+   ],
+   "probe_body_inflates_to_end": false
+  },
+  {
+   "file": "print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print)_stream_zlib.pdf",
+   "off": 8923,
+   "clen": 9916,
+   "dlen": 27560,
+   "status": "adler",
+   "kind": "font",
+   "probe_body_len": 9915,
+   "raw_body_len": 9917,
+   "last_zlib_byte": 13,
+   "bytes_after_zlib_data": [
+    10
+   ],
+   "probe_body_inflates_to_end": false
+  },
+  {
+   "file": "print/text/educational_technology_elearning_safety_guidelines_multilang(print)_stream_zlib.pdf",
+   "off": 2377,
+   "clen": 7300,
+   "dlen": 83098,
+   "status": "adler",
+   "kind": "content",
+   "probe_body_len": 7299,
+   "raw_body_len": 7301,
+   "last_zlib_byte": 13,
+   "bytes_after_zlib_data": [
+    10
+   ],
+   "probe_body_inflates_to_end": false
+  }
+ ],
+ "only_in_probe": [],
+ "pr16_status": {
+  "adler": 1220,
+  "err": 221,
+  "trunc": 4
+ },
+ "probe_outcome": {
+  "check-only": 1217,
+  "data-error": 221,
+  "incomplete": 4
+ }
+}

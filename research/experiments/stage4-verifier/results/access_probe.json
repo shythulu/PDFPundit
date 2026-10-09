@@ -1,0 +1,251 @@
+{
+ "date": "2026-10-05",
+ "results": [
+  {
+   "label": "crossref",
+   "url": "https://api.crossref.org/works?query.bibliographic=pdf+repair&rows=1",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://api.crossref.org/works?query.bibliographic=pdf+repair&rows=1",
+   "elapsed_s": 0.253,
+   "headers": {
+    "x-rate-limit-limit": "1",
+    "x-rate-limit-interval": "1s",
+    "content-type": "application/json",
+    "server": "Jetty(9.4.40.v20210413)"
+   },
+   "bytes": 1461,
+   "sha256": "8fc3865f35f12ed22bf6cb055b1c128fa8f95a835357ad7e73c23784276ff26e",
+   "body_head": "{\"status\":\"ok\",\"message-type\":\"work-list\",\"message-version\":\"1.0.0\",\"message\":{\"facets\":{},\"total-results\":458670,\"items\":[{\"indexed\":{\"date-parts\":[[2026,2,27]",
+   "is_pdf": false
+  },
+  {
+   "label": "core",
+   "url": "https://api.core.ac.uk/v3/search/works?q=pdf+repair&limit=1",
+   "method": "GET",
+   "status": 429,
+   "error": null,
+   "elapsed_s": 0.337,
+   "headers": {
+    "x-ratelimit-limit": "10",
+    "x-ratelimit-remaining": "0",
+    "content-type": "text/html; charset=UTF-8",
+    "server": "cloudflare"
+   },
+   "bytes": 0,
+   "sha256": null,
+   "body_head": null,
+   "is_pdf": false
+  },
+  {
+   "label": "unpaywall",
+   "url": "https://api.unpaywall.org/v2/10.1109/das.2018.64?email=research@pdfpundit.invalid",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://api.unpaywall.org/v2/10.1109/das.2018.64?email=research@pdfpundit.invalid",
+   "elapsed_s": 0.196,
+   "headers": {
+    "content-type": "application/json",
+    "server": "Heroku"
+   },
+   "bytes": 1294,
+   "sha256": "cf368910ef2960938f2d8327a3d3024fe5948a61398e24cc57afe82e1600557a",
+   "body_head": "{\"best_oa_location\":null,\"data_standard\":2,\"doi\":\"10.1109/das.2018.64\",\"doi_url\":\"https://doi.org/10.1109/das.2018.64\",\"first_oa_location\":null,\"genre\":\"proceed",
+   "is_pdf": false
+  },
+  {
+   "label": "opencitations",
+   "url": "https://opencitations.net/index/api/v2/citations/doi:10.1109/das.2018.64",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://api.opencitations.net/index/v2/citations/doi:10.1109/das.2018.64",
+   "elapsed_s": 1.489,
+   "headers": {
+    "content-type": "application/json",
+    "server": "Apache/2.4.10 (Win32)"
+   },
+   "bytes": 2,
+   "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "body_head": "[]",
+   "is_pdf": false
+  },
+  {
+   "label": "openalex",
+   "url": "https://api.openalex.org/works/doi:10.1109/das.2018.64",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://api.openalex.org/works/doi:10.1109/das.2018.64",
+   "elapsed_s": 0.254,
+   "headers": {
+    "x-ratelimit-limit": "1000",
+    "x-ratelimit-remaining": "0",
+    "x-ratelimit-reset": "20921",
+    "content-type": "application/json",
+    "server": "cloudflare"
+   },
+   "bytes": 13762,
+   "sha256": "0f84d0054eb2ec4c8d3b4a94bb9c260baec6b9ded1d9c8703b0f1a7f2ba59760",
+   "body_head": "{\"id\":\"https://openalex.org/W2811444977\",\"doi\":\"https://doi.org/10.1109/das.2018.64\",\"title\":\"Automatic Recovery of Corrupted Font Encoding in PDF Documents Usi",
+   "is_pdf": false
+  },
+  {
+   "label": "semantic-scholar",
+   "url": "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1109/das.2018.64?fields=title",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1109/das.2018.64?fields=title",
+   "elapsed_s": 0.278,
+   "headers": {
+    "x-amzn-requestid": "92926f1f-4b2b-464e-b00b-c1d110de0375",
+    "content-type": "application/json"
+   },
+   "bytes": 186,
+   "sha256": "3f1c3d1ef6b53fe048777dae8bc79bc51236dbcd9b618ccef2d5c047f094689d",
+   "body_head": "{\"paperId\": \"e0c6171f58eef6f5b7ef5b388d8c56868e8f5519\", \"title\": \"Automatic Recovery of Corrupted Font Encoding in PDF Documents Using CNN-based Symbol Recognit",
+   "is_pdf": false
+  },
+  {
+   "label": "repdf.site",
+   "url": "https://repdf.site/",
+   "method": "GET",
+   "status": null,
+   "error": "URLError: <urlopen error Tunnel connection failed: 502 Bad Gateway>",
+   "elapsed_s": 0.096,
+   "headers": {},
+   "bytes": 0,
+   "sha256": null,
+   "body_head": null,
+   "is_pdf": false
+  },
+  {
+   "label": "www.ohchr.org",
+   "url": "https://www.ohchr.org/",
+   "method": "HEAD",
+   "status": 403,
+   "error": null,
+   "elapsed_s": 0.369,
+   "headers": {
+    "content-type": "text/html; charset=UTF-8",
+    "server": "cloudflare"
+   },
+   "bytes": 0,
+   "sha256": null,
+   "body_head": null,
+   "is_pdf": false
+  },
+  {
+   "label": "web.archive.org",
+   "url": "https://web.archive.org/",
+   "method": "HEAD",
+   "status": null,
+   "error": "URLError: <urlopen error [Errno 104] Connection reset by peer>",
+   "elapsed_s": 12.093,
+   "headers": {},
+   "bytes": 0,
+   "sha256": null,
+   "body_head": null,
+   "is_pdf": false
+  },
+  {
+   "label": "napierone-bucket (path-style; the bucket name has a dot)",
+   "url": "https://s3.eu-north-1.amazonaws.com/napierone.com/?list-type=2&max-keys=1",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://s3.eu-north-1.amazonaws.com/napierone.com/?list-type=2&max-keys=1",
+   "elapsed_s": 0.525,
+   "headers": {
+    "content-type": "application/xml",
+    "server": "AmazonS3"
+   },
+   "bytes": 579,
+   "sha256": "57ac6c010673e9e95559aeb5bb7ce22a332adc41bd3b56f37248c26670145468",
+   "body_head": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>napierone.com</Name><Prefix></Prefix><NextContinu",
+   "is_pdf": false
+  },
+  {
+   "label": "registry.ollama.ai (manifest only)",
+   "url": "https://registry.ollama.ai/v2/library/<TOOL-386 model>/manifests/8b",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://registry.ollama.ai/v2/library/<TOOL-386 model>/manifests/8b",
+   "elapsed_s": 0.495,
+   "headers": {
+    "content-type": "application/vnd.docker.distribution.manifest.v2+json",
+    "server": "cloudflare"
+   },
+   "bytes": 858,
+   "sha256": "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+   "body_head": "{\"schemaVersion\":2,\"mediaType\":\"application/vnd.docker.distribution.manifest.v2+json\",\"config\":{\"mediaType\":\"application/vnd.docker.container.image.v1+json\",\"di",
+   "is_pdf": false
+  },
+  {
+   "label": "SRC-0132 direct",
+   "url": "https://nti.khai.edu/ojs/index.php/reks/article/download/reks.2023.1.14/2018",
+   "method": "GET",
+   "status": 500,
+   "error": null,
+   "elapsed_s": 0.808,
+   "headers": {
+    "content-type": "text/html; charset=UTF-8",
+    "server": "cloudflare"
+   },
+   "bytes": 0,
+   "sha256": null,
+   "body_head": null,
+   "is_pdf": false
+  },
+  {
+   "label": "SRC-0132 via doi.org",
+   "url": "https://doi.org/10.32620/reks.2023.1.14",
+   "method": "GET",
+   "status": 500,
+   "error": null,
+   "elapsed_s": 1.487,
+   "headers": {
+    "content-type": "text/html; charset=UTF-8",
+    "server": "cloudflare"
+   },
+   "bytes": 0,
+   "sha256": null,
+   "body_head": null,
+   "is_pdf": false
+  },
+  {
+   "label": "huggingface (model metadata, unauthenticated)",
+   "url": "https://huggingface.co/api/models/<HF model>",
+   "method": "GET",
+   "status": 200,
+   "error": null,
+   "final_url": "https://huggingface.co/api/models/<HF model>",
+   "elapsed_s": 0.188,
+   "headers": {
+    "content-type": "application/json; charset=utf-8"
+   },
+   "bytes": 5949,
+   "sha256": "89a38910121ba883eddf23b2adaf7b8c030428dfc265fff7a3186c77ef5af5b1",
+   "body_head": "{\"_id\":\"68e431cb85dce231911b62fe\",\"id\":\"<HF model>\",\"private\":false,\"pipeline_tag\":\"image-text-to-text\",\"library_name\":\"transformers\",\"tags\":[\"tra",
+   "is_pdf": false
+  }
+ ],
+ "proxy_recent_relay_failures": [
+  {
+   "ts": "2026-10-05T18:11:19.733Z",
+   "kind": "connect_rejected",
+   "detail": "gateway answered 502 to CONNECT (policy denial or upstream failure)",
+   "host": "repdf.site:443"
+  },
+  {
+   "ts": "2026-10-05T18:11:32.197Z",
+   "kind": "ws_closed_mid_exchange",
+   "detail": "tunnel closed (code 1006, Connection ended) after 12s; 517 B sent, 39 B received, client reading, 0 B still queued in the relay",
+   "host": "web.archive.org:443"
+  }
+ ]
+}

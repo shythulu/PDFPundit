@@ -1,0 +1,7 @@
+[package]
+name = "pfprobe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+preflate-rs = "=0.7.6"

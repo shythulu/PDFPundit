@@ -154,6 +154,7 @@
 | SRC-0504 | Poppler source code (freedesktop poppler) | 2026 |  | extracted | 3 | oa |  |  | pdf-repair, pdf-parsing-robustness, deflate-recovery, font-recovery, glyph-to-unicode, incremental-updates, pdf-security |
 | SRC-0505 | Ghostscript/GhostPDL source code (ArtifexSoftware/ghostpdl) | 2026 |  | extracted | 3 | oa |  |  | pdf-repair, pdf-parsing-robustness, deflate-recovery, font-recovery, glyph-to-unicode, incremental-updates, pdf-security |
 | SRC-0506 | Poppler test-file repository (poppler/test) | 2026 |  | read | 2 | oa |  |  | corpora-datasets, pdf-parsing-robustness |
+| SRC-0700 | CPR source code (BeenyHail/CPR) | 2025 |  | read | 2 | oa |  |  | pdf-repair, glyph-to-unicode, llm-repair, font-recovery |
 | SRC-0800 | digitalcorpora.org Terms of Use / About page |  |  | read |  | oa |  |  | corpora-datasets |
 | SRC-0801 | unicode.org UDHR project decommission notice |  |  | read |  | oa |  |  | corpora-datasets, font-recovery |
 | SRC-0802 | NapierOne dataset entry, AWS Registry of Open Data |  |  | read |  | oa |  |  | corpora-datasets |
@@ -167,3 +168,17 @@
 | SRC-0810 | RUB-NDS pdf-attacker repository |  |  | read |  | unknown |  |  | pdf-security, fuzzing |
 | SRC-0811 | Common Crawl data.commoncrawl.org access (observed 403, 2026-09-27) |  |  | read |  | oa |  |  | corpora-datasets |
 | SRC-0812 | SafeDocs Issue Tracker corpus description (digitalcorpora) |  |  | read |  | unknown |  |  | corpora-datasets, forensic-soundness |
+| SRC-1000 | Measured corruption rewrites PDFPundit's repair playbook | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | pdf-repair, deflate-recovery, font-recovery, corpora-datasets, evaluation-metrics, toolpath-selection, pdf-parsing-robustness |
+| SRC-1001 | DEFLATE / zlib stream salvage and damaged-image recovery for PDFPundit's C9/C10 ladder | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | deflate-recovery, compression-error-resilience, corpora-datasets, pdf-repair |
+| SRC-1002 | Font and text recovery for C6–C8: glyph-code → Unicode recovery and font identification | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | font-recovery, glyph-to-unicode, ocr, pdf-repair |
+| SRC-1003 | Corrupted PDF repair beyond REPDF: literature, real-world malformation data, and benchmark corpora | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | pdf-repair, corpora-datasets, pdf-parsing-robustness, evaluation-metrics |
+| SRC-1004 | Repair-method (toolpath) selection, human escalation, and evaluation methodology for PDFPundit | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | toolpath-selection, evaluation-metrics, program-repair, forensic-soundness |
+| SRC-1005 | Repair heuristics in existing PDF implementations vs. PDFPundit's planned carver | 2026 | PDFPundit repository, PR #16 (merged as c7a6ad4) | extracted | 3 | local | yes |  | pdf-repair, pdf-parsing-robustness, incremental-updates, parser-differentials |
+| SRC-1100 | Distribution-Free Prediction Sets for Two-Layer Hierarchical Models | 2018 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1101 | Distribution-free inference with hierarchical data | 2023 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1102 | Learn then Test: Calibrating Predictive Algorithms to Achieve Risk Control | 2021 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1103 | Conformal Risk Control | 2022 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1104 | zlib-bitexact-rs: bit-exact pure-Rust port of stock zlib 1.3.1 deflate | 2026 | GitHub / crates.io | read | 3 | oa |  |  | deflate-recovery, compression-error-resilience |
+| SRC-1105 | Valid Per-Field Selective Risk Control for Document Extraction: Three Failure Modes, a Validity Ladder, and When Conditioning Pays | 2026 | arXiv | read | 3 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1106 | Hierarchical Group-Conditional Conformal Risk Control for Selective Prediction in Language Models | 2026 | arXiv | read | 2 | oa | yes |  | evaluation-metrics, toolpath-selection |
+| SRC-1107 | Counting Documents Is Not Counting Text: Unit Bias in Web-PDF Corpus Statistics | 2026 | arXiv | read | 3 | oa | yes |  | corpora-datasets, text-extraction, evaluation-metrics |

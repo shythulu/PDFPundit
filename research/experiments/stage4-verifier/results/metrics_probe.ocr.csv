@@ -1,0 +1,9 @@
+doc,engine,seconds,ref_chars,hyp_chars,cer,cer_dinglehopper,wer
+print/text+img/global_agriculture_food_security_climate_impact(print),tesseract,1.2,2057,2057,0.0,0,0.0
+print/text+img/global_agriculture_food_security_climate_impact(print),doctr,11.4,2057,2057,0.0005,0.0005,0.0038
+print/text+img/global_ev_market_growth_statistics(print),tesseract,0.9,1531,1590,0.0385,0.0385,0.0569
+print/text+img/global_ev_market_growth_statistics(print),doctr,9.5,1531,1571,0.0274,0.0274,0.0521
+print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print),tesseract,1.1,858,1721,1.007,1.007,1.1071
+print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print),doctr,9.9,858,1721,1.007,1.007,1.1071
+print/text/AI_Development_MultiLanguage(print),tesseract,1.2,1800,1800,0.0039,0.0039,0.0246
+print/text/AI_Development_MultiLanguage(print),doctr,10.5,1800,1799,0.0044,0.0044,0.0328

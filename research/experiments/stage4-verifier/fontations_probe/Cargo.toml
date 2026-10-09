@@ -1,0 +1,8 @@
+[package]
+name = "fontations_probe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+read-fonts = "=0.45.0"
+skrifa = "=0.48.0"

@@ -1,0 +1,56 @@
+{
+ "cases": 245,
+ "trailer_damaged": [
+  {
+   "id": "saveas_text_EduBot_AI_Learning_Robot_Series_saveas_stream_zlib_27314",
+   "kind": "content",
+   "clen": 2982,
+   "dlen": 16561,
+   "off": 2978,
+   "trailer_damaged": true,
+   "trailer_bytes_differing": 1,
+   "one_trailer_byte_fix": false
+  },
+  {
+   "id": "saveas_text_green_energy_sustainable_living_guidelines_multilang_saveas_stream_zlib_298381",
+   "kind": "cmap",
+   "clen": 390,
+   "dlen": 824,
+   "off": 387,
+   "trailer_damaged": true,
+   "trailer_bytes_differing": 1,
+   "one_trailer_byte_fix": false
+  }
+ ],
+ "true_offset_collision": [
+  {
+   "id": "saveas_text_img_global_agriculture_food_security_climate_impact_saveas_stream_zlib_99267",
+   "kind": "text-other",
+   "clen": 3971,
+   "dlen": 21134,
+   "off": 3685,
+   "trailer_damaged": false,
+   "first_accepted_value": 173,
+   "true_offset_collision": true,
+   "accepted_output_len": 21134,
+   "trailer_bytes_differing": 4,
+   "one_trailer_byte_fix": false
+  }
+ ],
+ "one_trailer_byte_fix": [
+  {
+   "id": "saveas_text_img_mobile_payment_and_fintech_service_expansion_saveas_stream_zlib_227000",
+   "kind": "cmap",
+   "clen": 1087,
+   "dlen": 2707,
+   "off": 771,
+   "trailer_damaged": false,
+   "first_accepted_value": 239,
+   "true_offset_collision": false,
+   "accepted_output_len": 2707,
+   "trailer_bytes_differing": 1,
+   "one_trailer_byte_fix": true
+  }
+ ],
+ "true_offset_exact": 242
+}

@@ -1,0 +1,14 @@
+[package]
+name = "preflate_probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Does preflate-rs (pure Rust, Apache-2.0) predict REPDF producers' DEFLATE token streams from plaintext,
+# with (near) zero corrections? Input: the directory written by ../preflate_prep.py. Versions pinned exactly.
+[dependencies]
+preflate-rs = "=0.7.6"
+bitcode = "0.6"
+
+[profile.release]
+opt-level = 3

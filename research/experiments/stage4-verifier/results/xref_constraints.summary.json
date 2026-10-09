@@ -1,0 +1,40 @@
+{
+ "files": 100,
+ "z3": "5.1.0",
+ "by_mode": {
+  "print": {
+   "files": 50,
+   "one_missing_header": 50,
+   "z3_L_c_unique": 50,
+   "z3_L_equals_true": 50,
+   "z3_bias_c_counts": {
+    "1": 50
+   },
+   "brute_force_unique": 50,
+   "z3_agrees_with_brute_force": 50,
+   "unique_distinct_restoration": 0,
+   "byte_exact_restoration_found": 50,
+   "unique_and_byte_exact": 0,
+   "eol_style_choice_byte_exact": 50,
+   "median_z3_s": 0.047,
+   "median_brute_force_s": 0.129
+  },
+  "saveas": {
+   "files": 50,
+   "one_missing_header": 50,
+   "z3_L_c_unique": 50,
+   "z3_L_equals_true": 50,
+   "z3_bias_c_counts": {
+    "0": 50
+   },
+   "brute_force_unique": 50,
+   "z3_agrees_with_brute_force": 50,
+   "unique_distinct_restoration": 0,
+   "byte_exact_restoration_found": 50,
+   "unique_and_byte_exact": 0,
+   "eol_style_choice_byte_exact": 50,
+   "median_z3_s": 0.053,
+   "median_brute_force_s": 0.049
+  }
+ }
+}

@@ -1,0 +1,64 @@
+doc,obj,plain_len,zlib_outcome,zlib_out_len,zlib_wrong_bytes,gzrecover_rc,gz_out_len,gz_correct_prefix,gz_wrong_bytes_emitted,gz_recovered_beyond_zlib
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),8,63296,Error -3 while decompressing data: incorrect data check,63290,4876,0,0,0,0,-63290
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),24,230284,Error -3 while decompressing data: incorrect data check,230278,39202,0,228810,152165,38413,-1468
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),28,109960,Error -3 while decompressing data: incorrect data check,109967,35793,0,65536,65536,0,-44431
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),43,97304,Error -3 while decompressing data: incorrect data check,97332,24218,0,65536,60137,5281,-31796
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),47,8480,Error -3 while decompressing data: invalid distance too far back,118,3,0,0,0,0,-118
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),73,30240,Error -3 while decompressing data: incorrect data check,30502,5070,0,0,0,0,-30502
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),85,20264,Error -3 while decompressing data: incorrect data check,20250,5008,0,0,0,0,-20250
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),92,15648,Error -3 while decompressing data: incorrect data check,15631,5239,0,0,0,0,-15631
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),100,57844,Error -3 while decompressing data: incorrect data check,57853,44094,0,0,0,0,-57853
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),104,20754,Error -3 while decompressing data: incorrect data check,20712,4134,0,0,0,0,-20712
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),111,82232,Error -3 while decompressing data: incorrect data check,82232,2,0,65536,26513,2,-16696
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),119,24904,Error -3 while decompressing data: incorrect data check,24904,2,0,0,0,0,-24904
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),123,54115,Error -3 while decompressing data: incorrect data check,54116,3183,0,0,0,0,-54116
+print/text/AI_Development_MultiLanguage(print),8,21080,Error -3 while decompressing data: incorrect data check,21084,8496,0,0,0,0,-21084
+print/text/AI_Development_MultiLanguage(print),24,75740,Error -3 while decompressing data: incorrect data check,75738,10407,0,65536,58081,3971,-10202
+print/text/AI_Development_MultiLanguage(print),32,38328,Error -3 while decompressing data: invalid distance too far back,11784,11,0,0,0,0,-11784
+print/text/AI_Development_MultiLanguage(print),36,21953,Error -3 while decompressing data: invalid distance too far back,2410,1,0,0,0,0,-2410
+print/text/AI_Development_MultiLanguage(print),50,200708,Error -3 while decompressing data: incorrect data check,200708,251,0,171695,46585,230,-29013
+print/text/AI_Development_MultiLanguage(print),55,131580,Error -3 while decompressing data: incorrect data check,131591,58044,0,131072,68749,57561,-519
+print/text/AI_Development_MultiLanguage(print),59,128217,Error -3 while decompressing data: incorrect data check,128206,11583,0,65536,65536,0,-62670
+print/text/AI_Development_MultiLanguage(print),74,56904,Error -3 while decompressing data: incorrect data check,56912,12482,0,0,0,0,-56912
+print/text/AI_Development_MultiLanguage(print),101,42092,Error -3 while decompressing data: incorrect data check,42092,2,0,0,0,0,-42092
+print/text/AI_Development_MultiLanguage(print),128,18464,Error -3 while decompressing data: incorrect data check,18488,8894,0,0,0,0,-18488
+print/text/AI_Development_MultiLanguage(print),136,52672,Error -3 while decompressing data: incorrect data check,52674,14768,0,0,0,0,-52674
+print/text/AI_Development_MultiLanguage(print),147,57096,Error -3 while decompressing data: incorrect data check,57098,11252,0,0,0,0,-57098
+print/text/AI_Development_MultiLanguage(print),155,75556,Error -3 while decompressing data: incorrect data check,75566,3711,0,65536,65536,0,-10030
+saveas/text/Next_Decade_Space_Exploration(saveas),4,13726,Error -3 while decompressing data: incorrect data check,13735,4830,0,0,0,0,-13735
+saveas/text/Next_Decade_Space_Exploration(saveas),76,14523,Error -3 while decompressing data: incorrect data check,14523,21,0,0,0,0,-14523
+saveas/text/Next_Decade_Space_Exploration(saveas),99,75045,Error -3 while decompressing data: incorrect data check,74952,21902,0,65536,36099,15399,-9416
+saveas/text/Next_Decade_Space_Exploration(saveas),633,43651,Error -3 while decompressing data: incorrect data check,43651,5,0,0,0,0,-43651
+saveas/text/Next_Decade_Space_Exploration(saveas),1260,12764,Error -3 while decompressing data: incorrect data check,12763,2576,0,0,0,0,-12763
+saveas/text/Next_Decade_Space_Exploration(saveas),1262,81056,Error -3 while decompressing data: incorrect data check,81062,4413,0,65536,65536,0,-15526
+saveas/text/Next_Decade_Space_Exploration(saveas),1263,730,Error -3 while decompressing data: incorrect data check,719,365,0,0,0,0,-719
+saveas/text/Next_Decade_Space_Exploration(saveas),1268,20464,Error -3 while decompressing data: incorrect data check,20465,8666,0,0,0,0,-20465
+saveas/text/Next_Decade_Space_Exploration(saveas),1274,3034,Error -3 while decompressing data: incorrect data check,3034,12,0,0,0,0,-3034
+saveas/text/Next_Decade_Space_Exploration(saveas),1278,2759,Error -3 while decompressing data: invalid bit length repeat,0,0,0,0,0,0,0
+saveas/text/Next_Decade_Space_Exploration(saveas),1279,156692,Error -3 while decompressing data: incorrect data check,156692,8,0,115088,115088,0,-41604
+saveas/text/Next_Decade_Space_Exploration(saveas),1286,1641,Error -3 while decompressing data: invalid distance too far back,800,17,0,0,0,0,-800
+saveas/text/Next_Decade_Space_Exploration(saveas),1287,22620,Error -3 while decompressing data: incorrect data check,22620,7,0,0,0,0,-22620
+saveas/text/Next_Decade_Space_Exploration(saveas),1295,24072,Error -3 while decompressing data: incorrect data check,24072,12,0,0,0,0,-24072
+saveas/text/Next_Decade_Space_Exploration(saveas),1298,619,Error -3 while decompressing data: incorrect data check,623,467,0,0,0,0,-623
+saveas/text/Next_Decade_Space_Exploration(saveas),1303,10416,Error -3 while decompressing data: incorrect data check,10418,2055,0,0,0,0,-10418
+saveas/text/Next_Decade_Space_Exploration(saveas),1315,48116,Error -3 while decompressing data: invalid literal/lengths set,17814,0,0,16339,16339,0,-1475
+saveas/text/Next_Decade_Space_Exploration(saveas),1319,17364,Error -3 while decompressing data: incorrect data check,17395,13769,0,0,0,0,-17395
+saveas/text/Next_Decade_Space_Exploration(saveas),1324,9268,Error -3 while decompressing data: invalid distance too far back,697,0,0,0,0,0,-697
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),68,20417,Error -3 while decompressing data: incorrect data check,20381,1245,0,0,0,0,-20381
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),122,40054,Error -3 while decompressing data: incorrect data check,39805,186,0,0,0,0,-39805
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),625,44047,Error -3 while decompressing data: invalid distance too far back,1672,0,0,0,0,0,-1672
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1129,37984,Error -3 while decompressing data: incorrect data check,37990,15017,0,0,0,0,-37990
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1426,116864,Error -3 while decompressing data: incorrect data check,116864,17,0,65536,64521,17,-51328
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1427,492,Error -3 while decompressing data: incorrect data check,494,382,0,0,0,0,-494
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1428,66248,Error -3 while decompressing data: incorrect data check,66231,7294,0,65536,53715,6811,-695
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1435,109432,Error -3 while decompressing data: incorrect data check,109432,2,0,65536,65536,0,-43896
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1439,18452,Error -3 while decompressing data: incorrect data check,18460,6905,0,0,0,0,-18460
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1443,29096,Error -3 while decompressing data: incorrect data check,29104,12593,0,0,0,0,-29104
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1446,1697,Error -3 while decompressing data: invalid literal/lengths set,0,0,0,0,0,0,0
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1447,27328,Error -3 while decompressing data: incorrect data check,27331,4666,0,0,0,0,-27331
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1456,590,Error -3 while decompressing data: incorrect data check,590,5,0,0,0,0,-590
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1461,9552,Error -3 while decompressing data: incorrect data check,9586,4261,0,0,0,0,-9586
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1465,31780,Error -3 while decompressing data: incorrect data check,31797,16589,0,0,0,0,-31797
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1468,824,Error -3 while decompressing data: incorrect data check,824,0,0,824,824,0,0
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1469,30144,Error -3 while decompressing data: incorrect data check,30145,7707,0,0,0,0,-30145
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1473,43280,Error -3 while decompressing data: incorrect data check,43280,2,0,0,0,0,-43280

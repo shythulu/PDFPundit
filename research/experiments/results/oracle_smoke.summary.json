@@ -1,0 +1,175 @@
+{
+ "kind": "smoke test, not a benchmark",
+ "tools": {
+  "qpdf": "qpdf version 12.4.2",
+  "mutool": "mutool version 1.28.0",
+  "pdfcpu": "version: 0.15.0",
+  "arlington": "arlington-pdf-model-checker 1.30.2"
+ },
+ "by_variant": {
+  "original": {
+   "n": 19,
+   "output_missing": 0,
+   "qpdf_check_rc": {
+    "0": 19
+   },
+   "pdfcpu_strict_valid": 19,
+   "pdfcpu_relaxed_valid": 19,
+   "arlington": {
+    "non-compliant": 13,
+    "compliant": 6
+   }
+  },
+  "corrupted": {
+   "n": 20,
+   "output_missing": 0,
+   "qpdf_check_rc": {
+    "3": 13,
+    "2": 7
+   },
+   "pdfcpu_strict_valid": 12,
+   "pdfcpu_relaxed_valid": 13,
+   "arlington": {
+    "not-parsed": 16,
+    "non-compliant": 2,
+    "compliant": 2
+   }
+  },
+  "qpdf-repaired": {
+   "n": 20,
+   "output_missing": 5,
+   "qpdf_check_rc": {
+    "0": 13,
+    "2": 2
+   },
+   "pdfcpu_strict_valid": 12,
+   "pdfcpu_relaxed_valid": 15,
+   "arlington": {
+    "non-compliant": 9,
+    "compliant": 6
+   }
+  },
+  "mutool-repaired": {
+   "n": 20,
+   "output_missing": 0,
+   "qpdf_check_rc": {
+    "0": 13,
+    "2": 7
+   },
+   "pdfcpu_strict_valid": 13,
+   "pdfcpu_relaxed_valid": 15,
+   "arlington": {
+    "non-compliant": 9,
+    "compliant": 6,
+    "not-parsed": 5
+   }
+  }
+ },
+ "repaired_disagreements": {
+  "qpdf_clean_but_arlington_noncompliant": 14,
+  "arlington_compliant_but_pdfcpu_strict_invalid": 0,
+  "pdfcpu_strict_valid_but_arlington_noncompliant": 13
+ },
+ "inputs": [
+  {
+   "class": "C1",
+   "corrupted": "corrupted/print/text/global_cloud_datacenter_cooling_failure_report(print)_header.pdf",
+   "corrupted_sha256": "af16bb2a56580c65f4a72a75905ed38d2f3aec708df01d2a646cc26c876cdb48"
+  },
+  {
+   "class": "C1",
+   "corrupted": "corrupted/saveas/text/Lumina_Interior_Lighting_Designbook(saveas)_header.pdf",
+   "corrupted_sha256": "406efa9670de0eb8fca1ced22e668a35e494e43e7abe99f15d4bad1ff9ba3b8d"
+  },
+  {
+   "class": "C2",
+   "corrupted": "corrupted/print/text+img/global_agriculture_food_security_climate_impact(print)_xref.pdf",
+   "corrupted_sha256": "9f0fbad59b2ca3a4ff57a8ab8df46f7cc3a42eb402f1adb33a3bbe167cf011d3"
+  },
+  {
+   "class": "C2",
+   "corrupted": "corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf",
+   "corrupted_sha256": "cedc76e9131e7ed7cc0e2cae762c3bd932a06078748b2f7a51df9e52b54cc8b8"
+  },
+  {
+   "class": "C3",
+   "corrupted": "corrupted/print/text/Evolution_Biodegradable_Plastics(print)_trailer.pdf",
+   "corrupted_sha256": "dc1cf1a9fe9c54fb7f9bc721c6ded57b2fb88fc1bd516b9f00523f8f2296ff9c"
+  },
+  {
+   "class": "C3",
+   "corrupted": "corrupted/saveas/text/NeoHome_Smart_Appliances_Catalog_v5(saveas)_trailer.pdf",
+   "corrupted_sha256": "fdfe4249bb0a5cf3682d78ed99031fef6fe64306d713893e92e8f14a97285c3a"
+  },
+  {
+   "class": "C4",
+   "corrupted": "corrupted/saveas/text/AeroChef_Drone_Delivery_Cooking_Service(saveas)_page_tree.pdf",
+   "corrupted_sha256": "91bb7c2074c7b95678cbc110751aaf5635bfe0f2a1129e883b09369d16f81732"
+  },
+  {
+   "class": "C4",
+   "corrupted": "corrupted/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print)_page_tree.pdf",
+   "corrupted_sha256": "8a3bee7ac20506c667208bdc7380697d321e0938d6108c839c5150f9325756e5"
+  },
+  {
+   "class": "C5",
+   "corrupted": "corrupted/saveas/text/remote_work_home_office_guidelines(saveas)_object_header.pdf",
+   "corrupted_sha256": "e345563a70a02e4ea07fd06eff883681c813453032e038d60d646e4f1ff4b975"
+  },
+  {
+   "class": "C5",
+   "corrupted": "corrupted/print/text/NeoHome_Smart_Appliances_Catalog_v5(print)_object_header.pdf",
+   "corrupted_sha256": "e865eacf93f365ad3fa68634d778b35cd5fa7f986fec014372d08793bebb4851"
+  },
+  {
+   "class": "C6",
+   "corrupted": "corrupted/print/text/smart_factory_robot_malfunction_analysis(print)_font_mapping_loss.pdf",
+   "corrupted_sha256": "ccbf951c1f37588b48458dfefe48f787c73af3a52b9e82fa279fb344e53e90c4"
+  },
+  {
+   "class": "C6",
+   "corrupted": "corrupted/print/text/Evolution_Biodegradable_Plastics(print)_font_mapping_loss.pdf",
+   "corrupted_sha256": "4967072a7dbf794f0f4b40b943c41af7fb67d2ad4bf89901d4cb3283e9e79db8"
+  },
+  {
+   "class": "C7",
+   "corrupted": "corrupted/print/text/UrbanRide_Electric_Bike_Scooter_Series(print)_remove_fonts.pdf",
+   "corrupted_sha256": "9e9086b572963c8eb1318043abfaea5a76a81d32840cc0365178e41dc6aca493"
+  },
+  {
+   "class": "C7",
+   "corrupted": "corrupted/saveas/text/open_source_software_contribution_guidelines_multilang(saveas)_remove_fonts.pdf",
+   "corrupted_sha256": "8250b19498bfa3c2f1fcd9d7aa3529564068d726c4cd21ee403eac65143e5cdb"
+  },
+  {
+   "class": "C8",
+   "corrupted": "corrupted/saveas/text/Evolution_Biodegradable_Plastics(saveas)_remove_unicode_fonts.pdf",
+   "corrupted_sha256": "ba3f033d11e70404364d2a10be9c1dcc4137d1f25910df34a009efc33d43f75b"
+  },
+  {
+   "class": "C8",
+   "corrupted": "corrupted/print/text/remote_work_home_office_guidelines(print)_remove_unicode_fonts.pdf",
+   "corrupted_sha256": "ef984253c50a3a1555ce36a73c92fc4117ea24ba6ab247d0ac1350902d106730"
+  },
+  {
+   "class": "C9",
+   "corrupted": "corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf",
+   "corrupted_sha256": "c69c9f0ecbe7f3b60a1d8901bd2ad737c63bc55e1405c1091d0a3a6fee32021e"
+  },
+  {
+   "class": "C9",
+   "corrupted": "corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf",
+   "corrupted_sha256": "6114fc9e9466bb774667a0e8f1839d44f81fd55ca6f38ebe4cad67665e188859"
+  },
+  {
+   "class": "C10",
+   "corrupted": "corrupted/print/text/PetPal_Smart_PetCare_Products(print)_partial_cut.pdf",
+   "corrupted_sha256": "5f2ba8f4198d8710fc39c09bcc29a2be6537b650e597d06920eff180ffb990da"
+  },
+  {
+   "class": "C10",
+   "corrupted": "corrupted/print/text+img/global_ev_market_growth_statistics(print)_partial_cut.pdf",
+   "corrupted_sha256": "ec8ee726c20c82603946981739f0fc376f256a66304bfb2534079b41db4ba7d4"
+  }
+ ]
+}
