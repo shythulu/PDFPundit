@@ -886,7 +886,9 @@ fn paste_of(paths: &[&Path]) -> Input {
 
 /// Runs `events` through the loop with `runner`, then the runner's events
 /// until every job that started has finished (and, when none has, until
-/// nothing comes for a second).
+/// nothing comes for a second). A tick follows each input, as in [`send`]:
+/// on Windows the collector holds a typed key until a tick finds it idle, and
+/// the runner's events are not ticks.
 fn script_with_runner(
     app: &mut App,
     screen: &mut TestScreen,
@@ -894,7 +896,7 @@ fn script_with_runner(
     rx: &Receiver<AppEvent<Input>>,
     events: Vec<Input>,
 ) {
-    let mut events = events.into_iter();
+    let mut events = events.into_iter().flat_map(|e| [e, Input::Tick]);
     let (mut started, mut finished) = (0, 0);
     let mut next = || {
         if let Some(input) = events.next() {
@@ -1133,23 +1135,86 @@ fn drop_on(x: u16, y: u16) -> Input {
 
 /// The `text/uri-list` naming `paths`.
 fn uri_list(paths: &[&Path]) -> Input {
-    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-    const KEEP: &percent_encoding::AsciiSet = &NON_ALPHANUMERIC
-        .remove(b'/')
-        .remove(b'.')
-        .remove(b'-')
-        .remove(b'_');
     let list: String = paths
         .iter()
-        .map(|p| {
-            let p = p.to_str().expect("a UTF-8 scratch path");
-            format!("file://{}\r\n", utf8_percent_encode(p, KEEP))
-        })
+        .map(|p| format!("{}\r\n", file_uri(p)))
         .collect();
     Input::Dnd(DndEvent::Data {
         idx: Some(1),
         data: Ok(list.into_bytes()),
     })
+}
+
+/// The path a drag source names for the local `path`. `fs::canonicalize`, and
+/// so every `ScratchDir`, gives Windows paths the verbatim prefix
+/// (`\\?\C:\…`); a drag source sends the plain drive path (`C:\…`).
+/// Elsewhere it is `path` itself.
+fn as_dragged(path: &Path) -> PathBuf {
+    let s = path.to_str().expect("a UTF-8 scratch path");
+    match s.strip_prefix(r"\\?\") {
+        Some(rest) if is_drive_path(rest) => PathBuf::from(rest),
+        _ => path.to_path_buf(),
+    }
+}
+
+/// `s` starts with a drive, as `C:\` or `C:/` does.
+fn is_drive_path(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && matches!(b[2], b'\\' | b'/')
+}
+
+/// The `file:` URI a drag source sends for the local `path`, percent-encoded.
+/// A Windows drive path `C:\a\b` is `file:///C:/a/b` (RFC 8089, appendix
+/// E.2); a verbatim one (`\\?\C:\a\b`) loses its prefix first.
+fn file_uri(path: impl AsRef<Path>) -> String {
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    const KEEP: &percent_encoding::AsciiSet = &NON_ALPHANUMERIC
+        .remove(b'/')
+        .remove(b'.')
+        .remove(b'-')
+        .remove(b'_')
+        .remove(b':');
+    let path = as_dragged(path.as_ref());
+    let path = path.to_str().expect("a UTF-8 scratch path");
+    let path = if is_drive_path(path) {
+        format!("/{}", path.replace('\\', "/"))
+    } else {
+        path.to_owned()
+    };
+    format!("file://{}", utf8_percent_encode(&path, KEEP))
+}
+
+/// A scratch path makes a URI that reads back as the same local path, on
+/// Unix and on Windows. CI-01: Windows scratch paths are verbatim
+/// (`\\?\C:\Users\…`). Sent as they are, every `\` and the `?` were
+/// percent-encoded, so the URI was `file://%5C%5C%3F%5CC:%5CUsers…`; with no
+/// `/` after `file://`, all of it read as a host, and the file was refused as
+/// another machine's.
+#[test]
+fn a_scratch_path_makes_a_local_file_uri() {
+    use crate::ui::input::gate::gate;
+    use crate::ui::input::paste::{Style, from_file_uri};
+    assert_eq!(
+        from_file_uri(&file_uri("/tmp/scratch/a b.pdf"), Style::Posix),
+        Ok(PathBuf::from("/tmp/scratch/a b.pdf"))
+    );
+    assert_eq!(
+        from_file_uri(&file_uri(r"C:\Users\RUNNER~1\Temp\a b.pdf"), Style::Windows),
+        Ok(PathBuf::from("C:/Users/RUNNER~1/Temp/a b.pdf"))
+    );
+    assert_eq!(
+        file_uri(r"\\?\C:\Users\runneradmin\Temp\a b.pdf"),
+        "file:///C:/Users/runneradmin/Temp/a%20b.pdf"
+    );
+    // The shape this host's scratch dir really has, read as this host reads
+    // a drop, then through the gate.
+    let dir = ScratchDir::new("app-file-uri");
+    let a = pdf(&dir, "a b.pdf");
+    let read = from_file_uri(&file_uri(&a), Style::NATIVE).expect("a local file");
+    assert_eq!(
+        gate(&read, u64::MAX).map(|got| got.path),
+        Ok(as_dragged(&a))
+    );
 }
 
 fn at_rest(app: &App, now: Duration) -> bool {
@@ -1182,7 +1247,7 @@ fn a_kitty_drop_on_the_cat_is_read_before_it_completes() {
     );
     assert_eq!(wire(&screen), [ACCEPT, REQUEST, DONE].concat());
     assert_eq!(app.admitted.len(), 1);
-    assert_eq!(app.admitted[0].0.path, a);
+    assert_eq!(app.admitted[0].0.path, as_dragged(&a));
     let want = std::fs::read(&a).unwrap();
     assert_eq!(app.admitted[0].1.as_deref(), Some(want.as_slice()));
 
@@ -1198,7 +1263,7 @@ fn a_kitty_drop_on_the_cat_is_read_before_it_completes() {
     assert_eq!(
         submitted,
         [JobInput::Dropped {
-            path: a.clone(),
+            path: as_dragged(&a),
             bytes: want
         }]
     );

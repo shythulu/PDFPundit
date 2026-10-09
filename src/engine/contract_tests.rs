@@ -387,10 +387,29 @@ fn assert_snapshot<T: Serialize>(name: &str, value: &T) {
     let committed =
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     assert!(
-        committed == text,
+        snapshot_matches(&committed, &text),
         "the serialised shape of {name} changed. If that is intended, re-run with \
          PDFPUNDIT_BLESS_CONTRACT=1 and commit the diff.\n--- now:\n{text}"
     );
+}
+
+/// Whether the committed snapshot holds `now`, the LF text this crate
+/// serialises. Line endings aside: a checkout may hold the file with CRLF.
+fn snapshot_matches(committed: &str, now: &str) -> bool {
+    crate::line_endings::lf(committed) == now
+}
+
+/// A CRLF checkout of a snapshot still matches (CI-01), and a changed one
+/// still does not.
+#[test]
+fn a_crlf_snapshot_matches_its_lf_serialisation() {
+    use crate::line_endings::crlf;
+    let path = Path::new(CONTRACT_DIR).join("repair_report_default.json");
+    let committed = std::fs::read_to_string(&path).expect("read the snapshot");
+    let now = crate::line_endings::lf(&committed).into_owned();
+    assert!(snapshot_matches(&crlf(&committed), &now));
+    let grown = now.replacen("{\n", "{\n  \"placement\": \"Atomic\",\n", 1);
+    assert!(!snapshot_matches(&crlf(&committed), &grown));
 }
 
 #[test]

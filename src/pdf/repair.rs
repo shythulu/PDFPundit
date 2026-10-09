@@ -1624,7 +1624,7 @@ pub(crate) fn preservation(output: &[u8]) -> Preservation {
     let present = |d: &Dictionary, key: &[u8]| {
         d.get(key)
             .ok()
-            .and_then(&resolve)
+            .and_then(resolve)
             .is_some_and(|v| !matches!(v, Object::Null))
     };
     let catalog = graph.catalog_candidates().first().and_then(|&c| dict(c));
@@ -1639,7 +1639,7 @@ pub(crate) fn preservation(output: &[u8]) -> Preservation {
         .pages_in_doc_order()
         .into_iter()
         .filter_map(dict)
-        .filter_map(|p| p.get(b"Annots").ok().and_then(&resolve))
+        .filter_map(|p| p.get(b"Annots").ok().and_then(resolve))
         .map(|a| match a {
             Object::Array(items) => items.len() as u64,
             _ => 0,

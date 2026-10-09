@@ -29,6 +29,8 @@ pub fn run() -> ExitCode {
 }
 
 #[cfg(test)]
+pub(crate) mod line_endings;
+#[cfg(test)]
 mod surface_tests;
 
 #[cfg(test)]

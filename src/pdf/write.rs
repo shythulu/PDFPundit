@@ -426,36 +426,56 @@ mod tests {
         assert_eq!(minimal().with_limit(at).finish(), Ok(out));
     }
 
+    /// What rules 3 and 5 ban: an object or xref stream, a compression pass,
+    /// or a loaded document to re-save.
+    const BANNED: [&str; 8] = [
+        ".compress(",
+        "save_modern",
+        "save_with_options",
+        "use_object_streams",
+        "use_xref_streams",
+        "XrefType::CrossReferenceStream",
+        "Document::load",
+        "Document::new(",
+    ];
+
+    /// The [`BANNED`] names that `src`'s code uses outside its tests module
+    /// and outside `//` comment lines.
+    fn banned_uses(src: &str) -> Vec<&'static str> {
+        let code: String = crate::line_endings::lf(src)
+            .split("#[cfg(test)]\nmod tests")
+            .next()
+            .unwrap()
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect();
+        BANNED.into_iter().filter(|b| code.contains(b)).collect()
+    }
+
     /// Rules 3 and 5: nothing outside the tests of this module or of `emit`
     /// asks lopdf for an object or xref stream, a compression pass, or a
     /// loaded document to re-save (a cheap tripwire; the review is the
     /// guard).
     #[test]
     fn rules_3_and_5_no_compression_no_streams_no_resave() {
-        let banned = [
-            ".compress(",
-            "save_modern",
-            "save_with_options",
-            "use_object_streams",
-            "use_xref_streams",
-            "XrefType::CrossReferenceStream",
-            "Document::load",
-            "Document::new(",
-        ];
         for (name, src) in [
             ("write.rs", include_str!("write.rs")),
             ("emit.rs", include_str!("emit.rs")),
         ] {
-            let code: String = src
-                .split("#[cfg(test)]\nmod tests")
-                .next()
-                .unwrap()
-                .lines()
-                .filter(|l| !l.trim_start().starts_with("//"))
-                .collect();
-            for b in banned {
-                assert!(!code.contains(b), "{name} uses {b}");
-            }
+            let hits = banned_uses(src);
+            assert!(hits.is_empty(), "{name} uses {hits:?}");
         }
+    }
+
+    /// A CRLF checkout scans the same (CI-01): the tests module is still cut
+    /// off, so its own list of banned names is not a hit, and a banned call
+    /// in the code still is.
+    #[test]
+    fn the_rules_3_and_5_scan_reads_a_crlf_checkout() {
+        use crate::line_endings::crlf;
+        let src = include_str!("write.rs");
+        assert!(banned_uses(&crlf(src)).is_empty());
+        let planted = crlf(&format!("fn f(d: &mut Doc) {{ d.compress(); }}\n{src}"));
+        assert_eq!(banned_uses(&planted), [".compress("]);
     }
 }

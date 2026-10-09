@@ -1,5 +1,8 @@
 # CI gates (plan §3.2, T-01). Nothing here sets RUSTFLAGS and nothing in the repo
-# depends on it (D-047).
+# depends on it (D-047). Each "Toolchain" step runs `rustup toolchain install`
+# with no name: it installs the version and components rust-toolchain.toml pins,
+# which every cargo command in the checkout then uses (D-155), so the runners
+# lint and build with the authoring Mac's Rust, not whatever stable is newest.
 name: CI
 
 on:
@@ -22,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt && rustup default stable
+        run: rustup toolchain install
       - name: rustfmt
         if: matrix.os == 'ubuntu-latest'
         run: cargo fmt --all --check
@@ -43,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - name: cargo test
         run: cargo test --locked
       # The guard is proven on the artefact that ships: debug-only hooks are
@@ -60,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - name: gate self-test
         run: python3 -I tools/purity-gate.py --self-test
       - name: purity gate
@@ -78,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked --version 0.20.2
       - name: cargo deny check licenses
@@ -112,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - name: fetch the google/fonts extras
         run: sh fetch-assets.sh --fonts
       - name: tool tests
@@ -129,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - name: build --release
         run: cargo build --locked --release --bin pdfpundit
       - name: no dev switches in the release binary
@@ -149,7 +152,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - name: generator and checker self-tests
         run: |
           python3 -I tools/crate-notices.py --self-test

@@ -1109,18 +1109,22 @@ const RASTER_IDENTS: [&str; 7] = [
     "pixmapsettings",
 ];
 
-#[test]
-fn nothing_outside_the_render_gate_touches_pixels() {
-    let src = include_str!("../verify.rs");
+/// Whether `line`'s code (comments cut) names a raster identifier.
+fn raster(line: &str) -> bool {
+    let code = line.split("//").next().unwrap_or("").to_ascii_lowercase();
+    code.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .any(|ident| {
+            RASTER_IDENTS.contains(&ident) || ident.contains("pixmap") || ident.contains("rgba")
+        })
+}
+
+/// The lines of `src` outside the render gate that touch pixels, and the
+/// gate's own text, with LF line endings. Panics if `src` has no gate, or no
+/// line closing it.
+fn raster_outside_gate(src: &str) -> (Vec<String>, String) {
+    let src = crate::line_endings::lf(src);
     let start = src.find(GATE).expect("the render gate");
     let end = start + src[start..].find("\n}\n").expect("the gate's end");
-    let raster = |line: &str| {
-        let code = line.split("//").next().unwrap_or("").to_ascii_lowercase();
-        code.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-            .any(|ident| {
-                RASTER_IDENTS.contains(&ident) || ident.contains("pixmap") || ident.contains("rgba")
-            })
-    };
     let mut hits = Vec::new();
     let mut at = 0;
     for line in src.split_inclusive('\n') {
@@ -1129,10 +1133,16 @@ fn nothing_outside_the_render_gate_touches_pixels() {
         }
         at += line.len();
     }
+    (hits, src[start..end].to_owned())
+}
+
+#[test]
+fn nothing_outside_the_render_gate_touches_pixels() {
+    let (hits, gate) = raster_outside_gate(include_str!("../verify.rs"));
     assert!(hits.is_empty(), "raster use outside the V0 gate: {hits:?}");
     // The tripwire would fire: the gate itself renders, and each spelling
     // the review named is caught.
-    assert!(raster(&src[start..end]));
+    assert!(raster(&gate));
     for spelling in [
         "use hayro::{render, RenderCache};",
         "render (page, &cache)",
@@ -1142,6 +1152,20 @@ fn nothing_outside_the_render_gate_touches_pixels() {
         assert!(raster(spelling), "{spelling}");
     }
     assert!(!raster("hayro_render_all_pages: RENDER_MAX_SIDE"));
+}
+
+/// A CRLF checkout of `verify.rs` scans the same (CI-01): the gate's end is
+/// found and a raster use outside it is still caught.
+#[test]
+fn the_render_gate_scan_reads_a_crlf_checkout() {
+    use crate::line_endings::crlf;
+    let src = include_str!("../verify.rs");
+    let (hits, gate) = raster_outside_gate(&crlf(src));
+    assert!(hits.is_empty(), "{hits:?}");
+    assert_eq!(gate, raster_outside_gate(src).1);
+    let planted = crlf(&format!("{src}\nfn leak() {{ let _ = Pixmap::new(); }}\n"));
+    let (hits, _) = raster_outside_gate(&planted);
+    assert_eq!(hits, ["fn leak() { let _ = Pixmap::new(); }"]);
 }
 
 /// `verify`'s signature: the output's bytes, the input's carve, the

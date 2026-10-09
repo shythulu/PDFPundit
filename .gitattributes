@@ -1,3 +1,18 @@
+# Text that tests read byte for byte, or search for a line break, checks out
+# with LF on every OS whatever core.autocrlf says (CI-01): Rust sources (the
+# source-scanning tripwires include_str! them), the JSON contract snapshots and
+# goldens, Markdown, CSV and text manifests, and the TOML, YAML and shell files
+# tests read. The -text rules below come later and win for the files they name.
+*.rs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.csv text eol=lf
+*.txt text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+# Committed with CRLF and read by no test: kept byte for byte.
+research/experiments/results/*.csv -text
 # Committed bytes that are hashed or compiled in must be the same on every
 # checkout (D-021): no end-of-line conversion.
 assets/fontindex.json -text
