@@ -660,6 +660,44 @@ mod tests {
         assert_eq!(one, blank);
     }
 
+    /// Hostile folder and file names, and a folder path holding one, are
+    /// drawn as they are in both pickers, controls and bidi controls as `�`.
+    #[test]
+    fn hostile_names_are_drawn_literally() {
+        for (name, shown) in crate::ui::canvas::HOSTILE_NAMES {
+            let mut s = sample();
+            s.entries = vec![
+                Entry {
+                    name: format!("d{name}").into(),
+                    is_dir: true,
+                    size: 0,
+                },
+                Entry {
+                    name: name.into(),
+                    is_dir: false,
+                    size: 12,
+                },
+            ];
+            s.cursor = 0;
+            s.cwd = PathBuf::from(format!("/case/{name}"));
+            for (kind, size) in [
+                (LayoutKind::Full, (112, 38)),
+                (LayoutKind::Widget, (32, 16)),
+            ] {
+                let mut c = Canvas::new(size.0, size.1, theme());
+                draw(&mut c, &s, kind, theme());
+                c.assert_printable();
+                let rows: Vec<String> = (0..c.h).map(|y| row_text(&c, y)).collect();
+                let has = |want: &str| rows.iter().any(|r| r.contains(want));
+                assert!(has(&format!("▸  d{shown}")), "{kind:?} {name:?}");
+                assert!(has(&format!("[ ] {shown}")), "{kind:?} {name:?}");
+                if kind == LayoutKind::Full {
+                    assert!(has(&format!("/case/{shown}")), "{name:?}");
+                }
+            }
+        }
+    }
+
     #[test]
     fn long_folders_keep_their_end() {
         assert_eq!(fit_left("/a/b/c", 10), "/a/b/c");
