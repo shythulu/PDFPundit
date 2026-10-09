@@ -2,13 +2,24 @@
 //!
 //! ```text
 //! <data_dir>/history/
-//!   index.json            Vec<FileSummary>: a cache, rebuilt from files/ when
-//!                         it is unreadable or disagrees with the records
-//!   files/<sha256>.json   FileRecord { meta: FileEntry, runs: Vec<RunRecord> }
-//!   files/<sha256>.json.corrupt
+//!   index.json            { version: 1, files: Vec<FileSummary> }: a cache,
+//!                         rebuilt from files/ when it is unreadable, newer
+//!                         or disagrees with the records
+//!   files/<sha256>.json   { version: 1, meta: FileEntry,
+//!                           runs: [{ version: 1, ..RunRecord }] }
+//!   files/<sha256>.json.corrupt, then .corrupt (2), .corrupt (3), ...
 //!                         a record that did not parse, or named another hash,
-//!                         moved aside so the store can go on without it
+//!                         moved aside so the store can go on without it; an
+//!                         earlier one is never overwritten
 //! ```
+//!
+//! Format versions (F-05): `index.json`, each record and each run carry
+//! `"version": 1`, and one with no version (as T-16 first wrote them, the
+//! index a bare array) reads as version 1. A record or run with a higher
+//! version was written by a newer build: it is left exactly as written and
+//! skipped with a warning ([`HistoryStore::take_warnings`]), never moved
+//! aside, and a save of its file keeps it in place. A newer index is only a
+//! cache, so it is rebuilt.
 //!
 //! Every write is temp file → fsync → rename (→ fsync of the directory on
 //! Unix). A record write first removes `index.json`, so a crash between the
@@ -20,16 +31,19 @@
 //! allow of any kind (a test checks it); the temporary dead-code allow sits on
 //! the `mod` line in `lib.rs`.
 
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
+use serde_json::value::RawValue;
 
 use crate::appdirs::AppDirs;
 use crate::engine::{AnalysisStateUse, RepairReport};
 use crate::jobs::Placed;
+use crate::place::place_no_replace;
 
 /// What the idle screen shows of the history (eng-r3-q4): totals and the five
 /// newest files. T-16's store builds it; the view model reads it.
@@ -111,17 +125,99 @@ pub struct FileSummary {
     pub record_len: u64,
 }
 
-/// What `files/<sha256>.json` holds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FileRecord {
-    pub meta: FileEntry,
-    pub runs: Vec<RunRecord>,
+/// The version of `index.json`, of every record and of every run this build
+/// writes (F-05).
+const FORMAT_VERSION: u64 = 1;
+
+/// What `files/<sha256>.json` holds, less its `version`.
+#[derive(Debug, Serialize)]
+struct FileRecord {
+    meta: FileEntry,
+    runs: Vec<StoredRun>,
+}
+
+/// One entry of a record's `runs`, in the order recorded.
+#[derive(Debug)]
+enum StoredRun {
+    Known(Box<RunRecord>),
+    /// A run with a higher version: kept as written, never read.
+    Newer(Box<RawValue>),
+}
+
+impl Serialize for StoredRun {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            StoredRun::Known(run) => Versioned::new(run).serialize(s),
+            StoredRun::Newer(raw) => raw.serialize(s),
+        }
+    }
+}
+
+/// `inner`'s fields with `"version"` written first.
+#[derive(Serialize)]
+struct Versioned<'a, T> {
+    version: u64,
+    #[serde(flatten)]
+    inner: &'a T,
+}
+
+impl<'a, T> Versioned<'a, T> {
+    fn new(inner: &'a T) -> Versioned<'a, T> {
+        Versioned {
+            version: FORMAT_VERSION,
+            inner,
+        }
+    }
+}
+
+/// `index.json` as this build writes it.
+#[derive(Serialize)]
+struct IndexOut<'a> {
+    version: u64,
+    files: &'a [FileSummary],
+}
+
+/// `index.json` from a version-1 object.
+#[derive(Deserialize)]
+struct IndexIn {
+    files: Vec<FileSummary>,
+}
+
+/// A record from a version-1 object, its runs not yet read.
+#[derive(Deserialize)]
+struct RecordIn<'a> {
+    meta: FileEntry,
+    #[serde(borrow)]
+    runs: Vec<&'a RawValue>,
+}
+
+/// Only the `version` of a JSON object.
+#[derive(Deserialize)]
+struct VersionOnly {
+    version: Option<u64>,
+}
+
+/// The format version `json` says it has (none is 1); `None` if it is not
+/// JSON or its `version` is not a whole number.
+fn version_of(json: &[u8]) -> Option<u64> {
+    serde_json::from_slice::<VersionOnly>(json)
+        .ok()
+        .map(|v| v.version.unwrap_or(FORMAT_VERSION))
 }
 
 impl FileRecord {
+    fn known_runs(&self) -> impl Iterator<Item = &RunRecord> {
+        self.runs.iter().filter_map(|r| match r {
+            StoredRun::Known(run) => Some(&**run),
+            StoredRun::Newer(_) => None,
+        })
+    }
+
+    /// The row for `index.json`. Runs with a higher version are not counted:
+    /// this build cannot show them.
     fn summary(&self, record_len: u64) -> FileSummary {
         let m = &self.meta;
-        let newest_run = self.runs.iter().map(|r| r.started_at).max();
+        let newest_run = self.known_runs().map(|r| r.started_at).max();
         FileSummary {
             sha256: m.sha256,
             name: m.name.clone(),
@@ -130,7 +226,7 @@ impl FileRecord {
             added_at: m.added_at,
             last_at: newest_run.map_or(m.added_at, |t| t.max(m.added_at)),
             status: m.status,
-            runs: self.runs.len() as u64,
+            runs: self.known_runs().count() as u64,
             record_len,
         }
     }
@@ -144,18 +240,23 @@ pub trait HistoryStore {
     /// status. `NotFound` if the file was never upserted (or was deleted);
     /// `InvalidData` if its record was damaged, in which case the record has
     /// been set aside and nothing was written: upsert the file again and
-    /// retry to keep the run.
+    /// retry to keep the run. Here and in `upsert_file`, `runs_for` and
+    /// `delete_file`, a record a newer build wrote is left as it is and the
+    /// call fails `InvalidData`.
     fn record_run(&mut self, run: RunRecord, status: RecentStatus) -> io::Result<()>;
     /// Files whose name or path contains `filter` (case-insensitive; `""`
     /// matches all), newest first.
     fn list_files(&self, filter: &str) -> Vec<FileSummary>;
     /// The file's runs in the order they were recorded; empty if unknown.
     fn runs_for(&self, sha256: &[u8; 32]) -> io::Result<Vec<RunRecord>>;
-    /// Removes the file and its runs, including any damaged copy set aside;
-    /// `false` if there was nothing to remove.
+    /// Removes the file and its runs, including every damaged copy set
+    /// aside; `false` if there was nothing to remove.
     fn delete_file(&mut self, sha256: &[u8; 32]) -> io::Result<bool>;
     /// Totals and the five newest files, for the idle screen.
     fn summary(&self) -> HistorySummary;
+    /// What the store has skipped since the last call, for the debug log:
+    /// records and runs a newer build wrote, and a newer index.
+    fn take_warnings(&mut self) -> Vec<String>;
 }
 
 /// The JSON store. It owns its directory; one process uses it at a time.
@@ -164,12 +265,18 @@ pub struct JsonStore {
     root: PathBuf,
     /// Sorted by `sha256`.
     index: Vec<FileSummary>,
+    /// Pending for [`HistoryStore::take_warnings`]; a cell because reads
+    /// through `&self` can skip a newer run.
+    warnings: RefCell<Vec<String>>,
 }
 
 const INDEX: &str = "index.json";
 const FILES: &str = "files";
 const TMP_SUFFIX: &str = ".tmp";
 const CORRUPT_SUFFIX: &str = ".corrupt";
+/// How many damaged copies of one record are kept before moving another
+/// aside fails.
+const MAX_CORRUPT_COPIES: u32 = 10_000;
 
 /// What [`JsonStore::load_record`] found.
 enum Loaded {
@@ -177,6 +284,8 @@ enum Loaded {
     Missing,
     /// The record was damaged and has just been moved aside.
     SetAside,
+    /// A newer build wrote it, at this version; it is left as it is.
+    Newer(u64),
 }
 
 /// What reading `files/<sha256>.json` found.
@@ -184,10 +293,46 @@ enum OnDisk {
     Missing,
     /// It does not parse, or its `meta.sha256` is not the hash in its name.
     Corrupt,
+    /// Its version is this one, higher than [`FORMAT_VERSION`].
+    Newer(u64),
     Record {
         record: FileRecord,
         len: u64,
     },
+}
+
+/// What reading `index.json` found.
+enum CachedIndex {
+    Rows(Vec<FileSummary>),
+    /// Its version is this one, higher than [`FORMAT_VERSION`].
+    Newer(u64),
+    Unusable,
+}
+
+fn parse_index(bytes: &[u8]) -> CachedIndex {
+    // Version 1 as T-16 first wrote it: a bare array.
+    if let Ok(rows) = serde_json::from_slice::<Vec<FileSummary>>(bytes) {
+        return CachedIndex::Rows(rows);
+    }
+    match version_of(bytes) {
+        Some(v) if v > FORMAT_VERSION => CachedIndex::Newer(v),
+        Some(_) => serde_json::from_slice::<IndexIn>(bytes)
+            .map_or(CachedIndex::Unusable, |index| {
+                CachedIndex::Rows(index.files)
+            }),
+        None => CachedIndex::Unusable,
+    }
+}
+
+/// The error for a write or read of a record a newer build wrote.
+fn newer_error(version: u64) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "the history record for this file was written by a newer version of \
+             PDFPundit (format version {version}); it is left as it is"
+        ),
+    )
 }
 
 impl JsonStore {
@@ -206,25 +351,44 @@ impl JsonStore {
         remove_temp_files(&root)?;
         remove_temp_files(&files)?;
         let on_disk = record_hashes(&files)?;
-        let cached = fs::read(root.join(INDEX))
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<Vec<FileSummary>>(&bytes).ok())
-            .filter(|index| index_matches(index, &files, &on_disk));
+        let cached =
+            fs::read(root.join(INDEX)).map_or(CachedIndex::Unusable, |bytes| parse_index(&bytes));
         let mut store = JsonStore {
             root,
             index: Vec::new(),
+            warnings: RefCell::default(),
         };
         match cached {
-            Some(index) => store.index = index,
-            None => store.rebuild_index(&on_disk)?,
+            CachedIndex::Rows(index) if index_matches(&index, &files, &on_disk) => {
+                store.index = index;
+            }
+            CachedIndex::Newer(v) => {
+                store.warn(format!(
+                    "{INDEX} was written by a newer version (format version {v}); \
+                     it is rebuilt from the records"
+                ));
+                store.rebuild_index(&on_disk)?;
+            }
+            CachedIndex::Rows(_) | CachedIndex::Unusable => store.rebuild_index(&on_disk)?,
         }
         Ok(store)
+    }
+
+    /// Queues `message` for [`HistoryStore::take_warnings`] unless it is
+    /// already pending.
+    fn warn(&self, message: String) {
+        let mut pending = self.warnings.borrow_mut();
+        if !pending.contains(&message) {
+            pending.push(message);
+        }
     }
 
     /// Re-reads every record in `files/` and rewrites `index.json`. A corrupt
     /// record is moved aside; one that cannot be read, or a corrupt one that
     /// cannot be moved, is kept out of the index and tried again on the next
-    /// open, so one bad file never makes the store unusable.
+    /// open, so one bad file never makes the store unusable. A newer record
+    /// is kept out of the index with a warning; since the index then has no
+    /// row for it, every open rebuilds and warns again.
     fn rebuild_index(&mut self, hashes: &BTreeSet<[u8; 32]>) -> io::Result<()> {
         let mut index = Vec::with_capacity(hashes.len());
         for sha in hashes {
@@ -234,6 +398,11 @@ impl JsonStore {
                     // Left in place it is retried on the next open.
                     let _ = self.move_aside(sha);
                 }
+                Ok(OnDisk::Newer(v)) => self.warn(format!(
+                    "{}.json was written by a newer version (format version {v}); \
+                     it is left as it is and skipped",
+                    hex(sha)
+                )),
                 Ok(OnDisk::Missing) | Err(_) => {}
             }
         }
@@ -247,10 +416,14 @@ impl JsonStore {
         self.root.join(FILES).join(format!("{}.json", hex(sha256)))
     }
 
-    /// Where [`Self::move_aside`] puts a damaged record.
-    fn corrupt_path(&self, sha256: &[u8; 32]) -> PathBuf {
+    /// Where [`Self::move_aside`] puts the `n`th damaged copy of a record:
+    /// `<hex>.json.corrupt`, then `<hex>.json.corrupt (2)` and so on.
+    fn corrupt_path(&self, sha256: &[u8; 32], n: u32) -> PathBuf {
         let mut path = self.record_path(sha256).into_os_string();
         path.push(CORRUPT_SUFFIX);
+        if n > 1 {
+            path.push(format!(" ({n})"));
+        }
         PathBuf::from(path)
     }
 
@@ -260,12 +433,40 @@ impl JsonStore {
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(OnDisk::Missing),
             Err(e) => return Err(e),
         };
-        Ok(match serde_json::from_slice::<FileRecord>(&bytes) {
-            Ok(record) if &record.meta.sha256 == sha256 => OnDisk::Record {
-                record,
-                len: bytes.len() as u64,
+        match version_of(&bytes) {
+            None => return Ok(OnDisk::Corrupt),
+            Some(v) if v > FORMAT_VERSION => return Ok(OnDisk::Newer(v)),
+            Some(_) => {}
+        }
+        let body = match serde_json::from_slice::<RecordIn>(&bytes) {
+            Ok(body) if &body.meta.sha256 == sha256 => body,
+            _ => return Ok(OnDisk::Corrupt),
+        };
+        let mut runs = Vec::with_capacity(body.runs.len());
+        for raw in body.runs {
+            let run = match version_of(raw.get().as_bytes()) {
+                None => return Ok(OnDisk::Corrupt),
+                Some(v) if v > FORMAT_VERSION => {
+                    self.warn(format!(
+                        "{}.json holds a run written by a newer version (format \
+                         version {v}); the run is kept as it is and skipped",
+                        hex(sha256)
+                    ));
+                    StoredRun::Newer(raw.to_owned())
+                }
+                Some(_) => match serde_json::from_str::<RunRecord>(raw.get()) {
+                    Ok(run) => StoredRun::Known(Box::new(run)),
+                    Err(_) => return Ok(OnDisk::Corrupt),
+                },
+            };
+            runs.push(run);
+        }
+        Ok(OnDisk::Record {
+            record: FileRecord {
+                meta: body.meta,
+                runs,
             },
-            _ => OnDisk::Corrupt,
+            len: bytes.len() as u64,
         })
     }
 
@@ -275,6 +476,7 @@ impl JsonStore {
         match self.read_record(sha256)? {
             OnDisk::Record { record, .. } => Ok(Loaded::Record(record)),
             OnDisk::Missing => Ok(Loaded::Missing),
+            OnDisk::Newer(v) => Ok(Loaded::Newer(v)),
             OnDisk::Corrupt => {
                 self.move_aside(sha256)?;
                 if let Ok(i) = self.index.binary_search_by_key(sha256, |f| f.sha256) {
@@ -286,18 +488,52 @@ impl JsonStore {
         }
     }
 
-    /// Renames `<hex>.json` to `<hex>.json.corrupt`, outside the record name
-    /// pattern, replacing an earlier one for the same hash.
+    /// Renames `<hex>.json` to the first free [`Self::corrupt_path`],
+    /// outside the record name pattern. An earlier damaged copy is never
+    /// replaced (the rename refuses an existing name).
     fn move_aside(&self, sha256: &[u8; 32]) -> io::Result<()> {
-        fs::rename(self.record_path(sha256), self.corrupt_path(sha256))?;
+        let from = self.record_path(sha256);
+        let mut n = 1;
+        loop {
+            match place_no_replace(&from, &self.corrupt_path(sha256, n)) {
+                Ok(_) => break,
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists && n < MAX_CORRUPT_COPIES => {
+                    n += 1;
+                }
+                Err(e) => return Err(e),
+            }
+        }
         sync_dir(&self.root.join(FILES));
         Ok(())
+    }
+
+    /// Every damaged copy of the record for `sha256` that
+    /// [`Self::move_aside`] made.
+    fn corrupt_copies(&self, sha256: &[u8; 32]) -> io::Result<Vec<PathBuf>> {
+        let prefix = format!("{}.json{CORRUPT_SUFFIX}", hex(sha256));
+        let mut out = Vec::new();
+        for entry in fs::read_dir(self.root.join(FILES))? {
+            let entry = entry?;
+            let name = entry.file_name();
+            let Some(rest) = name.to_str().and_then(|n| n.strip_prefix(&prefix)) else {
+                continue;
+            };
+            let numbered = rest
+                .strip_prefix(" (")
+                .and_then(|r| r.strip_suffix(')'))
+                .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()));
+            if rest.is_empty() || numbered {
+                out.push(entry.path());
+            }
+        }
+        out.sort();
+        Ok(out)
     }
 
     /// Removes `index.json`, then writes the record, then the index with the
     /// record's new row.
     fn write_record(&mut self, record: &FileRecord) -> io::Result<()> {
-        let bytes = serde_json::to_vec_pretty(record)?;
+        let bytes = serde_json::to_vec_pretty(&Versioned::new(record))?;
         self.drop_index_file()?;
         write_atomic(&self.record_path(&record.meta.sha256), &bytes)?;
         let row = record.summary(bytes.len() as u64);
@@ -309,7 +545,10 @@ impl JsonStore {
     }
 
     fn write_index(&self) -> io::Result<()> {
-        let bytes = serde_json::to_vec_pretty(&self.index)?;
+        let bytes = serde_json::to_vec_pretty(&IndexOut {
+            version: FORMAT_VERSION,
+            files: &self.index,
+        })?;
         write_atomic(&self.root.join(INDEX), &bytes)
     }
 
@@ -344,6 +583,7 @@ impl HistoryStore for JsonStore {
         let runs = match self.load_record(&file.sha256)? {
             Loaded::Record(record) => record.runs,
             Loaded::Missing | Loaded::SetAside => Vec::new(),
+            Loaded::Newer(v) => return Err(newer_error(v)),
         };
         self.write_record(&FileRecord { meta: file, runs })
     }
@@ -364,9 +604,10 @@ impl HistoryStore for JsonStore {
                      aside; add the file again to record this run",
                 ));
             }
+            Loaded::Newer(v) => return Err(newer_error(v)),
         };
         record.meta.status = status;
-        record.runs.push(run);
+        record.runs.push(StoredRun::Known(Box::new(run)));
         self.write_record(&record)
     }
 
@@ -392,19 +633,26 @@ impl HistoryStore for JsonStore {
 
     fn runs_for(&self, sha256: &[u8; 32]) -> io::Result<Vec<RunRecord>> {
         match self.read_record(sha256)? {
-            OnDisk::Record { record, .. } => Ok(record.runs),
+            OnDisk::Record { record, .. } => Ok(record.known_runs().cloned().collect()),
             OnDisk::Missing => Ok(Vec::new()),
             OnDisk::Corrupt => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "the history record for this file is damaged",
             )),
+            OnDisk::Newer(v) => Err(newer_error(v)),
         }
     }
 
     fn delete_file(&mut self, sha256: &[u8; 32]) -> io::Result<bool> {
-        // The damaged copy holds the same paths and names, so it goes too.
+        // A newer build's record is left as it is, as on every other path.
+        if let OnDisk::Newer(v) = self.read_record(sha256)? {
+            return Err(newer_error(v));
+        }
+        // The damaged copies hold the same paths and names, so they go too.
         let mut removed = false;
-        for path in [self.record_path(sha256), self.corrupt_path(sha256)] {
+        let mut paths = self.corrupt_copies(sha256)?;
+        paths.insert(0, self.record_path(sha256));
+        for path in paths {
             match fs::remove_file(path) {
                 Ok(()) => removed = true,
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {}
@@ -433,6 +681,10 @@ impl HistoryStore for JsonStore {
                 })
                 .collect(),
         }
+    }
+
+    fn take_warnings(&mut self) -> Vec<String> {
+        std::mem::take(self.warnings.get_mut())
     }
 }
 
@@ -842,8 +1094,7 @@ mod tests {
         fs::write(&index, b"[{\"sha256\": tru").unwrap();
         let store = JsonStore::open_at(&dir.0).unwrap();
         assert_eq!(store.summary(), expected);
-        let rewritten: Vec<FileSummary> =
-            serde_json::from_slice(&fs::read(&index).unwrap()).unwrap();
+        let rewritten = index_rows(&index);
         assert_eq!(rewritten.len(), 2);
 
         // An index that parses but misses a record is rebuilt too.
@@ -982,7 +1233,8 @@ mod tests {
         let expected = store.summary();
         drop(store);
         let index = dir.0.join(INDEX);
-        let rows: Vec<FileSummary> = serde_json::from_slice(&fs::read(&index).unwrap()).unwrap();
+        let rows = index_rows(&index);
+        // Written back in the bare-array form, which reads as version 1.
         let dup = [rows[0].clone(), rows[0].clone()];
         fs::write(&index, serde_json::to_vec(&dup).unwrap()).unwrap();
         assert_eq!(JsonStore::open_at(&dir.0).unwrap().summary(), expected);
@@ -1043,8 +1295,7 @@ mod tests {
         assert_eq!(store.summary().files, 1);
         assert!(!record.exists());
         assert!(dir.0.join(FILES).join(&corrupt).exists());
-        let index = fs::read(dir.0.join(INDEX)).unwrap();
-        let rows: Vec<FileSummary> = serde_json::from_slice(&index).unwrap();
+        let rows = index_rows(&dir.0.join(INDEX));
         assert!(index_matches(
             &rows,
             &dir.0.join(FILES),
@@ -1062,7 +1313,7 @@ mod tests {
             [format!("{}.json", hex(&sha(2)))]
         );
         // A damaged copy alone still counts as something removed.
-        fs::write(store.corrupt_path(&sha(1)), b"{").unwrap();
+        fs::write(store.corrupt_path(&sha(1), 1), b"{").unwrap();
         assert!(store.delete_file(&sha(1)).unwrap());
         assert!(!store.delete_file(&sha(1)).unwrap());
         assert_eq!(
@@ -1116,6 +1367,270 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].sha256, sha(1));
         assert!(!store.record_path(&sha(3)).exists());
+    }
+
+    fn json_at(path: &Path) -> serde_json::Value {
+        serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+    }
+
+    /// The rows of the `index.json` at `path`, as this build writes it.
+    fn index_rows(path: &Path) -> Vec<FileSummary> {
+        match parse_index(&fs::read(path).unwrap()) {
+            CachedIndex::Rows(rows) => rows,
+            CachedIndex::Newer(_) | CachedIndex::Unusable => panic!("unreadable index"),
+        }
+    }
+
+    #[test]
+    fn the_index_every_record_and_every_run_carry_version_1() {
+        let dir = TempDir::new("version");
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        store.upsert_file(entry(1, "a.pdf", 10)).unwrap();
+        store
+            .record_run(run(1, 20, default_report()), RecentStatus::Repaired)
+            .unwrap();
+        store
+            .record_run(run(1, 30, populated_report()), RecentStatus::Partial)
+            .unwrap();
+
+        let index = json_at(&dir.0.join(INDEX));
+        assert_eq!(index["version"], 1);
+        assert_eq!(index["files"].as_array().unwrap().len(), 1);
+        let record = json_at(&store.record_path(&sha(1)));
+        assert_eq!(record["version"], 1);
+        let runs = record["runs"].as_array().unwrap();
+        assert_eq!(runs.len(), 2);
+        assert!(runs.iter().all(|r| r["version"] == 1), "{runs:?}");
+
+        // The versioned files read back to the same values, and a fresh open
+        // trusts the index it wrote.
+        let index_bytes = fs::read(dir.0.join(INDEX)).unwrap();
+        let reopened = JsonStore::open_at(&dir.0).unwrap();
+        assert_eq!(reopened.summary(), store.summary());
+        assert_eq!(
+            reopened.runs_for(&sha(1)).unwrap(),
+            store.runs_for(&sha(1)).unwrap()
+        );
+        assert_eq!(fs::read(dir.0.join(INDEX)).unwrap(), index_bytes);
+    }
+
+    #[test]
+    fn files_with_no_version_read_as_version_1() {
+        let dir = TempDir::new("unversioned");
+        let files = dir.0.join(FILES);
+        fs::create_dir_all(&files).unwrap();
+        let r = run(1, 20, populated_report());
+        let legacy = serde_json::json!({ "meta": entry(1, "a.pdf", 10), "runs": [r] });
+        let record_bytes = serde_json::to_vec_pretty(&legacy).unwrap();
+        fs::write(files.join(format!("{}.json", hex(&sha(1)))), &record_bytes).unwrap();
+        let row = FileSummary {
+            sha256: sha(1),
+            name: "a.pdf".into(),
+            path: Some(PathBuf::from("/cases/a.pdf")),
+            size: 1001,
+            added_at: 10,
+            last_at: 20,
+            status: RecentStatus::Pending,
+            runs: 1,
+            record_len: record_bytes.len() as u64,
+        };
+        let index_bytes = serde_json::to_vec_pretty(&[row]).unwrap();
+        fs::write(dir.0.join(INDEX), &index_bytes).unwrap();
+
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        // The bare-array index is trusted as it stands.
+        assert_eq!(fs::read(dir.0.join(INDEX)).unwrap(), index_bytes);
+        assert_eq!((store.summary().files, store.summary().runs), (1, 1));
+        assert_eq!(store.runs_for(&sha(1)).unwrap(), std::slice::from_ref(&r));
+        assert_eq!(store.take_warnings(), Vec::<String>::new());
+
+        // The next write gives both files a version.
+        store
+            .record_run(run(1, 30, default_report()), RecentStatus::Repaired)
+            .unwrap();
+        assert_eq!(json_at(&dir.0.join(INDEX))["version"], 1);
+        let record = json_at(&store.record_path(&sha(1)));
+        assert_eq!(record["version"], 1);
+        assert!(
+            record["runs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|r| r["version"] == 1)
+        );
+        assert_eq!(store.runs_for(&sha(1)).unwrap()[0], r);
+    }
+
+    #[test]
+    fn a_future_version_record_survives_a_load_and_a_save_untouched() {
+        let dir = TempDir::new("future-record");
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        store.upsert_file(entry(1, "a.pdf", 10)).unwrap();
+        let future = store.record_path(&sha(2));
+        let bytes: &[u8] = br#"{"version": 2, "meta": {"digest": "new shape"}, "runs": 7}"#;
+        fs::write(&future, bytes).unwrap();
+        drop(store);
+
+        // Load: the record is skipped with a warning.
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        let rows = store.list_files("");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].sha256, sha(1));
+        let warnings = store.take_warnings();
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains(&hex(&sha(2))) && w.contains("version 2")),
+            "{warnings:?}"
+        );
+        assert_eq!(store.take_warnings(), Vec::<String>::new(), "drained");
+
+        // Save: writes to other files, and attempts on this one, leave it be.
+        store
+            .record_run(run(1, 20, default_report()), RecentStatus::Repaired)
+            .unwrap();
+        store.upsert_file(entry(3, "c.pdf", 12)).unwrap();
+        let err = store.upsert_file(entry(2, "b.pdf", 11)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("newer"), "{err}");
+        let err = store
+            .record_run(run(2, 21, default_report()), RecentStatus::Repaired)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            store.runs_for(&sha(2)).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert!(store.delete_file(&sha(2)).is_err());
+        assert_eq!(store.summary().files, 2);
+        assert_eq!(fs::read(&future).unwrap(), bytes);
+        // Never moved aside.
+        assert_eq!(
+            names_in(&dir.0.join(FILES)),
+            [
+                format!("{}.json", hex(&sha(1))),
+                format!("{}.json", hex(&sha(2))),
+                format!("{}.json", hex(&sha(3))),
+            ]
+        );
+
+        // And again on the next open.
+        drop(store);
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        assert_eq!(store.summary().files, 2);
+        assert_eq!(store.take_warnings().len(), 1);
+        assert_eq!(fs::read(&future).unwrap(), bytes);
+    }
+
+    #[test]
+    fn a_future_version_run_is_kept_as_written_and_skipped() {
+        let dir = TempDir::new("future-run");
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        store.upsert_file(entry(1, "a.pdf", 10)).unwrap();
+        let first = run(1, 20, default_report());
+        store
+            .record_run(first.clone(), RecentStatus::Repaired)
+            .unwrap();
+        let path = store.record_path(&sha(1));
+        drop(store);
+        // A newer build appended a run in a shape this one does not know,
+        // with its keys out of alphabetical order.
+        let future_run = r#"{"version": 3, "zeta": 18446744073709551616, "alpha": [1, 2]}"#;
+        let text = fs::read_to_string(&path).unwrap();
+        let tail = "\n  ]\n}";
+        assert!(text.ends_with(tail));
+        let edited = format!(
+            "{},\n    {future_run}{tail}",
+            &text[..text.len() - tail.len()]
+        );
+        fs::write(&path, &edited).unwrap();
+
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        assert_eq!(
+            store.runs_for(&sha(1)).unwrap(),
+            std::slice::from_ref(&first)
+        );
+        assert_eq!(store.summary().runs, 1);
+        let warnings = store.take_warnings();
+        assert!(
+            warnings.iter().any(|w| w.contains("version 3")),
+            "{warnings:?}"
+        );
+
+        // A save keeps the future run, byte for byte, in its place.
+        let second = run(1, 30, default_report());
+        store
+            .record_run(second.clone(), RecentStatus::Partial)
+            .unwrap();
+        let after = fs::read_to_string(&path).unwrap();
+        assert!(after.contains(future_run), "{after}");
+        let runs = json_at(&path)["runs"].as_array().unwrap().clone();
+        assert_eq!(runs.len(), 3);
+        assert_eq!(runs[1]["version"], 3);
+        assert_eq!(store.runs_for(&sha(1)).unwrap(), [first, second]);
+        assert_eq!(store.list_files("")[0].runs, 2);
+        assert!(
+            !dir.0
+                .join(FILES)
+                .join(format!("{}.json.corrupt", hex(&sha(1))))
+                .exists()
+        );
+    }
+
+    #[test]
+    fn a_future_version_index_is_rebuilt_with_a_warning() {
+        let dir = TempDir::new("future-index");
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        store.upsert_file(entry(1, "a.pdf", 10)).unwrap();
+        let expected = store.summary();
+        drop(store);
+        fs::write(dir.0.join(INDEX), br#"{"version": 2, "rows": {}}"#).unwrap();
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        assert_eq!(store.summary(), expected);
+        let warnings = store.take_warnings();
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains(INDEX) && w.contains("version 2")),
+            "{warnings:?}"
+        );
+        assert_eq!(json_at(&dir.0.join(INDEX))["version"], 1);
+    }
+
+    #[test]
+    fn two_corrupt_records_are_both_kept() {
+        let dir = TempDir::new("two-corrupt");
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        store.upsert_file(entry(1, "a.pdf", 10)).unwrap();
+        store.upsert_file(entry(2, "b.pdf", 11)).unwrap();
+        let record = store.record_path(&sha(1));
+        let first = format!("{}.json.corrupt", hex(&sha(1)));
+        let second = format!("{}.json.corrupt (2)", hex(&sha(1)));
+
+        // Once through a write in the open store ...
+        fs::write(&record, b"{").unwrap();
+        store.upsert_file(entry(1, "a.pdf", 20)).unwrap();
+        // ... and once through the next open's rebuild.
+        fs::write(&record, b"[").unwrap();
+        drop(store);
+        let mut store = JsonStore::open_at(&dir.0).unwrap();
+        let files = dir.0.join(FILES);
+        assert_eq!(fs::read(files.join(&first)).unwrap(), b"{");
+        assert_eq!(fs::read(files.join(&second)).unwrap(), b"[");
+        assert!(!record.exists());
+        assert_eq!(store.summary().files, 1);
+
+        // Deleting the file removes every damaged copy.
+        store.upsert_file(entry(1, "a.pdf", 30)).unwrap();
+        fs::write(files.join("unrelated.json.corrupt (2)"), b"x").unwrap();
+        assert!(store.delete_file(&sha(1)).unwrap());
+        assert_eq!(
+            names_in(&files),
+            [
+                format!("{}.json", hex(&sha(2))),
+                "unrelated.json.corrupt (2)".to_owned(),
+            ]
+        );
     }
 
     /// D-076: `started_at` arrives as a number, so nothing here needs a

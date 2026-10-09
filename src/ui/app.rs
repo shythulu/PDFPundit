@@ -160,7 +160,10 @@ fn shell() -> io::Result<()> {
         app.log(w.to_string());
     }
     let mut store = match opened {
-        Some(Ok(store)) => Some(store),
+        Some(Ok(mut store)) => {
+            app.log_store_warnings(&mut store);
+            Some(store)
+        }
         Some(Err(e)) => {
             app.log(format!("history: could not open the store: {e}"));
             None
@@ -1070,6 +1073,14 @@ impl App {
             self.log(format!("history: could not record {}: {err}", e.name));
         }
         self.state.history = store.summary();
+        self.log_store_warnings(store);
+    }
+
+    /// What the store skipped (F-05), into the debug log.
+    fn log_store_warnings(&mut self, store: &mut (dyn HistoryStore + '_)) {
+        for w in store.take_warnings() {
+            self.log(format!("history: {w}"));
+        }
     }
 
     /// The view model again, and what follows from it: the cat's mood, and
