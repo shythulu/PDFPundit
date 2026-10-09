@@ -112,6 +112,21 @@ Each row is one question only the user can answer. Options are the row's letters
 | D-091 | DarkBerry notice: confirmed. |
 | D-065 | Ship the Smudge likeness as designed (a), after the question was explained. T-35 is no longer blocked. |
 
+### Answered by the user, 2026-10-08 (Tier 2, all as recommended)
+
+| ID | Answer | Work it needs |
+|---|---|---|
+| D-128 | Keep: salvage never keeps invented bytes (built, F-04). | none |
+| D-084 | (b) A never-embedded font is an informational warning (`FindingKind::FontNotEmbedded`), not C7/C8 damage that asks. | follow-up G-01 |
+| D-122 | (b) `UseBest` on a weak C8 guess (top hit below 1/2) recovers the text without substituting a font. | follow-up G-02 |
+| D-141 | (a) Answers the app gives without asking are recorded as automatic (`Batched` / `Policy`), not as the user's. | follow-up G-03 |
+| D-112 | (c) Pages found only outside the page tree are appended and the report says how many. | follow-up G-04 |
+| D-005, D-103 | Keep evict-and-replay (built); evicted jobs re-run one at a time. | follow-up G-05 (resume slot) |
+| D-062 | (a) Keep failing loudly on a read-only destination (built). | none |
+| D-131, D-020, D-127, D-130, D-030, D-053, D-023, D-033, D-041, D-049, D-061, D-064 | Ratified as built. | none |
+| D-088 | (a) Fix the V1 glyph baseline, after a V1 run on corpus C5 files. | follow-up G-06 |
+| D-118 | (a) `unicode-width` cell widths plus Cf replacement in the canvas. | follow-up G-07 |
+
 ### Tier 1: before any push or any public binary
 Every Tier 1 question below was answered on 2026-10-08 (above).
 
