@@ -49,6 +49,14 @@
 //! holds for the rest of its font family in that file (see `questions`).
 //! The widget never shows a question (D5): it keeps its `‼` and "zoom me".
 //!
+//! Shell fixes (F-06): in a terminal larger than the layout the layout sits in
+//! the middle, and a kitty drag is measured from there ([`origin`]); the
+//! one-line fallback shows a refused drop's hint until the next key or resize
+//! (D-134); the debug log is also written to `<cache dir>/debug.log`
+//! (`debug_log`, D-132), and an export whose images folder clashed says so on
+//! the hint row; start-up sweeps `output_dir` of a dead run's temp files
+//! (D-139).
+//!
 //! The loop owns the [`AppState`], the [`Director`], the runner and the history
 //! store. It hands every job event to the runner first and then to the state,
 //! records each finished repair in the store and refills the history summary
@@ -57,6 +65,7 @@
 //! resize asks sooner.
 
 mod clock;
+mod debug_log;
 mod questions;
 
 use std::collections::{BTreeMap, VecDeque};
@@ -101,6 +110,8 @@ use crate::jobs::{
 };
 use crate::library::{FileEntry, HistoryStore, JsonStore, RunRecord};
 use crate::panic_guard;
+use crate::place;
+use debug_log::DebugLog;
 use questions::Answers;
 
 /// The loop's tick: the cat animates at about 60 frames a second.
@@ -169,6 +180,18 @@ fn shell() -> io::Result<()> {
 
     let mut app = App::new(&config.ui, caps, config_path);
     app.configure(&config);
+    if let Some(d) = &dirs {
+        match DebugLog::open(&d.cache_dir) {
+            Ok(file) => app.attach_log(file),
+            Err(e) => app.log(format!(
+                "debug log: could not open {}: {e}",
+                d.cache_dir.join(debug_log::FILE).display()
+            )),
+        }
+    }
+    if let Some(line) = sweep_output_dir(&config) {
+        app.log(line);
+    }
     app.log(format!(
         "handshake: kitty {}, {} bytes discarded",
         handshake.kitty, handshake.discarded
@@ -257,6 +280,24 @@ fn runner_options(config: &Config) -> RunnerOptions {
         },
         ..defaults
     }
+}
+
+/// Start-up's sweep of `[general] output_dir` (D-139): the temp files a
+/// PDFPundit that is no longer running left there. Its log line, when it
+/// removed any. A folder beside an input is swept before each placement in
+/// it instead, since which folders those are is known only per file.
+fn sweep_output_dir(config: &Config) -> Option<String> {
+    let OutputDir::Dir(dir) = &config.general.output_dir else {
+        return None;
+    };
+    let n = place::sweep_stale_temps(dir);
+    (n > 0).then(|| {
+        format!(
+            "start-up: removed {n} stale temp file{} from {}",
+            if n == 1 { "" } else { "s" },
+            dir.display()
+        )
+    })
 }
 
 /// Moves terminal inputs onto the loop's merged channel.
@@ -446,6 +487,8 @@ pub(crate) struct App {
     repair_started: BTreeMap<JobId, u64>,
     shown: Option<Shown>,
     debug_log: VecDeque<String>,
+    /// `<cache dir>/debug.log`, once attached.
+    log_file: Option<DebugLog>,
 }
 
 impl App {
@@ -491,6 +534,7 @@ impl App {
             repair_started: BTreeMap::new(),
             shown: None,
             debug_log: VecDeque::new(),
+            log_file: None,
         }
     }
 
@@ -512,16 +556,43 @@ impl App {
         self.prompt_unresolved = config.fonts.prompt_unresolved;
     }
 
+    /// A debug-log line: kept in memory (the last [`LOG_LINES`]) and, once a
+    /// log file is attached, appended to it. A file that fails a write is
+    /// let go, and the memory says why.
     fn log(&mut self, line: String) {
+        if let Some(file) = &mut self.log_file
+            && let Err(e) = file.write(&line)
+        {
+            self.log_file = None;
+            self.remember(format!("debug log: could not write the file: {e}"));
+        }
+        self.remember(line);
+    }
+
+    fn remember(&mut self, line: String) {
         if self.debug_log.len() == LOG_LINES {
             self.debug_log.pop_front();
         }
         self.debug_log.push_back(line);
     }
 
-    /// A new terminal size: the layout is chosen again.
+    /// From now on the debug log is also written to `file` (D-132), the
+    /// lines kept so far first.
+    fn attach_log(&mut self, mut file: DebugLog) {
+        for line in &self.debug_log {
+            if file.write(line).is_err() {
+                return;
+            }
+        }
+        self.log_file = Some(file);
+    }
+
+    /// A new terminal size: the layout is chosen again, and a one-off hint
+    /// goes, as it does at the next key (the one-line fallback's refusal,
+    /// D-134, asked for this very resize).
     pub(crate) fn resize(&mut self, w: u16, h: u16) {
         self.state.term_size = (w, h);
+        self.state.hint = None;
         self.kind = choose((w, h), self.pin);
         // The theme chooser is drawn over the full layout only: a shrink
         // closes it as Esc would.
@@ -699,15 +770,26 @@ impl App {
     /// A kitty drag-and-drop event: the session's replies go out, the cat
     /// watches the drag, and a drop's files are taken before it completes.
     fn on_dnd(&mut self, ev: DndEvent, now: Duration) {
+        // The terminal's cells, measured from the layout's top-left cell.
+        let at = origin(self.kind, self.state.term_size);
         let zone = layout(self.kind).drop_zone();
         let main = self.state.screen == Screen::Main;
         let over_cat = |c: CellPos| {
-            main && zone
-                .is_some_and(|(x, y, w, h)| (x..x + w).contains(&c.x) && (y..y + h).contains(&c.y))
+            main && zone.zip(in_layout(c, at)).is_some_and(|((x, y, w, h), c)| {
+                (x..x + w).contains(&c.x) && (y..y + h).contains(&c.y)
+            })
         };
         for action in self.dnd.on(ev, &over_cat) {
             match action {
                 DndAction::Reply(bytes) => self.out.extend_from_slice(&bytes),
+                // The cat looks toward a drag in the margin from its edge.
+                DndAction::Cat(CatEvent::DragAt(Some(c))) => {
+                    let c = CellPos {
+                        x: c.x.saturating_sub(at.0),
+                        y: c.y.saturating_sub(at.1),
+                    };
+                    self.director.on(CatEvent::DragAt(Some(c)), now);
+                }
                 DndAction::Cat(ev) => self.director.on(ev, now),
                 DndAction::Files(candidates) => {
                     let took = self.take_drop(candidates);
@@ -1170,10 +1252,13 @@ impl App {
                 self.finish(i);
                 self.record(id, i, unix, store);
             }
-            JobEvent::ExportDone { path } => {
+            JobEvent::ExportDone { path, images_clash } => {
                 entry.state = EntryState::Done;
                 self.finish(i);
                 self.log(format!("export: wrote {}", path.display()));
+                if images_clash {
+                    self.state.hint = Some(strings::IMAGES_CLASH);
+                }
             }
             JobEvent::Parked => self.finish(i),
             JobEvent::Resumed => {
@@ -1314,11 +1399,29 @@ impl App {
 
     /// The canvas for `shown`: the layout, then the theme chooser or the font
     /// pick over the full layout, or the browse picker over either layout,
-    /// while it is open, with the full layout's status bar saying so.
+    /// while it is open, with the full layout's status bar saying so. In a
+    /// terminal larger than the layout all of it sits in the middle
+    /// ([`origin`]).
     fn draw(&self, shown: &Shown) -> Canvas {
         let (w, h) = shown.size;
+        let (ox, oy) = origin(shown.kind, shown.size);
+        let (lw, lh) = match shown.kind {
+            LayoutKind::OneLine => (w, h),
+            kind => layout(kind).min_size(),
+        };
+        let inner = self.draw_layout(shown, lw, lh);
+        if (ox, oy, lw, lh) == (0, 0, w, h) {
+            return inner;
+        }
         let mut c = Canvas::new(w, h, &self.theme);
-        layout(self.kind).draw(&mut c, &shown.vm, &shown.cat, &self.theme);
+        c.paste(&inner, ox, oy);
+        c
+    }
+
+    /// [`App::draw`]'s layout and modals on a `w × h` canvas of their own.
+    fn draw_layout(&self, shown: &Shown, w: u16, h: u16) -> Canvas {
+        let mut c = Canvas::new(w, h, &self.theme);
+        layout(shown.kind).draw(&mut c, &shown.vm, &shown.cat, &self.theme);
         match (shown.kind, &shown.screen) {
             (LayoutKind::Full, Screen::Themes { selected }) => {
                 ThemeChooser::draw(&mut c, Theme::all(), *selected);
@@ -1416,6 +1519,26 @@ fn read_at_most(path: &std::path::Path, limit: u64) -> Result<Vec<u8>, &'static 
         return Err(strings::DROP_HOLD_LIMIT);
     }
     Ok(bytes)
+}
+
+/// Where the layout's top-left cell is on a `size` terminal: the full layout
+/// and the widget in the middle of a larger one (an odd cell over goes right
+/// or below), the one-line fallback at the top left.
+fn origin(kind: LayoutKind, (w, h): (u16, u16)) -> (u16, u16) {
+    if kind == LayoutKind::OneLine {
+        return (0, 0);
+    }
+    let (lw, lh) = layout(kind).min_size();
+    (w.saturating_sub(lw) / 2, h.saturating_sub(lh) / 2)
+}
+
+/// A terminal cell as a cell of the layout at `origin`; `None` left of or
+/// above it.
+fn in_layout(c: CellPos, (ox, oy): (u16, u16)) -> Option<CellPos> {
+    Some(CellPos {
+        x: c.x.checked_sub(ox)?,
+        y: c.y.checked_sub(oy)?,
+    })
 }
 
 fn layout(kind: LayoutKind) -> &'static dyn Layout {

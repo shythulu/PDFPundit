@@ -7,7 +7,9 @@
 //! previous hook, which prints the message on a usable terminal; on any other
 //! thread it hands the payload and location to that thread's job sink and
 //! writes nothing to the terminal, so an engine panic never tears down the
-//! screen (D-051 amended, eng-r2-q3). T-23a only wires it.
+//! screen (D-051 amended, eng-r2-q3). T-23a only wires it. The hook and the
+//! terminal guard share one restore: whichever goes first gives the terminal
+//! back, and the other then writes nothing ([`claim_restore`]).
 #![allow(clippy::disallowed_types)]
 
 use std::cell::RefCell;
@@ -85,6 +87,16 @@ fn restore_terminal() {
         t.restored = true;
         let _ = t.writer.write_all(&t.restore);
         let _ = t.writer.flush();
+    }
+}
+
+/// Claims the one restore of the terminal for the caller (the terminal guard):
+/// true when nothing has given it back yet, and from then on the hook writes
+/// nothing; false when the hook already has. True when no hook is installed.
+pub fn claim_restore() -> bool {
+    match lock(&TERMINAL).as_mut() {
+        Some(t) => !std::mem::replace(&mut t.restored, true),
+        None => true,
     }
 }
 
@@ -251,6 +263,35 @@ mod tests {
             seen[0]
         );
         assert!(seen[0].ends_with(": engine boom"), "{}", seen[0]);
+    }
+
+    #[test]
+    fn the_terminal_is_restored_once_by_the_hook_or_the_guard() {
+        let _serial = test_lock();
+        let original = panic::take_hook();
+        panic::set_hook(Box::new(|_| {}));
+        let writer = SharedWriter::default();
+        let ui = thread::current().id();
+
+        // The hook went first: the guard's claim is refused.
+        install(ui, RESTORE.to_vec(), Box::new(writer.clone()));
+        assert!(panic::catch_unwind(|| panic!("ui boom")).is_err());
+        let after_hook = claim_restore();
+
+        // The guard went first: a later panic writes nothing.
+        let quiet = SharedWriter::default();
+        install(ui, RESTORE.to_vec(), Box::new(quiet.clone()));
+        let first = claim_restore();
+        let second = claim_restore();
+        assert!(panic::catch_unwind(|| panic!("ui boom")).is_err());
+        uninstall();
+        panic::set_hook(original);
+
+        assert_eq!(writer.bytes(), RESTORE);
+        assert!(!after_hook, "the hook already gave the terminal back");
+        assert!(first && !second, "one claim");
+        assert!(quiet.bytes().is_empty(), "the guard already gave it back");
+        assert!(claim_restore(), "with no hook installed the guard restores");
     }
 
     #[test]

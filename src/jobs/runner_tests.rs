@@ -46,6 +46,8 @@ struct Harness {
     evictions: Vec<(JobId, usize)>,
     /// Every `Log` event.
     logs: Vec<(JobId, LogLevel, String)>,
+    /// Exports whose images went to a `(N)` directory (D-125).
+    clashes: Vec<JobId>,
 }
 
 impl Harness {
@@ -64,6 +66,7 @@ impl Harness {
             holding: BTreeMap::new(),
             evictions: Vec::new(),
             logs: Vec::new(),
+            clashes: Vec::new(),
         }
     }
 
@@ -169,7 +172,10 @@ impl Harness {
                 Seen::Evicted
             }
             JobEvent::WaitingForYou { parked } => Seen::Waiting(*parked),
-            JobEvent::ExportDone { path } => {
+            JobEvent::ExportDone { path, images_clash } => {
+                if *images_clash {
+                    self.clashes.push(id);
+                }
                 self.rows.insert(id, EntryState::Done);
                 Seen::Exported(path.clone())
             }
@@ -1327,6 +1333,7 @@ fn two_exports_of_one_input_are_identical_and_write_the_images_once() {
     // The export-only run repaired in memory: no second repaired file, no
     // second RepairDone.
     assert_eq!(h.count_of(id, is_done), 1);
+    assert!(h.clashes.is_empty(), "a reused directory is no clash");
 }
 
 #[test]
@@ -1400,6 +1407,7 @@ fn a_foreign_images_directory_never_captures_the_links() {
         .collect();
     assert_eq!(warned.len(), 1, "{warned:?}");
     assert!(warned[0].contains(&ours) && warned[0].contains(&images));
+    assert_eq!(h.clashes, [id], "the export says so, for the status line");
 }
 
 #[test]

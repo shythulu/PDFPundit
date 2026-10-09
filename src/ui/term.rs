@@ -21,6 +21,7 @@ use super::canvas::{Canvas, printable};
 use super::color::{ColorCaps, Rgb, Snap, xterm256};
 use super::input::osc72;
 use super::theme::Theme;
+use crate::panic_guard;
 
 /// The guard (D-043): stdin and stdout are both terminals. std's meaning:
 /// `isatty` on Unix; on Windows a console handle, or a pipe named
@@ -117,19 +118,28 @@ impl TermGuard {
         self.kitty = true;
     }
 
-    /// Gives the terminal back; later calls do nothing.
+    /// Gives the terminal back; later calls do nothing, and neither does
+    /// this one when the panic hook already gave it back (the drop as a
+    /// UI-thread panic unwinds).
     pub fn restore(&mut self) {
-        if std::mem::replace(&mut self.restored, true) {
-            return;
+        if self.give_back(&mut io::stdout()) {
+            let _ = terminal::disable_raw_mode();
         }
-        let mut out = io::stdout();
+    }
+
+    /// Writes the restore bytes to `out`, once between this guard and the
+    /// panic hook ([`panic_guard::claim_restore`]). Whether it wrote them.
+    fn give_back(&mut self, out: &mut impl Write) -> bool {
+        if std::mem::replace(&mut self.restored, true) || !panic_guard::claim_restore() {
+            return false;
+        }
         if self.kitty {
             let _ = out.write_all(KITTY_OPT_OUT).and_then(|()| out.flush());
         }
         #[cfg(unix)]
         let _ = execute!(out, crossterm::event::DisableBracketedPaste);
         let _ = execute!(out, cursor::Show, terminal::LeaveAlternateScreen);
-        let _ = terminal::disable_raw_mode();
+        true
     }
 }
 
@@ -566,6 +576,65 @@ mod tests {
         assert_eq!(
             kitty,
             [b"\x1b[0m".as_slice(), KITTY_OPT_OUT, &want[4..]].concat()
+        );
+    }
+
+    /// The T-23a review's major: after the panic hook wrote the restore
+    /// bytes, the guard's drop as the panic unwinds writes nothing more; and
+    /// once the guard gave the terminal back, a later panic writes nothing.
+    #[test]
+    fn the_guard_and_the_panic_hook_restore_once_between_them() {
+        use crate::panic_guard::{self, SharedWriter};
+        let _serial = panic_guard::test_lock();
+        let original = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let ui = std::thread::current().id();
+
+        let hook = SharedWriter::default();
+        panic_guard::install(ui, restore_sequence(true), Box::new(hook.clone()));
+        let unwound = std::panic::catch_unwind(|| {
+            let _guard = TermGuard {
+                restored: false,
+                kitty: true,
+            };
+            panic!("ui boom");
+        });
+        let mut late = TermGuard {
+            restored: false,
+            kitty: true,
+        };
+        let mut after_hook = Vec::new();
+        let gave_after_hook = late.give_back(&mut after_hook);
+
+        let hook_again = SharedWriter::default();
+        panic_guard::install(ui, restore_sequence(true), Box::new(hook_again.clone()));
+        let mut guard = TermGuard {
+            restored: false,
+            kitty: true,
+        };
+        let mut first = Vec::new();
+        let gave_first = guard.give_back(&mut first);
+        let panicked = std::panic::catch_unwind(|| panic!("ui boom"));
+        panic_guard::uninstall();
+        std::panic::set_hook(original);
+
+        assert!(unwound.is_err() && panicked.is_err());
+        assert_eq!(hook.bytes(), restore_sequence(true), "the hook's, once");
+        assert!(
+            !gave_after_hook && after_hook.is_empty(),
+            "the drop adds nothing"
+        );
+        assert!(gave_first);
+        assert!(first.ends_with(b"\x1b[?1049l"), "{first:?}");
+        assert!(
+            first
+                .windows(KITTY_OPT_OUT.len())
+                .any(|w| w == KITTY_OPT_OUT),
+            "kitty opted out"
+        );
+        assert!(
+            hook_again.bytes().is_empty(),
+            "the panic after adds nothing"
         );
     }
 

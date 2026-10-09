@@ -8,8 +8,9 @@
 //! progress bar, the file waiting on you ("zoom me": decisions are never shown
 //! in the widget), or the tally.
 //!
-//! Smaller than 32 × 16, [`OneLine`] draws `=^..^= 3/7 ‼` and nothing else. It
-//! is status only and accepts no input (D-064).
+//! Smaller than 32 × 16, [`OneLine`] draws `=^..^= 3/7 ‼` and nothing else, or
+//! the face and a refused drop's hint (D-134). It is status only and accepts
+//! no input (D-064).
 #![cfg_attr(not(test), allow(dead_code))]
 
 use super::{Layout, WIDGET_SIZE};
@@ -303,7 +304,15 @@ impl Layout for OneLine {
 
     /// The face, then files done of the batch once there is one, then ‼
     /// (blinking) while a file waits on you; cut at the canvas's right edge.
+    /// A one-off hint (a refused drop, D-064) takes the place of the counts
+    /// and the ‼ until the app clears it, at the next key or resize (D-134).
     fn draw(&self, c: &mut Canvas, vm: &ViewModel, _cat: &CatFrame, theme: &Theme) {
+        if let Some(hint) = vm.hint {
+            let end = c.rich(0, 0, &format!("{{W}}{}", strings::FACE), None, theme);
+            let fg = theme.slot('M').unwrap_or(theme.roles.heading);
+            c.text(end + 1, 0, hint, fg, None);
+            return;
+        }
         let mut line = format!("{{W}}{}", strings::FACE);
         if vm.counts.total > 0 {
             let (d, t) = (vm.counts.done(), vm.counts.total);
@@ -605,6 +614,27 @@ mod tests {
         assert_eq!(choose((20, 1), LayoutPin::Full), LayoutKind::OneLine);
         assert_eq!(OneLine.min_size(), (1, 1));
         assert_eq!(WidgetLayout.min_size(), (32, 16));
+    }
+
+    /// D-134: a refused drop's hint takes the counts' place, cut at the
+    /// edge, until the app clears it.
+    #[test]
+    fn one_line_shows_a_refusal_in_place_of_the_counts() {
+        let mut state = AppState::mockup_batch();
+        state.hint = Some(strings::TOO_SMALL_TO_EAT);
+        let vm = view(&state);
+        let c = draw(&OneLine, (31, 1), &vm, &resting(&vm));
+        assert_eq!(row_text(&c, 0), "=^..^= too small to eat: make m");
+        assert!(c.blink.is_empty(), "no ‼ under the hint");
+        let wide = draw(&OneLine, (60, 1), &vm, &resting(&vm));
+        assert_eq!(
+            row_text(&wide, 0).trim_end(),
+            format!("{} {}", strings::FACE, strings::TOO_SMALL_TO_EAT)
+        );
+        assert_eq!(
+            wide.get(7, 0).expect("cell").fg,
+            theme().slot('M').expect("M")
+        );
     }
 
     #[test]

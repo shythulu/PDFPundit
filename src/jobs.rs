@@ -111,6 +111,11 @@ pub enum JobEvent {
     RepairDone(Box<RepairRun>),
     ExportDone {
         path: PathBuf,
+        /// The content-named images directory already held other files, so
+        /// the images, and the Markdown's links, went to `(N)` (D-060,
+        /// D-125); a `Log(Warn)` line names both. The UI says so on the hint
+        /// row (D-132).
+        images_clash: bool,
     },
     /// The job is waiting on the user and the next job has started.
     Parked,
@@ -1232,6 +1237,7 @@ impl<E: Engine> Worker<E> {
         self.cancel.check()?;
         let stem = file_stem(&self.name);
         let sha256: [u8; 32] = Sha256::digest(input).into();
+        let mut images_clash = false;
         let image_dir_name = if images.is_empty() {
             None
         } else {
@@ -1243,6 +1249,7 @@ impl<E: Engine> Worker<E> {
                 .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
             let wanted = place::images_dir_name(&sha256);
             if name != wanted {
+                images_clash = true;
                 self.send(JobEvent::Log(
                     LogLevel::Warn,
                     format!(
@@ -1264,7 +1271,7 @@ impl<E: Engine> Worker<E> {
         let (path, _placed) = temp
             .place(&stem, "md", md.as_bytes(), &inputs)
             .map_err(|e| Stop::Failed(format!("can't write the Markdown: {e}")))?;
-        self.send(JobEvent::ExportDone { path });
+        self.send(JobEvent::ExportDone { path, images_clash });
         Ok(())
     }
 
