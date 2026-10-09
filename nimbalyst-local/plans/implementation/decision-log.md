@@ -112,6 +112,29 @@ Each row is one question only the user can answer. Options are the row's letters
 | D-091 | DarkBerry notice: confirmed. |
 | D-065 | Ship the Smudge likeness as designed (a), after the question was explained. T-35 is no longer blocked. |
 
+### Answered by the user, 2026-10-08 (Tiers 3 and 4)
+
+| ID | Answer | Work it needs |
+|---|---|---|
+| D-001 | (a) Amend map #1 to the panel's destination text and post the per-ticket resolutions, after a private-detail check. | GitHub posts |
+| D-003 | (a) One package. | none |
+| D-004 | (a) ratatui + crossterm. UI D1 is closed. | none |
+| D-021 | (c) As built: committed gmaps and index, run-time templates. | none |
+| D-045 | (a) The framework-free canvas. | none |
+| D-050 | (a) No network code ever: OCR ships with bundled models or a model pack installed from a file; no `offline` knob. | applies to T-34 |
+| D-117 | Align the mockup with what the engine can supply: the C9 count line stays in the RECOVERY rows; data no engine type has is dropped or relabelled in frames 03 and 05. | mockup ticket |
+| D-048 | Draw the history, setup and help screens in the mockup for review, then build them. | design + tickets |
+| D-010 | (b) Add gmaps for the corpus's other open-licensed faces. | ticket |
+| D-011 | Leipzig news lists for English, French and Spanish, 50k cut, CC BY 4.0 attribution in the notices. | ticket |
+| D-014 | No Document AI. Per-script Tesseract is the OCR-scoring plan (this also settles D-071's apparatus for v1). | ticket |
+| D-025 | (a) Research extras stay out of v1. | none |
+| D-042 | (c) Scrub the copyleft links and verbatim quotes on the research branch, keeping the facts. | research-branch commit |
+| D-063 | (a)(i)(x)(p): release notes, per-class tables, labelled "text-layer metric, not REPDF's". | applies at release |
+| D-070 | Shelved: a like-for-like comparison with the paper needs a more advanced research run. No reference columns for now. | none now |
+| D-016 | Custody mode stays off by default. A UX design agent designs the custody prompt and related screens, then custody mode (T-33) is built. | design + T-33 |
+| D-114 | (a) Image extraction is required, and it feeds the evidence report when custody mode is on. Design an evidence/report schema first. | design + tickets |
+| D-142 | No Apple Developer account, no paid signing: ship unsigned archives; document the Gatekeeper and SmartScreen first-run steps in the README. | T-35 follow-up |
+
 ### Answered by the user, 2026-10-08 (Tier 2, all as recommended)
 
 | ID | Answer | Work it needs |
