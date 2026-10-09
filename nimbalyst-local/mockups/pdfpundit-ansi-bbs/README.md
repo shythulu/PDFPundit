@@ -1,6 +1,10 @@
 # PDFPundit ANSI BBS mockup: state and how to review it
 
-Status as of 2026-10-07: approved direction, not final art. This folder holds
+Status as of 2026-10-09: approved direction, not final art. Frames 10 to 14
+are a design proposal awaiting review. The D-117 changes to frames 03 and 05
+live on the branch `design/ux-d117`, because the Rust layouts must change in
+the same merge. The screen-by-screen spec, with each datum's source, is
+[`../../plans/implementation/ux-design.md`](../../plans/implementation/ux-design.md). This folder holds
 everything needed to review or change the mockup at
 [`../pdfpundit-ansi-bbs.mockup.html`](../pdfpundit-ansi-bbs.mockup.html).
 
@@ -74,6 +78,13 @@ These come from the user. Rationale lives in
 | `08-widget-drop-1…8-*.png` | The widget's drop reaction in kitty (see the widget table below). |
 | `08b-widget-chomp-1…8-*.png` | The widget's chomp: frame 2b at widget scale. |
 | `09-tiled-desktop.png` | The widget in context: a tile on a tiled desktop beside an editor with case notes and a shell. |
+| `10-history.png` | History (`H`): files from the history store, newest first; the selected file's runs; the selected run's findings and who answered each question. |
+| `10b-history-empty.png` | History before the cat has eaten anything. |
+| `11-setup.png` | Setup (`S`): every knob a user may change, saved to `config.toml`. ◆ marks the settings in the reproducible part of the record. Custody mode is off, with its explanation open. The list scrolls by one row. |
+| `12-help.png` | Help (`?`): keys, what the cat does, where files go, what the app promises. |
+| `13-custody-prompt.png` | Custody mode on, files dropped: the cat asks once per batch for the case details (case reference, examiner, submission reference, authority or notes) before the batch runs. Outputs would go into the evidence folder, so it warns first. |
+| `13b-widget-custody.png` | The same moment in the widget: no form, just "‼ case details · zoom me". |
+| `14-evidence.png` | A finished file with a custody record: the result panel's evidence page (`v`), with the case details, hashes before and after, the three record files, the extracted images and the log entry. |
 
 ### Drag animation
 
@@ -190,9 +201,11 @@ in the chooser come straight from each flavour's `ansiColors`.
 - The poses were drawn procedurally. The user's Instagram reference reel (a cat
   turning its head and looking up) needs a login and hasn't been reviewed.
 - Not mocked yet:
-  - the browse picker
-  - the history screen
-  - setup
-  - the chain-of-custody prompt (the cat asks for a case reference and examiner)
+  - the browse picker (built from self-goldens, T-37)
   - the Markdown export flow
   - error and encrypted-file states
+  - setup's edit states (a number or path being typed, the unsaved-changes prompt)
+  - the history's filter being typed and its forget confirmation
+  - the log head shown when a custody batch closes, and the Verify result
+- Frames 10 to 14 use sample data. Their hashes are SHA-256, SHA-1 and MD5 of
+  the file names, not of real files.
