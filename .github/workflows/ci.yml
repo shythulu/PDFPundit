@@ -83,6 +83,12 @@ jobs:
         run: cargo install cargo-deny --locked --version 0.20.2
       - name: cargo deny check licenses
         run: cargo deny --locked check licenses
+      # Known RustSec advisories, crates.io as the only source, and no second
+      # version of a crate beyond the skips in deny.toml (F-10). Runs even when
+      # the licence step fails, so one run reports both.
+      - name: cargo deny check advisories sources bans
+        if: ${{ !cancelled() }}
+        run: cargo deny --locked check advisories sources bans
 
   # The UI goldens (T-00, D-055): the dump from generate.py is deterministic and
   # the committed tests/data/ui is exactly what it produces, on both Unix runners.
