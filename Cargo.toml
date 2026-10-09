@@ -4,12 +4,41 @@ version = "0.1.0"
 edition = "2024"
 resolver = "3"
 license = "MIT"
+repository = "https://github.com/shythulu/PDFPundit"
 # Never published (D-047): a crates.io release would be a cat-free way in.
 publish = false
+
+# `publish = false` hides a package from cargo-dist; this opts the binary back
+# in for the release archives (T-35). It publishes nothing to crates.io.
+[package.metadata.dist]
+dist = true
 
 # tools/build-templates writes the committed font assets (T-29, D-021).
 [workspace]
 members = [".", "tools/build-templates"]
+
+# Release packaging (T-35): `dist plan`, `dist build`, `dist generate` read this.
+# Plain archives on the three CI targets with a checksum each, built and
+# published only by .github/workflows/release.yml on a `v*` tag. No installers
+# (each fetches over the network; D-142), no source tarball, nothing to
+# crates.io (`publish = false` above). Re-run the eng-r4-fr3 RUSTFLAGS probe
+# before raising cargo-dist-version.
+[workspace.metadata.dist]
+cargo-dist-version = "0.32.0"
+ci = "github"
+installers = []
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+unix-archive = ".tar.xz"
+windows-archive = ".zip"
+checksum = "sha256"
+source-tarball = false
+include = ["THIRD_PARTY_NOTICES.md", "THIRD_PARTY_CRATES.md"]
+tag-namespace = "v"
+pr-run-mode = "skip"
+install-updater = false
+# tools/check-release-archive.py runs the guard and release-strings checks on
+# each archive before anything is published.
+global-artifacts-jobs = ["./release-guard"]
 
 [features]
 default = ["export"]
@@ -95,3 +124,8 @@ opt-level = 3
 
 [profile.dev.package.adler2]
 opt-level = 3
+
+# The profile `dist build` uses: exactly release, so the binary CI's guard and
+# release-strings jobs prove is the one that ships (D-051).
+[profile.dist]
+inherits = "release"

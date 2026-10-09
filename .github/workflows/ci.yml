@@ -136,3 +136,22 @@ jobs:
             exit 1
           fi
           echo "release binary clean"
+
+  # THIRD_PARTY_CRATES.md is generated from Cargo.lock over the shipped graph;
+  # regenerating it must change nothing (T-35). The release archive checker's
+  # self-test runs here too, so a broken checker shows before a tag does.
+  release-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: generator and checker self-tests
+        run: |
+          python3 -I tools/crate-notices.py --self-test
+          python3 -I tools/check-release-archive.py --self-test
+      - name: regenerate and diff THIRD_PARTY_CRATES.md
+        run: |
+          cargo fetch --locked
+          python3 -I tools/crate-notices.py
+          git diff --exit-code THIRD_PARTY_CRATES.md
