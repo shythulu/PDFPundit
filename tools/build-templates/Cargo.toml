@@ -13,6 +13,5 @@ dist = false
 [dependencies]
 pdfpundit = { path = "../.." }
 serde_json = "1.0.151"
-
-[dev-dependencies]
 sha2 = "0.11"
+

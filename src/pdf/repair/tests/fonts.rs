@@ -591,6 +591,98 @@ fn c8_with_a_cidfont_name_goes_to_inference() {
     assert_eq!(text_of(&ran.output), golden_text());
 }
 
+// ── .gmap-only fonts (G-10, D-010 (b)) ───────────────────────────────────
+
+const PROGRAM: &str = "Program-Regular";
+
+/// The golden's font, `NotoSans-Regular`, indexed with its `.gmap` only and
+/// drawn with `Program-Regular`: the test font's program with `program_gmap`.
+fn gmap_only_db(program_gmap: impl Fn(&[u8]) -> Vec<u8>) -> FontDb {
+    let (right, right_gmap) = build_from_ttf(TEST_FONT).unwrap();
+    let mut program = right.clone();
+    program.id = PROGRAM.to_owned();
+    program.postscript_name = PROGRAM.to_owned();
+    program.family = "Program".to_owned();
+    let program_gmap = program_gmap(&right_gmap);
+    program.gmap_sha256 = hex(&program_gmap);
+    let mut matched = right;
+    matched.sha256 = hex(b"not in the database");
+    matched.drawn_with = Some(PROGRAM.to_owned());
+    let index = serde_json::to_vec(&[&program, &matched]).unwrap();
+    let blob = |name: &str| -> Option<&[u8]> {
+        match name {
+            "Program-Regular.ttf" => Some(TEST_FONT),
+            "Program-Regular.gmap" => Some(&program_gmap),
+            "NotoSans-Regular.gmap" => Some(&right_gmap),
+            _ => None,
+        }
+    };
+    FontDb::from_bytes(&index, &blob).expect("test db loads")
+}
+
+#[test]
+fn a_name_match_on_a_gmap_only_font_is_drawn_with_its_program_font() {
+    let input = c8();
+    let english = english();
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &gmap_only_db(<[u8]>::to_vec),
+        &RepairOptions::default(),
+        &mut Scripted::new(Vec::new()),
+        &[&english],
+    );
+    assert_eq!(ran.report.outcome, PassOutcome::Fixed);
+    let what = actions(&ran.report);
+    assert_eq!(what.len(), 1);
+    assert!(
+        what[0].starts_with(&format!(
+            "font program substituted: {PROGRAM} for {RIGHT} (the font database holds only \
+             its glyph map); /ToUnicode rebuilt"
+        )),
+        "{what:?}"
+    );
+    let lines = provenance(&ran.notes);
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("name:") && l.contains("glyphs agree with")),
+        "{lines:?}"
+    );
+    // The font identified is the matched one; its program drew it.
+    assert!(ran.notes.resolutions.iter().all(|(_, _, r)| matches!(
+        &r.kind,
+        FontResolutionKind::Picked { font_id, .. } if font_id == RIGHT
+    )));
+    assert_eq!(text_of(&ran.output), golden_text());
+    load_strict(&ran.output);
+}
+
+#[test]
+fn a_program_font_without_the_glyphs_makes_the_pass_partial() {
+    let input = c8();
+    let english = english();
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &gmap_only_db(sparse_gmap),
+        &RepairOptions::default(),
+        &mut Scripted::new(Vec::new()),
+        &[&english],
+    );
+    let PassOutcome::Partial(why) = &ran.report.outcome else {
+        panic!("{:?}", ran.report)
+    };
+    assert!(
+        why.contains(&format!(
+            "have no glyph in {PROGRAM} and are drawn as .notdef"
+        )),
+        "{why}"
+    );
+    // The text is still the golden's: the /ToUnicode carries it.
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
 // ── the bundled word lists (G-09, D-011) ─────────────────────────────────
 
 /// The bundled en, fr and es lists, as the passes take them.

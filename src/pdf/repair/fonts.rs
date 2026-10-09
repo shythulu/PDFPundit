@@ -27,8 +27,12 @@
 //! surviving `/W` confirms that the codes are that font's glyph ids
 //! ([`name_hit_holds`]); a rejected match is a `name: … rejected:`
 //! provenance line. A `CIDFont+Fn` name never matches. Otherwise the slot
-//! goes to [`infer`] over every database font with the general word lists.
-//! The characters are then the chosen font's reading of the codes.
+//! goes to [`infer`] over every database font with a program, with the
+//! general word lists. The characters are then the chosen font's reading of
+//! the codes. A name can match a `.gmap`-only font (G-10, D-010 (b)); its
+//! glyphs are then drawn with the program of the font its entry names, the
+//! action says so, and the pass is `Partial` when that program lacks some
+//! of the characters (they draw as `.notdef`; the `/ToUnicode` keeps them).
 //!
 //! **Decisions** ([`resolve`], D-009's interim clamp):
 //! - `AutoAccept(c)`: substitute `c.font_id`, `Fixed`;
@@ -589,7 +593,7 @@ fn decide(ctx: &RepairCtx<'_>, t: &Target<'_>, c8: bool) -> Decided {
         glyph_count: u32::try_from(codes.len()).unwrap_or(u32::MAX),
         resolution: None,
     };
-    let gmaps = ctx.fonts.gmaps();
+    let gmaps = ctx.fonts.inference_gmaps();
     let lookup = |id: &str| gmaps.iter().find(|(i, _)| *i == id).map(|(_, g)| g);
     let entries = ctx.fonts.entries();
     let text = (!c8).then(|| true_text(t));
@@ -639,7 +643,21 @@ fn name_hit_holds(
     id: &str,
     codes: &BTreeSet<u16>,
 ) -> Result<String, String> {
-    let Some(gmap) = ctx.fonts.gmap(id) else {
+    let resolve = |v| resolved(ctx, v);
+    let cidfont = font_dict(ctx, t.cidfont);
+    widths_confirm(ctx.fonts, id, codes, cidfont, &resolve)
+}
+
+/// [`name_hit_holds`]'s check of `codes` against font `id` and the `/W` of
+/// `cidfont`, whose references `resolve` follows.
+fn widths_confirm<'c>(
+    fonts: &FontDb,
+    id: &str,
+    codes: &BTreeSet<u16>,
+    cidfont: Option<&'c Dictionary>,
+    resolve: &dyn Fn(&'c Object) -> Option<&'c Object>,
+) -> Result<String, String> {
+    let Some(gmap) = fonts.gmap(id) else {
         return Err(format!("{id} has no glyph map"));
     };
     let missing = codes.iter().filter(|&&c| gmap.unicode(c).is_none()).count();
@@ -649,8 +667,8 @@ fn name_hit_holds(
             codes.len()
         ));
     }
-    let widths = font_dict(ctx, t.cidfont)
-        .map(|d| cid_widths(ctx, d, codes))
+    let widths = cidfont
+        .map(|d| cid_widths(resolve, d, codes))
         .unwrap_or_default();
     if widths.is_empty() {
         return Err("the font's /W gives no width to check the glyphs against".to_owned());
@@ -675,6 +693,26 @@ fn name_hit_holds(
     Ok(format!("its glyphs agree with {} /W widths", widths.len()))
 }
 
+/// What C8's name path makes of a `CIDFont` whose `/BaseFont` is
+/// `base_font`, with its references followed by `resolve`: the database
+/// font the name matches, and whether its glyphs agree with every code but
+/// `.notdef` (0) that the `/W` gives a width: the corpus harness's stand-in
+/// for the codes the pages show, since producers give `.notdef` a width it
+/// never draws (G-10).
+#[cfg(test)]
+pub(crate) fn name_match<'c>(
+    fonts: &FontDb,
+    base_font: &str,
+    cidfont: &'c Dictionary,
+    resolve: &dyn Fn(&'c Object) -> Option<&'c Object>,
+) -> Option<(String, Result<String, String>)> {
+    let (entry, _) = by_name(fonts, base_font)?;
+    let all: BTreeSet<u16> = (1..=u16::MAX).collect();
+    let codes: BTreeSet<u16> = cid_widths(resolve, cidfont, &all).into_keys().collect();
+    let checked = widths_confirm(fonts, &entry.id, &codes, Some(cidfont), resolve);
+    Some((entry.id.clone(), checked))
+}
+
 /// How far a `/W` width may be from the `.gmap`'s (both 1000 units per em):
 /// a producer may round where the `.gmap` truncates.
 const WIDTH_SLACK: u64 = 1;
@@ -682,15 +720,15 @@ const WIDTH_SLACK: u64 = 1;
 /// The `/W` width of each of `codes` that `cidfont`'s `/W` gives, truncated
 /// to an integer. `/DW` is not read: a default says nothing about a glyph.
 fn cid_widths<'c>(
-    ctx: &RepairCtx<'c>,
+    resolve: &dyn Fn(&'c Object) -> Option<&'c Object>,
     cidfont: &'c Dictionary,
     codes: &BTreeSet<u16>,
 ) -> BTreeMap<u16, i64> {
     let mut out = BTreeMap::new();
-    let Some(Object::Array(w)) = cidfont.get(b"W").ok().and_then(|v| resolved(ctx, v)) else {
+    let Some(Object::Array(w)) = cidfont.get(b"W").ok().and_then(resolve) else {
         return out;
     };
-    let number = |v: &'c Object| match resolved(ctx, v)? {
+    let number = |v: &'c Object| match resolve(v)? {
         Object::Integer(n) => Some(*n),
         // Truncation toward zero: a cast, no float method.
         Object::Real(r) if r.is_finite() => Some(*r as i64),
@@ -702,7 +740,7 @@ fn cid_widths<'c>(
         let Some(first) = number(first) else {
             break;
         };
-        match items.next().and_then(|v| resolved(ctx, v)) {
+        match items.next().and_then(resolve) {
             Some(Object::Array(list)) => {
                 for (i, v) in list.iter().enumerate() {
                     let at = i64::try_from(i).ok().and_then(|i| first.checked_add(i));
@@ -1140,13 +1178,40 @@ fn apply(
             match harvest_from(ctx.fonts, &id, &used) {
                 Ok(font) => {
                     ctx.doc.substitute(t.slots.clone(), font);
-                    let mut what = format!("font program substituted: {id}");
+                    let program = ctx.fonts.program_of(&id).unwrap_or(&id).to_owned();
+                    let mut what = if program == id {
+                        format!("font program substituted: {id}")
+                    } else {
+                        format!(
+                            "font program substituted: {program} for {id} (the font database \
+                             holds only its glyph map)"
+                        )
+                    };
                     if c8 {
                         what.push_str(&format!("; /ToUnicode rebuilt over {} codes", used.len()));
                     }
+                    let mut why = why;
+                    // A `.gmap`-only font is drawn with another font's
+                    // program, which may lack some of its characters.
+                    let missing = if program == id {
+                        0
+                    } else {
+                        undrawn(ctx.fonts, &program, &used)
+                    };
+                    if missing > 0 {
+                        let lost = format!(
+                            "{missing} of {} characters have no glyph in {program} and are \
+                             drawn as .notdef",
+                            used.len()
+                        );
+                        what.push_str(&format!("; {lost}"));
+                        why = Some(match why {
+                            Some(w) => format!("{w}; {lost}"),
+                            None => lost,
+                        });
+                    }
                     // A code whose /ToUnicode text is several characters
                     // keeps its first (`TrueText::truncated`).
-                    let mut why = why;
                     if truncated > 0 {
                         let lost = format!(
                             "the rebuilt /ToUnicode keeps only the first character of \
@@ -1205,6 +1270,16 @@ fn apply(
         }
         Choice::Leave(why) => (why.clone(), Some(why), FontResolutionKind::Skipped),
     }
+}
+
+/// How many of the characters of `used` database font `program` has no
+/// glyph for.
+fn undrawn(fonts: &FontDb, program: &str, used: &BTreeMap<u16, char>) -> usize {
+    let Some(gmap) = fonts.gmap(program) else {
+        return used.len();
+    };
+    let drawn: BTreeSet<char> = gmap.records().iter().map(|r| r.unicode()).collect();
+    used.values().filter(|c| !drawn.contains(c)).count()
 }
 
 /// The `Partial` reason of a weak C8 guess whose text was recovered (module

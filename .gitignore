@@ -5,3 +5,7 @@ __pycache__/
 
 # macOS Finder metadata
 .DS_Store
+
+# google/fonts programs fetch-assets.sh downloads for tools/build-templates;
+# only their .gmap and index entries are committed (D-010 (b), G-10)
+/font-sources/

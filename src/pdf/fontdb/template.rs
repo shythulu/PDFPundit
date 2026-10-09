@@ -362,16 +362,19 @@ pub(crate) enum HarvestError {
     Missing(u32),
 }
 
-/// The subtree of database font `id`'s template ([`FontDb::template`],
-/// built once and kept) for an output showing `used`.
+/// The subtree of the template ([`FontDb::template`], built once and kept)
+/// of the font that draws database font `id` ([`FontDb::program_of`]: `id`
+/// itself, or the font a `.gmap`-only font is drawn with) for an output
+/// showing `used`.
 pub(crate) fn harvest_from(
     fonts: &FontDb,
     id: &str,
     used: &BTreeMap<u16, char>,
 ) -> Result<Harvest, HarvestError> {
     let unknown = || HarvestError::Unknown(id.to_owned());
-    let template = fonts.template(id).ok_or_else(unknown)??;
-    let gmap = fonts.gmap(id).ok_or_else(unknown)?;
+    let program = fonts.program_of(id).ok_or_else(unknown)?;
+    let template = fonts.template(program).ok_or_else(unknown)??;
+    let gmap = fonts.gmap(program).ok_or_else(unknown)?;
     harvest(template, &gmap, used)
 }
 
@@ -436,10 +439,11 @@ pub(crate) fn tounicode_stream(used: &BTreeMap<u16, char>) -> Object {
 
 // ── the bundled fonts ────────────────────────────────────────────────────
 
-/// One font the binary carries (D-021): its index id, program and `.gmap`.
+/// One font the binary carries (D-021): its index id, program (`None` for a
+/// font indexed with `drawn_with`, G-10) and `.gmap`.
 pub(crate) struct BundledFont {
     pub(crate) id: &'static str,
-    pub(crate) ttf: &'static [u8],
+    pub(crate) ttf: Option<&'static [u8]>,
     pub(crate) gmap: &'static [u8],
 }
 
@@ -448,16 +452,138 @@ pub(crate) const BUNDLED_INDEX: &[u8] = include_bytes!("../../../assets/fontinde
 
 /// The bundled fonts in `fontindex.json` order (a test checks the order, the
 /// ids and the hashes against the index).
-pub(crate) const BUNDLED: [BundledFont; 2] = [
+pub(crate) const BUNDLED: [BundledFont; 26] = [
+    BundledFont {
+        id: "AbrilFatface-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/AbrilFatface-Regular.gmap"),
+    },
+    BundledFont {
+        id: "ArchivoBlack-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/ArchivoBlack-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Batang-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Batang-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Belgrano-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Belgrano-Regular.gmap"),
+    },
+    BundledFont {
+        id: "BigShoulders-Thin",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/BigShoulders-Thin.gmap"),
+    },
+    BundledFont {
+        id: "Biryani-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Biryani-Regular.gmap"),
+    },
+    BundledFont {
+        id: "BricolageGrotesque-96ptExtraBold",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/BricolageGrotesque-96ptExtraBold.gmap"),
+    },
+    BundledFont {
+        id: "Cormorant-Light",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Cormorant-Light.gmap"),
+    },
+    BundledFont {
+        id: "Harmattan-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Harmattan-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Hind-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Hind-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Marhey-Light",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Marhey-Light.gmap"),
+    },
+    BundledFont {
+        id: "Merriweather-Light",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Merriweather-Light.gmap"),
+    },
+    BundledFont {
+        id: "Mukta-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Mukta-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Nobile-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Nobile-Regular.gmap"),
+    },
     BundledFont {
         id: "NotoSans-Regular",
-        ttf: include_bytes!("../../../assets/fonts/NotoSans-Regular.ttf"),
+        ttf: Some(include_bytes!("../../../assets/fonts/NotoSans-Regular.ttf")),
         gmap: include_bytes!("../../../assets/gmaps/NotoSans-Regular.gmap"),
     },
     BundledFont {
+        id: "NotoSansKR-Thin",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/NotoSansKR-Thin.gmap"),
+    },
+    BundledFont {
         id: "NotoSerif-Regular",
-        ttf: include_bytes!("../../../assets/fonts/NotoSerif-Regular.ttf"),
+        ttf: Some(include_bytes!(
+            "../../../assets/fonts/NotoSerif-Regular.ttf"
+        )),
         gmap: include_bytes!("../../../assets/gmaps/NotoSerif-Regular.gmap"),
+    },
+    BundledFont {
+        id: "OpenSans-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/OpenSans-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Oswald-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Oswald-Regular.gmap"),
+    },
+    BundledFont {
+        id: "PlayfairDisplay-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/PlayfairDisplay-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Poppins-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Poppins-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Prompt-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Prompt-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Rubik-Light",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Rubik-Light.gmap"),
+    },
+    BundledFont {
+        id: "Tajawal-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Tajawal-Regular.gmap"),
+    },
+    BundledFont {
+        id: "Teko-Light",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/Teko-Light.gmap"),
+    },
+    BundledFont {
+        id: "ZCOOLXiaoWei-Regular",
+        ttf: None,
+        gmap: include_bytes!("../../../assets/gmaps/ZCOOLXiaoWei-Regular.gmap"),
     },
 ];
 
@@ -466,6 +592,8 @@ pub(crate) const BUNDLED: [BundledFont; 2] = [
 pub(crate) enum BundledError {
     #[error("no bundled font {0}")]
     Unknown(String),
+    #[error("bundled font {0} has no program")]
+    NoProgram(String),
     #[error("bundled gmap of {id}: {err}")]
     Gmap { id: String, err: GmapError },
     #[error("bundled font {id}: {err}")]
@@ -482,13 +610,16 @@ pub(crate) fn bundled(id: &str) -> Result<&'static [u8], BundledError> {
         .position(|f| f.id == id)
         .ok_or_else(|| BundledError::Unknown(id.to_owned()))?;
     let font = &BUNDLED[at];
+    let ttf = font
+        .ttf
+        .ok_or_else(|| BundledError::NoProgram(id.to_owned()))?;
     CACHE[at]
         .get_or_init(|| {
             let gmap = GmapTable::new(font.gmap).map_err(|err| BundledError::Gmap {
                 id: font.id.to_owned(),
                 err,
             })?;
-            build(font.ttf, &gmap).map_err(|err| BundledError::Build {
+            build(ttf, &gmap).map_err(|err| BundledError::Build {
                 id: font.id.to_owned(),
                 err,
             })
