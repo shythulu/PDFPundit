@@ -484,6 +484,147 @@ fn a_font_under_an_indirect_descendant_array_is_substituted() {
     );
 }
 
+/// Where an inline descriptor is written (D-160).
+#[derive(Debug, Clone, Copy)]
+enum Inline {
+    /// In the `CIDFont` object (6): the finding sits on 6.
+    InCidFont,
+    /// In a `CIDFont` written inline in the Type0 font's (5)
+    /// `/DescendantFonts`, as the REPDF print files have it: the finding
+    /// sits on 5.
+    InType0,
+}
+
+/// The golden with its descriptor (7) written inline where `at` says, as
+/// print producers write it; 7 (and, `InType0`, 6) are gone.
+fn inline_descriptor(at: Inline) -> Vec<u8> {
+    rewrite_golden(|objects| {
+        let descriptor = objects.remove(&7).unwrap();
+        let cid = objects.get_mut(&6).unwrap().as_dict_mut().unwrap();
+        cid.set("FontDescriptor", descriptor);
+        if let Inline::InType0 = at {
+            let cid = objects.remove(&6).unwrap();
+            let type0 = objects.get_mut(&5).unwrap().as_dict_mut().unwrap();
+            type0.set("DescendantFonts", Object::Array(vec![cid]));
+        }
+    })
+}
+
+/// `class` induced on [`inline_descriptor`]`(at)`, its font optionally
+/// renamed `CIDFont+F1` (the print files' names), analysed.
+fn inline_damaged(class: CorruptionClass, at: Inline, rename: bool) -> Input {
+    let mut bytes = corrupt(class, &inline_descriptor(at), 0);
+    if rename {
+        bytes = renamed(&bytes);
+    }
+    let input = analysed(bytes);
+    assert_eq!(input.classes(), [class], "{at:?}");
+    input
+}
+
+#[test]
+fn an_inline_descriptor_font_is_repaired_like_the_referenced_case() {
+    // D-160: the finding sits on the font object the descriptor is written
+    // in; both passes must reach that font as they reach a referenced
+    // descriptor's, by name and by inference.
+    let english = english();
+    for at in [Inline::InCidFont, Inline::InType0] {
+        let holder = match at {
+            Inline::InCidFont => (6, 0),
+            Inline::InType0 => (5, 0),
+        };
+        for (class, rename) in [
+            (C7FontStreamDeleted, false),
+            (C8FontResourcesDeleted, false),
+            (C8FontResourcesDeleted, true),
+        ] {
+            let case = format!("{at:?} {} renamed={rename}", class.code());
+            let input = inline_damaged(class, at, rename);
+            let finding = &input.findings[0];
+            assert!(
+                matches!(finding.location, Location::Object { id, .. } if id == holder),
+                "{case}: {finding:?}"
+            );
+            let ran = run_pass(
+                &input,
+                class,
+                &test_db(),
+                &RepairOptions::default(),
+                &mut Scripted::new(Vec::new()),
+                &[&english],
+            );
+            assert_eq!(ran.report.outcome, PassOutcome::Fixed, "{case}");
+            let what = actions(&ran.report);
+            assert_eq!(what.len(), 1, "{case}: {what:?}");
+            assert!(
+                what[0].starts_with(&format!("font program substituted: {RIGHT}")),
+                "{case}: {what:?}"
+            );
+            assert_eq!(ran.report.actions[0].object, holder, "{case}");
+            let lines = provenance(&ran.notes);
+            if class == C8FontResourcesDeleted {
+                // The name path reads the inline CIDFont's /W.
+                let path = if rename { "inference:" } else { "name:" };
+                assert!(
+                    lines.iter().any(|l| l.starts_with(path)),
+                    "{case}: {lines:?}"
+                );
+                assert!(!lines.iter().any(|l| l.contains("rejected")), "{case}");
+            }
+            assert_eq!(text_of(&ran.output), golden_text(), "{case}");
+            let classes = classes_in(&ran.output);
+            assert!(classes.is_empty(), "{case}: {classes:?}");
+            assert!(!unembedded_in(&ran.output), "{case}");
+            load_strict(&ran.output);
+        }
+    }
+}
+
+#[test]
+fn an_inline_descriptor_c8_font_is_repaired_through_the_engine() {
+    // The whole repair: TemplateAssemble wins and verifies, as for the
+    // referenced descriptor (`c8_beats_resave_on_v2`).
+    let input = inline_damaged(C8FontResourcesDeleted, Inline::InType0, false);
+    let (g, _) = run_db(&input, &test_db(), &RepairOptions::default());
+    assert_eq!(g.chosen, Some(Toolpath::TemplateAssemble));
+    assert!(chosen(&g).verification.v0.all_pass(), "{:?}", chosen(&g));
+    assert_eq!(chosen(&g).verification.v2.unmapped_glyph.num, 0);
+    assert_eq!(pass(&g, C8FontResourcesDeleted).outcome, PassOutcome::Fixed);
+    assert_eq!(text_of(g.output.as_ref().unwrap()), golden_text());
+}
+
+#[test]
+fn a_weak_guess_on_an_inline_descriptor_recovers_text_on_its_font() {
+    // G-02's rule holds for an inline descriptor: the font is kept as found
+    // and its own dictionary gets the /ToUnicode.
+    let input = inline_damaged(C8FontResourcesDeleted, Inline::InType0, true);
+    let mut ask = Scripted::new(vec![InteractionReply::UseBest]);
+    let ran = run_pass(
+        &input,
+        C8FontResourcesDeleted,
+        &db_of(&[RIGHT]),
+        &RepairOptions::default(),
+        &mut ask,
+        &[],
+    );
+    assert!(top_hit(&ask) < Ratio { num: 1, den: 2 });
+    assert_eq!(
+        ran.report.outcome,
+        PassOutcome::Partial("text recovered; font not confirmed".to_owned())
+    );
+    let doc = load_strict(&ran.output);
+    for page in 0..2 {
+        let font = f1_font(&doc, page);
+        assert_eq!(
+            font.get(b"BaseFont").unwrap().as_name().unwrap(),
+            PRINT_BASE_FONT,
+            "page {page}"
+        );
+        assert!(font.get(b"ToUnicode").is_ok(), "page {page}");
+    }
+    assert_eq!(text_of(&ran.output), golden_text());
+}
+
 #[test]
 fn a_substituted_font_keeps_the_input_widths() {
     // The input's /W lays the text out: the substitute draws in the same

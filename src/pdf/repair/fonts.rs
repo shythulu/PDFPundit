@@ -3,10 +3,15 @@
 //!
 //! A damaged font is found by its descriptor (diagnose's C7 or C8 finding);
 //! the font the pages name is the descriptor's font, or that font's `/Type0`
-//! parent. Every `(page, slot)` whose `/Resources /Font` names it is one of
-//! its slots, and the codes it shows are read from each page's content
-//! (T-09's `page_content`, T-06's `content_ops`): one [`CodeRun`] per show
-//! operator, a token break at each `TJ` offset beyond −250/1000 em.
+//! parent. A descriptor written inline (as print producers write it) has
+//! its finding on the font object it is written in: that font, or the
+//! `CIDFont` written inline in that `/Type0` font's `/DescendantFonts`, is
+//! the descriptor's font (D-160), and the font is repaired by the same
+//! rules as one whose descriptor is an object. Every `(page, slot)` whose
+//! `/Resources /Font` names it is one of its slots, and the codes it shows
+//! are read from each page's content (T-09's `page_content`, T-06's
+//! `content_ops`): one [`CodeRun`] per show operator, a token break at each
+//! `TJ` offset beyond −250/1000 em.
 //!
 //! **Only `TemplateAssemble` substitutes.** In the `Resave` candidate both
 //! passes keep the font as found and report `Partial`, so `Resave` stays the
@@ -247,12 +252,14 @@ impl RepairPass for FontPrograms {
 /// One damaged font and the slots that show text through it.
 struct Target<'f> {
     finding: &'f Finding,
+    /// The object the finding sits on: the descriptor, or the font object
+    /// it is written in.
     descriptor: ObjId,
     /// The font the pages name: the `/Type0` parent, or the font itself.
     top: ObjId,
     /// The font that names the descriptor: the `CIDFont` under `top`, or
     /// `top` itself.
-    cidfont: ObjId,
+    cidfont: FontAt,
     /// `/BaseFont` (else the descriptor's `/FontName`), without the slash.
     base_font: Option<String>,
     subtype: Option<String>,
@@ -281,23 +288,70 @@ impl Target<'_> {
     }
 }
 
-/// The fonts `findings` (descriptors) belong to, once each, in finding order.
+/// Where the font that names a descriptor is (D-160).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FontAt {
+    /// A font object of its own.
+    Object(ObjId),
+    /// The first `/DescendantFonts` entry of this `/Type0` font object,
+    /// written inline in it (or in the array object it names), as print
+    /// producers write a `CIDFont`.
+    Descendant(ObjId),
+}
+
+/// The dictionary of the font `at` names.
+fn font_at<'c>(ctx: &RepairCtx<'c>, at: FontAt) -> Option<&'c Dictionary> {
+    match at {
+        FontAt::Object(id) => font_dict(ctx, id),
+        FontAt::Descendant(top) => {
+            let fonts = resolved(ctx, font_dict(ctx, top)?.get(b"DescendantFonts").ok()?)?;
+            match fonts.as_array().ok()?.first()? {
+                Object::Dictionary(d) => Some(d),
+                Object::Reference(id) => font_dict(ctx, *id),
+                _ => None,
+            }
+        }
+    }
+}
+
+/// The font the finding on `id` is about, and the font the pages name.
+/// `id` is a descriptor object that a font names by reference, or a font
+/// object a descriptor is written inline in (diagnose's inline
+/// descriptors, C8-01): its own `/FontDescriptor`, else its inline
+/// `CIDFont`'s.
+fn font_of(ctx: &RepairCtx<'_>, id: ObjId) -> Option<(FontAt, ObjId)> {
+    let user = ctx
+        .graph
+        .referrers(id)
+        .iter()
+        .find(|e| e.path.0.len() == 1 && e.path.first_key() == Some(&b"FontDescriptor"[..]))
+        .map(|e| e.from);
+    let inline = |d: &Dictionary| matches!(d.get(b"FontDescriptor"), Ok(Object::Dictionary(_)));
+    let user = match user {
+        Some(user) => user,
+        None if font_dict(ctx, id).is_some_and(inline) => id,
+        None => {
+            let at = FontAt::Descendant(id);
+            return font_at(ctx, at).is_some_and(inline).then_some((at, id));
+        }
+    };
+    Some((
+        FontAt::Object(user),
+        type0_parent(ctx.graph, user).unwrap_or(user),
+    ))
+}
+
+/// The fonts `findings` (descriptors, or fonts with a descriptor inline)
+/// belong to, once each, in finding order.
 fn targets<'f>(ctx: &RepairCtx<'_>, findings: &'f [Finding], c8: bool) -> Vec<Target<'f>> {
     let mut out: Vec<Target<'f>> = Vec::new();
     for f in findings {
         let Location::Object { id: descriptor, .. } = f.location else {
             continue;
         };
-        let user = ctx
-            .graph
-            .referrers(descriptor)
-            .iter()
-            .find(|e| e.path.0.len() == 1 && e.path.first_key() == Some(&b"FontDescriptor"[..]))
-            .map(|e| e.from);
-        let Some(user) = user else {
+        let Some((cidfont, top)) = font_of(ctx, descriptor) else {
             continue;
         };
-        let top = type0_parent(ctx.graph, user).unwrap_or(user);
         if out.iter().any(|t| t.top == top) {
             continue;
         }
@@ -311,8 +365,8 @@ fn targets<'f>(ctx: &RepairCtx<'_>, findings: &'f [Finding], c8: bool) -> Vec<Ta
                 .map(|n| String::from_utf8_lossy(n).into_owned())
         };
         let base_font = name(dict, b"BaseFont").or_else(|| {
-            let d = font_dict(ctx, descriptor)?;
-            name(d, b"FontName")
+            let d = dict_of(ctx, font_at(ctx, cidfont)?.get(b"FontDescriptor").ok()?)?;
+            name(&d, b"FontName")
         });
         let subtype = name(dict, b"Subtype");
         let identity_h = subtype.as_deref() == Some("Type0")
@@ -331,7 +385,7 @@ fn targets<'f>(ctx: &RepairCtx<'_>, findings: &'f [Finding], c8: bool) -> Vec<Ta
             finding: f,
             descriptor,
             top,
-            cidfont: user,
+            cidfont,
             base_font,
             subtype,
             identity_h,
@@ -641,7 +695,7 @@ fn name_hit_holds(
     codes: &BTreeSet<u16>,
 ) -> Result<String, String> {
     let resolve = |v| resolved(ctx, v);
-    let cidfont = font_dict(ctx, t.cidfont);
+    let cidfont = font_at(ctx, t.cidfont);
     widths_confirm(ctx.fonts, id, codes, cidfont, &resolve)
 }
 
