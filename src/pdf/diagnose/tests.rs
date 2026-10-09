@@ -75,6 +75,7 @@ fn check_ids(found: &[Finding]) {
             FindingKind::Signed { .. } => "SIG",
             FindingKind::OutlinedText { .. } => "OUTLINE",
             FindingKind::Type3Text { .. } => "TYPE3",
+            FindingKind::FontNotEmbedded { .. } => "NOEMBED",
         };
         assert_eq!(prefix, want, "{}", f.id);
     }
