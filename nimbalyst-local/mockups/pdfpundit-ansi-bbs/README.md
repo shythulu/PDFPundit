@@ -80,9 +80,9 @@ These come from the user. Rationale lives in
 | `09-tiled-desktop.png` | The widget in context: a tile on a tiled desktop beside an editor with case notes and a shell. |
 | `10-history.png` | History (`H`): files from the history store, newest first; the selected file's runs; the selected run's findings and who answered each question. |
 | `10b-history-empty.png` | History before the cat has eaten anything. |
-| `11-setup.png` | Setup (`S`): every knob a user may change, saved to `config.toml`. ◆ marks the settings every report records. Custody mode is off, with its explanation open. |
+| `11-setup.png` | Setup (`S`): every knob a user may change, saved to `config.toml`. ◆ marks the settings in the reproducible part of the record. Custody mode is off, with its explanation open. The list scrolls by one row. |
 | `12-help.png` | Help (`?`): keys, what the cat does, where files go, what the app promises. |
-| `13-custody-prompt.png` | Custody mode on, files dropped: the cat asks once per batch for the case details (case reference, examiner, item reference, authority or notes) before the batch runs. |
+| `13-custody-prompt.png` | Custody mode on, files dropped: the cat asks once per batch for the case details (case reference, examiner, submission reference, authority or notes) before the batch runs. Outputs would go into the evidence folder, so it warns first. |
 | `13b-widget-custody.png` | The same moment in the widget: no form, just "‼ case details · zoom me". |
 | `14-evidence.png` | A finished file with a custody record: the result panel's evidence page (`v`), with the case details, hashes before and after, the three record files, the extracted images and the log entry. |
 
