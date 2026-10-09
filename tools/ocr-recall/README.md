@@ -11,7 +11,7 @@ It is not REPDF's metric, and it is not comparable to the paper's tables.
 1. `cargo test --release --lib -- --ignored bench::corpus::ocr` (T-38a) repairs the smoke subset.
    Then it renders every page of each original and each repair through hayro at 200 dpi.
    The PNGs and `manifest.csv` land in `target/corpus/ocr_inputs/`.
-2. `ocr-recall` reads the manifest and OCRs every PNG once, in manifest order.
+2. `ocr-recall` reads the manifest and OCRs every PNG once, in manifest order, with the engine `--engine` names.
 3. Each original page's OCR text is the ground truth for the same page of its ten repaired variants.
 4. The scorer writes one CSV row per page and prints two aggregate tables to the log.
 
@@ -22,7 +22,16 @@ manifest.csv ──> manifest.py ──> engine.ocr(png) per PNG ──> recall.
 
 ## Usage
 
-Python 3.12 or 3.13. Never 3.14, because paddlepaddle 3.3.1 ships no cp314 wheel.
+With Tesseract, the nightly engine (D-014), any Python 3.11 or later and a `tesseract` binary on PATH:
+
+```sh
+sudo apt-get install tesseract-ocr   # or set TESSERACT to the binary
+python3 -I tools/ocr-recall/ocr_recall.py --engine tesseract \
+    --manifest target/corpus/ocr_inputs/manifest.csv \
+    --out target/corpus/ocr_results.csv
+```
+
+With PaddleOCR, Python 3.12 or 3.13. Never 3.14, because paddlepaddle 3.3.1 ships no cp314 wheel.
 
 ```sh
 uv venv --python 3.12 .venv-ocr
@@ -34,12 +43,13 @@ PYTHON=.venv-ocr/bin/python tools/ocr-recall/ocr-recall \
 
 | flag | default | effect |
 |---|---|---|
-| `--tier` | `tiny` | model pair for Latin and Han pages; see the model table |
+| `--tier` | `tiny` | PaddleOCR's model pair for Latin and Han pages; Tesseract has one model set |
 | `--engine` | `paddle` | which OCR apparatus reads the PNGs |
 | `--dry-run` | off | checks the engine is installed and reads the manifest; fetches and OCRs nothing |
 
 The wrapper runs `ocr_recall.py` under `python3 -I`.
 A missing PaddleOCR exits with one line naming `requirements.lock`.
+A missing `tesseract` binary exits with one line naming the apt package.
 
 Tests need only pytest, from its own hash lock. They download no model.
 
@@ -60,7 +70,7 @@ It leaves five choices open, and each one moves the number.
 | normalisation | unstated | NFC, then each character lower-cased, then whitespace collapsed (TD §8, T-25's `normalize`) |
 | matching | unstated | clipped bag of words |
 | granularity | unstated | per page; tables are means of per-page values |
-| OCR engine and input | Document AI, version unstated, PDF input | PaddleOCR on hayro's 200 dpi PNGs |
+| OCR engine and input | Document AI, version unstated, PDF input | per-script Tesseract (nightly) or PaddleOCR on hayro's 200 dpi PNGs |
 
 Per page:
 
@@ -117,7 +127,7 @@ regression baseline; 44-file REPDF smoke subset; REPDF-style OCR word recall, en
 | output | holds |
 |---|---|
 | `ocr_results.csv` | label line, then one row per scored page: engine, version, tier, file, class, page, lang, script, models, the four columns, `lcs_f1` |
-| log, header | label, then an apparatus line: tier, each model the run uses with its Hugging Face revision, the paddleocr, paddlex and paddlepaddle versions, `cpu_threads` |
+| log, header | label, then an apparatus line. Tesseract: the tessdata_best commit, each route's models, `oem`, `psm`, `dpi`, `OMP_THREAD_LIMIT`. PaddleOCR: tier, each model with its Hugging Face revision, the paddleocr, paddlex and paddlepaddle versions, `cpu_threads` |
 | log, per page | page, script, line count, seconds, sha256 of the OCR text |
 | log, tables | means per class and script, then per class |
 
@@ -127,7 +137,33 @@ eng-r3-fr1 §4 found the text identical across two runs on one machine. Cross-pl
 
 No artifact is uploaded. The CSV names corpus files, so it stays on the runner.
 
-## Models and routing (D-067)
+## Tesseract models and routing (G-11, D-014)
+
+`tessdata.toml` pins one commit of the tessdata_best repository (Apache-2.0) and the sha256 of each `.traineddata` the runs use.
+The harness fetches each model at that commit into `TESSDATA_BEST_CACHE`, default `target/corpus/tessdata-best`.
+It hashes every model the run needs before reading the first page, so a mismatch stops the run.
+It never reads the distro's language packs: `--tessdata-dir` points at the cache.
+
+A page's script comes from its manifest `lang`, as for PaddleOCR (D-069).
+
+| script | `lang` | `-l` | bytes |
+|---|---|---|---|
+| latin | en, fr, es, und | `eng+fra+spa` | 15,400,601 + 3,972,885 + 13,570,187 |
+| han | zh | `chi_sim` | 13,077,423 |
+| arabic | ar | `ara` | 12,603,724 |
+| devanagari | hi | `hin` | 11,895,564 |
+
+The Latin route reads with all three Latin models, because the harness routes by script.
+English-only models recover 2.5 to 9.2% of Arabic, Devanagari and Han characters; the script's own model recovers 89 to 96% (committee 005 C3 on PR #19, 24 pages, indicative).
+
+Each page runs `tesseract <png> stdout --tessdata-dir <cache> -l <route> --oem 1 --psm 3 --dpi 200`, with `OMP_THREAD_LIMIT` set to the CPU count.
+`--oem 1` is LSTM only, the only mode tessdata_best models carry. `--dpi 200` matches T-38a's rasters.
+Blank lines and the page's closing form feed are dropped; every other line is a text line for the scorer.
+
+The Tesseract version is whatever the runner's apt installs. The label and every CSV row name it.
+Its first nightly run is the first real run: the authoring Mac has no Tesseract, so the tests use a fake binary.
+
+## PaddleOCR models and routing (D-067)
 
 `models.toml` pins each model's Hugging Face repo, revision and the sha256 of its `inference.pdiparams`.
 The harness fetches each model at that revision into `PADDLE_PDX_CACHE_HOME`, default `target/corpus/paddle-models`.
@@ -163,7 +199,7 @@ Orientation, unwarping and textline models are off.
 `cpu_threads` is the machine's CPU count.
 One process reads the pages in manifest order, because 4-way sharding roughly doubled per-page latency.
 
-## Measured cost (eng-r3-fr1 §2 to §3)
+## PaddleOCR measured cost (eng-r3-fr1 §2 to §3)
 
 Latency was measured on the authoring Mac under other load, so it is a lower bound for a hosted runner.
 
@@ -175,37 +211,36 @@ Latency was measured on the authoring Mac under other load, so it is a lower bou
 | medium on a 4 vCPU runner | extrapolated to more than an hour, not measured |
 | Latin word / char recall vs text layer | tiny 0.873 / 0.934, medium 0.891 / 0.933 |
 
-The nightly job runs the tiny tier.
+When PaddleOCR runs, it runs the tiny tier by default.
 Medium buys about two points of Latin recall for 13 times the cost, so it runs only on demand through `workflow_dispatch`.
 
 ## The nightly job
 
 `.github/workflows/corpus-ocr.yml` runs on `ubuntu-latest` every night with a 180-minute limit. It is never a PR gate.
+The nightly engine is `tesseract`. A `workflow_dispatch` run can pick `paddle` and its tier instead.
 
-1. Run these tests in a venv without PaddleOCR.
-2. Install `requirements.lock` with `--require-hashes`.
+1. Run these tests in a venv without PaddleOCR or Tesseract.
+2. Install the engine: `tesseract-ocr` from apt, or `requirements.lock` with `--require-hashes`.
 3. Sparse-checkout the 44 files of `bench/smoke_subset.txt` at the pinned corpus commit.
-4. Run the corpus `ocr` mode, then `ocr-recall`.
+4. Run the corpus `ocr` mode, then `ocr-recall --engine <engine>`.
 
 The corpus clone and the rasters are never cached.
 Wheels and models may be cached, because they are not corpus bytes.
 
 ## Engines and their status (D-071, D-014)
 
-The apparatus that feeds the published number is research-pending, so the harness is engine-agnostic.
+The harness is engine-agnostic, so choosing the apparatus is a flag.
 An engine is a module in `engines/` with one interface. Its recognisers expose `ocr(png) -> list[str]`, the text lines of one page.
 The scorer never knows which engine produced the lines.
 
 | `--engine` | status | why |
 |---|---|---|
-| `paddle` | built | DA M7 names local PaddleOCR in CI |
-| `tesseract` | stub, exits "blocked on D-071" | PR #19's committee 005 accepted per-script Tesseract as its text reference. The PR #19 board has not ruled between it and DA M7 |
-| `documentai` | stub, exits "blocked on D-014" | a Document AI account costs money, about $10 per run, and that is the user's decision |
+| `tesseract` | built, runs nightly | the user's D-014 answer (2026-10-08): no Document AI; per-script Tesseract is the OCR-scoring plan, which settles D-071 for v1 |
+| `paddle` | built, on demand | DA M7 named local PaddleOCR in CI. It stays as a sensitivity run |
+| `documentai` | stub, exits "blocked on D-014" | the user answered D-014 with no Document AI |
 
-When the board rules, the chosen engine becomes a second module here and nothing else changes.
-Only one apparatus ever feeds a published number (D-063). The other may appear as a sensitivity column.
+Only one apparatus ever feeds a published number (D-063): per-script Tesseract. PaddleOCR may appear as a sensitivity column.
 
-Even the Document AI leg would give a REPDF-style number, because the paper names no processor version, tokeniser or normalisation.
-Its value is calibrating the local engine against the paper's engine on the originals.
+The `paddle` default of `--engine` is unchanged; the nightly job passes `--engine tesseract`.
 
 Publishing any release number waits on the user (D-063).
