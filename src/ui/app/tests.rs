@@ -155,6 +155,35 @@ fn a_scripted_run_of_ten_ticks() {
     assert_eq!(app.state.hint, None, "the key after q never ran");
 }
 
+/// `NO_COLOR`: the probe's [`ColorCaps::None`] reaches the screen. The app
+/// draws in the monochrome theme, so the cat is shade blocks, which the
+/// colour cat never draws, and a theme picked in the chooser stays
+/// monochrome.
+#[test]
+fn no_colour_draws_the_cat_in_shade_blocks() {
+    let shades = |screen: &TestScreen| {
+        screen
+            .rows()
+            .concat()
+            .chars()
+            .filter(|c| ['░', '▒', '▓'].contains(c))
+            .count()
+    };
+    let (_, colour) = started(112, 38, &config::Ui::default());
+    assert_eq!(shades(&colour), 0);
+
+    let mut screen = TestScreen::test(112, 38, ColorCaps::None);
+    let mut app = App::new(&config::Ui::default(), ColorCaps::None, PathBuf::new());
+    assert!(app.theme.monochrome);
+    app.resize(112, 38);
+    app.refresh(Duration::ZERO);
+    app.render(&mut screen, Duration::ZERO).unwrap();
+    assert!(shades(&screen) > 20, "{:?}", screen.rows());
+    app.set_theme(4);
+    assert!(app.theme.monochrome);
+    assert_eq!(app.theme.name, Theme::all()[4].name);
+}
+
 #[test]
 fn inputs_before_the_first_frame_are_dropped_and_counted() {
     let mut app = App::new(&config::Ui::default(), ColorCaps::TrueColor, PathBuf::new());

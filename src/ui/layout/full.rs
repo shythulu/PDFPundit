@@ -199,7 +199,12 @@ fn draw_main(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
         }
     }
     let (cx, cy) = CAT_AT;
-    c.blit_grid(&cat::render(&cat.pose, CAT_SCALE, theme, cat.glow), cx, cy);
+    c.blit_cat(
+        &cat::render(&cat.pose, CAT_SCALE, theme, cat.glow),
+        cx,
+        cy,
+        theme,
+    );
     if let Some(off) = cat.pose.plate {
         c.blit_grid(&cat::plate(PLATE_W, Some(off)), PLATE_AT.0, PLATE_AT.1);
     }
@@ -507,7 +512,12 @@ fn draw_batch(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
         needs_box(c, vm, name, theme);
     }
     let (scale, cx, cy) = BATCH_CAT;
-    c.blit_grid(&cat::render(&cat.pose, scale, theme, cat.glow), cx, cy);
+    c.blit_cat(
+        &cat::render(&cat.pose, scale, theme, cat.glow),
+        cx,
+        cy,
+        theme,
+    );
     let (dx, dy) = DROP_MORE_AT;
     c.rich(dx, dy, &format!("{{D}}{}", strings::DROP_MORE), None, theme);
     view_footer(c, vm, theme, None);
@@ -619,7 +629,12 @@ fn draw_result(c: &mut Canvas, vm: &ViewModel, cat: &CatFrame, theme: &Theme) {
     }
 
     let (scale, cx, cy) = RESULT_CAT;
-    c.blit_grid(&cat::render(&cat.pose, scale, theme, cat.glow), cx, cy);
+    c.blit_cat(
+        &cat::render(&cat.pose, scale, theme, cat.glow),
+        cx,
+        cy,
+        theme,
+    );
     if repaired {
         let (sx, sy) = SATISFIED_AT;
         let (line, burp) = strings::CAT_SATISFIED;
@@ -1740,6 +1755,75 @@ mod tests {
         ] {
             assert_eq!(screen(vm, cat), want);
         }
+    }
+
+    /// `rows` of the cat drawn at `(x, y)` in `scale` hold only shade blocks
+    /// (or what a layout writes over the cat), never a pixel pair.
+    fn assert_shade_cat(c: &Canvas, scale: f64, (x, y): (i32, i32), rows: u16) {
+        let g = cat::render(&cat::Pose::default(), scale, theme(), 0.0);
+        let mut blocks = 0;
+        for gy in 0..g.rows.min(rows) {
+            for gx in 0..g.cols {
+                let cell = c
+                    .get(to_u16(x) + gx, to_u16(y) + gy)
+                    .expect("on the canvas");
+                assert_ne!(cell.ch, HALF, "a pixel pair at ({gx}, {gy}) of the cat");
+                blocks += usize::from(cat::SHADES[1..].contains(&cell.ch));
+            }
+        }
+        assert!(blocks > 100, "{blocks} shade blocks");
+    }
+
+    fn to_u16(v: i32) -> u16 {
+        u16::try_from(v).expect("on the canvas")
+    }
+
+    /// `NO_COLOR` (UX "Accessibility: NO_COLOR"): the full layout draws in
+    /// the monochrome theme, and the blit with no colour leaves every cell in
+    /// the terminal's own colours. The cat is shade blocks on the idle and
+    /// result screens; the file menu keeps its `►` on reverse video.
+    #[test]
+    fn the_full_layout_draws_without_colour() {
+        use crate::ui::color::ColorCaps;
+        use crate::ui::term::{Palette, blit};
+        use ratatui::buffer::Buffer;
+        use ratatui::style::{Color, Modifier};
+        let mono = theme().monochrome();
+        let draw_mono = |app: &AppState| {
+            let vm = view(app);
+            let mut c = Canvas::new(FULL_SIZE.0, FULL_SIZE.1, &mono);
+            FullLayout.draw(&mut c, &vm, &resting(&vm), &mono);
+            let mut buf = Buffer::empty(ratatui::layout::Rect::new(0, 0, FULL_SIZE.0, FULL_SIZE.1));
+            blit(&c, &mut buf, &mut Palette::new(ColorCaps::None, &mono));
+            for cell in &buf.content {
+                assert_eq!((cell.fg, cell.bg), (Color::Reset, Color::Reset));
+            }
+            (c, buf)
+        };
+
+        let (idle, _) = draw_mono(&AppState::mockup_idle());
+        // Down to the plate's top row, which the plate's own pixels share.
+        assert_shade_cat(&idle, CAT_SCALE, CAT_AT, to_u16(PLATE_AT.1 - CAT_AT.1));
+
+        let mut app = AppState::mockup_result();
+        app.file_menu = Some(42);
+        let (c, buf) = draw_mono(&app);
+        let (scale, x, y) = RESULT_CAT;
+        assert_shade_cat(&c, scale, (x, y), u16::MAX);
+        let row = row_text(&c, 15);
+        assert!(row.contains("► Remove from queue"), "{row:?}");
+        let at = row.chars().position(|ch| ch == '►').expect("►");
+        let marker = &buf[(to_u16(i32::try_from(at).expect("small")), 15)];
+        assert_eq!(marker.symbol(), "►");
+        assert!(
+            marker.modifier.contains(Modifier::REVERSED),
+            "on the lightbar"
+        );
+        let attrs = buf
+            .content
+            .iter()
+            .fold(Modifier::empty(), |m, c| m | c.modifier);
+        assert!(attrs.contains(Modifier::BOLD | Modifier::DIM | Modifier::REVERSED));
     }
 
     /// The menu is drawn only while it is open; its hotkeys replace the

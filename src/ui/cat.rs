@@ -20,7 +20,7 @@ mod geometry;
 
 use std::sync::Mutex;
 
-use super::color::{Rgb, avg, mix, ramp};
+use super::color::{Rgb, avg, lightness, mix, ramp};
 use super::theme::Theme;
 
 /// What the face is doing. `yaw` turns the head (features slide round a
@@ -205,6 +205,59 @@ fn render_uncached(pose: &Pose, scale: f64, bg: Rgb, accent: Rgb, glow: f64) -> 
         }
     }
     CellGrid::from_pixels(wd, hd, &px)
+}
+
+/// The shade blocks of the no-colour cat, darkest first.
+pub const SHADES: [char; 5] = [' ', '░', '▒', '▓', '█'];
+
+/// The least summed lightness (thousandths, two pixels) of each shade after
+/// the first: `SHADE_AT[i]` and up draws `SHADES[i + 1]`.
+const SHADE_AT: [u16; 4] = [700, 1100, 1500, 1750];
+
+/// The cat for a terminal without colour (`NO_COLOR`, Q32), cell for cell
+/// from a [`render`]ed grid: one shade block per drawn cell, picked by the
+/// summed OKLab lightness of its two pixels in thousandths (a transparent
+/// pixel counts as black) against [`SHADE_AT`]. White fur is `█`, the dark
+/// lines `░` or a space, so the blocks read in the terminal's own
+/// foreground on its own background. Every drawn cell stays drawn, a space
+/// included, so the shade cat covers what the colour cat covers.
+pub fn shade(grid: &CellGrid) -> ShadeGrid {
+    let level = |px: Option<Rgb>| px.map_or(0, lightness);
+    let cells = grid
+        .cells
+        .iter()
+        .map(|cell| {
+            cell.map(|c| {
+                let (top, bottom) = c.halves();
+                let sum = level(top) + level(bottom);
+                SHADES[SHADE_AT.iter().filter(|&&at| sum >= at).count()]
+            })
+        })
+        .collect();
+    ShadeGrid {
+        cols: grid.cols,
+        rows: grid.rows,
+        cells,
+    }
+}
+
+/// A block of shade characters ([`shade`]), row-major, `cols * rows`
+/// entries; `None` is a cell with nothing drawn.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShadeGrid {
+    pub cols: u16,
+    pub rows: u16,
+    pub cells: Vec<Option<char>>,
+}
+
+impl ShadeGrid {
+    /// The character at `(x, y)`; `None` outside the grid too.
+    pub fn get(&self, x: u16, y: u16) -> Option<char> {
+        if x >= self.cols || y >= self.rows {
+            return None;
+        }
+        self.cells[usize::from(y) * usize::from(self.cols) + usize::from(x)]
+    }
 }
 
 /// The ring round the cat while a file is over it: dashes on the rim, a faint
@@ -807,5 +860,109 @@ mod tests {
         }
         assert_eq!(Cell::from_halves(Some(a), Some(a)).map(|c| c.ch), Some('█'));
         assert_eq!(Cell::from_halves(None, None), None);
+    }
+
+    /// A shade block from the summed lightness of a cell's two pixels, a
+    /// transparent one counting as black; an empty cell stays empty.
+    #[test]
+    fn shade_picks_a_block_by_summed_lightness() {
+        let white = Rgb::from_u32(0xffffff);
+        let black = Rgb::from_u32(0x000000);
+        let line = Rgb::from_u32(0x3a2d3c);
+        let grey = Rgb::from_u32(0x808080);
+        let cells = [
+            Cell::from_halves(Some(white), Some(white)),
+            Cell::from_halves(Some(white), None),
+            Cell::from_halves(None, Some(white)),
+            Cell::from_halves(Some(white), Some(line)),
+            Cell::from_halves(Some(grey), Some(grey)),
+            Cell::from_halves(Some(line), Some(line)),
+            Cell::from_halves(Some(black), Some(black)),
+            None,
+        ];
+        let grid = CellGrid {
+            cols: 4,
+            rows: 2,
+            cells: cells.to_vec(),
+        };
+        let s = shade(&grid);
+        assert_eq!((s.cols, s.rows), (4, 2));
+        let got: Vec<Option<char>> = s.cells.clone();
+        // white + white = 2000; white alone 1000; white + line about 1300;
+        // grey + grey 1200; line + line about 640; black 0.
+        assert_eq!(
+            got,
+            [
+                Some('█'),
+                Some('░'),
+                Some('░'),
+                Some('▒'),
+                Some('▒'),
+                Some(' '),
+                Some(' '),
+                None
+            ]
+        );
+        assert_eq!(s.get(0, 0), Some('█'));
+        assert_eq!(s.get(3, 1), None);
+        assert_eq!(s.get(4, 0), None, "outside");
+    }
+
+    /// The bounding box of the drawn cells: `(x0, y0, x1, y1)`, inclusive.
+    fn drawn_box(cols: u16, rows: u16, drawn: impl Fn(u16, u16) -> bool) -> (u16, u16, u16, u16) {
+        let mut b = (u16::MAX, u16::MAX, 0, 0);
+        for y in 0..rows {
+            for x in 0..cols {
+                if drawn(x, y) {
+                    b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
+                }
+            }
+        }
+        b
+    }
+
+    /// Q32: under `NO_COLOR` the cat at full (0.93) and widget (0.465) size
+    /// is drawn in shade blocks, held still by self-goldens, over exactly the
+    /// cells the colour cat draws, so its bounding box is the colour cat's.
+    #[test]
+    fn the_shade_cat_matches_its_self_goldens() {
+        use crate::ui::canvas::{Canvas, HALF};
+        let colour_theme = Theme::default_theme();
+        let mono = colour_theme.monochrome();
+        for scale in [0.93, 0.465] {
+            let colour = render(&Pose::default(), scale, colour_theme, 0.0);
+            let grid = render(&Pose::default(), scale, &mono, 0.0);
+            let shades = shade(&grid);
+            assert_eq!((shades.cols, shades.rows), (colour.cols, colour.rows));
+            for y in 0..colour.rows {
+                for x in 0..colour.cols {
+                    let (c, s) = (colour.get(x, y), shades.get(x, y));
+                    assert_eq!(c.is_some(), s.is_some(), "{scale}: ({x}, {y})");
+                    assert!(s.is_none_or(|ch| SHADES.contains(&ch)), "{scale}: {s:?}");
+                }
+            }
+            let (cols, rows) = (colour.cols, colour.rows);
+            let want = drawn_box(cols, rows, |x, y| colour.get(x, y).is_some());
+            assert_eq!(
+                drawn_box(cols, rows, |x, y| shades.get(x, y).is_some()),
+                want,
+                "{scale}"
+            );
+            let mut c = Canvas::new(cols, rows, &mono);
+            c.blit_cat(&grid, 0, 0, &mono);
+            for cell in &c.cells {
+                assert_ne!(cell.ch, HALF, "{scale}: no pixel pairs");
+                assert_eq!(cell.fg, mono.roles.body, "{scale}: plain text");
+            }
+            let full = (0..rows)
+                .flat_map(|y| (0..cols).map(move |x| (x, y)))
+                .filter(|&(x, y)| c.get(x, y).is_some_and(|cell| cell.ch == '█'))
+                .count();
+            assert!(
+                full > usize::from(cols) * usize::from(rows) / 3,
+                "{scale}: fur"
+            );
+            goldens::assert_self_golden(&c, &format!("cat-shade-{scale}"));
+        }
     }
 }
