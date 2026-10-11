@@ -1,5 +1,60 @@
 # Implementation status, 2026-10-09 (after the autonomous session, the architecture audit, the fix round, T-35, the UX design, the follow-up round and the CI and C8 fixes)
 
+## Hand-off, 2026-10-10
+
+Read this section first. It is newer than everything below it.
+
+The build wave (`build-wave.md`) stopped after two merges. The branch is `claude/wayfinder-implementation`, and its tip is the commit that adds this section.
+
+| Ticket | State | Where | Next step |
+|---|---|---|---|
+| C8-02 | merged | a178262 | none |
+| H-24 | merged | a58782a | none |
+| H-01 | built, not reviewed | branch `impl/H-01` (dd7e4ae), two commits on 5978b20 | review to `approve`, run the gates, merge `--no-ff` |
+| every other H ticket | not started | `build-wave.md` | build in dependency order |
+
+What each merge changed:
+
+- **C8-02.** The C7/C8 passes now repair a font whose descriptor is written inline. Smoke C8 rose from 0.266 to 0.293. This closes the follow-up D-160 named.
+- **H-24.** A non-empty `NO_COLOR` gives attributes instead of colours, and the cat is drawn in shade blocks (Q32).
+
+What `impl/H-01` holds:
+
+- The evidence schema, its worked example and its scripts, under `nimbalyst-local/plans/implementation/evidence-schema/`.
+- The C9 Exact search text and the signed-input wording.
+- Three deviations from the ticket: a new fixture `with_adler_trailer_damage()`, new README rows, and `evidence-schema/work/build.sh` left unchanged.
+
+Rules a new environment has to keep:
+
+1. One ticket per agent session, test-first, in its own worktree and `impl/<id>` branch.
+2. An independent reviewer reads every change. Nothing merges before `approve`.
+3. The gates in `AGENTS.md` pass before each merge. Merges are `--no-ff` and signed.
+4. A ticket whose dependency failed is skipped, not built.
+
+What does not travel with the repository:
+
+- **The REPDF corpus.** Clone github.com/dfrc-korea/REPDF at e547d4d and set `PDFPUNDIT_CORPUS`. It never goes inside the repo.
+- **The scheduler scripts and fact reports.** They stay in the first session's scratch folder. `build-wave.md`, `fixes.md` and `decision-log.md` restate everything a ticket needs.
+- **The old `impl/*` and `design/ux` branches.** Their work is on this branch. `design/ux-d117` is the exception, and H-26 rebuilds its change.
+
+Not recorded yet, because the log keeper did not run after these two merges:
+
+- Decision-log rows for C8-02 and H-24. The log ends at D-161.
+- The re-baseline of `bench/golden_smoke.csv`. It still says C8 0.260 and C10 0.408. The tree measures C8 0.293 and C10 0.407. The smoke gate passes, because it fails only on a drop of more than 0.020.
+
+Open for the user:
+
+| Item | Question | Recommended |
+|---|---|---|
+| D-143 | Accept Leipzig's download terms for the bundled word lists? | (a) keep the lists |
+| golden | Re-baseline `bench/golden_smoke.csv` to the C8-02 numbers? | yes |
+| D-156 | Should a substituted CIDFont carry the input's `/W` or the template's? | (a) the input's, as built |
+| D-142 (4) | When to push the first tag, `v0.1.0`? | none recorded |
+
+Approved and not done: D-042, the scrub of copyleft links and quotes in the research notes on the PR #19 branch. Not started: T-34 (OCR).
+
+## History of the branch up to C8-01
+
 Branch: `claude/wayfinder-implementation` at 3664e58 (merge of C8-01). Eight things happened on it, in order:
 
 1. The autonomous implementation session ran the plan's scheduler over `tickets.json` in three runs (the first stalled after T-01, the second crashed during T-11b/T-12a/T-23a, the third finished the plan) and merged every one of the 48 buildable tickets at 5960eda, followed by one documentation commit, d65417a. T-33, T-34 and T-35 were never scheduled, because the plan lists them as blocked on user decisions.
