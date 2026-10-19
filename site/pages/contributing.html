@@ -1,0 +1,93 @@
+<!-- title: Contributing · PDFPundit | description: How to contribute to PDFPundit: issues and labels, research and code rules, the clean-room rule and pull requests. -->
+<h1>Contributing</h1>
+<p class="lede">PDFPundit is in its research stage. Right now research helps more than Rust code does.</p>
+
+<div class="note">
+<p><span class="label">No licence yet.</span> Open an issue before you send code, so we can agree on terms first.</p>
+</div>
+
+<h2>Ways to help</h2>
+<div class="table"><table>
+<thead><tr><th>Kind of work</th><th>Where it goes</th><th>Start with</th></tr></thead>
+<tbody>
+<tr><td>Report a bug or idea</td><td>GitHub issue</td><td><a href="https://github.com/shythulu/PDFPundit/issues/new">New issue</a></td></tr>
+<tr><td>Pick up a ticket</td><td>GitHub issue</td><td>The <a href="https://github.com/shythulu/PDFPundit/issues/1">wayfinder map</a></td></tr>
+<tr><td>Add research evidence</td><td><code>research/</code></td><td>The <a href="research.html">research guide</a></td></tr>
+<tr><td>Run an experiment</td><td><code>research/experiments/</code></td><td><code>research/observations/index.md</code></td></tr>
+<tr><td>Write engine code</td><td><code>src/</code></td><td><a href="https://github.com/shythulu/PDFPundit/blob/main/nimbalyst-local/plans/pdfpundit-technical-design.md">The technical design</a></td></tr>
+</tbody>
+</table></div>
+
+<h2>Issues and labels</h2>
+<p>Each issue moves through these labels.</p>
+<div class="table"><table>
+<thead><tr><th>Label</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>needs-triage</code></td><td>The maintainer hasn't looked at it yet</td></tr>
+<tr><td><code>needs-info</code></td><td>Waiting on the reporter</td></tr>
+<tr><td><code>ready-for-agent</code></td><td>Fully specified. A coding agent can take it alone.</td></tr>
+<tr><td><code>ready-for-human</code></td><td>Needs a person to do it</td></tr>
+<tr><td><code>wontfix</code></td><td>Won't be done</td></tr>
+</tbody>
+</table></div>
+
+<h3>The wayfinder map</h3>
+<p>Planned work hangs off one map issue. Each child ticket has a type.</p>
+<pre><code>Map issue (wayfinder:map)
+├── wayfinder:research    find something out
+├── wayfinder:prototype   build a throwaway to answer a question
+├── wayfinder:grilling    stress-test a plan or decision
+└── wayfinder:task        do the work</code></pre>
+<p>A ticket is free when all its blockers are closed and nobody is assigned. Assign yourself before you start, so nobody duplicates the work.</p>
+
+<h2>Code rules</h2>
+<p>The shipped tool follows four rules. Breaking one needs evidence and a maintainer decision first.</p>
+<ul>
+<li>Pure Rust. No compiled C in the binary, so no <code>-sys</code> crates that build C.</li>
+<li><code>lopdf</code> is the only PDF writer.</li>
+<li>The original file is never changed. Output always goes to a new file.</li>
+<li>Dependencies are MIT or Apache licensed.</li>
+</ul>
+<p>The crate uses edition 2024, so it needs Rust 1.85 or newer.</p>
+<pre><code>cargo build
+cargo test
+cargo clippy</code></pre>
+
+<h2>The clean-room rule</h2>
+<p>MuPDF and Ghostscript are AGPL. Poppler is GPL. Their code must never reach PDFPundit, because that would bind PDFPundit to their licences.</p>
+<div class="table"><table>
+<thead><tr><th>Allowed</th><th>Not allowed</th></tr></thead>
+<tbody>
+<tr><td>Research reads them and quotes short passages</td><td>Copying their code into PDFPundit</td></tr>
+<tr><td>Describing their behaviour in your own words</td><td>Specs that contain their code</td></tr>
+<tr><td>Running them as baselines and oracles</td><td>Pointing a coding agent at their source</td></tr>
+</tbody>
+</table></div>
+
+<h2>Data rules</h2>
+<ul>
+<li>Use public corpora only.</li>
+<li>Never commit a PDF that contains personal data.</li>
+<li>Record the licence of every corpus you use.</li>
+<li>Cache full texts in <code>research/cache/</code>, which git ignores. Never commit them.</li>
+<li>Don't scrape in breach of a site's terms.</li>
+</ul>
+
+<h2>Decisions</h2>
+<p>Reviewed research decisions go in <code>research/committees/</code> as minutes. Decisions that change the product become ADRs in <code>docs/adr/</code>.</p>
+<p>If your change contradicts an ADR, say so in the pull request and give the evidence.</p>
+
+<h2>Pull requests</h2>
+<ol class="steps">
+<li>Branch from <code>main</code>.</li>
+<li>Keep one change per pull request.</li>
+<li>For research changes, run <code>kb_validate.py</code>. It must print 0 errors.</li>
+<li>For code changes, run <code>cargo test</code>.</li>
+<li>Say which issue the pull request closes.</li>
+</ol>
+
+<h2>Editing this wiki</h2>
+<p>The wiki lives in <code>site/</code> in the repository. Each page is a fragment in <code>site/pages/</code>. Every page has an "Edit this page" link at the bottom.</p>
+<pre><code>python site/build.py              <span class="c"># writes site/dist/</span>
+python -m http.server -d site/dist <span class="c"># preview at localhost:8000</span></code></pre>
+<p>A push to <code>main</code> that touches <code>site/</code> publishes the wiki through GitHub Pages.</p>

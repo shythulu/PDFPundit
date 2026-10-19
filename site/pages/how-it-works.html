@@ -1,0 +1,86 @@
+<!-- title: How it works · PDFPundit | description: How PDFPundit repairs a damaged PDF: carving, rebuilding, the ten REPDF damage classes and the six provenance grades. -->
+<h1>How it works</h1>
+<p class="lede">PDFPundit ignores the damaged file's own index. It rebuilds the document from whatever objects survive in the bytes, then grades everything it wrote.</p>
+
+<div class="note info">
+<p><span class="label">Design, not code.</span> This page describes the planned engine. The full design is in <a href="https://github.com/shythulu/PDFPundit/blob/main/nimbalyst-local/plans/pdfpundit-technical-design.md">the technical design</a>.</p>
+</div>
+
+<h2>The method</h2>
+<p>The method starts from REPDF, a peer-reviewed repair method from DFRWS 2026. REPDF repairs PDFs with an external font database and by rebuilding the links between surviving objects. Its <a href="https://github.com/dfrc-korea/REPDF">code and corpus</a> are public: 1,000 damaged PDFs in 6 languages.</p>
+<p>PDFPundit reimplements that method in Rust. The research aims to go past it. See the <a href="research.html">research guide</a>.</p>
+
+<h2>Repair steps</h2>
+<ol class="steps">
+<li><strong>Carve.</strong> Scan the raw bytes for every <code>N G obj … endobj</code>. Expand compressed object streams too, because PDF 1.5 and later hide most objects inside them.</li>
+<li><strong>Decode.</strong> Inflate each stream and sort it into content, image or font.</li>
+<li><strong>Link.</strong> Rebuild the object graph from <code>/Root</code> to <code>/Pages</code> to each <code>/Page</code>.</li>
+<li><strong>Restore fonts.</strong> Re-link lost fonts, or substitute from the bundled font database. Rebuild <code>/ToUnicode</code> so text stays searchable.</li>
+<li><strong>Write.</strong> Emit a new file with a fresh cross-reference table and trailer.</li>
+<li><strong>Check.</strong> Diagnose the output again to confirm each problem is gone.</li>
+</ol>
+<p>The engine runs these as background jobs. It streams progress and findings as events, so any interface can sit on top of it.</p>
+
+<h2>Damage classes</h2>
+<p>REPDF defines ten damage classes. Each one becomes a detector and a repair pass.</p>
+<div class="table"><table>
+<thead><tr><th>ID</th><th>Damage</th><th>Repair approach</th></tr></thead>
+<tbody>
+<tr><td>C1</td><td>Header overwritten</td><td>Rewrite a valid <code>%PDF-x.y</code> header</td></tr>
+<tr><td>C2</td><td>Cross-reference table removed</td><td>Carve all objects, rebuild the table</td></tr>
+<tr><td>C3</td><td>Trailer removed</td><td>Find <code>/Root</code> and <code>/Info</code>, rebuild the trailer</td></tr>
+<tr><td>C4</td><td>Page tree broken</td><td>Collect <code>/Page</code> objects, rebuild <code>/Pages</code></td></tr>
+<tr><td>C5</td><td>Object tags stripped</td><td>Find object boundaries by structure, renumber</td></tr>
+<tr><td>C6</td><td>Font mapping lost</td><td>Re-link pages to their carved fonts</td></tr>
+<tr><td>C7</td><td>Font program deleted</td><td>Substitute from the font database</td></tr>
+<tr><td>C8</td><td>Font program and <code>/ToUnicode</code> deleted</td><td>Substitute the font, rebuild the Unicode map</td></tr>
+<tr><td>C9</td><td>Compressed stream damaged</td><td>Salvage what decodes, then verify it</td></tr>
+<tr><td>C10</td><td>File truncated</td><td>Assemble a document from what survives</td></tr>
+</tbody>
+</table></div>
+<p>The research has found 23 more damage classes beyond these ten. Examples are holes in the middle of a file, broken incremental updates, transfer mangling and producer bugs.</p>
+
+<h2>Provenance grades</h2>
+<p>Every element of a repaired file gets exactly one grade. A reader can then see which content is original and which was synthesized.</p>
+<div class="table"><table>
+<thead><tr><th>#</th><th>Grade</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Verbatim</td><td>Bytes copied unchanged</td></tr>
+<tr><td>2</td><td>Partially decoded</td><td>Stream output shown to be independent of the damage</td></tr>
+<tr><td>3</td><td>Corrected and verified</td><td>The only candidate that passes a checksum and an independent check</td></tr>
+<tr><td>4</td><td>Structurally inferred</td><td>Page order, renumbered objects, chosen revision</td></tr>
+<tr><td>5</td><td>Non-content synthesis</td><td>New xref, trailer, <code>/Length</code>, header</td></tr>
+<tr><td>6</td><td>Content synthesis</td><td>Substituted fonts, generated <code>/ToUnicode</code>, default page size</td></tr>
+</tbody>
+</table></div>
+
+<h3>Why grades 2 and 3 are strict</h3>
+<p>The research showed that two common shortcuts produce wrong output.</p>
+<ul>
+<li>Decoding a damaged stream until it errors gives wrong bytes in 95% of the damaged streams in REPDF's C9 files. So a decoded prefix isn't grade 2 by default.</li>
+<li>A checksum match doesn't make a correction unique. So grade 3 also needs an independent check, such as replaying the encoder.</li>
+</ul>
+<p>When several candidates pass, the differing bytes are marked unknown. The engine doesn't guess.</p>
+
+<h2>Two kinds of failure</h2>
+<div class="table"><table>
+<thead><tr><th>Failure</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>Fabrication</td><td>Output content that wasn't in the original. A wrong glyph mapping, page order or revision.</td></tr>
+<tr><td>Omission</td><td>Content that survives in the damaged bytes but the repair drops</td></tr>
+</tbody>
+</table></div>
+<p>Both are measured. Omission is measured against an upper bound computed from the damaged file itself.</p>
+
+<h2>Hostile files</h2>
+<p>Accidental damage is what PDFPundit repairs. Hostile input is something it detects. That covers decompression bombs, exploits and deliberate tampering, such as shadow attacks through incremental updates.</p>
+<p>Signs of tampering are reported, never repaired away.</p>
+
+<h2>Design rules</h2>
+<ul>
+<li>Pure Rust. No compiled C in the shipped binary.</li>
+<li><code>lopdf</code> is the only PDF writer.</li>
+<li>The original file is never changed.</li>
+<li>Dependencies are MIT or Apache licensed.</li>
+<li>The engine knows nothing about the interface. The terminal UI is designed separately.</li>
+</ul>

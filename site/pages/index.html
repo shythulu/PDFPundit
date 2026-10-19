@@ -1,0 +1,45 @@
+<!-- title: PDFPundit | description: PDFPundit is a forensic PDF repair tool in pure Rust that rebuilds damaged PDFs and labels what it recovered and what it made up. -->
+<h1>PDFPundit</h1>
+<p class="lede">A forensic PDF repair tool in pure Rust. It rebuilds damaged PDFs from their raw bytes and tells you which parts it recovered and which it had to make up.</p>
+
+<p>
+<a class="button" href="contributing.html">Start contributing</a>
+<a class="button ghost" href="https://github.com/shythulu/PDFPundit">View on GitHub</a>
+</p>
+
+<div class="note">
+<p><span class="label">Research stage.</span> There is no working tool yet. The work so far is the design and an evidence base for the repair engine.</p>
+<p>The <a href="roadmap.html">roadmap</a> shows what's done and what's next.</p>
+</div>
+
+<h2>What it will do</h2>
+<ol class="steps">
+<li>You give it a damaged PDF.</li>
+<li>It carves every object that survives in the file's bytes.</li>
+<li>It rebuilds the cross-reference table, trailer, page tree and fonts.</li>
+<li>It writes a new file, <code>&lt;name&gt;.repaired.pdf</code>. The original is never changed.</li>
+<li>It labels every part of the output with how it was obtained.</li>
+</ol>
+<p>Later milestones add PDF to Markdown export and optional OCR. Repaired fonts give correct Unicode, so the export works on files that other tools can't read.</p>
+
+<h2>Why it exists</h2>
+<p>Most PDF readers repair quietly. They guess, and they don't say what they guessed. Different engines even guess differently on the same file, and attackers use those differences.</p>
+<p>PDFPundit treats a damaged PDF as evidence. That means it has to report every choice it makes.</p>
+
+<div class="table"><table>
+<thead><tr><th>Most repair tools</th><th>PDFPundit</th></tr></thead>
+<tbody>
+<tr><td>Patch the file so it opens</td><td>Rebuild a new, standards-conforming file</td></tr>
+<tr><td>Hide what they changed</td><td>Label every output element with a provenance grade</td></tr>
+<tr><td>Trust a checksum match</td><td>Require a checksum and an independent check</td></tr>
+<tr><td>Pick a revision silently</td><td>Report earlier revisions and signs of tampering</td></tr>
+</tbody>
+</table></div>
+
+<h2>Where to go next</h2>
+<div class="cards">
+<a class="card" href="how-it-works.html"><h3>How it works</h3><p>The repair steps, the ten damage classes and the six provenance grades.</p></a>
+<a class="card" href="roadmap.html"><h3>Roadmap and status</h3><p>What's done, what's in progress and the milestones to a first release.</p></a>
+<a class="card" href="contributing.html"><h3>Contributing</h3><p>Issues, labels, the rules for code and data, and how to send a change.</p></a>
+<a class="card" href="research.html"><h3>Research guide</h3><p>How the evidence base works and how to add to it.</p></a>
+</div>

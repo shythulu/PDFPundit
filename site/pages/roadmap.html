@@ -1,0 +1,75 @@
+<!-- title: Roadmap and status · PDFPundit | description: Where PDFPundit stands: the research stages, the product milestones and what comes next. -->
+<h1>Roadmap and status</h1>
+<p class="lede">The project runs on two tracks. Research decides how the engine should repair. The product milestones then build it.</p>
+
+<div class="note">
+<p><span class="label">Snapshot from 19 October 2026.</span> The research track is in Stage 2. The product track hasn't started.</p>
+</div>
+
+<h2>The two tracks</h2>
+<pre><code>Research track                       Product track
+──────────────                       ─────────────
+evidence base ──► hypotheses ──► specs ──► engine milestones M1–M9
+                                  │
+                                  └── each spec becomes a GitHub issue</code></pre>
+<p>Specs come from hypotheses that pass the spec-ready test in the <a href="https://github.com/shythulu/PDFPundit/blob/main/research/charter.md">charter</a>. So code waits on evidence.</p>
+
+<h2>Research stages</h2>
+<div class="table"><table>
+<thead><tr><th>Stage</th><th>What it does</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>P0 Foundations</td><td>Schemas, validator, record formats</td><td><span class="tag done">Done</span></td></tr>
+<tr><td>Charter</td><td>Goal, definitions and success criteria, reviewed by committee 001</td><td><span class="tag done">Done</span></td></tr>
+<tr><td>P1 Scoping sweep</td><td>Five agents survey the field, with a blind screening audit</td><td><span class="tag done">Done</span></td></tr>
+<tr><td>Independent review</td><td>Committee 003 reproduces the observations and rechecks claims</td><td><span class="tag done">Done</span></td></tr>
+<tr><td>Stage 2 Tooling</td><td>Choose the tools, corpora, oracles and metrics. Two of four ledgers merged.</td><td><span class="tag now">In progress</span></td></tr>
+<tr><td>Review board</td><td>Review the work-package plan before the full review</td><td><span class="tag next">Next</span></td></tr>
+</tbody>
+</table></div>
+
+<h2>Evidence so far</h2>
+<p>Run <code>python research/tools/kb_validate.py</code> for live counts.</p>
+<div class="table"><table>
+<thead><tr><th>Record</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td>Sources</td><td>163</td></tr>
+<tr><td>Claims</td><td>280</td></tr>
+<tr><td>Reproducible observations</td><td>17</td></tr>
+<tr><td>Research gaps</td><td>51</td></tr>
+<tr><td>New damage classes</td><td>23</td></tr>
+<tr><td>Draft hypotheses</td><td>3</td></tr>
+<tr><td>Tooling verdicts</td><td>54</td></tr>
+</tbody>
+</table></div>
+
+<h2>What the research found so far</h2>
+<ul>
+<li><strong>Trust is the hard part, not coverage.</strong> The usual ways to decide a repair is right are weaker than the design assumed. Salvaged stream prefixes are usually wrong, and a checksum match isn't unique.</li>
+<li><strong>Engines disagree on basic repair rules.</strong> They differ on which duplicate object wins and what happens to truncated streams. Attackers use those differences, so a forensic repair must report its choices.</li>
+<li><strong>Real damage with known originals exists.</strong> Truncated web-crawl captures pair with later full downloads. That lets fidelity be scored on real damage.</li>
+<li><strong>The reference corpus doesn't match its paper.</strong> REPDF's released generator differs from the published one, so replication uses the corpus as released.</li>
+</ul>
+
+<h2>Product milestones</h2>
+<div class="table"><table>
+<thead><tr><th>Milestone</th><th>Delivers</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>M1</td><td>Terminal UI that accepts PDFs</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M2</td><td>File history and metadata</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M3</td><td>Engine basics: carver, inflate, graph rebuild, job runner</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M4</td><td>Detectors for C1 to C10</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M5</td><td>Bundled font database and font inference</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M6</td><td>Repair passes and the PDF writer</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M7</td><td>Benchmark against REPDF, polish, installers</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M8</td><td>PDF to Markdown export</td><td><span class="tag next">Not started</span></td></tr>
+<tr><td>M9</td><td>Optional OCR</td><td><span class="tag next">Not started</span></td></tr>
+</tbody>
+</table></div>
+
+<h2>What's next</h2>
+<ol>
+<li>Finish the last two Stage 2 ledgers: engines and metrics, and a wildcard scout.</li>
+<li>Test the chosen tools by hand.</li>
+<li>Put the work-package plan in front of the review board.</li>
+<li>Work the <a href="https://github.com/shythulu/PDFPundit/issues/1">wayfinder map</a>: engine to first verified repair.</li>
+</ol>

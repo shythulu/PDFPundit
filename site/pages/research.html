@@ -1,0 +1,79 @@
+<!-- title: Research guide · PDFPundit | description: How PDFPundit's research evidence base works: record types, what counts as evidence, the workflow and the tools. -->
+<h1>Research guide</h1>
+<p class="lede">The research lives in <code>research/</code>. Every fact the engine design relies on is a record there, and a validator checks the evidence behind it.</p>
+
+<h2>Read these first</h2>
+<ol>
+<li><a href="https://github.com/shythulu/PDFPundit/blob/main/research/README.md"><code>research/README.md</code></a>. Status and a map of every file.</li>
+<li><a href="https://github.com/shythulu/PDFPundit/blob/main/research/charter.md"><code>research/charter.md</code></a>. The goal, the definitions and the rules.</li>
+<li><a href="https://github.com/shythulu/PDFPundit/blob/main/research/agents/brief-template.md"><code>research/agents/brief-template.md</code></a>. The rules for adding records.</li>
+</ol>
+
+<h2>How the records connect</h2>
+<pre><code>source (SRC-) ──► claim (CLM-) ──┐
+experiment ────► observation (OBS-) ─┼──► gap (GAP-) ──► hypothesis (HYP-) ──► spec ──► issue
+damage class (DMG-) ─────────────┘
+tooling verdict (TOOL-) ─────────────────────────────────────► the test harness</code></pre>
+
+<div class="table"><table>
+<thead><tr><th>Record</th><th>ID</th><th>What it holds</th><th>File</th></tr></thead>
+<tbody>
+<tr><td>Source</td><td><code>SRC-0001</code></td><td>A paper, dataset, standard or web page</td><td><code>sources/registry.jsonl</code></td></tr>
+<tr><td>Screening</td><td>by source</td><td>Include or exclude, with a reason code</td><td><code>sources/screening.jsonl</code></td></tr>
+<tr><td>Claim</td><td><code>CLM-0001</code></td><td>A finding or limitation, with its verified quote</td><td><code>sources/claims.jsonl</code></td></tr>
+<tr><td>Observation</td><td><code>OBS-0001</code></td><td>Something we ran, with its committed script</td><td><code>observations/observations.jsonl</code></td></tr>
+<tr><td>Gap</td><td><code>GAP-001</code></td><td>An open question, scored and ranked</td><td><code>gaps/gaps.jsonl</code></td></tr>
+<tr><td>Damage class</td><td><code>DMG-001</code></td><td>Damage beyond REPDF's C1 to C10</td><td><code>damage/classes.jsonl</code></td></tr>
+<tr><td>Hypothesis</td><td><code>HYP-001</code></td><td>A testable idea and whether it's ready for a spec</td><td><code>hypotheses/hypotheses.jsonl</code></td></tr>
+<tr><td>Tooling verdict</td><td><code>TOOL-001</code></td><td>Adopt, Trial, Assess or Hold</td><td><code>tooling/ledger.jsonl</code></td></tr>
+</tbody>
+</table></div>
+<p>Each JSONL file has a generated Markdown view next to it. Don't edit the views, because the next render overwrites them.</p>
+
+<h2>What counts as evidence</h2>
+<p>Only three things count. The validator checks all three.</p>
+<div class="table"><table>
+<thead><tr><th>Evidence</th><th>What it needs</th></tr></thead>
+<tbody>
+<tr><td>Verified quote</td><td>Found in the cached full text, at least 8 words, on the right page. Every number in your summary must appear in the quote.</td></tr>
+<tr><td>Code citation</td><td>Found in the cited lines of the file, at a pinned commit</td></tr>
+<tr><td>Observation</td><td>A committed script with pinned inputs</td></tr>
+</tbody>
+</table></div>
+<p>Your own reasoning is a critique. Critiques are recorded but never count as evidence. Anything from memory is a lead to check, not a fact.</p>
+
+<h2>Workflow</h2>
+<ol class="steps">
+<li><strong>Get a staging folder.</strong> Work in <code>research/staging/&lt;your-name&gt;/</code>. Ask for an ID block, so your IDs don't clash with anyone else's.</li>
+<li><strong>Check what's known.</strong> Read the gap register and the source index first, so you don't redo work.</li>
+<li><strong>Cache the source.</strong> Use <code>fetch_fulltext.py</code> for documents or <code>fetch_code.py</code> for code. The validator can't check a quote without the cached text.</li>
+<li><strong>Write records.</strong> Follow the schemas in <code>research/schemas/</code>.</li>
+<li><strong>Validate.</strong> The validator must print 0 errors.</li>
+<li><strong>Merge.</strong> The maintainer merges your folder with <code>merge_staging.py</code>.</li>
+</ol>
+
+<h2>Commands</h2>
+<pre><code><span class="c"># one-time setup, plus poppler-utils for pdftotext</span>
+pip install pypdf pdfminer.six pymupdf rapidfuzz jsonschema
+
+python research/tools/kb_validate.py                  <span class="c"># must print 0 error(s)</span>
+python research/tools/kb_validate.py --write --online <span class="c"># recheck quotes and DOIs</span>
+python research/tools/render_views.py                 <span class="c"># rebuild the .md views</span>
+python research/tools/test_kb.py                      <span class="c"># tests for the validator</span>
+
+python research/tools/fetch_fulltext.py SRC-xxxx &lt;url-or-path&gt;
+python research/tools/fetch_code.py SRC-xxxx &lt;git-url&gt; &lt;sha&gt; --license &lt;SPDX&gt;
+python research/tools/merge_staging.py research/staging/&lt;name&gt;</code></pre>
+
+<h2>The REPDF corpus</h2>
+<p>REPDF's corpus is 1.6 GB, so it isn't in this repository. Clone it next to your checkout, pinned to commit <code>e547d4d</code>.</p>
+<pre><code>GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/dfrc-korea/repdf</code></pre>
+<p>Use it for replication and regression only. It's too well known to serve as a held-out test.</p>
+
+<h2>Committees</h2>
+<p>Big decisions go through a review committee. The minutes live in <code>research/committees/</code>.</p>
+<ul>
+<li>The chair answers every blocking objection with a reason.</li>
+<li>If the chair rejects a blocking objection, the maintainer decides.</li>
+<li>One member spot-checks 5 random claims against the raw sources.</li>
+</ul>
