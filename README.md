@@ -1,8 +1,10 @@
 # PDFPundit
 
+![PDFPundit. Forensic PDF repair in pure Rust.](docs/assets/banner.svg)
+
 A forensic PDF repair tool in pure Rust. It rebuilds damaged PDFs from their raw bytes and tells you which parts it recovered and which it had to make up.
 
-**Wiki:** https://www.slacklab.ca/PDFPundit/
+**Wiki:** https://github.com/shythulu/PDFPundit/wiki
 
 > **Status: research stage. There is no working tool yet.**
 > `src/main.rs` prints "Hello, world!". The work so far is the design and an evidence base for the repair engine. See [Status](#status).
@@ -86,7 +88,7 @@ research/            Evidence base: sources, claims, observations, gaps, hypothe
 nimbalyst-local/     Plans and mockups
   plans/             Product, technical and research plans
 docs/agents/         How agents use the issue tracker and labels
-site/                The wiki, published to GitHub Pages
+docs/assets/         Images for the README
 ```
 
 ## Build
@@ -109,7 +111,7 @@ These hold for the shipped tool. Research may argue to reopen one, with evidence
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md). The [wiki](https://www.slacklab.ca/PDFPundit/contributing.html) has the same guide with more context.
+Read [CONTRIBUTING.md](CONTRIBUTING.md). The [wiki](https://github.com/shythulu/PDFPundit/wiki/Contributing) has the same guide with more context.
 
 ## Licence
 

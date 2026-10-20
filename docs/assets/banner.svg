@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 240" role="img" aria-label="PDFPundit. Forensic PDF repair in pure Rust.">
+  <!-- Coloured with Darkberry Fen: crust, base, jam, petal, text, subtext0 -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#35212e"/>
+      <stop offset="1" stop-color="#4f3143"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="240" rx="18" fill="url(#g)"/>
+  <rect x="1" y="1" width="1198" height="238" rx="17" fill="none" stroke="#5d3e51" stroke-width="2"/>
+  <g transform="translate(72 52)">
+    <path d="M0 0h62a46 46 0 0 1 0 92h-30v44h-32z" fill="#dc67a7"/>
+    <path d="M32 30h28a16 16 0 0 1 0 32h-28z" fill="#3d2635"/>
+  </g>
+  <text x="200" y="128" fill="#f2e6ee" font-family="Didot, 'Bodoni 72', 'Bodoni Moda', Georgia, serif" font-size="76" font-weight="700" letter-spacing="3">PDFPundit</text>
+  <text x="203" y="176" fill="#ccbac5" font-family="Didot, 'Bodoni 72', 'Bodoni Moda', Georgia, serif" font-size="28" letter-spacing="1">Forensic PDF repair in pure Rust</text>
+  <text x="1128" y="208" fill="#a28297" font-family="Georgia, serif" font-size="16" text-anchor="end">Darkberry Fen</text>
+</svg>

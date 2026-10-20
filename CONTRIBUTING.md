@@ -1,6 +1,6 @@
 # Contributing to PDFPundit
 
-PDFPundit is in its research stage. Most useful work right now is research, not Rust code. The [wiki](https://www.slacklab.ca/PDFPundit/contributing.html) has this guide with more background.
+PDFPundit is in its research stage. Most useful work right now is research, not Rust code. The [wiki](https://github.com/shythulu/PDFPundit/wiki/Contributing) has this guide with more background.
 
 ## Ways to help
 
