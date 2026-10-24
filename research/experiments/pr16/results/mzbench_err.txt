@@ -1,0 +1,9 @@
+== err: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/pr16-ingest/target/release/mzbench /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/pr16-ingest/cases err 4096 1000000000 60  start 2026-10-05T16:59:50Z
+mode=err window=4096 max_clen=1000000000 cases=221 fixed=218 exact_match=218 timeouts=2 notfound=1
+search time s: p50=0.0129 p90=0.1341 p99=14.0477 max=60.5581 total=241.66
+candidates tried total=8018895 ; full decode time s p50=0.000014 max=0.000786
+
+real	4m1.705s
+user	3m57.346s
+sys	0m0.200s
+exit 0 end 2026-10-05T17:03:51Z

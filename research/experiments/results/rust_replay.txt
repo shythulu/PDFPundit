@@ -1,0 +1,20 @@
+## date: 2026-09-27T17:53:19Z
+## cmd: CARGO_TARGET_DIR=$S/cargo-target cargo build --release -j2 && $S/cargo-target/release/rust_replay $S/replay_sample $S/zrs_out
+libz-rs-sys zlibVersion() = 1.3.0-zlib-rs-0.6.8
+streams 400: zlib-rs exact 0, miniz_oxide(level 6) exact 5
+zlib-rs round-trips 400/400; total bytes zlib-rs 3279345 vs original 3242574
+  memLevel 7: zlib-rs exact 0/179
+  memLevel 8: zlib-rs exact 0/221
+## cmd: python3 rust_replay_compare_ng.py $S/replay_sample $S/zrs_out
+zlib-ng 2.2.5 level 6 == zlib-rs output: 380/400
+
+## date: 2026-10-05T17:19:18Z (re-run after the 2026-10-05 restart; same sample dir written by rust_replay_prep.py on 2026-09-27; binary rebuilt offline from the pinned crates with rustc 1.94.1 (e408947bf 2026-03-25))
+## cmd: mkdir -p $S/zrs_out2 && CARGO_TARGET_DIR=$S/cargo-target cargo build --release --offline -j2 && $S/cargo-target/release/rust_replay $S/replay_sample $S/zrs_out2
+libz-rs-sys zlibVersion() = 1.3.0-zlib-rs-0.6.8
+streams 400: zlib-rs exact 0, miniz_oxide(level 6) exact 5
+zlib-rs round-trips 400/400; total bytes zlib-rs 3279345 vs original 3242574
+  memLevel 7: zlib-rs exact 0/179
+  memLevel 8: zlib-rs exact 0/221
+## cmd: $S/venv/bin/python rust_replay_compare_ng.py $S/replay_sample $S/zrs_out2
+zlib-ng 2.2.5 level 6 == zlib-rs output: 380/400
+(zlib-rs outputs byte-identical to the 2026-09-27 run)

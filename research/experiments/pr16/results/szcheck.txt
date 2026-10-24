@@ -1,0 +1,4 @@
+miniz_oxide 0.8.9: DecompressorOxide=10504 InflateState=43296
+miniz_oxide 0.9.1: DecompressorOxide=10504 InflateState=43296
+mzbench (uses DecompressorOxide::clone) builds against 0.9.1: yes
+rustc: rustc 1.94.1 (e408947bf 2026-03-25)

@@ -1,0 +1,67 @@
+{
+ "kind": "small probe, not a benchmark",
+ "tools": {
+  "infgen": "3.6 (madler/infgen 1e36c3da)",
+  "rapidgzip": "0.16.0"
+ },
+ "n": 63,
+ "adler_only": {
+  "n": 54,
+  "infgen_parsed_to_trailer": 54,
+  "infgen_warned": 0,
+  "block_count_unchanged": 54,
+  "damage_confined_to_one_block": 54,
+  "rapidgzip_outcomes": {
+   "ok": 54
+  },
+  "rapidgzip_ok_with_wrong_bytes": 53
+ },
+ "hard_errors": {
+  "n": 9,
+  "infgen_parsed_to_trailer": 6,
+  "infgen_warned": 9,
+  "block_count_unchanged": 6,
+  "damage_confined_to_one_block": 6,
+  "rapidgzip_outcomes": {
+   "RuntimeError": 9
+  },
+  "rapidgzip_ok_with_wrong_bytes": 0
+ },
+ "hard_error_warnings": [
+  "infgen warning: distance too far back (3036/118)",
+  "infgen warning: distance too far back (15374/11784)",
+  "infgen warning: distance too far back (5032/2410)",
+  "infgen warning: invalid deflate data -- repeat more lengths than available",
+  "infgen warning: distance too far back (862/800)",
+  "infgen warning: invalid deflate data -- literal/length code is oversubscribed",
+  "infgen warning: distance too far back (1130/697)",
+  "infgen warning: distance too far back (6158/1672)",
+  "infgen warning: invalid deflate data -- literal/length code is incomplete"
+ ],
+ "blocks_per_stream": {
+  "2": 17,
+  "5": 2,
+  "3": 4,
+  "1": 37,
+  "0": 2,
+  "8": 1
+ },
+ "inputs": [
+  {
+   "path": "corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf",
+   "sha256": "c69c9f0ecbe7f3b60a1d8901bd2ad737c63bc55e1405c1091d0a3a6fee32021e"
+  },
+  {
+   "path": "corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf",
+   "sha256": "6114fc9e9466bb774667a0e8f1839d44f81fd55ca6f38ebe4cad67665e188859"
+  },
+  {
+   "path": "corrupted/saveas/text/Next_Decade_Space_Exploration(saveas)_stream_zlib.pdf",
+   "sha256": "c55508d91b66d839b77291cd3b0a3de26ea3d2741ee19c3680462ba23c7d76f8"
+  },
+  {
+   "path": "corrupted/saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas)_stream_zlib.pdf",
+   "sha256": "d1bb03c11a669f5a630b8eb200a8554720d64f6ebe505f2811c27dfb902c77a7"
+  }
+ ]
+}

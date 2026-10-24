@@ -1,0 +1,9 @@
+== mid: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/pr16-ingest/target/release/mzbench /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/pr16-ingest/cases adler 0 16384 20 4096 10 0  start 2026-10-05T17:12:28Z
+mode=adler window=0 max_clen=16384 cases=47 fixed=28 exact_match=28 timeouts=19 notfound=0
+search time s: p50=12.7993 p90=20.0769 p99=20.1053 max=20.1134 total=543.40
+candidates tried total=39306687 ; full decode time s p50=0.000103 max=0.000292
+
+real	9m3.452s
+user	8m52.608s
+sys	0m0.510s
+exit 0 end 2026-10-05T17:21:31Z

@@ -1,0 +1,518 @@
+{
+ "date": "2026-10-05",
+ "C2": "/home/user/dfrc-korea/repdf/corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf",
+ "ORIG": "/home/user/dfrc-korea/repdf/original/print/text/Next_Decade_Space_Exploration(print).pdf",
+ "SAVEAS": "/home/user/dfrc-korea/repdf/original/saveas/text/Next_Decade_Space_Exploration(saveas).pdf",
+ "checks": [
+  {
+   "tool": "TOOL-350",
+   "label": "qpdf version 12.4.2: rewrite C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/qpdf12/bin/qpdf <C2> q.pdf",
+   "rc": 3,
+   "key": "qpdf: operation succeeded with warnings; resulting file may have some problems",
+   "expected": "exit 3, 'succeeded with warnings'",
+   "ok": true,
+   "secs": 0.04
+  },
+  {
+   "tool": "TOOL-350",
+   "label": "qpdf version 12.4.2: --check output",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/qpdf12/bin/qpdf --check q.pdf",
+   "rc": 0,
+   "key": "errors that qpdf cannot detect",
+   "expected": "exit 0",
+   "ok": true,
+   "secs": 0.03
+  },
+  {
+   "tool": "TOOL-350",
+   "label": "qpdf version 12.4.2: --suppress-recovery C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/qpdf12/bin/qpdf --suppress-recovery <C2> qs.pdf",
+   "rc": 2,
+   "key": "qpdf: /home/user/dfrc-korea/repdf/corrupted/print/text/Next_Decade_Space_Exploration(print)_xref.pdf (offset 681632): xref not found",
+   "expected": "exit 2, 'xref not found'",
+   "ok": true,
+   "secs": 0.01
+  },
+  {
+   "tool": "TOOL-351",
+   "label": "mutool version 1.28.0: clean -gggg C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/cenv/bin/mutool clean -gggg <C2> m4.pdf",
+   "rc": 0,
+   "key": "pages=6; warning: repairing PDF document",
+   "expected": "exit 0, 'repairing PDF document', 6 pages",
+   "ok": true,
+   "secs": 0.02
+  },
+  {
+   "tool": "TOOL-351",
+   "label": "mutool version 1.28.0: clean -gggg -s C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/cenv/bin/mutool clean -gggg -s <C2> m4s.pdf",
+   "rc": 0,
+   "key": "pages=6",
+   "expected": "6 pages",
+   "ok": true,
+   "secs": 0.07
+  },
+  {
+   "tool": "TOOL-351",
+   "label": "mutool version 1.28.0: draw -q -F txt C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/cenv/bin/mutool draw -q -F txt -o m.txt <C2>",
+   "rc": 0,
+   "key": "13856 bytes",
+   "expected": "13,856 bytes",
+   "ok": true,
+   "secs": 0.07
+  },
+  {
+   "tool": "TOOL-351",
+   "label": "mutool version 1.28.5: clean -gggg C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/pins/mupdf-1.28.5/bin/mutool clean -gggg <C2> m4.pdf",
+   "rc": 0,
+   "key": "pages=6; warning: repairing PDF document",
+   "expected": "exit 0, 'repairing PDF document', 6 pages",
+   "ok": true,
+   "secs": 0.01
+  },
+  {
+   "tool": "TOOL-351",
+   "label": "mutool version 1.28.5: clean -gggg -s C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/pins/mupdf-1.28.5/bin/mutool clean -gggg -s <C2> m4s.pdf",
+   "rc": 0,
+   "key": "pages=6",
+   "expected": "6 pages",
+   "ok": true,
+   "secs": 0.03
+  },
+  {
+   "tool": "TOOL-351",
+   "label": "mutool version 1.28.5: draw -q -F txt C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/pins/mupdf-1.28.5/bin/mutool draw -q -F txt -o m.txt <C2>",
+   "rc": 0,
+   "key": "13856 bytes",
+   "expected": "13,856 bytes",
+   "ok": true,
+   "secs": 0.03
+  },
+  {
+   "tool": "TOOL-352",
+   "label": "pymupdf 1.28.2 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv-old/bin/python): open C2",
+   "cmd": "pymupdf.open(<C2>)",
+   "rc": 0,
+   "key": "pages=6 chars=9221",
+   "expected": "6 pages, 9,221 chars",
+   "ok": true,
+   "secs": 0.16
+  },
+  {
+   "tool": "TOOL-354",
+   "label": "pypdfium2 5.13.0 (153.0.7999.0): open + save C2",
+   "cmd": "pypdfium2.PdfDocument(<C2>); save('pf.pdf')",
+   "rc": 0,
+   "key": "pages=6 saved_pages=6",
+   "expected": "6 pages; 6-page output",
+   "ok": true,
+   "secs": 0.07
+  },
+  {
+   "tool": "TOOL-352",
+   "label": "pymupdf 1.28.2 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv/bin/python): open C2",
+   "cmd": "pymupdf.open(<C2>)",
+   "rc": 0,
+   "key": "pages=6 chars=9221",
+   "expected": "6 pages, 9,221 chars",
+   "ok": true,
+   "secs": 0.16
+  },
+  {
+   "tool": "TOOL-354",
+   "label": "pypdfium2 5.14.0 (156.0.8076.0): open + save C2",
+   "cmd": "pypdfium2.PdfDocument(<C2>); save('pf.pdf')",
+   "rc": 0,
+   "key": "pages=6 saved_pages=6",
+   "expected": "6 pages; 6-page output",
+   "ok": true,
+   "secs": 0.07
+  },
+  {
+   "tool": "TOOL-353",
+   "label": "pdfjs-dist 6.3.289: engine_smoke_pdfjs.mjs C2",
+   "cmd": "node engine_smoke_pdfjs.mjs <C2>",
+   "rc": 0,
+   "key": "{\"ok\":true,\"pages\":6,\"chars\":7604,\"error\":null}",
+   "expected": "{\"ok\":true,\"pages\":6,\"chars\":7604}",
+   "ok": true,
+   "secs": 0.94
+  },
+  {
+   "tool": "TOOL-353",
+   "label": "pdfjs-dist 6.4.299: engine_smoke_pdfjs.mjs C2",
+   "cmd": "node engine_smoke_pdfjs.mjs <C2>",
+   "rc": 0,
+   "key": "{\"ok\":true,\"pages\":6,\"chars\":7604,\"error\":null}",
+   "expected": "{\"ok\":true,\"pages\":6,\"chars\":7604}",
+   "ok": true,
+   "secs": 0.86
+  },
+  {
+   "tool": "TOOL-355",
+   "label": "pdfcpu 0.15.0: validate -m relaxed C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/pdfcpu15/pdfcpu_0.15.0_Linux_x86_64/pdfcpu validate -m relaxed <C2>",
+   "rc": 0,
+   "key": "validation ok",
+   "expected": "'validation ok'",
+   "ok": true,
+   "secs": 0.08
+  },
+  {
+   "tool": "TOOL-355",
+   "label": "pdfcpu 0.16.1: validate -m relaxed C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/pdfcpu16/pdfcpu_0.16.1_Linux_x86_64/pdfcpu validate -m relaxed <C2>",
+   "rc": 0,
+   "key": "validation ok",
+   "expected": "'validation ok'",
+   "ok": true,
+   "secs": 0.03
+  },
+  {
+   "tool": "TOOL-356",
+   "label": "pdfbox 3.0.8: export:text C2",
+   "cmd": "java -jar pdfbox-app-3.0.8.jar export:text -i=<C2> -o=pb.txt",
+   "rc": 0,
+   "key": "12363 bytes",
+   "expected": "exit 0, 12,363 bytes",
+   "ok": true,
+   "secs": 2.52
+  },
+  {
+   "tool": "TOOL-356",
+   "label": "pdfbox 3.0.8: decode C2",
+   "cmd": "java -jar pdfbox-app-3.0.8.jar decode <C2> pbd.pdf",
+   "rc": 0,
+   "key": "pages=6",
+   "expected": "exit 0, 6 pages",
+   "ok": true,
+   "secs": 1.44
+  },
+  {
+   "tool": "TOOL-357",
+   "label": "pdftotext version 26.09.0: pdftotext C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/cenv/bin/pdftotext <C2> pt.txt",
+   "rc": 0,
+   "key": "13155 bytes",
+   "expected": "exit 0, 13,155 bytes",
+   "ok": true,
+   "secs": 0.03
+  },
+  {
+   "tool": "TOOL-357",
+   "label": "pdftotext version 26.10.0: pdftotext C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/pins/poppler-26.10.0/bin/pdftotext <C2> pt.txt",
+   "rc": 0,
+   "key": "13155 bytes",
+   "expected": "exit 0, 13,155 bytes",
+   "ok": true,
+   "secs": 0.03
+  },
+  {
+   "tool": "TOOL-358",
+   "label": "gs 10.08.0: pdfwrite C2",
+   "cmd": "gs -q -dNOPAUSE -dBATCH -o gw.pdf -sDEVICE=pdfwrite <C2>",
+   "rc": 0,
+   "key": "pages=6",
+   "expected": "exit 0, 6 pages",
+   "ok": true,
+   "secs": 0.22
+  },
+  {
+   "tool": "TOOL-358",
+   "label": "gs 10.08.0: txtwrite C2",
+   "cmd": "gs -q -dNOPAUSE -dBATCH -o gt.txt -sDEVICE=txtwrite <C2>",
+   "rc": 0,
+   "key": "16415 bytes",
+   "expected": "16,415 bytes",
+   "ok": true,
+   "secs": 0.24
+  },
+  {
+   "tool": "TOOL-358",
+   "label": "gs 10.08.0: -dPDFSTOPONERROR C2",
+   "cmd": "gs -dPDFSTOPONERROR -o /dev/null -sDEVICE=nullpage <C2>",
+   "rc": 1,
+   "key": "Error: /syntaxerror in --runpdf--",
+   "expected": "exit 1, 'Error: /syntaxerror in --runpdf--'",
+   "ok": true,
+   "secs": 0.04
+  },
+  {
+   "tool": "TOOL-359",
+   "label": "lopdf 0.45.0 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs071/rsprobe): C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs071/rsprobe lopdf <C2> l.pdf",
+   "rc": 0,
+   "key": "lopdf ok pages=6 objects=165",
+   "expected": "'lopdf ok pages=6 objects=165'",
+   "ok": true,
+   "secs": 0.01
+  },
+  {
+   "tool": "TOOL-361",
+   "label": "hayro (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs071/rsprobe): C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs071/rsprobe hayro <C2> h.png",
+   "rc": 0,
+   "key": "hayro ok pages=6; png 99708 bytes",
+   "expected": "'hayro ok pages=6'",
+   "ok": true,
+   "secs": 0.1
+  },
+  {
+   "tool": "TOOL-359",
+   "label": "lopdf 0.45.0 (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs080/rsprobe): C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs080/rsprobe lopdf <C2> l.pdf",
+   "rc": 0,
+   "key": "lopdf ok pages=6 objects=165",
+   "expected": "'lopdf ok pages=6 objects=165'",
+   "ok": true,
+   "secs": 0.01
+  },
+  {
+   "tool": "TOOL-361",
+   "label": "hayro (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs080/rsprobe): C2",
+   "cmd": "/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/dl/bin/rs080/rsprobe hayro <C2> h.png",
+   "rc": 0,
+   "key": "hayro ok pages=6; png 134959 bytes",
+   "expected": "'hayro ok pages=6'",
+   "ok": true,
+   "secs": 0.06
+  },
+  {
+   "tool": "TOOL-362",
+   "label": "arlington-pdf-model-checker --version",
+   "cmd": "arlington-pdf-model-checker --version",
+   "rc": 0,
+   "key": "arlington-pdf-model-checker 1.30.2",
+   "expected": "1.30.2",
+   "ok": true,
+   "secs": 3.64
+  },
+  {
+   "tool": "TOOL-362",
+   "label": "verapdf (greenfield) on the print original",
+   "cmd": "verapdf --format text <ORIG>",
+   "rc": 1,
+   "key": "FAIL /home/user/dfrc-korea/repdf/original/print/text/Next_Decade_Space_Exploration(print).pdf 1b",
+   "expected": "'FAIL ... 1b'",
+   "ok": true,
+   "secs": 4.28
+  },
+  {
+   "tool": "TOOL-364",
+   "label": "zlib runtime (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv-old/bin/python)",
+   "cmd": "python -c 'import zlib; print(zlib.ZLIB_RUNTIME_VERSION)'",
+   "rc": 0,
+   "key": "1.3",
+   "expected": "1.3",
+   "ok": true,
+   "secs": 0.02
+  },
+  {
+   "tool": "TOOL-364",
+   "label": "zlib runtime (/tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/verifier/venv/bin/python)",
+   "cmd": "python -c 'import zlib; print(zlib.ZLIB_RUNTIME_VERSION)'",
+   "rc": 0,
+   "key": "1.3",
+   "expected": "1.3",
+   "ok": true,
+   "secs": 0.02
+  },
+  {
+   "tool": "TOOL-364",
+   "label": "zlib runtime (/usr/bin/python3)",
+   "cmd": "python -c 'import zlib; print(zlib.ZLIB_RUNTIME_VERSION)'",
+   "rc": 0,
+   "key": "1.3",
+   "expected": "1.3",
+   "ok": true,
+   "secs": 0.02
+  },
+  {
+   "tool": "TOOL-366",
+   "label": "pfprobe (preflate-rs 0.7.6) on 3 Flate streams of the Save As original",
+   "cmd": "pfprobe s0.zz s1.zz s2.zz",
+   "rc": 0,
+   "key": "ok corrections=178 roundtrip=true; ok corrections=96 roundtrip=true; ok corrections=290 roundtrip=true",
+   "expected": "ok + exact round trip for all 3 (Stage 2: corrections 178, 96, 290)",
+   "ok": true,
+   "secs": 0.02
+  },
+  {
+   "tool": "TOOL-368",
+   "label": "infgen -h",
+   "cmd": "infgen -h",
+   "rc": 0,
+   "key": "infgen 3.6",
+   "expected": "'infgen 3.6'",
+   "ok": true,
+   "secs": 0.0
+  },
+  {
+   "tool": "TOOL-372",
+   "label": "rapidfuzz 3.14.6: CER page 1 C2 vs original (PyMuPDF text, whitespace-normalised)",
+   "cmd": "Levenshtein.distance(hyp, ref) / len(ref)",
+   "rc": 0,
+   "key": "CER 0.0 (1889 chars normalised, 1933 raw)",
+   "expected": "CER 0.0 (1,889 chars)",
+   "ok": true,
+   "secs": null
+  },
+  {
+   "tool": "TOOL-373",
+   "label": "jiwer 4.0.0: WER same pair",
+   "cmd": "jiwer.wer(ref, hyp)",
+   "rc": 0,
+   "key": "WER 0.0",
+   "expected": "WER 0.0",
+   "ok": true,
+   "secs": null
+  },
+  {
+   "tool": "TOOL-375",
+   "label": "scikit-image 0.26.0: SSIM MuPDF vs PDFium, page 1 of the original, 72 dpi gray",
+   "cmd": "structural_similarity(mupdf, pdfium, data_range=255)",
+   "rc": 0,
+   "key": "SSIM 0.9398 (pypdfium2 5.14.0)",
+   "expected": "SSIM 0.9398",
+   "ok": true,
+   "secs": null
+  },
+  {
+   "tool": "TOOL-382",
+   "label": "tesseract 5.5.3: OCR page 1 of the print original at 200 dpi (PDFium)",
+   "cmd": "OMP_THREAD_LIMIT=1 tesseract <200 dpi PDFium render> - -l eng --psm 3",
+   "rc": 0,
+   "key": "1896 chars, CER vs text layer 0.0011",
+   "expected": "tesseract 5.5.3 runs",
+   "ok": true,
+   "secs": 1.14
+  },
+  {
+   "tool": "TOOL-413",
+   "label": "soffice --headless --convert-to pdf (LibreOffice 24.2.7.2 420(Build:2))",
+   "cmd": "soffice --headless -env:UserInstallation=file://.../lo_profile --convert-to pdf lo_input.txt --outdir ...",
+   "rc": 0,
+   "key": "-1 bytes, pages=err FileNotFoundError; Writer module present: False; Error: source file could not be loaded",
+   "expected": "1-page PDF",
+   "ok": false,
+   "secs": 1.09
+  },
+  {
+   "tool": "TOOL-414",
+   "label": "ps2pdf (/usr/bin/ps2pdf, gs 10.02.1)",
+   "cmd": "ps2pdf sample.ps sample_gs.pdf",
+   "rc": 0,
+   "key": "2444 bytes, pages=1",
+   "expected": "1-page PDF",
+   "ok": true,
+   "secs": 0.06
+  },
+  {
+   "tool": "TOOL-415",
+   "label": "chromium --headless --print-to-pdf (Chromium 141.0.7390.37)",
+   "cmd": "chrome --headless --disable-gpu --no-sandbox --print-to-pdf=sample_chromium.pdf file://sample.html",
+   "rc": 0,
+   "key": "23278 bytes, pages=1",
+   "expected": "1-page PDF",
+   "ok": true,
+   "secs": 0.71
+  },
+  {
+   "tool": "TOOL-416",
+   "label": "pdflatex (pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026))",
+   "cmd": "pdflatex -interaction=nonstopmode sample.tex",
+   "rc": 0,
+   "key": "13542 bytes, pages=1",
+   "expected": "1-page PDF",
+   "ok": true,
+   "secs": 0.08
+  },
+  {
+   "tool": "TOOL-417",
+   "label": "reportlab 5.0.1",
+   "cmd": "canvas.Canvas(...).drawString(...); c.save()",
+   "rc": 0,
+   "key": "1360 bytes, pages=1",
+   "expected": "1-page PDF",
+   "ok": true,
+   "secs": 0.09
+  },
+  {
+   "tool": "TOOL-418",
+   "label": "pycairo 1.29.1",
+   "cmd": "cairo.PDFSurface(...); ctx.show_text(...); surface.finish()",
+   "rc": 0,
+   "key": "5727 bytes, pages=1",
+   "expected": "1-page PDF",
+   "ok": true,
+   "secs": 0.02
+  },
+  {
+   "tool": "TOOL-426",
+   "label": "pikepdf 10.14.0 (libqpdf 12.4.1): open producer outputs",
+   "cmd": "pikepdf.open(f) for sample_gs.pdf, sample_chromium.pdf, sample.pdf, sample_reportlab.pdf, sample_cairo.pdf",
+   "rc": 0,
+   "key": "pages per file: 1,1,1,1,1 (5 of 6 producers made a file)",
+   "expected": "1 page each producer output",
+   "ok": true,
+   "secs": 0.09
+  },
+  {
+   "tool": "TOOL-426",
+   "label": "pikepdf 10.16.0 (libqpdf 12.4.2): open producer outputs",
+   "cmd": "pikepdf.open(f) for sample_gs.pdf, sample_chromium.pdf, sample.pdf, sample_reportlab.pdf, sample_cairo.pdf",
+   "rc": 0,
+   "key": "pages per file: 1,1,1,1,1 (5 of 6 producers made a file)",
+   "expected": "1 page each producer output",
+   "ok": true,
+   "secs": 0.1
+  },
+  {
+   "tool": "TOOL-421",
+   "label": "radamsa (Radamsa 0.8a)",
+   "cmd": "radamsa -s 1 <ORIG> > mutated_radamsa.pdf",
+   "rc": 0,
+   "key": "orig 685037 mutated 685122 differing 668882",
+   "expected": "mutated output differs",
+   "ok": true,
+   "secs": 0.15
+  },
+  {
+   "tool": "TOOL-422",
+   "label": "zzuf (zzuf 0.15)",
+   "cmd": "zzuf -s 0 -r 0.001 < <ORIG> > mutated_zzuf.pdf",
+   "rc": 0,
+   "key": "orig 685037 mutated 685037 differing 5486",
+   "expected": "same size, some bytes differ",
+   "ok": true,
+   "secs": 0.0
+  },
+  {
+   "tool": "TOOL-423",
+   "label": "peepdf-3 5.4.1: peepdf -l <ORIG>",
+   "cmd": "peepdf -l <ORIG>",
+   "rc": 0,
+   "key": "SHA256: f8789bab516f38ac72ad291b12db95436078c419d6b6a5dc50fd7f3b8686b3c8 | PDF Format Version: 1.7 | Objects: 165 | Streams: 42 | Errors: 0",
+   "expected": "full structural report",
+   "ok": true,
+   "secs": 0.65
+  },
+  {
+   "tool": "TOOL-323",
+   "label": "pymupdf4llm 1.28.2: CPR paper to Markdown",
+   "cmd": "pymupdf4llm.to_markdown(<CPR pdf>)",
+   "rc": 0,
+   "key": "7.0 s, 52604 chars, headings 39, 'References' headings 1",
+   "expected": "Markdown with leveled headings and a References heading",
+   "ok": true,
+   "secs": 8.09
+  }
+ ]
+}

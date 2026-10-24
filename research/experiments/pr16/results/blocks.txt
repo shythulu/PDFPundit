@@ -1,0 +1,6 @@
+font streams 1806 parsed 1806 blocks/stream (5=5+): {1: 806, 2: 545, 3: 282, 4: 39, 5: 134} with stored 1 with fixed 21
+content streams 578 parsed 578 blocks/stream (5=5+): {1: 543, 2: 2, 3: 33} with stored 0 with fixed 0
+content-graphics streams 181 parsed 181 blocks/stream (5=5+): {1: 24, 2: 34, 3: 123} with stored 0 with fixed 1
+binary streams 59 parsed 59 blocks/stream (5=5+): {1: 54, 2: 3, 3: 1, 4: 1} with stored 0 with fixed 0
+text-other streams 156 parsed 156 blocks/stream (5=5+): {1: 156} with stored 0 with fixed 0
+cmap streams 618 parsed 618 blocks/stream (5=5+): {1: 618} with stored 0 with fixed 0

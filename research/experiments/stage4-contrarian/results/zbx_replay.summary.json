@@ -1,0 +1,32 @@
+{
+ "saveas": {
+  "streams": 400,
+  "stock_zlib_exact_any_mem": 400,
+  "rust_exact_any_mem": 400,
+  "rust_mem_set_equals_stock_mem_set": 400,
+  "rust_exact_but_stock_not": [],
+  "stock_exact_but_rust_not": [],
+  "rust_micros_total_9_mems": 5667162,
+  "plaintext_bytes_total": 11708887,
+  "preflate_rs_zero_correction_exact": 395,
+  "preflate_failed_rust_exact": [
+   "0010",
+   "0054",
+   "0070",
+   "0243",
+   "0357"
+  ]
+ },
+ "print": {
+  "streams": 400,
+  "stock_zlib_exact_any_mem": 0,
+  "rust_exact_any_mem": 0,
+  "rust_mem_set_equals_stock_mem_set": 400,
+  "rust_exact_but_stock_not": [],
+  "stock_exact_but_rust_not": [],
+  "rust_micros_total_9_mems": 43766886,
+  "plaintext_bytes_total": 44883041,
+  "preflate_rs_zero_correction_exact": 0,
+  "preflate_failed_rust_exact": []
+ }
+}

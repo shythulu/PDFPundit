@@ -1,0 +1,9 @@
+== grammar: /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/pr16-ingest/target/release/mzbench /tmp/claude-0/-home-user-PDFPundit/26f2e729-0dfa-5fdb-a5d5-ae4b70615b2c/scratchpad/pr16-ingest/cases adler 256 400000 20  start 2026-10-05T17:09:37Z
+mode=adler window=256 max_clen=400000 cases=343 fixed=324 exact_match=323 timeouts=4 notfound=15
+search time s: p50=0.0260 p90=0.7620 p99=14.3653 max=21.4390 total=169.59
+candidates tried total=2411085 ; full decode time s p50=0.000125 max=0.004249
+
+real	2m50.516s
+user	2m46.601s
+sys	0m0.224s
+exit 0 end 2026-10-05T17:12:28Z

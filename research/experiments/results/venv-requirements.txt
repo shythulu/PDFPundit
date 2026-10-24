@@ -1,0 +1,8 @@
+# venv used by tooling-wildcard experiments (Python 3.11.15), pip freeze 2026-10-05; the venv was deleted after the runs
+deflate==0.9.0
+fonttools==4.66.0
+isal==1.8.0
+numpy==2.4.6
+pypdf==6.19.0
+z3-solver==5.1.0.0
+zlib-ng==1.0.0

@@ -1,0 +1,55 @@
+{
+ "streams": 3338,
+ "per_file": 1000,
+ "header_bytes": {
+  "789c": 3338
+ },
+ "versions": {
+  "zlib": "1.3",
+  "zlib_ng": "2.2.5",
+  "isal": "1.8.0",
+  "libdeflate": "0.9.0"
+ },
+ "by_mode_kind_encoder": {
+  "print": {
+   "fontfile": {
+    "none": 806
+   },
+   "content": {
+    "none": 307
+   },
+   "other": {
+    "none": 150,
+    "zlib:level=6": 1
+   }
+  },
+  "saveas": {
+   "content": {
+    "zlib:level=6": 300
+   },
+   "objstm": {
+    "zlib:level=6": 156
+   },
+   "tounicode": {
+    "zlib:level=6": 618
+   },
+   "fontfile": {
+    "zlib:level=6": 946
+   },
+   "xref": {
+    "zlib:level=6": 50
+   },
+   "image": {
+    "zlib:level=6": 4
+   }
+  }
+ },
+ "params_seen": {
+  "": 1263,
+  "zlib:level=6": 1125,
+  "zlib:level=6,memLevel=7,strategy=0": 923,
+  "zlib:level=6,memLevel=6,strategy=0": 21,
+  "zlib:level=6,memLevel=5,strategy=0": 5,
+  "zlib:level=6,memLevel=4,strategy=0": 1
+ }
+}

@@ -4,8 +4,10 @@ blocks PDF Flate streams have (which bounds what block-level resynchronization c
 
     python3 research/experiments/flate_c9_probe.py \
         /home/user/dfrc-korea/repdf \
-        research/experiments/results/flate_c9_probe
+        research/experiments/results/flate_c9_probe_rev2
 
+Rev 2 (2026-10-05) fixes the end-of-line trim (see trim_eol); rev 1's outputs stay under
+results/flate_c9_probe.* because OBS-1012 pins them.
 Inputs: the REPDF corpus (SRC-0002, commit e547d4d), originals + `*_stream_zlib.pdf` files.
 Outputs: <out>.csv (one row per damaged Flate stream), <out>.blocks.csv (one row per Flate
 stream of every original that has a C9 counterpart), <out>.summary.json.
@@ -103,7 +105,14 @@ def body_spans(pdf: bytes) -> list[tuple[int, int]]:
 
 
 def trim_eol(body: bytes) -> bytes:
-    return body[:-2] if body.endswith(b"\r\n") else body[:-1] if body.endswith((b"\n", b"\r")) else body
+    """Strip the EOL before `endstream`. A body ending in CR LF may have a CR that is the last zlib
+    byte (GAP-301, OBS-1012); when stripping both does not inflate to the stream end, keep the CR.
+    Rev 2 (2026-10-05); rev 1 always stripped CR LF and missed 3 damaged streams."""
+    if body.endswith(b"\r\n"):
+        if inflate(body[:-2], False)["ret"] == Z_STREAM_END or inflate(body[:-1], False)["ret"] != Z_STREAM_END:
+            return body[:-2]
+        return body[:-1]
+    return body[:-1] if body.endswith((b"\n", b"\r")) else body
 
 
 def outcome(res: dict) -> str:
@@ -170,7 +179,7 @@ def main() -> None:
             block_rows.append({"file": str(f.relative_to(corpus)), "mode": mode, "stream": idx,
                                "comp_len": len(ob), "decomp_len": len(ores["out"]), "blocks": nblocks,
                                "stock_zlib_level": level})
-            cb = trim_eol(b[s:e])
+            cb = b[s:s + len(ob)]                          # trim as the original (rev 2)
             diffs = [i for i in range(len(ob)) if ob[i] != cb[i]]
             if not diffs:
                 continue

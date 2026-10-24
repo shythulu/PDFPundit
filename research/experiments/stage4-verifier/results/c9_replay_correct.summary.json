@@ -1,0 +1,141 @@
+{
+ "params": {
+  "full_max": 1536,
+  "max_comp": 32768,
+  "every": 3
+ },
+ "zlib": "1.3",
+ "python": "3.11.15",
+ "wall_s": 867.5,
+ "all": {
+  "streams": 388,
+  "orig_replayable": 266,
+  "damaged_parses_to_end": 317,
+  "true_in_method_set": 206,
+  "true_in_replay_window_among_replayable": 185,
+  "true_in_adler_positions": 21,
+  "true_in_adler_positions_among_parses_to_end": 21,
+  "true_in_trailer": 0,
+  "method_unique_adler_correct": 203,
+  "method_unique_replay_correct": 196,
+  "method_unique_replay_correct_among_replayable": 196,
+  "method_adler_counts": {
+   "0": 181,
+   "1": 204,
+   "2": 3
+  },
+  "method_replay_counts": {
+   "0": 191,
+   "1": 197
+  },
+  "method_wrong_replay_candidates": 1,
+  "loc_offset_replayable_min_median_max": [
+   -24052,
+   -8.0,
+   487
+  ],
+  "oracle_window_adler_counts": {
+   "1": 385,
+   "2": 3
+  },
+  "oracle_window_true_value_passes_adler": 388,
+  "oracle_window_adler_unique_and_correct": 385,
+  "full_search_streams": 63,
+  "full_search_adler_counts": {
+   "1": 62,
+   "3": 1
+  },
+  "full_search_adler_unique_and_correct": 62,
+  "full_search_replay_counts": {
+   "1": 62,
+   "3": 1
+  },
+  "median_method_positions": 269.0,
+  "median_search_s": 1.4649999999999999,
+  "max_search_s": 26.97
+ },
+ "by_mode": {
+  "print": {
+   "streams": 122,
+   "orig_replayable": 0,
+   "damaged_parses_to_end": 101,
+   "true_in_method_set": 10,
+   "true_in_replay_window_among_replayable": 0,
+   "true_in_adler_positions": 9,
+   "true_in_adler_positions_among_parses_to_end": 9,
+   "true_in_trailer": 0,
+   "method_unique_adler_correct": 10,
+   "method_unique_replay_correct": 0,
+   "method_unique_replay_correct_among_replayable": 0,
+   "method_adler_counts": {
+    "0": 112,
+    "1": 10
+   },
+   "method_replay_counts": {
+    "0": 122
+   },
+   "method_wrong_replay_candidates": 0,
+   "loc_offset_replayable_min_median_max": null,
+   "oracle_window_adler_counts": {
+    "1": 121,
+    "2": 1
+   },
+   "oracle_window_true_value_passes_adler": 122,
+   "oracle_window_adler_unique_and_correct": 121,
+   "full_search_streams": 0,
+   "full_search_adler_counts": {},
+   "full_search_adler_unique_and_correct": 0,
+   "full_search_replay_counts": {},
+   "median_method_positions": 269.0,
+   "median_search_s": 3.035,
+   "max_search_s": 26.97
+  },
+  "saveas": {
+   "streams": 266,
+   "orig_replayable": 266,
+   "damaged_parses_to_end": 216,
+   "true_in_method_set": 196,
+   "true_in_replay_window_among_replayable": 185,
+   "true_in_adler_positions": 12,
+   "true_in_adler_positions_among_parses_to_end": 12,
+   "true_in_trailer": 0,
+   "method_unique_adler_correct": 193,
+   "method_unique_replay_correct": 196,
+   "method_unique_replay_correct_among_replayable": 196,
+   "method_adler_counts": {
+    "0": 69,
+    "1": 194,
+    "2": 3
+   },
+   "method_replay_counts": {
+    "0": 69,
+    "1": 197
+   },
+   "method_wrong_replay_candidates": 1,
+   "loc_offset_replayable_min_median_max": [
+    -24052,
+    -8.0,
+    487
+   ],
+   "oracle_window_adler_counts": {
+    "1": 264,
+    "2": 2
+   },
+   "oracle_window_true_value_passes_adler": 266,
+   "oracle_window_adler_unique_and_correct": 264,
+   "full_search_streams": 63,
+   "full_search_adler_counts": {
+    "1": 62,
+    "3": 1
+   },
+   "full_search_adler_unique_and_correct": 62,
+   "full_search_replay_counts": {
+    "1": 62,
+    "3": 1
+   },
+   "median_method_positions": 269.0,
+   "median_search_s": 1.07,
+   "max_search_s": 26.8
+  }
+ }
+}

@@ -1,0 +1,50 @@
+{
+ "damaged_flate_streams": 1445,
+ "status": {
+  "adler": 1220,
+  "err": 221,
+  "trunc": 4
+ },
+ "adler_small_le_4KiB_by_kind": {
+  "cmap": 112,
+  "content": 92,
+  "binary": 17,
+  "font": 20,
+  "text-other": 4
+ },
+ "adler_4_16KiB_by_kind": {
+  "font": 370,
+  "content": 52,
+  "text-other": 53,
+  "content-graphics": 3
+ },
+ "adler_small_flagged_by_grammar": 178,
+ "mzbench_err": {
+  "cases": 221,
+  "fixed": 218,
+  "exact": 218,
+  "timeouts": 2,
+  "notfound": 1
+ },
+ "mzbench_grammar": {
+  "cases": 343,
+  "fixed": 324,
+  "exact": 323,
+  "timeouts": 4,
+  "notfound": 15
+ },
+ "mzbench_small": {
+  "cases": 245,
+  "fixed": 243,
+  "exact": 242,
+  "timeouts": 0,
+  "notfound": 2
+ },
+ "small_fonts": 20,
+ "small_fonts_exact": 20,
+ "pr16_style_numerator_err_fixed+grammar_fixed+small_fonts": 562,
+ "pr16_style_share": 0.3889,
+ "byte_exact_numerator_err_exact+grammar_exact+small_fonts_exact": 561,
+ "byte_exact_share": 0.3882,
+ "note": "err, grammar and small-font sets are disjoint (inflate-error vs Adler-only; grammar flags only content/CMap/text-other). Small non-font streams that the grammar localizer does not flag (e.g. 17 binary) are not counted, as in PR #16."
+}

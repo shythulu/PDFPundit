@@ -1,0 +1,10 @@
+[package]
+name = "rsprobe"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hayro = { version = "=0.8.0", features = ["embed-fonts"] }
+hayro-syntax = "=0.8.0"
+lopdf = "=0.45.0"
+pdf = "=0.10.0"

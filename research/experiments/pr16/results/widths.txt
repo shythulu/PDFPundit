@@ -1,0 +1,21 @@
+LiberationSans: glyphs=2620 lowercase width classes=7 uniquely-identified=3/26 largest class=11 H(letter)=4.18 bits H(letter|width)=2.10 bits; all 73 chars -> 13 width classes
+   classes: [(556, 'abdeghnopqu'), (500, 'cksvxyz'), (222, 'ijl'), (278, 'ft')]
+LiberationSerif: glyphs=2602 lowercase width classes=7 uniquely-identified=3/26 largest class=13 H(letter)=4.18 bits H(letter|width)=1.88 bits; all 73 chars -> 15 width classes
+   classes: [(500, 'bdghknopquvxy'), (444, 'acez'), (278, 'ijlt'), (333, 'fr')]
+DejaVuSans: glyphs=6253 lowercase width classes=16 uniquely-identified=12/26 largest class=5 H(letter)=4.18 bits H(letter|width)=0.57 bits; all 73 chars -> 45 width classes
+   classes: [(635, 'bdgpq'), (634, 'hnu'), (278, 'ijl'), (592, 'vxy')]
+FreeSans: glyphs=8536 lowercase width classes=21 uniquely-identified=18/26 largest class=4 H(letter)=4.18 bits H(letter|width)=0.28 bits; all 73 chars -> 49 width classes
+   classes: [(559, 'bdpq'), (280, 'ft'), (537, 'nu'), (543, 'a')]
+LiberationSans vs LiberationSerif: 53/73 chars differ in width (>1/1000 em)
+LiberationSans vs DejaVuSans: 71/73 chars differ in width (>1/1000 em)
+LiberationSans vs FreeSans: 51/73 chars differ in width (>1/1000 em)
+LiberationSerif vs DejaVuSans: 69/73 chars differ in width (>1/1000 em)
+LiberationSerif vs FreeSans: 65/73 chars differ in width (>1/1000 em)
+DejaVuSans vs FreeSans: 72/73 chars differ in width (>1/1000 em)
+WQY ZenHei Han chars: 20940 distinct widths: [(1000, 20940)]
+DejaVuSans Arabic base letters: 37 distinct widths: 19 [(278, 4), (483, 4), (783, 3), (941, 3)]
+DejaVuSans Arabic presentation forms: 140 distinct widths: 55
+
+real	0m0.438s
+user	0m0.230s
+sys	0m0.177s

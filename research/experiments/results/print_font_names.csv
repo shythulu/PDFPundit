@@ -1,0 +1,890 @@
+file,page,tag,obj,basefont,subtype,has_tounicode,fontfile2,name_table,family,full,psname,cmap_table,glyphs,tu_codes,shared_codes,agree_codes
+original/print/text/AI_Development_MultiLanguage(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,27,27,27
+original/print/text/AI_Development_MultiLanguage(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/AI_Development_MultiLanguage(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,36,36,36
+original/print/text/AI_Development_MultiLanguage(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,36,36,36
+original/print/text/AI_Development_MultiLanguage(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,19,19,18
+original/print/text/AI_Development_MultiLanguage(print).pdf,1,/F3,58,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,172,172,172
+original/print/text/AI_Development_MultiLanguage(print).pdf,2,/F1,69,/CIDFont+F7,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,22,22,22
+original/print/text/AI_Development_MultiLanguage(print).pdf,2,/F3,77,/CIDFont+F8,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,61,61,61
+original/print/text/AI_Development_MultiLanguage(print).pdf,2,/F4,85,/CIDFont+F9,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,53,53,53
+original/print/text/AI_Development_MultiLanguage(print).pdf,3,/F1,96,/CIDFont+F10,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,24,24,24
+original/print/text/AI_Development_MultiLanguage(print).pdf,3,/F3,104,/CIDFont+F11,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,40,40,40
+original/print/text/AI_Development_MultiLanguage(print).pdf,3,/F4,112,/CIDFont+F12,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,39,39,39
+original/print/text/AI_Development_MultiLanguage(print).pdf,4,/F1,123,/CIDFont+F13,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,20,20,20
+original/print/text/AI_Development_MultiLanguage(print).pdf,4,/F2,131,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,40,40,40
+original/print/text/AI_Development_MultiLanguage(print).pdf,4,/F4,139,/CIDFont+F15,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,36,36,36
+original/print/text/AI_Development_MultiLanguage(print).pdf,5,/F1,150,/CIDFont+F16,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,7,7,7
+original/print/text/AI_Development_MultiLanguage(print).pdf,5,/F3,158,/CIDFont+F17,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,85,85,76
+original/print/text/AI_Development_MultiLanguage(print).pdf,5,/F4,166,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,24,24,24
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,20,20,20
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,37,37,37
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,40,40,40
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,0,/F6,51,/CIDFont+F6,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,1,/F1,62,/CIDFont+F7,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,20,20,20
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,1,/F2,70,/CIDFont+F8,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,147,147,147
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,1,/F5,78,/CIDFont+F9,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,71,71,71
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,1,/F6,86,/CIDFont+F10,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,2,/F1,97,/CIDFont+F11,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,26,26,26
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,2,/F2,105,/CIDFont+F12,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,66,66,66
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,2,/F5,113,/CIDFont+F13,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,66,66,66
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,3,/F1,124,/CIDFont+F14,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,21,21,21
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,3,/F2,132,/CIDFont+F15,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,39,39,39
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,3,/F5,140,/CIDFont+F16,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,36,36,36
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,4,/F1,151,/CIDFont+F17,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,20,20,20
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,4,/F2,159,/CIDFont+F18,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,42,42,42
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,4,/F5,167,/CIDFont+F19,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,41,41,41
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,5,/F1,178,/CIDFont+F20,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,13,13,13
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,5,/F2,186,/CIDFont+F21,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,29,29,29
+original/print/text/AeroChef_Drone_Delivery_Cooking_Service(print).pdf,5,/F5,194,/CIDFont+F22,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,76,76,71
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,35,35,35
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,0,/F2,20,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,1,/F1,45,/CIDFont+F3,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,52,52,52
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,2,/F1,56,/CIDFont+F4,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,55,55,55
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,2,/F2,64,/CIDFont+F5,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,42,42,42
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,3,/F1,75,/CIDFont+F6,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,39,39,39
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,3,/F2,83,/CIDFont+F7,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,33,33,33
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,4,/F1,94,/CIDFont+F8,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,36,36,36
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,4,/F2,102,/CIDFont+F9,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,37,37,37
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,5,/F1,113,/CIDFont+F10,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,26,26,26
+original/print/text/Aurora_VR_AR_Game_Lineup_Multilingual(print).pdf,5,/F2,121,/CIDFont+F11,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,14,14,14
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,25,25,25
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,54,54,54
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,1,/F1,39,/CIDFont+F4,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,20,20,20
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,1,/F3,47,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,147,147,147
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,1,/F4,55,/CIDFont+F6,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,67,67,66
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,2,/F1,66,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,21,21,21
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,2,/F3,74,/CIDFont+F8,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,64,64,64
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,2,/F4,82,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,42,42,42
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,2,/F5,90,/CIDFont+F10,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,3,/F1,101,/CIDFont+F11,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,24,24,24
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,3,/F3,109,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,55,55,55
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,3,/F4,117,/CIDFont+F13,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,45,45,45
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,3,/F6,125,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,46,46,46
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,4,/F3,136,/CIDFont+F15,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,52,52,52
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,5,/F1,147,/CIDFont+F16,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,8,8,8
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,5,/F3,155,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,44,44,44
+original/print/text/Autonomous_Vehicle_Accident_Report(print).pdf,5,/F4,163,/CIDFont+F18,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,68,68,68
+original/print/text/BioNext_Data_Leak_Report(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,22,22,22
+original/print/text/BioNext_Data_Leak_Report(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/BioNext_Data_Leak_Report(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,55,55,55
+original/print/text/BioNext_Data_Leak_Report(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,48,48,48
+original/print/text/BioNext_Data_Leak_Report(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,19,19,19
+original/print/text/BioNext_Data_Leak_Report(print).pdf,1,/F3,59,/CIDFont+F6,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,72,72,72
+original/print/text/BioNext_Data_Leak_Report(print).pdf,2,/F1,70,/CIDFont+F7,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,21,21,21
+original/print/text/BioNext_Data_Leak_Report(print).pdf,2,/F2,78,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,73,73,73
+original/print/text/BioNext_Data_Leak_Report(print).pdf,2,/F4,86,/CIDFont+F9,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,55,55,55
+original/print/text/BioNext_Data_Leak_Report(print).pdf,3,/F1,97,/CIDFont+F10,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,22,22,22
+original/print/text/BioNext_Data_Leak_Report(print).pdf,3,/F3,105,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,59,59,59
+original/print/text/BioNext_Data_Leak_Report(print).pdf,3,/F4,113,/CIDFont+F12,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,47,47,47
+original/print/text/BioNext_Data_Leak_Report(print).pdf,4,/F1,124,/CIDFont+F13,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,24,24,24
+original/print/text/BioNext_Data_Leak_Report(print).pdf,4,/F3,132,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,57,57,57
+original/print/text/BioNext_Data_Leak_Report(print).pdf,4,/F4,140,/CIDFont+F15,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,1,1,1
+original/print/text/BioNext_Data_Leak_Report(print).pdf,4,/F5,148,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,47,47,47
+original/print/text/BioNext_Data_Leak_Report(print).pdf,5,/F1,159,/CIDFont+F17,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,13,13,13
+original/print/text/BioNext_Data_Leak_Report(print).pdf,5,/F3,167,/CIDFont+F18,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,110,110,108
+original/print/text/BioNext_Data_Leak_Report(print).pdf,5,/F4,175,/CIDFont+F19,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,80,80,80
+original/print/text/Digital_Minimalism(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,24,24,24
+original/print/text/Digital_Minimalism(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Digital_Minimalism(print).pdf,0,/F3,31,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,37,37,37
+original/print/text/Digital_Minimalism(print).pdf,1,/F1,42,/CIDFont+F4,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,20,20,20
+original/print/text/Digital_Minimalism(print).pdf,1,/F2,50,/CIDFont+F5,/Type0,True,True,True,ZCOOL XiaoWei,ZCOOL XiaoWei Regular,ZCOOLXiaoWei-Regular,True,7019,1,1,1
+original/print/text/Digital_Minimalism(print).pdf,1,/F4,58,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,190,190,190
+original/print/text/Digital_Minimalism(print).pdf,1,/F5,66,/CIDFont+F7,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,151,151,151
+original/print/text/Digital_Minimalism(print).pdf,2,/F1,77,/CIDFont+F8,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,27,27,27
+original/print/text/Digital_Minimalism(print).pdf,2,/F3,85,/CIDFont+F9,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,53,53,53
+original/print/text/Digital_Minimalism(print).pdf,2,/F4,93,/CIDFont+F10,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,47,47,47
+original/print/text/Digital_Minimalism(print).pdf,3,/F1,104,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,21,21,21
+original/print/text/Digital_Minimalism(print).pdf,3,/F3,112,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,36,36,36
+original/print/text/Digital_Minimalism(print).pdf,3,/F4,120,/CIDFont+F13,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,33,33,33
+original/print/text/Digital_Minimalism(print).pdf,4,/F1,131,/CIDFont+F14,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,22,22,22
+original/print/text/Digital_Minimalism(print).pdf,4,/F3,139,/CIDFont+F15,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,40,40,40
+original/print/text/Digital_Minimalism(print).pdf,4,/F4,147,/CIDFont+F16,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,34,34,34
+original/print/text/Digital_Minimalism(print).pdf,5,/F1,158,/CIDFont+F17,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,35,35,35
+original/print/text/Digital_Minimalism(print).pdf,5,/F3,166,/CIDFont+F18,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,24,24,24
+original/print/text/Digital_Minimalism(print).pdf,5,/F4,174,/CIDFont+F19,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,18,18,18
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,25,25,25
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,0,/F3,28,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,52,52,52
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,0,/F4,37,/CIDFont+F4,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,1,/F1,48,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,15,15,15
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,1,/F3,56,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,93,93,93
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,1,/F4,64,/CIDFont+F7,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,133,133,133
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,2,/F1,75,/CIDFont+F8,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,23,23,23
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,2,/F3,83,/CIDFont+F9,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,66,66,66
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,2,/F4,91,/CIDFont+F10,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,61,61,61
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,3,/F1,102,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,20,20,20
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,3,/F3,110,/CIDFont+F12,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,46,46,46
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,3,/F4,118,/CIDFont+F13,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,54,54,54
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,4,/F1,129,/CIDFont+F14,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,22,22,22
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,4,/F3,137,/CIDFont+F15,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,48,48,48
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,4,/F4,145,/CIDFont+F16,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,51,51,51
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,5,/F1,156,/CIDFont+F17,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,28,28,28
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,5,/F3,164,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,36,36,36
+original/print/text/E-Payment_Service_Outage_Report(print).pdf,5,/F4,172,/CIDFont+F19,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,30,30,30
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,19,19,19
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,31,31,31
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,1
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,0,/F6,51,/CIDFont+F6,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,46,46,46
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,0,/F7,59,/CIDFont+F7,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,1,/F1,70,/CIDFont+F8,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,130,130,130
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,1,/F4,78,/CIDFont+F9,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,105,105,105
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,2,/F1,89,/CIDFont+F10,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,55,55,55
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,2,/F2,97,/CIDFont+F11,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,56,56,56
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,3,/F1,108,/CIDFont+F12,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,19,19,19
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,3,/F2,116,/CIDFont+F13,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,38,38,38
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,3,/F5,124,/CIDFont+F14,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,46,46,46
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,4,/F1,135,/CIDFont+F15,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,18,18,18
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,4,/F2,143,/CIDFont+F16,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,37,37,37
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,4,/F6,151,/CIDFont+F17,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,48,48,48
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,5,/F1,162,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,9,9,9
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,5,/F2,170,/CIDFont+F19,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,92,92,92
+original/print/text/EcoWave_Sustainable_Fashion_Collection(print).pdf,5,/F5,178,/CIDFont+F20,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,19,19,19
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,34,34,34
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,46,46,46
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,1,/F1,54,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,110,110,110
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,1,/F4,62,/CIDFont+F7,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,102,102,102
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,2,/F1,73,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,21,21,21
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,2,/F2,81,/CIDFont+F9,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,56,56,56
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,2,/F3,89,/CIDFont+F10,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,0
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,2,/F6,97,/CIDFont+F11,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,66,66,66
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,3,/F1,108,/CIDFont+F12,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,22,22,22
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,3,/F2,116,/CIDFont+F13,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,36,36,36
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,3,/F5,124,/CIDFont+F14,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,47,47,47
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,4,/F1,135,/CIDFont+F15,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,21,21,21
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,4,/F2,143,/CIDFont+F16,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,38,38,38
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,4,/F5,151,/CIDFont+F17,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,44,44,44
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,5,/F1,162,/CIDFont+F18,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,29,29,22
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,5,/F2,170,/CIDFont+F19,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,27,27,27
+original/print/text/EduBot_AI_Learning_Robot_Series(print).pdf,5,/F5,178,/CIDFont+F20,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,39,39,39
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,32,32,32
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,34,34,34
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,1,/F1,38,/CIDFont+F4,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,24,24,24
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,1,/F3,46,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,123,123,123
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,1,/F4,54,/CIDFont+F6,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,187,187,187
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,2,/F1,65,/CIDFont+F7,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,30,30,30
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,2,/F3,73,/CIDFont+F8,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,49,49,49
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,2,/F4,81,/CIDFont+F9,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,55,55,55
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,3,/F1,92,/CIDFont+F10,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,24,24,24
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,3,/F3,100,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,34,34,34
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,3,/F4,108,/CIDFont+F12,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,36,36,36
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,4,/F1,119,/CIDFont+F13,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,24,24,24
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,4,/F3,127,/CIDFont+F14,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,35,35,35
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,4,/F4,135,/CIDFont+F15,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,35,35,35
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,5,/F1,146,/CIDFont+F16,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,34,34,34
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,5,/F3,154,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,22,22,22
+original/print/text/Evolution_Biodegradable_Plastics(print).pdf,5,/F4,162,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,31,31,31
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,27,27,27
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,38,38,38
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,1,/F2,40,/CIDFont+F4,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,135,135,135
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,1,/F3,48,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,188,188,188
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,2,/F1,59,/CIDFont+F6,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,22,22,22
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,2,/F3,67,/CIDFont+F7,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,49,49,49
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,2,/F4,75,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,50,50,50
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,3,/F1,86,/CIDFont+F9,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,24,24,24
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,3,/F3,94,/CIDFont+F10,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,33,33,33
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,3,/F4,102,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,32,32,32
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,4,/F1,113,/CIDFont+F12,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,25,25,25
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,4,/F3,121,/CIDFont+F13,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,36,36,36
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,4,/F4,129,/CIDFont+F14,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,34,34,34
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,5,/F1,140,/CIDFont+F15,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,34,34,31
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,5,/F3,148,/CIDFont+F16,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,26,26,26
+original/print/text/Evolution_Food_Culture_Alternative_Foods(print).pdf,5,/F4,156,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,27,27,27
+original/print/text/International_Logistics_Fire_Report(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,19,19,19
+original/print/text/International_Logistics_Fire_Report(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/International_Logistics_Fire_Report(print).pdf,0,/F3,29,/CIDFont+F3,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,52,52,52
+original/print/text/International_Logistics_Fire_Report(print).pdf,1,/F2,40,/CIDFont+F4,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,96,96,96
+original/print/text/International_Logistics_Fire_Report(print).pdf,1,/F3,48,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,129,129,129
+original/print/text/International_Logistics_Fire_Report(print).pdf,2,/F1,59,/CIDFont+F6,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,16,16,16
+original/print/text/International_Logistics_Fire_Report(print).pdf,2,/F3,67,/CIDFont+F7,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,66,66,66
+original/print/text/International_Logistics_Fire_Report(print).pdf,2,/F4,75,/CIDFont+F8,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,65,65,65
+original/print/text/International_Logistics_Fire_Report(print).pdf,3,/F1,86,/CIDFont+F9,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,19,19,19
+original/print/text/International_Logistics_Fire_Report(print).pdf,3,/F3,94,/CIDFont+F10,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,47,47,47
+original/print/text/International_Logistics_Fire_Report(print).pdf,3,/F4,102,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,55,55,55
+original/print/text/International_Logistics_Fire_Report(print).pdf,4,/F1,113,/CIDFont+F12,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,19,19,19
+original/print/text/International_Logistics_Fire_Report(print).pdf,4,/F3,121,/CIDFont+F13,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,50,50,50
+original/print/text/International_Logistics_Fire_Report(print).pdf,4,/F4,129,/CIDFont+F14,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,55,55,55
+original/print/text/International_Logistics_Fire_Report(print).pdf,5,/F1,140,/CIDFont+F15,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,3,3,3
+original/print/text/International_Logistics_Fire_Report(print).pdf,5,/F3,148,/CIDFont+F16,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,37,37,37
+original/print/text/International_Logistics_Fire_Report(print).pdf,5,/F4,156,/CIDFont+F17,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,94,94,94
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,18,18,18
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,34,34,34
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,1
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,0,/F6,51,/CIDFont+F6,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,52,52,52
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,1,/F1,62,/CIDFont+F7,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,15,15,14
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,1,/F2,70,/CIDFont+F8,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,124,124,124
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,1,/F5,78,/CIDFont+F9,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,124,124,124
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,1,/F6,86,/CIDFont+F10,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,2,/F1,97,/CIDFont+F11,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,22,22,22
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,2,/F2,105,/CIDFont+F12,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,60,60,60
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,2,/F6,113,/CIDFont+F13,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,69,69,69
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,3,/F1,124,/CIDFont+F14,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,20,20,20
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,3,/F2,132,/CIDFont+F15,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,37,37,37
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,3,/F6,140,/CIDFont+F16,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,55,55,55
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,4,/F1,151,/CIDFont+F17,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,19,19,19
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,4,/F2,159,/CIDFont+F18,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,37,37,37
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,4,/F6,167,/CIDFont+F19,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,60,60,60
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,5,/F1,178,/CIDFont+F20,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,11,11,11
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,5,/F2,186,/CIDFont+F21,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,31,31,31
+original/print/text/Lumina_Interior_Lighting_Designbook(print).pdf,5,/F6,194,/CIDFont+F22,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,113,113,113
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,19,19,19
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,55,55,55
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,0
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,0,/F6,51,/CIDFont+F6,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,1,/F1,62,/CIDFont+F7,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,12,12,12
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,2,/F1,82,/CIDFont+F8,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,17,17,17
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,2,/F2,90,/CIDFont+F9,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,69,69,69
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,3,/F1,101,/CIDFont+F10,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,21,21,21
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,3,/F2,109,/CIDFont+F11,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,54,54,54
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,4,/F1,120,/CIDFont+F12,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,21,21,21
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,4,/F2,128,/CIDFont+F13,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,58,58,58
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,5,/F1,139,/CIDFont+F14,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,20,20,20
+original/print/text/NeoHome_Smart_Appliances_Catalog_v5(print).pdf,5,/F2,147,/CIDFont+F15,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,36,36,36
+original/print/text/New_Care_Models_Aging_Society(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/New_Care_Models_Aging_Society(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,40,40,40
+original/print/text/New_Care_Models_Aging_Society(print).pdf,1,/F1,30,/CIDFont+F3,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,21,21,20
+original/print/text/New_Care_Models_Aging_Society(print).pdf,2,/F1,53,/CIDFont+F4,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,30,30,30
+original/print/text/New_Care_Models_Aging_Society(print).pdf,2,/F3,61,/CIDFont+F5,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,55,55,55
+original/print/text/New_Care_Models_Aging_Society(print).pdf,3,/F1,72,/CIDFont+F6,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,23,23,23
+original/print/text/New_Care_Models_Aging_Society(print).pdf,3,/F3,80,/CIDFont+F7,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,39,39,39
+original/print/text/New_Care_Models_Aging_Society(print).pdf,4,/F1,91,/CIDFont+F8,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,23,23,23
+original/print/text/New_Care_Models_Aging_Society(print).pdf,4,/F3,99,/CIDFont+F9,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,40,40,40
+original/print/text/New_Care_Models_Aging_Society(print).pdf,5,/F1,110,/CIDFont+F10,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,10,10,10
+original/print/text/New_Care_Models_Aging_Society(print).pdf,5,/F3,118,/CIDFont+F11,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,100,100,82
+original/print/text/Next_Decade_Space_Exploration(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,29,29,29
+original/print/text/Next_Decade_Space_Exploration(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Next_Decade_Space_Exploration(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,42,42,42
+original/print/text/Next_Decade_Space_Exploration(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,36,36,36
+original/print/text/Next_Decade_Space_Exploration(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,24,24,24
+original/print/text/Next_Decade_Space_Exploration(print).pdf,1,/F3,54,/CIDFont+F6,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,179,179,179
+original/print/text/Next_Decade_Space_Exploration(print).pdf,1,/F4,62,/CIDFont+F7,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,149,149,148
+original/print/text/Next_Decade_Space_Exploration(print).pdf,2,/F1,73,/CIDFont+F8,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,28,28,28
+original/print/text/Next_Decade_Space_Exploration(print).pdf,2,/F3,81,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,58,58,58
+original/print/text/Next_Decade_Space_Exploration(print).pdf,2,/F4,89,/CIDFont+F10,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,48,48,48
+original/print/text/Next_Decade_Space_Exploration(print).pdf,3,/F1,100,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,37,37,37
+original/print/text/Next_Decade_Space_Exploration(print).pdf,3,/F3,108,/CIDFont+F12,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,43,43,43
+original/print/text/Next_Decade_Space_Exploration(print).pdf,4,/F1,119,/CIDFont+F13,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,24,24,24
+original/print/text/Next_Decade_Space_Exploration(print).pdf,4,/F3,127,/CIDFont+F14,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,38,38,38
+original/print/text/Next_Decade_Space_Exploration(print).pdf,4,/F4,135,/CIDFont+F15,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,40,40,40
+original/print/text/Next_Decade_Space_Exploration(print).pdf,5,/F1,146,/CIDFont+F16,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,8,8,8
+original/print/text/Next_Decade_Space_Exploration(print).pdf,5,/F2,154,/CIDFont+F17,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,39,39,39
+original/print/text/Next_Decade_Space_Exploration(print).pdf,5,/F4,162,/CIDFont+F18,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,101,101,101
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,33,33,33
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,37,37,37
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,1,/F1,50,/CIDFont+F4,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,45,45,45
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,2,/F1,61,/CIDFont+F5,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,54,54,54
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,2,/F2,69,/CIDFont+F6,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,40,40,40
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,3,/F1,80,/CIDFont+F7,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,36,36,36
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,3,/F2,88,/CIDFont+F8,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,37,37,37
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,4,/F1,99,/CIDFont+F9,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,32,32,32
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,4,/F2,107,/CIDFont+F10,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,35,35,35
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,5,/F1,118,/CIDFont+F11,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,25,25,25
+original/print/text/OceanQuest_Modular_Water_Leisure_Equipment_Guide(print).pdf,5,/F2,126,/CIDFont+F12,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,54,54,54
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,32,32,32
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,44,44,44
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,0
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,0,/F6,51,/CIDFont+F6,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,1,/F1,62,/CIDFont+F7,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,14,14,14
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,1,/F4,76,/CIDFont+F8,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,62,62,61
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,2,/F1,87,/CIDFont+F9,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,17,17,17
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,2,/F3,95,/CIDFont+F10,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,60,60,60
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,2,/F6,103,/CIDFont+F11,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,54,54,54
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,3,/F1,114,/CIDFont+F12,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,16,16,16
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,3,/F2,122,/CIDFont+F13,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,44,44,44
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,3,/F6,130,/CIDFont+F14,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,43,43,43
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,4,/F1,141,/CIDFont+F15,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,16,16,16
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,4,/F2,149,/CIDFont+F16,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,37,37,37
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,4,/F6,157,/CIDFont+F17,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,45,45,45
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,5,/F1,168,/CIDFont+F18,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,26,26,23
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,5,/F2,176,/CIDFont+F19,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,31,31,31
+original/print/text/PetPal_Smart_PetCare_Products(print).pdf,5,/F5,184,/CIDFont+F20,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,101,101,101
+original/print/text/Quantum_Computing_Race(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,28,28,28
+original/print/text/Quantum_Computing_Race(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Quantum_Computing_Race(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,36,36,36
+original/print/text/Quantum_Computing_Race(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,36,36,36
+original/print/text/Quantum_Computing_Race(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,27,27,26
+original/print/text/Quantum_Computing_Race(print).pdf,1,/F3,54,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,162,162,162
+original/print/text/Quantum_Computing_Race(print).pdf,1,/F4,62,/CIDFont+F7,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,149,149,149
+original/print/text/Quantum_Computing_Race(print).pdf,2,/F1,73,/CIDFont+F8,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,22,22,22
+original/print/text/Quantum_Computing_Race(print).pdf,2,/F3,81,/CIDFont+F9,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,46,46,46
+original/print/text/Quantum_Computing_Race(print).pdf,2,/F4,89,/CIDFont+F10,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,54,54,54
+original/print/text/Quantum_Computing_Race(print).pdf,3,/F1,100,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,26,26,26
+original/print/text/Quantum_Computing_Race(print).pdf,3,/F3,108,/CIDFont+F12,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,34,34,34
+original/print/text/Quantum_Computing_Race(print).pdf,3,/F4,116,/CIDFont+F13,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,41,41,41
+original/print/text/Quantum_Computing_Race(print).pdf,4,/F1,127,/CIDFont+F14,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,27,27,27
+original/print/text/Quantum_Computing_Race(print).pdf,4,/F2,135,/CIDFont+F15,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,39,39,39
+original/print/text/Quantum_Computing_Race(print).pdf,4,/F3,143,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,36,36,36
+original/print/text/Quantum_Computing_Race(print).pdf,4,/F4,151,/CIDFont+F17,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/Quantum_Computing_Race(print).pdf,5,/F1,162,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,8,8,8
+original/print/text/Quantum_Computing_Race(print).pdf,5,/F3,170,/CIDFont+F19,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,22,22,22
+original/print/text/Quantum_Computing_Race(print).pdf,5,/F4,178,/CIDFont+F20,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,85,85,85
+original/print/text/Robots_Automation_Future_Work(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,30,30,30
+original/print/text/Robots_Automation_Future_Work(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Robots_Automation_Future_Work(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,30,30,30
+original/print/text/Robots_Automation_Future_Work(print).pdf,1,/F2,42,/CIDFont+F4,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,166,166,166
+original/print/text/Robots_Automation_Future_Work(print).pdf,1,/F3,50,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,114,114,114
+original/print/text/Robots_Automation_Future_Work(print).pdf,1,/F4,58,/CIDFont+F6,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/Robots_Automation_Future_Work(print).pdf,2,/F1,69,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,28,28,28
+original/print/text/Robots_Automation_Future_Work(print).pdf,2,/F3,77,/CIDFont+F8,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,49,49,49
+original/print/text/Robots_Automation_Future_Work(print).pdf,2,/F4,85,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,48,48,48
+original/print/text/Robots_Automation_Future_Work(print).pdf,3,/F1,96,/CIDFont+F10,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,27,27,27
+original/print/text/Robots_Automation_Future_Work(print).pdf,3,/F3,104,/CIDFont+F11,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,34,34,34
+original/print/text/Robots_Automation_Future_Work(print).pdf,3,/F4,112,/CIDFont+F12,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,38,38,38
+original/print/text/Robots_Automation_Future_Work(print).pdf,4,/F1,123,/CIDFont+F13,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,23,23,23
+original/print/text/Robots_Automation_Future_Work(print).pdf,4,/F3,131,/CIDFont+F14,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,35,35,35
+original/print/text/Robots_Automation_Future_Work(print).pdf,4,/F4,139,/CIDFont+F15,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,38,38,38
+original/print/text/Robots_Automation_Future_Work(print).pdf,5,/F1,150,/CIDFont+F16,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,10,10,10
+original/print/text/Robots_Automation_Future_Work(print).pdf,5,/F3,158,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,19,19,19
+original/print/text/Robots_Automation_Future_Work(print).pdf,5,/F4,166,/CIDFont+F18,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,93,93,93
+original/print/text/Security_Breach_Investigation_Report(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,24,24,24
+original/print/text/Security_Breach_Investigation_Report(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Security_Breach_Investigation_Report(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,55,55,55
+original/print/text/Security_Breach_Investigation_Report(print).pdf,1,/F1,39,/CIDFont+F4,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,27,27,27
+original/print/text/Security_Breach_Investigation_Report(print).pdf,1,/F3,47,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,174,174,174
+original/print/text/Security_Breach_Investigation_Report(print).pdf,1,/F4,56,/CIDFont+F6,/Type0,True,True,True,Courier New,Courier New,CourierNewPSMT,True,3763,1,1,1
+original/print/text/Security_Breach_Investigation_Report(print).pdf,2,/F1,68,/CIDFont+F7,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,34,34,34
+original/print/text/Security_Breach_Investigation_Report(print).pdf,2,/F3,76,/CIDFont+F8,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,84,84,84
+original/print/text/Security_Breach_Investigation_Report(print).pdf,2,/F4,84,/CIDFont+F9,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,56,56,56
+original/print/text/Security_Breach_Investigation_Report(print).pdf,3,/F1,95,/CIDFont+F10,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,24,24,24
+original/print/text/Security_Breach_Investigation_Report(print).pdf,3,/F2,103,/CIDFont+F11,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,58,58,58
+original/print/text/Security_Breach_Investigation_Report(print).pdf,3,/F3,111,/CIDFont+F12,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,46,46,46
+original/print/text/Security_Breach_Investigation_Report(print).pdf,4,/F1,122,/CIDFont+F13,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,26,26,26
+original/print/text/Security_Breach_Investigation_Report(print).pdf,4,/F3,130,/CIDFont+F14,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,58,58,58
+original/print/text/Security_Breach_Investigation_Report(print).pdf,4,/F4,138,/CIDFont+F15,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,49,49,49
+original/print/text/Security_Breach_Investigation_Report(print).pdf,4,/F5,146,/CIDFont+F16,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/Security_Breach_Investigation_Report(print).pdf,5,/F1,157,/CIDFont+F17,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,18,18,18
+original/print/text/Security_Breach_Investigation_Report(print).pdf,5,/F3,165,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,57,57,57
+original/print/text/Security_Breach_Investigation_Report(print).pdf,5,/F4,173,/CIDFont+F19,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,34,34,34
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,19,19,19
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,2,2,2
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,0,/F3,28,/CIDFont+F3,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,1
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,0,/F4,37,/CIDFont+F4,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,0,/F5,45,/CIDFont+F5,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,0,/F6,54,/CIDFont+F6,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,36,36,36
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,1,/F1,65,/CIDFont+F7,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,20,20,20
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,1,/F2,73,/CIDFont+F8,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,154,154,154
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,1,/F5,81,/CIDFont+F9,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,59,59,58
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,2,/F1,92,/CIDFont+F10,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,25,25,25
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,2,/F2,100,/CIDFont+F11,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,64,64,64
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,2,/F6,108,/CIDFont+F12,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,52,52,52
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,3,/F1,119,/CIDFont+F13,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,20,20,20
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,3,/F2,127,/CIDFont+F14,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,40,40,40
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,3,/F5,135,/CIDFont+F15,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,38,38,38
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,4,/F1,146,/CIDFont+F16,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,22,22,22
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,4,/F2,154,/CIDFont+F17,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,44,44,44
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,4,/F5,162,/CIDFont+F18,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,37,37,37
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,5,/F1,173,/CIDFont+F19,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,27,27,27
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,5,/F2,181,/CIDFont+F20,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,34,34,34
+original/print/text/SkyGarden_Indoor_Vertical_Garden_Solutions(print).pdf,5,/F5,189,/CIDFont+F21,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,28,28,28
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,37,37,37
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,35,35,35
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,1,/F1,38,/CIDFont+F4,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,23,23,21
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,1,/F2,46,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,164,164,164
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,1,/F4,54,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,171,171,171
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,2,/F1,65,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,32,32,32
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,2,/F3,73,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,63,63,63
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,3,/F1,84,/CIDFont+F9,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,25,25,25
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,3,/F3,92,/CIDFont+F10,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,42,42,42
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,3,/F4,100,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,31,31,31
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,4,/F1,111,/CIDFont+F12,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,24,24,24
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,4,/F3,119,/CIDFont+F13,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,39,39,39
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,4,/F4,127,/CIDFont+F14,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,31,31,31
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,5,/F1,138,/CIDFont+F15,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,8,8,8
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,5,/F3,146,/CIDFont+F16,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,93,93,90
+original/print/text/Sustainable_Fashion_Innovation(print).pdf,5,/F4,154,/CIDFont+F17,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,25,25,25
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,20,20,20
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,36,36,36
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,3,3,2
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,0,/F6,52,/CIDFont+F6,/Type0,True,True,True,Times New Roman,Times New Roman,TimesNewRomanPSMT,True,4685,2,2,1
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,1,/F1,64,/CIDFont+F7,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,122,122,122
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,1,/F4,72,/CIDFont+F8,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,108,108,108
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,2,/F1,83,/CIDFont+F9,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,24,24,24
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,2,/F2,91,/CIDFont+F10,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,68,68,68
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,2,/F5,99,/CIDFont+F11,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,52,52,52
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,2,/F7,107,/CIDFont+F12,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,3,/F1,118,/CIDFont+F13,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,21,21,21
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,3,/F2,126,/CIDFont+F14,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,37,37,37
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,3,/F6,134,/CIDFont+F15,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,50,50,50
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,4,/F1,145,/CIDFont+F16,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,49,49,49
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,4,/F5,153,/CIDFont+F17,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,48,48,48
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,5,/F1,164,/CIDFont+F18,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,15,15,15
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,5,/F2,172,/CIDFont+F19,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,83,83,79
+original/print/text/UrbanRide_Electric_Bike_Scooter_Series(print).pdf,5,/F5,180,/CIDFont+F20,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,47,47,47
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,44,44,44
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,32,32,32
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,1,/F1,38,/CIDFont+F4,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,22,22,20
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,1,/F2,46,/CIDFont+F5,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,182,182,182
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,1,/F3,54,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,161,161,161
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,2,/F1,65,/CIDFont+F7,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,19,19,19
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,2,/F3,73,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,57,57,57
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,2,/F4,81,/CIDFont+F9,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,49,49,49
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,2,/F5,89,/CIDFont+F10,/Type0,True,True,True,MS Mincho,MS Mincho,MS-Mincho,True,19410,1,1,1
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,3,/F1,100,/CIDFont+F11,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,22,22,22
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,3,/F3,108,/CIDFont+F12,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,40,40,40
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,3,/F4,116,/CIDFont+F13,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,39,39,39
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,4,/F1,127,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,23,23,23
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,4,/F3,135,/CIDFont+F15,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,46,46,46
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,4,/F4,143,/CIDFont+F16,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,32,32,32
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,5,/F1,154,/CIDFont+F17,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,32,32,29
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,5,/F3,162,/CIDFont+F18,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,30,30,30
+original/print/text/Urban_Fine_Particulate_Matter(print).pdf,5,/F4,170,/CIDFont+F19,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,20,20,20
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,21,21,21
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,29,29,29
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,50,50,50
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,15,15,15
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,1,/F2,54,/CIDFont+F6,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,48,48,48
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,1,/F3,62,/CIDFont+F7,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,177,177,176
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,2,/F1,73,/CIDFont+F8,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,20,20,20
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,2,/F2,81,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,31,31,31
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,2,/F4,89,/CIDFont+F10,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,54,54,54
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,3,/F1,100,/CIDFont+F11,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,22,22,22
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,3,/F2,108,/CIDFont+F12,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,27,27,27
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,3,/F3,116,/CIDFont+F13,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,52,52,52
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,4,/F1,127,/CIDFont+F14,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,22,22,22
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,4,/F2,135,/CIDFont+F15,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,30,30,30
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,4,/F4,143,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,53,53,53
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,4,/F5,151,/CIDFont+F17,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,5,/F1,162,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,11,11,11
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,5,/F2,170,/CIDFont+F19,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,49,49,49
+original/print/text/ai_ethics_responsible_use_guidelines_multilang(print).pdf,5,/F3,178,/CIDFont+F20,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,34,34,34
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,21,21,21
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,54,54,54
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,0,/F3,28,/CIDFont+F3,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,1,/F1,39,/CIDFont+F4,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,13,13,13
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,1,/F3,47,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,52,52,52
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,2,/F1,67,/CIDFont+F6,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,21,21,21
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,2,/F2,75,/CIDFont+F7,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,38,38,38
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,2,/F3,83,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,60,60,60
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,3,/F1,94,/CIDFont+F9,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,23,23,23
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,3,/F2,102,/CIDFont+F10,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,24,24,24
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,3,/F4,110,/CIDFont+F11,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,57,57,57
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,4,/F1,121,/CIDFont+F12,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,23,23,23
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,4,/F2,129,/CIDFont+F13,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,28,28,28
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,4,/F4,137,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,56,56,56
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,5,/F1,148,/CIDFont+F15,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,25,25,25
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,5,/F2,156,/CIDFont+F16,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,18,18,18
+original/print/text/climate_crisis_preparedness_community_action_guidelines_multilang(print).pdf,5,/F3,164,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,36,36,36
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,28,28,28
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,46,46,46
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Courier New,Courier New,CourierNewPSMT,True,3763,1,1,1
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,30,30,30
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Calibri,Calibri,Calibri,True,6954,1,1,1
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,1,/F2,54,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,99,99,99
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,1,/F3,62,/CIDFont+F7,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,35,35,35
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,2,/F1,73,/CIDFont+F8,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,29,29,29
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,2,/F3,81,/CIDFont+F9,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,50,50,50
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,2,/F4,89,/CIDFont+F10,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,36,36,36
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,3,/F1,100,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,26,26,26
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,3,/F3,108,/CIDFont+F12,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,45,45,45
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,3,/F4,116,/CIDFont+F13,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,28,28,28
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,4,/F1,127,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,26,26,26
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,4,/F2,135,/CIDFont+F15,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,49,49,49
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,4,/F4,143,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,33,33,33
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,5,/F1,154,/CIDFont+F17,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,42,42,40
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,5,/F3,162,/CIDFont+F18,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,21,21,21
+original/print/text/confidential_doc_leak_collusion_investigation(print).pdf,5,/F4,170,/CIDFont+F19,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,19,19,19
+original/print/text/digital_data_security_guidelines(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans Bold,OpenSans-Bold,True,938,19,19,19
+original/print/text/digital_data_security_guidelines(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/digital_data_security_guidelines(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,28,28,28
+original/print/text/digital_data_security_guidelines(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,50,50,50
+original/print/text/digital_data_security_guidelines(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,9,9,9
+original/print/text/digital_data_security_guidelines(print).pdf,1,/F3,54,/CIDFont+F6,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,187,187,187
+original/print/text/digital_data_security_guidelines(print).pdf,2,/F1,66,/CIDFont+F7,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,16,16,16
+original/print/text/digital_data_security_guidelines(print).pdf,2,/F2,74,/CIDFont+F8,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,39,39,39
+original/print/text/digital_data_security_guidelines(print).pdf,2,/F4,82,/CIDFont+F9,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,62,62,62
+original/print/text/digital_data_security_guidelines(print).pdf,2,/F5,90,/CIDFont+F10,/Type0,True,True,True,MS Mincho,MS Mincho,MS-Mincho,True,19410,1,1,1
+original/print/text/digital_data_security_guidelines(print).pdf,3,/F1,101,/CIDFont+F11,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,19,19,19
+original/print/text/digital_data_security_guidelines(print).pdf,3,/F2,109,/CIDFont+F12,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,30,30,30
+original/print/text/digital_data_security_guidelines(print).pdf,3,/F3,117,/CIDFont+F13,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,50,50,50
+original/print/text/digital_data_security_guidelines(print).pdf,4,/F1,128,/CIDFont+F14,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,20,20,20
+original/print/text/digital_data_security_guidelines(print).pdf,4,/F2,136,/CIDFont+F15,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,26,26,26
+original/print/text/digital_data_security_guidelines(print).pdf,4,/F3,144,/CIDFont+F16,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,55,55,55
+original/print/text/digital_data_security_guidelines(print).pdf,5,/F1,155,/CIDFont+F17,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,9,9,9
+original/print/text/digital_data_security_guidelines(print).pdf,5,/F3,163,/CIDFont+F18,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,51,51,50
+original/print/text/digital_data_security_guidelines(print).pdf,5,/F4,171,/CIDFont+F19,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,36,36,36
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,24,24,24
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,53,53,53
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,1,/F1,30,/CIDFont+F3,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,32,32,32
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,1,/F2,38,/CIDFont+F4,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,214,214,213
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,1,/F3,46,/CIDFont+F5,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,2,/F1,57,/CIDFont+F6,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,17,17,17
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,2,/F2,65,/CIDFont+F7,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,29,29,29
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,2,/F3,73,/CIDFont+F8,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,60,60,60
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,3,/F1,84,/CIDFont+F9,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,25,25,25
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,3,/F3,92,/CIDFont+F10,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,25,25,25
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,3,/F4,100,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,57,57,57
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,4,/F1,111,/CIDFont+F12,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,25,25,25
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,4,/F2,119,/CIDFont+F13,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,28,28,28
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,4,/F4,127,/CIDFont+F14,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,59,59,59
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,5,/F1,138,/CIDFont+F15,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,27,27,27
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,5,/F2,146,/CIDFont+F16,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,12,12,12
+original/print/text/educational_technology_elearning_safety_guidelines_multilang(print).pdf,5,/F3,154,/CIDFont+F17,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,113,113,107
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,25,25,25
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,40,40,40
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,37,37,37
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,0,/F6,51,/CIDFont+F6,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,2
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,0,/F7,59,/CIDFont+F7,/Type0,True,True,True,Calibri,Calibri,Calibri,True,6954,1,1,1
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,1,/F1,70,/CIDFont+F8,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,18,18,17
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,1,/F4,80,/CIDFont+F9,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,38,38,38
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,2,/F1,91,/CIDFont+F10,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,23,23,23
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,2,/F2,99,/CIDFont+F11,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,51,51,51
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,2,/F5,107,/CIDFont+F12,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,41,41,41
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,3,/F1,118,/CIDFont+F13,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,27,27,27
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,3,/F2,126,/CIDFont+F14,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,40,40,40
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,3,/F5,134,/CIDFont+F15,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,42,42,42
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,4,/F1,145,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,29,29,29
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,4,/F2,153,/CIDFont+F17,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,43,43,43
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,4,/F5,161,/CIDFont+F18,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,39,39,39
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,5,/F1,172,/CIDFont+F19,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,4,4,4
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,5,/F2,180,/CIDFont+F20,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,71,71,71
+original/print/text/global_cloud_datacenter_cooling_failure_report(print).pdf,5,/F5,188,/CIDFont+F21,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,24,24,24
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,20,20,20
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,27,27,27
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,1,/F1,42,/CIDFont+F4,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,47,47,47
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,1,/F2,50,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,175,175,175
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,2,/F1,61,/CIDFont+F6,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,16,16,16
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,2,/F3,69,/CIDFont+F7,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,32,32,32
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,2,/F4,77,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,59,59,59
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,3,/F1,88,/CIDFont+F9,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,20,20,20
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,3,/F3,96,/CIDFont+F10,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,25,25,25
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,3,/F4,104,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,51,51,51
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,4,/F1,115,/CIDFont+F12,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,19,19,19
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,4,/F2,123,/CIDFont+F13,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,29,29,29
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,4,/F3,131,/CIDFont+F14,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,50,50,50
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,5,/F1,142,/CIDFont+F15,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,24,24,22
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,5,/F2,150,/CIDFont+F16,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,17,17,17
+original/print/text/green_energy_sustainable_living_guidelines_multilang(print).pdf,5,/F3,158,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,35,35,35
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,20,20,20
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,52,52,52
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,1,/F1,38,/CIDFont+F4,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,12,12,12
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,1,/F2,46,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,215,215,215
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,2,/F1,57,/CIDFont+F6,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,17,17,17
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,2,/F2,65,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,64,64,64
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,3,/F1,76,/CIDFont+F8,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,19,19,19
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,3,/F2,84,/CIDFont+F9,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,60,60,60
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,4,/F2,95,/CIDFont+F10,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,26,26,26
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,4,/F3,103,/CIDFont+F11,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,57,57,57
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,5,/F1,114,/CIDFont+F12,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,7,7,7
+original/print/text/health_wellbeing_digital_age_guidelines_multilang(print).pdf,5,/F2,122,/CIDFont+F13,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,104,104,104
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,31,31,31
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Courier New,Courier New,CourierNewPSMT,True,3763,1,1,1
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,35,35,35
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,0,/F4,36,/CIDFont+F4,/Type0,True,True,True,Calibri,Calibri,Calibri,True,6954,1,1,1
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,1,/F1,47,/CIDFont+F5,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,64,64,64
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,1,/F3,55,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,92,92,92
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,2,/F1,66,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,33,33,33
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,2,/F3,74,/CIDFont+F8,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,47,47,47
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,2,/F4,82,/CIDFont+F9,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,58,58,58
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,3,/F1,93,/CIDFont+F10,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,26,26,26
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,3,/F3,101,/CIDFont+F11,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,35,35,35
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,3,/F4,109,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,48,48,48
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,3,/F5,117,/CIDFont+F13,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,4,/F1,128,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,28,28,28
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,4,/F3,136,/CIDFont+F15,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,34,34,34
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,4,/F4,144,/CIDFont+F16,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,51,51,51
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,5,/F1,155,/CIDFont+F17,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,50,50,49
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,5,/F3,163,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,19,19,19
+original/print/text/illegal_item_trading_money_laundering_in_games(print).pdf,5,/F4,171,/CIDFont+F19,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,28,28,28
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,23,23,23
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Symbol,Symbol,SymbolMT,False,192,1,0,0
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Arial,Arial,ArialMT,True,4503,1,1,1
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,0,/F4,37,/CIDFont+F4,/Type0,True,True,True,Calibri,Calibri,Calibri,True,6954,1,1,1
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,1,/F1,48,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,30,30,30
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,1,/F2,56,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,120,120,120
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,1,/F5,64,/CIDFont+F7,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,2
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,1,/F6,72,/CIDFont+F8,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,1,1,0
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,2,/F1,83,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,28,28,28
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,2,/F2,91,/CIDFont+F10,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,63,63,63
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,3,/F1,102,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,26,26,26
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,3,/F2,110,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,59,59,59
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,4,/F1,121,/CIDFont+F13,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,24,24,24
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,5,/F1,132,/CIDFont+F14,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,42,42,42
+original/print/text/messenger_app_data_misuse_investigation(print).pdf,5,/F2,140,/CIDFont+F15,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,37,37,37
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,22,22,22
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,29,29,29
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,56,56,56
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,222,222,222
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,1,/F2,55,/CIDFont+F6,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,2,/F1,66,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,17,17,17
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,2,/F3,74,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,34,34,34
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,2,/F4,82,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,69,69,69
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,3,/F1,93,/CIDFont+F10,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,22,22,22
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,3,/F2,101,/CIDFont+F11,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,26,26,26
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,3,/F3,109,/CIDFont+F12,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,57,57,57
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,4,/F1,120,/CIDFont+F13,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,22,22,22
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,4,/F2,128,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,30,30,30
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,4,/F4,136,/CIDFont+F15,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,59,59,59
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,5,/F1,147,/CIDFont+F16,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,6,6,6
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,5,/F2,155,/CIDFont+F17,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,12,12,12
+original/print/text/open_source_software_contribution_guidelines_multilang(print).pdf,5,/F4,163,/CIDFont+F18,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,38,38,38
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,22,22,22
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,51,51,51
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,21,21,21
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,13,13,13
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,1,/F2,62,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,24,24,24
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,1,/F3,70,/CIDFont+F7,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,2,/F1,81,/CIDFont+F8,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,21,21,21
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,2,/F2,89,/CIDFont+F9,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,60,60,60
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,2,/F3,97,/CIDFont+F10,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,22,22,22
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,3,/F1,108,/CIDFont+F11,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,24,24,24
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,3,/F2,116,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,58,58,58
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,3,/F3,124,/CIDFont+F13,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,22,22,22
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,4,/F1,135,/CIDFont+F14,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,20,20,20
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,4,/F2,143,/CIDFont+F15,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,54,54,54
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,4,/F3,151,/CIDFont+F16,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,21,21,21
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,5,/F1,162,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,9,9,9
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,5,/F2,170,/CIDFont+F18,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,106,106,106
+original/print/text/personal_finance_cyber_fraud_prevention_guidelines_multilang(print).pdf,5,/F3,178,/CIDFont+F19,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,11,11,11
+original/print/text/remote_work_home_office_guidelines(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,21,21,21
+original/print/text/remote_work_home_office_guidelines(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/remote_work_home_office_guidelines(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,52,52,52
+original/print/text/remote_work_home_office_guidelines(print).pdf,1,/F1,39,/CIDFont+F4,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,9,9,9
+original/print/text/remote_work_home_office_guidelines(print).pdf,1,/F3,47,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,44,44,44
+original/print/text/remote_work_home_office_guidelines(print).pdf,1,/F4,55,/CIDFont+F6,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,184,184,183
+original/print/text/remote_work_home_office_guidelines(print).pdf,2,/F1,66,/CIDFont+F7,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,16,16,16
+original/print/text/remote_work_home_office_guidelines(print).pdf,2,/F2,74,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,30,30,30
+original/print/text/remote_work_home_office_guidelines(print).pdf,2,/F4,82,/CIDFont+F9,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,59,59,59
+original/print/text/remote_work_home_office_guidelines(print).pdf,3,/F1,93,/CIDFont+F10,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,23,23,23
+original/print/text/remote_work_home_office_guidelines(print).pdf,3,/F3,101,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,27,27,27
+original/print/text/remote_work_home_office_guidelines(print).pdf,3,/F4,109,/CIDFont+F12,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,54,54,54
+original/print/text/remote_work_home_office_guidelines(print).pdf,4,/F1,120,/CIDFont+F13,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,20,20,20
+original/print/text/remote_work_home_office_guidelines(print).pdf,4,/F3,128,/CIDFont+F14,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,28,28,28
+original/print/text/remote_work_home_office_guidelines(print).pdf,4,/F4,136,/CIDFont+F15,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,56,56,56
+original/print/text/remote_work_home_office_guidelines(print).pdf,5,/F1,147,/CIDFont+F16,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,24,24,24
+original/print/text/remote_work_home_office_guidelines(print).pdf,5,/F2,155,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,14,14,14
+original/print/text/remote_work_home_office_guidelines(print).pdf,5,/F3,163,/CIDFont+F18,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,33,33,33
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,51,51,51
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,24,24,24
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,1,/F1,38,/CIDFont+F4,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,10,10,10
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,1,/F2,46,/CIDFont+F5,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,205,205,204
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,2,/F1,57,/CIDFont+F6,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,15,15,15
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,2,/F3,65,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,60,60,60
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,3,/F1,76,/CIDFont+F8,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,22,22,22
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,3,/F2,84,/CIDFont+F9,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,54,54,54
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,3,/F3,92,/CIDFont+F10,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,21,21,21
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,4,/F1,103,/CIDFont+F11,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,21,21,21
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,4,/F2,111,/CIDFont+F12,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,58,58,58
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,5,/F1,122,/CIDFont+F13,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,7,7,7
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,5,/F2,130,/CIDFont+F14,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,11,11,11
+original/print/text/smart_city_data_privacy_guidelines_multilang(print).pdf,5,/F3,138,/CIDFont+F15,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,110,110,110
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,30,30,30
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Courier New,Courier New,CourierNewPSMT,True,3763,1,1,1
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,52,52,52
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,2
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,32,32,32
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,2,/F1,61,/CIDFont+F6,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,31,31,31
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,2,/F3,69,/CIDFont+F7,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,58,58,58
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,3,/F1,80,/CIDFont+F8,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,27,27,27
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,3,/F2,88,/CIDFont+F9,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,54,54,54
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,4,/F1,99,/CIDFont+F10,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,28,28,28
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,4,/F2,107,/CIDFont+F11,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,52,52,52
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,4,/F3,115,/CIDFont+F12,/Type0,True,True,True,Calibri,Calibri,Calibri,True,6954,1,1,1
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,5,/F1,126,/CIDFont+F13,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,12,12,12
+original/print/text/smart_factory_robot_malfunction_analysis(print).pdf,5,/F3,134,/CIDFont+F14,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,29,29,29
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,27,27,27
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,49,49,49
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,34,34,34
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,30,30,30
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,1,/F2,46,/CIDFont+F5,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,264,264,264
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,1,/F3,54,/CIDFont+F6,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,2,/F1,65,/CIDFont+F7,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,27,27,27
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,2,/F2,73,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,56,56,56
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,2,/F3,81,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,47,47,47
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,3,/F1,93,/CIDFont+F10,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,28,28,28
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,3,/F2,101,/CIDFont+F11,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,50,50,50
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,4,/F1,112,/CIDFont+F12,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,26,26,26
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,4,/F2,120,/CIDFont+F13,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,55,55,55
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,5,/F1,131,/CIDFont+F14,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,9,9,9
+original/print/text+img/global_agriculture_food_security_climate_impact(print).pdf,5,/F2,139,/CIDFont+F15,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,37,37,37
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,25,25,25
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,57,57,57
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,37,37,37
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,18,18,18
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,1,/F2,54,/CIDFont+F6,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,165,165,163
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,1,/F4,62,/CIDFont+F7,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,127,127,127
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,1,/F5,70,/CIDFont+F8,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,2,/F1,82,/CIDFont+F9,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,26,26,26
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,2,/F2,90,/CIDFont+F10,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,40,40,40
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,2,/F3,98,/CIDFont+F11,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,55,55,55
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,2,/F4,106,/CIDFont+F12,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,59,59,59
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,3,/F1,117,/CIDFont+F13,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,27,27,27
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,3,/F3,125,/CIDFont+F14,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,52,52,52
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,4,/F1,137,/CIDFont+F15,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,49,49,49
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,4,/F3,145,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,46,46,46
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,5,/F1,156,/CIDFont+F17,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,11,11,11
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,5,/F2,164,/CIDFont+F18,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,84,84,84
+original/print/text+img/global_ai_technology_investment_and_industry_adoption(print).pdf,5,/F3,172,/CIDFont+F19,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,27,27,27
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,23,23,23
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,42,42,42
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,52,52,52
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,2
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,1,/F1,55,/CIDFont+F6,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,16,16,16
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,1,/F3,63,/CIDFont+F7,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,167,167,167
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,2,/F1,77,/CIDFont+F8,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,23,23,23
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,2,/F3,85,/CIDFont+F9,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,65,65,65
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,2,/F5,93,/CIDFont+F10,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,52,52,52
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,3,/F1,104,/CIDFont+F11,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,22,22,22
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,3,/F2,112,/CIDFont+F12,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,50,50,50
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,3,/F4,120,/CIDFont+F13,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,43,43,43
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,4,/F1,131,/CIDFont+F14,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,29,29,29
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,4,/F2,139,/CIDFont+F15,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,53,53,53
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,4,/F3,147,/CIDFont+F16,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,39,39,39
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,5,/F1,158,/CIDFont+F17,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,28,28,21
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,5,/F3,166,/CIDFont+F18,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,31,31,31
+original/print/text+img/global_climate_change_indicators_and_ghg_emissions(print).pdf,5,/F5,174,/CIDFont+F19,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,91,91,91
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,50,50,50
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,39,39,39
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,1,/F2,46,/CIDFont+F5,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,166,166,166
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,1,/F3,54,/CIDFont+F6,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,127,127,126
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,2,/F1,66,/CIDFont+F7,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,17,17,17
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,2,/F3,74,/CIDFont+F8,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,50,50,50
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,2,/F4,82,/CIDFont+F9,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,63,63,63
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,2,/F5,90,/CIDFont+F10,/Type0,True,True,True,MS Mincho,MS Mincho,MS-Mincho,True,19410,1,1,1
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,3,/F1,102,/CIDFont+F11,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,27,27,27
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,3,/F3,110,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,43,43,43
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,3,/F4,118,/CIDFont+F13,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,52,52,52
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,4,/F1,129,/CIDFont+F14,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,25,25,25
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,4,/F2,137,/CIDFont+F15,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,45,45,45
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,4,/F3,145,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,46,46,46
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,5,/F1,156,/CIDFont+F17,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,7,7,7
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,5,/F3,164,/CIDFont+F18,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,83,83,83
+original/print/text+img/global_esports_and_gaming_industry_growth(print).pdf,5,/F4,172,/CIDFont+F19,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,37,37,37
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Open Sans,Open Sans,OpenSans,True,938,30,30,30
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,48,48,48
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,51,51,51
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,0,/F5,43,/CIDFont+F5,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,1,/F1,55,/CIDFont+F6,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,17,17,17
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,1,/F3,68,/CIDFont+F7,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,100,100,100
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,2,/F1,79,/CIDFont+F8,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,26,26,26
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,2,/F2,87,/CIDFont+F9,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,62,62,62
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,2,/F3,95,/CIDFont+F10,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,56,56,56
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,3,/F1,106,/CIDFont+F11,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,32,32,32
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,3,/F3,114,/CIDFont+F12,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,52,52,52
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,3,/F4,122,/CIDFont+F13,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,40,40,40
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,4,/F1,133,/CIDFont+F14,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,28,28,28
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,4,/F3,141,/CIDFont+F15,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,47,47,47
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,4,/F4,149,/CIDFont+F16,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,50,50,50
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,5,/F1,160,/CIDFont+F17,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,10,10,10
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,5,/F2,168,/CIDFont+F18,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,89,89,84
+original/print/text+img/global_ev_market_growth_statistics(print).pdf,5,/F3,176,/CIDFont+F19,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,33,33,33
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,27,27,27
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,0,/F3,28,/CIDFont+F3,/Type0,True,True,True,Times New Roman,Times New Roman,TimesNewRomanPSMT,True,4685,1,1,0
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,1,/F1,47,/CIDFont+F4,/Type0,True,True,True,Batang,Batang,Batang,True,39680,2,2,2
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,1,/F2,55,/CIDFont+F5,/Type0,True,True,True,Noto Sans KR,Noto Sans KR,NotoSansKR-Thin,True,24964,1,1,1
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,1,/F3,63,/CIDFont+F6,/Type0,True,True,True,SimSun,SimSun,SimSun,True,28905,20,20,20
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,1,/F4,71,/CIDFont+F7,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,186,186,186
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,2,/F1,86,/CIDFont+F8,/Type0,True,True,True,Hind,Hind Regular,Hind-Regular,True,987,24,24,24
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,2,/F2,94,/CIDFont+F9,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,61,61,61
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,2,/F3,102,/CIDFont+F10,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,54,54,54
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,3,/F1,113,/CIDFont+F11,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,28,28,28
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,3,/F2,121,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,55,55,55
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,3,/F3,129,/CIDFont+F13,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,31,31,31
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,4,/F2,141,/CIDFont+F14,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,58,58,58
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,4,/F3,149,/CIDFont+F15,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,2
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,5,/F1,160,/CIDFont+F16,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,6,6,6
+original/print/text+img/global_healthcare_digital_health_patient_data_trends(print).pdf,5,/F2,168,/CIDFont+F17,/Type0,True,True,True,Kawkab Mono Light,Kawkab Mono Light Bold,KawkabMono-Regular,True,1852,116,116,109
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,24,24,24
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,0,/F2,22,/CIDFont+F2,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,43,43,43
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,0,/F3,30,/CIDFont+F3,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,2
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,1,/F1,42,/CIDFont+F4,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,20,20,20
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,1,/F2,50,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,130,130,130
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,1,/F3,58,/CIDFont+F6,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,116,116,116
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,1,/F4,66,/CIDFont+F7,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,2,/F1,77,/CIDFont+F8,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,23,23,23
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,2,/F2,85,/CIDFont+F9,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,49,49,49
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,2,/F4,93,/CIDFont+F10,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,57,57,57
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,3,/F1,105,/CIDFont+F11,/Type0,True,True,True,Prompt Black,Prompt Black,Prompt-Black,True,764,29,29,29
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,3,/F2,113,/CIDFont+F12,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,48,48,48
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,3,/F3,121,/CIDFont+F13,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,46,46,46
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,4,/F1,132,/CIDFont+F14,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,27,27,27
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,4,/F3,140,/CIDFont+F15,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,49,49,49
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,4,/F4,148,/CIDFont+F16,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,49,49,49
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,5,/F1,160,/CIDFont+F17,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,37,37,37
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,5,/F2,168,/CIDFont+F18,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,32,32,32
+original/print/text+img/global_renewable_energy_generation_and_carbon_reduction_analysis(print).pdf,5,/F3,176,/CIDFont+F19,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,31,31,31
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,25,25,25
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,0,/F3,27,/CIDFont+F3,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,53,53,53
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,0,/F4,35,/CIDFont+F4,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,38,38,38
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,1,/F1,46,/CIDFont+F5,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,14,14,14
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,1,/F3,54,/CIDFont+F6,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,196,196,196
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,1,/F4,62,/CIDFont+F7,/Type0,True,True,True,zihunbiantaoti,zihunbiantaoti,zihunbiantaoti,True,7665,81,81,81
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,2,/F1,74,/CIDFont+F8,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,20,20,20
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,2,/F2,82,/CIDFont+F9,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,59,59,59
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,2,/F3,90,/CIDFont+F10,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,52,52,52
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,3,/F1,101,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,23,23,23
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,3,/F2,109,/CIDFont+F12,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,52,52,52
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,3,/F3,117,/CIDFont+F13,/Type0,True,True,True,Noto Serif Thin,Noto Serif Thin,NotoSerif-Thin,True,3784,44,44,44
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,4,/F1,128,/CIDFont+F14,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,24,24,24
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,4,/F2,136,/CIDFont+F15,/Type0,True,True,True,Bricolage Grotesque Light,Bricolage Grotesque Light,BricolageGrotesque-Light,True,597,53,53,53
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,4,/F3,144,/CIDFont+F16,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,42,42,42
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,5,/F1,156,/CIDFont+F17,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,7,7,7
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,5,/F3,164,/CIDFont+F18,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,91,91,91
+original/print/text+img/international_tourism_trends_country_spending_patterns_multilang(print).pdf,5,/F4,172,/CIDFont+F19,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,29,29,29
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Oswald Medium,Oswald Medium,Oswald-Medium,True,869,25,25,25
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,0,/F3,31,/CIDFont+F3,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,42,42,42
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,1,/F1,42,/CIDFont+F4,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,15,15,15
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,1,/F3,50,/CIDFont+F5,/Type0,True,True,True,MaoKenWangXingYuan,MaoKenWangXingYuan,MaoKenWangXingYuan-Regular,True,7764,139,139,139
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,1,/F4,58,/CIDFont+F6,/Type0,True,True,True,dinglieciweifont,鼎猎刺猬体,dinglieciweifont,True,7415,154,154,153
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,1,/F5,66,/CIDFont+F7,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,2,2,2
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,2,/F1,77,/CIDFont+F8,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,22,22,22
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,2,/F2,85,/CIDFont+F9,/Type0,True,True,True,Poppins,Poppins Bold,Poppins-Bold,True,1059,55,55,55
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,2,/F3,93,/CIDFont+F10,/Type0,True,True,True,Teko Light,Teko Light,Teko-Light,True,991,60,60,60
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,3,/F1,104,/CIDFont+F11,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,28,28,28
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,3,/F2,112,/CIDFont+F12,/Type0,True,True,True,Belgrano,Belgrano Regular,Belgrano-Regular,True,229,48,48,48
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,3,/F3,120,/CIDFont+F13,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,43,43,43
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,4,/F1,131,/CIDFont+F14,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,26,26,26
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,4,/F2,139,/CIDFont+F15,/Type0,True,True,True,Peignot,Peignot,Peignot,True,260,51,51,51
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,4,/F4,147,/CIDFont+F16,/Type0,True,True,True,Abril Fatface,Abril Fatface,AbrilFatface-Regular,True,425,39,39,39
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,5,/F1,159,/CIDFont+F17,/Type0,True,True,True,Rubik Medium,Rubik Medium,Rubik-Medium,True,1154,5,5,5
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,5,/F2,167,/CIDFont+F18,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,28,28,28
+original/print/text+img/mobile_payment_and_fintech_service_expansion(print).pdf,5,/F3,175,/CIDFont+F19,/Type0,True,True,True,Tajawal,Tajawal-Bold,Tajawal-Bold,True,457,96,96,96
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,0,/F1,11,/CIDFont+F1,/Type0,True,True,True,Nobile,Nobile Bold,Nobile-Bold,True,344,29,29,29
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,0,/F2,19,/CIDFont+F2,/Type0,True,True,True,Cormorant,Cormorant Italic,Cormorant-Italic,True,1860,53,53,53
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,1,/F1,31,/CIDFont+F3,/Type0,True,True,True,AaGuDianKeBenSong,AaGuDianKeBenSong,AaGuDianKeBenSong,True,10021,20,20,20
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,1,/F2,39,/CIDFont+F4,/Type0,True,True,True,Cambria,Cambria,Cambria,True,7614,1,1,1
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,1,/F3,58,/CIDFont+F5,/Type0,True,True,True,Cambria Math,Cambria Math,CambriaMath,True,7614,1,1,1
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,2,/F1,70,/CIDFont+F6,/Type0,True,True,True,Mukta,Mukta Regular,Mukta-Regular,True,1356,27,27,27
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,2,/F3,78,/CIDFont+F7,/Type0,True,True,True,Biryani,Biryani,Biryani-Regular,True,878,63,63,63
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,3,/F1,89,/CIDFont+F8,/Type0,True,True,True,Big Shoulders Medium,Big Shoulders Medium,BigShoulders-Medium,True,1065,29,29,29
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,3,/F2,97,/CIDFont+F9,/Type0,True,True,True,Playfair Display,Playfair Display Regular,PlayfairDisplay-Regular,True,1101,54,54,54
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,4,/F1,108,/CIDFont+F10,/Type0,True,True,True,Archivo Black,Archivo Black Regular,ArchivoBlack-Regular,True,426,26,26,26
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,4,/F2,116,/CIDFont+F11,/Type0,True,True,True,Merriweather 36pt,Merriweather 36pt Italic,Merriweather36pt-Italic,True,2298,53,53,53
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,5,/F1,127,/CIDFont+F12,/Type0,True,True,True,Marhey Light,Marhey Light,Marhey-Light,True,1209,5,5,5
+original/print/text+img/online_education_elearning_market_growth_analysis(print).pdf,5,/F3,135,/CIDFont+F13,/Type0,True,True,True,Harmattan,Harmattan,Harmattan-Regular,True,1074,40,40,40

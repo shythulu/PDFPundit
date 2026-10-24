@@ -1,0 +1,13 @@
+[package]
+name = "rust_loaders"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+lopdf = "=0.45.0"
+pdfrum = { version = "=0.4.0", default-features = false }
+hayro-syntax = "=0.8.0"
+
+[profile.release]
+debug = false

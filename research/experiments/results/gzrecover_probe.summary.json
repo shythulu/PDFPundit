@@ -1,0 +1,110 @@
+{
+ "kind": "small probe, not a benchmark",
+ "gzrecover": "gzrt 0.90 (arenn/gzrt 97b3f9c8)",
+ "n": 63,
+ "adler_only": {
+  "n": 54,
+  "gz_emits_wrong_bytes": 9,
+  "zlib_emits_wrong_bytes": 53
+ },
+ "hard_errors": {
+  "n": 9,
+  "outcomes": {
+   "Error -3 while decompressing data: invalid distance too far back": 6,
+   "Error -3 while decompressing data: invalid bit length repeat": 1,
+   "Error -3 while decompressing data: invalid literal/lengths set": 2
+  },
+  "rows": [
+   {
+    "obj": 47,
+    "plain_len": 8480,
+    "zlib_out_len": 118,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 32,
+    "plain_len": 38328,
+    "zlib_out_len": 11784,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 36,
+    "plain_len": 21953,
+    "zlib_out_len": 2410,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 1278,
+    "plain_len": 2759,
+    "zlib_out_len": 0,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 1286,
+    "plain_len": 1641,
+    "zlib_out_len": 800,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 1315,
+    "plain_len": 48116,
+    "zlib_out_len": 17814,
+    "gz_out_len": 16339,
+    "gz_correct_prefix": 16339,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 1324,
+    "plain_len": 9268,
+    "zlib_out_len": 697,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 625,
+    "plain_len": 44047,
+    "zlib_out_len": 1672,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   },
+   {
+    "obj": 1446,
+    "plain_len": 1697,
+    "zlib_out_len": 0,
+    "gz_out_len": 0,
+    "gz_correct_prefix": 0,
+    "gz_wrong_bytes_emitted": 0
+   }
+  ]
+ },
+ "inputs": [
+  {
+   "path": "corrupted/print/text/health_wellbeing_digital_age_guidelines_multilang(print)_stream_zlib.pdf",
+   "sha256": "c69c9f0ecbe7f3b60a1d8901bd2ad737c63bc55e1405c1091d0a3a6fee32021e"
+  },
+  {
+   "path": "corrupted/print/text/AI_Development_MultiLanguage(print)_stream_zlib.pdf",
+   "sha256": "6114fc9e9466bb774667a0e8f1839d44f81fd55ca6f38ebe4cad67665e188859"
+  },
+  {
+   "path": "corrupted/saveas/text/Next_Decade_Space_Exploration(saveas)_stream_zlib.pdf",
+   "sha256": "c55508d91b66d839b77291cd3b0a3de26ea3d2741ee19c3680462ba23c7d76f8"
+  },
+  {
+   "path": "corrupted/saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas)_stream_zlib.pdf",
+   "sha256": "d1bb03c11a669f5a630b8eb200a8554720d64f6ebe505f2811c27dfb902c77a7"
+  }
+ ]
+}

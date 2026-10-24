@@ -1,0 +1,64 @@
+doc,obj,raw_len,flip_offset,zlib_outcome,infgen_rc,infgen_warning,infgen_reached_trailer,blocks_damaged,blocks_original,flip_block,other_blocks_identical,rapidgzip_outcome,rapidgzip_out_len,plain_len,rapidgzip_wrong_bytes
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),8,25792,21019,Error -3 while decompressing data: incorrect data check,0,,True,2,2,1,True,ok,63290,63296,4882
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),24,96384,59721,Error -3 while decompressing data: incorrect data check,0,,True,5,5,2,True,ok,230278,230284,39208
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),28,29563,19865,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,109967,109960,35800
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),43,37592,22539,Error -3 while decompressing data: incorrect data check,0,,True,3,3,1,True,ok,97332,97304,24246
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),47,1531,108,Error -3 while decompressing data: invalid distance too far back,0,infgen warning: distance too far back (3036/118),True,1,1,0,True,RuntimeError: Decoding failed with error code -3: Invalid lookback distance found! Already decoded 122 B. Read 62 B 3 b during the fai,0,8480,0
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),73,11272,8566,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,30502,30240,5332
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),85,2865,1359,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,20250,20264,5022
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),92,7643,5159,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,15631,15648,5256
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),100,30484,4519,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,57853,57844,44103
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),104,2984,2189,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,20712,20754,4176
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),111,35272,8684,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,82232,82232,2
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),119,11684,5859,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,24904,24904,2
+print/text/health_wellbeing_digital_age_guidelines_multilang(print),123,5160,2434,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,54116,54115,3184
+print/text/AI_Development_MultiLanguage(print),8,10295,4227,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,21084,21080,8500
+print/text/AI_Development_MultiLanguage(print),24,29660,20295,Error -3 while decompressing data: incorrect data check,0,,True,2,2,1,True,ok,75738,75740,10409
+print/text/AI_Development_MultiLanguage(print),32,15997,4757,Error -3 while decompressing data: invalid distance too far back,0,infgen warning: distance too far back (15374/11784),True,1,1,0,True,RuntimeError: Decoding failed with error code -3: Invalid lookback distance found! Already decoded 11787 B. Read 4672 B 3 b during the,0,38328,0
+print/text/AI_Development_MultiLanguage(print),36,3522,679,Error -3 while decompressing data: invalid distance too far back,0,infgen warning: distance too far back (5032/2410),True,1,1,0,True,RuntimeError: Decoding failed with error code -3: Invalid lookback distance found! Already decoded 2413 B. Read 630 B 5 b during the f,0,21953,0
+print/text/AI_Development_MultiLanguage(print),50,76358,18857,Error -3 while decompressing data: incorrect data check,0,,True,3,3,0,True,ok,200708,200708,251
+print/text/AI_Development_MultiLanguage(print),55,48373,24467,Error -3 while decompressing data: incorrect data check,0,,True,3,3,1,True,ok,131591,131580,58055
+print/text/AI_Development_MultiLanguage(print),59,48026,43392,Error -3 while decompressing data: incorrect data check,0,,True,2,2,1,True,ok,128206,128217,11594
+print/text/AI_Development_MultiLanguage(print),74,26270,18272,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,56912,56904,12490
+print/text/AI_Development_MultiLanguage(print),101,17631,11621,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,42092,42092,2
+print/text/AI_Development_MultiLanguage(print),128,8954,3656,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,18488,18464,8918
+print/text/AI_Development_MultiLanguage(print),136,26993,14948,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,52674,52672,14770
+print/text/AI_Development_MultiLanguage(print),147,25765,18880,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,57098,57096,11254
+print/text/AI_Development_MultiLanguage(print),155,30960,28259,Error -3 while decompressing data: incorrect data check,0,,True,2,2,1,True,ok,75566,75556,3721
+saveas/text/Next_Decade_Space_Exploration(saveas),4,3287,1306,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,13735,13726,4839
+saveas/text/Next_Decade_Space_Exploration(saveas),76,3411,1353,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,14523,14523,21
+saveas/text/Next_Decade_Space_Exploration(saveas),99,6922,3460,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,74952,75045,21995
+saveas/text/Next_Decade_Space_Exploration(saveas),633,5643,1162,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,43651,43651,5
+saveas/text/Next_Decade_Space_Exploration(saveas),1260,7235,5634,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,12763,12764,2577
+saveas/text/Next_Decade_Space_Exploration(saveas),1262,25892,22012,Error -3 while decompressing data: incorrect data check,0,,True,3,3,2,True,ok,81062,81056,4419
+saveas/text/Next_Decade_Space_Exploration(saveas),1263,363,214,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,719,730,376
+saveas/text/Next_Decade_Space_Exploration(saveas),1268,10187,5556,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,20465,20464,8667
+saveas/text/Next_Decade_Space_Exploration(saveas),1274,1214,986,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,3034,3034,12
+saveas/text/Next_Decade_Space_Exploration(saveas),1278,1097,56,Error -3 while decompressing data: invalid bit length repeat,249,infgen warning: invalid deflate data -- repeat more lengths than available,False,0,1,trailer,False,RuntimeError: Decoding failed with error code -1: Invalid deflate block found! Already decoded 0 B. Read 55 B 0 b during the failing i,0,2759,0
+saveas/text/Next_Decade_Space_Exploration(saveas),1279,82777,79773,Error -3 while decompressing data: incorrect data check,0,,True,8,8,7,True,ok,156692,156692,8
+saveas/text/Next_Decade_Space_Exploration(saveas),1286,638,375,Error -3 while decompressing data: invalid distance too far back,0,infgen warning: distance too far back (862/800),True,1,1,0,True,RuntimeError: Decoding failed with error code -3: Invalid lookback distance found! Already decoded 807 B. Read 336 B 5 b during the fa,0,1641,0
+saveas/text/Next_Decade_Space_Exploration(saveas),1287,8494,6755,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,22620,22620,7
+saveas/text/Next_Decade_Space_Exploration(saveas),1295,9017,1794,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,24072,24072,12
+saveas/text/Next_Decade_Space_Exploration(saveas),1298,323,134,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,623,619,471
+saveas/text/Next_Decade_Space_Exploration(saveas),1303,4846,2974,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,10418,10416,2057
+saveas/text/Next_Decade_Space_Exploration(saveas),1315,15551,9259,Error -3 while decompressing data: invalid literal/lengths set,248,infgen warning: invalid deflate data -- literal/length code is oversubscribed,False,1,2,trailer,False,RuntimeError: Decoding failed with error code -1: Invalid deflate block found! Already decoded 0 B. Read 119 B 5 b during the failing ,0,48116,0
+saveas/text/Next_Decade_Space_Exploration(saveas),1319,7462,1553,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,17395,17364,13800
+saveas/text/Next_Decade_Space_Exploration(saveas),1324,2668,351,Error -3 while decompressing data: invalid distance too far back,0,infgen warning: distance too far back (1130/697),True,1,1,0,True,RuntimeError: Decoding failed with error code -3: Invalid lookback distance found! Already decoded 703 B. Read 286 B 0 b during the fa,0,9268,0
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),68,3394,2942,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,20381,20417,1281
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),122,4642,4456,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,39805,40054,435
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),625,5760,902,Error -3 while decompressing data: invalid distance too far back,0,infgen warning: distance too far back (6158/1672),True,1,1,0,True,RuntimeError: Decoding failed with error code -3: Invalid lookback distance found! Already decoded 1677 B. Read 845 B 4 b during the f,0,44047,0
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1129,5819,2127,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,37990,37984,15023
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1426,19698,8745,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,116864,116864,17
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1427,307,98,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,494,492,384
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1428,10020,6722,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,66231,66248,7311
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1435,40086,36110,Error -3 while decompressing data: incorrect data check,0,,True,5,5,3,True,ok,109432,109432,2
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1439,6954,2977,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,18460,18452,6913
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1443,14354,7160,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,29104,29096,12601
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1446,630,33,Error -3 while decompressing data: invalid literal/lengths set,247,infgen warning: invalid deflate data -- literal/length code is incomplete,False,0,1,trailer,False,RuntimeError: Decoding failed with error code -3: Invalid lookback distance found! Already decoded 74 B. Read 53 B 7 b during the fail,0,1697,0
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1447,13614,11430,Error -3 while decompressing data: incorrect data check,0,,True,2,2,1,True,ok,27331,27328,4669
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1456,321,267,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,590,590,5
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1461,4188,1564,Error -3 while decompressing data: incorrect data check,0,,True,1,1,0,True,ok,9586,9552,4295
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1465,13837,5188,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,31797,31780,16606
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1468,390,387,Error -3 while decompressing data: incorrect data check,0,,True,1,1,trailer,True,ok,824,824,0
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1469,11532,9307,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,30145,30144,7708
+saveas/text/green_energy_sustainable_living_guidelines_multilang(saveas),1473,12104,5492,Error -3 while decompressing data: incorrect data check,0,,True,2,2,0,True,ok,43280,43280,2

@@ -80,3 +80,14 @@ Also: `check_ids_and_refs` reports an unknown id prefix instead of crashing.
 - Experiments that need tools or hosts not available here: OBS-0500/0501 (qpdf, mutool, gs, pdftotext), OBS-0200/0201/0800 (digitalcorpora, Common Crawl), OBS-0600 (Crossref/OpenCitations), OBS-0601, OBS-0801. Their scripts were read, not run.
 - Whether a quote *supports* a paraphrase was judged on the 33 sampled claims only; the other 232 were machine-matched.
 - Paywalled or blocked sources, and the 290-odd titles the sweep agents rejected on sight without logging.
+
+## Chair response (2026-10-05, after merge)
+| Item | Response |
+|---|---|
+| F1–F7 | **Accepted** as committed. On the chair's machine, which has the cache, `kb_validate.py --write` set CLM-0016 and CLM-0028 to `exact`. Afterwards: 0 errors, 7 warnings (3 uncached tooling quotes, 4 unpinned inputs). |
+| Residual risk 1: re-verification depends on refetching | **Accepted; goes to the review board.** Options: quote-span sidecars, or CI that rebuilds the cache. These are tooling changes, so the Stage 5 board decides. Recorded for the 5k plan as a candidate WP. |
+| Residual risk 2: hidden recall set | **Accepted.** The hash is committed in `research/audits/002-screening/recall-set.sha256.md`, with an honest note that it post-dates the sweep. The full file will be published after P4. |
+| Residual risk 3: SRC-0132 unreachable | **Noted.** Its claims stay as recorded. The Stage 4 verifier retries it once. |
+| Residual risk 4: warning counts | **Noted.** The README points to live validator output. |
+| Residual risk 5: README count drift | **Accepted** as already fixed. |
+| Residual risk 6: audit number 003 is taken | **Accepted.** The 5k plan's WP-1.1 calibration audit becomes audit 004. |

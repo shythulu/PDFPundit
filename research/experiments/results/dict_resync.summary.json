@@ -1,0 +1,37 @@
+{
+ "streams_multiblock": 300,
+ "restarts": 807,
+ "decoded_ok": 807,
+ "true_start_ends_at_trailer": 486,
+ "precision_reliable": 1.0,
+ "recall_min_q1_median_q3_max": [
+  0.0147,
+  0.4345,
+  0.816,
+  0.9245,
+  0.996
+ ],
+ "recall_first4k_min_q1_median_q3_max": [
+  0.0059,
+  0.2109,
+  0.3645,
+  0.561,
+  0.9685
+ ],
+ "by_mode": {
+  "print": {
+   "restarts": 807,
+   "median_recall": 0.816,
+   "median_recall_first4k": 0.3645
+  }
+ },
+ "blind_scan_offsets_tested": 1652736,
+ "blind_scan_false_starts_total": 51120,
+ "blind_scan_restarts_with_any_false_start": 746,
+ "blind_scan_false_starts_converged": 0,
+ "blind_scan_false_starts_ending_at_trailer": 0,
+ "blind_scan_restarts_with_false_start_ending_at_trailer": 0,
+ "blind_scan_reliable_but_wrong_bytes_total": 8521181,
+ "blind_scan_restarts_with_reliable_but_wrong_bytes": 746,
+ "zlib": "1.3"
+}

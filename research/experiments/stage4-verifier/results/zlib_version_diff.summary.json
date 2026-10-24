@@ -1,0 +1,185 @@
+{
+ "zlib_old": "1.3 (CPython runtime; system zlib1g)",
+ "zlib_new": "1.3.2",
+ "files": 100,
+ "hash_mismatch": [],
+ "streams": {
+  "print": 1348,
+  "saveas": 2081
+ },
+ "combos": {
+  "L6M1": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 2,
+   "saveas_new_reproduces_original": 2
+  },
+  "L6M2": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 76,
+   "saveas_new_reproduces_original": 76
+  },
+  "L6M3": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 424,
+   "saveas_new_reproduces_original": 424
+  },
+  "L6M4": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 590,
+   "saveas_new_reproduces_original": 590
+  },
+  "L6M5": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 726,
+   "saveas_new_reproduces_original": 726
+  },
+  "L6M6": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 863,
+   "saveas_new_reproduces_original": 863
+  },
+  "L6M7": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 2081,
+   "saveas_new_reproduces_original": 2081
+  },
+  "L6M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 1124,
+   "saveas_new_reproduces_original": 1124
+  },
+  "L6M9": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 1,
+   "print_new_reproduces_original": 1,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 1331,
+   "saveas_new_reproduces_original": 1331
+  },
+  "L1M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  },
+  "L2M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  },
+  "L3M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  },
+  "L4M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  },
+  "L5M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  },
+  "L7M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  },
+  "L8M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  },
+  "L9M8": {
+   "print_streams": 1348,
+   "print_identical": 1348,
+   "print_old_reproduces_original": 0,
+   "print_new_reproduces_original": 0,
+   "saveas_streams": 2081,
+   "saveas_identical": 2081,
+   "saveas_old_reproduces_original": 0,
+   "saveas_new_reproduces_original": 0
+  }
+ },
+ "all_identical": true,
+ "first_differences": [],
+ "wall_s": 568.9
+}

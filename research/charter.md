@@ -1,8 +1,8 @@
 ---
 title: Research charter — bleeding-edge PDF repair
-status: rev 2.2 (Charter Committee 001 applied; scoping-sweep evidence applied; pending the review board)
+status: rev 2.3 (Charter Committee 001 applied; scoping-sweep and Stage 2 evidence applied; pending the review board)
 owner: shythulu
-updated: 2026-09-27
+updated: 2026-10-05
 ---
 
 # Research charter: bleeding-edge PDF repair
@@ -34,8 +34,8 @@ Writing or publishing articles is **out of scope**. Outputs are knowledge-base r
 | # | Grade | Examples |
 |---|---|---|
 | 1 | Verbatim | Bytes copied unchanged from the damaged file |
-| 2 | Partially decoded | Output of a corrupt stream shown to be independent of the damage: bytes decoded before a *known* damage position, or output identical under two different dummy dictionaries (CLM-0337). A decode-until-error prefix is **not** grade 2 by default: in C9 it holds wrong bytes in 95% of damaged streams (OBS-0300, GAP-151). |
-| 3 | Corrected and verified | A correction that is the **only** candidate passing a checksum **and** an independent check (encoder replay, content grammar, /Length1 or font-table checksums). A checksum match alone is not verification (GAP-052, GAP-253, GAP-154). When several candidates pass, the differing bytes are marked indeterminate, not guessed (CLM-0105). |
+| 2 | Partially decoded | Output of a corrupt stream shown to be independent of the damage: bytes decoded before a *known* damage position, or output identical under two different dummy dictionaries (CLM-0337) **from a restart point confirmed by trailer alignment or a following decodable block**. Unconfirmed restarts certify wrong bytes: a blind scan found 51,120 false starts that agree under both dictionaries (OBS-0900). A decode-until-error prefix is **not** grade 2 by default: in C9 it holds wrong bytes in 95% of damaged streams (OBS-0300, GAP-151). |
+| 3 | Corrected and verified | A correction that is the **only** candidate passing a checksum **and** an independent check (encoder replay, content grammar, /Length1 or font-table checksums), where "only" means: candidates were enumerated exhaustively over the search space, **trailer edits included**; a stated prior prefers a body correction over a trailer rewrite; and a content-grammar check was applied wherever the stream type has a grammar. A checksum match alone is not verification, and neither is checksum plus encoder replay (GAP-052, GAP-253, GAP-154; OBS-0903, OBS-0904). When several candidates pass, the differing bytes are marked indeterminate, not guessed (CLM-0105). |
 | 4 | Structurally inferred | From surviving bytes: page order, object renumbering, re-linked fonts, chosen revision |
 | 5 | Non-content synthesis | xref, trailer, `/Length`, header |
 | 6 | Content synthesis | Substituted fonts, generated ToUnicode, default MediaBox, inferred placement |
@@ -186,6 +186,7 @@ All are reported per class with confidence intervals.
 - Committee minutes 000, 001 and 002.
 
 ## Revision log
+- **rev 2.3 (2026-10-05, chair, committee 004):** tightened grade 2 (dictionary-invariant output counts only from a confirmed restart point, OBS-0900) and grade 3 (exhaustive enumeration including trailer edits, a body-over-trailer prior, a grammar check where one exists; replay plus checksum is not uniqueness, OBS-0903/0904). Nothing was loosened. The review board checks these changes.
 - **rev 2.2 (2026-09-27, chair):** named the P1 real-world damage sources in §3(a) as candidates for the board; updated §7.
 - **rev 2.1 (2026-09-27, chair, from scoping-sweep evidence):** tightened provenance grades 2 and 3, which the sweep showed were unsafe as written (a decode-until-error prefix is usually wrong; a checksum match is not unique). Corrected the C9 description (one byte per damaged stream, plus non-stream changes) and the §5 product flag. Nothing was loosened. The review board checks these changes.
 - **rev 2 (2026-09-27):** Charter Committee 001 applied (`research/committees/001-charter-committee.md`).

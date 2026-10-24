@@ -1,0 +1,9 @@
+== mid phase 0: mzbench <cases> adler 0 16384 20 4096 10 0  start 2026-10-05T18:46:27Z  load 2.03 5.40 5.50
+mode=adler window=0 max_clen=16384 cases=47 fixed=28 exact_match=28 timeouts=19 notfound=0
+search time s: p50=14.7491 p90=20.0885 p99=20.1369 max=20.1751 total=553.80
+candidates tried total=39059602 ; full decode time s p50=0.000106 max=0.000241
+
+real	9m13.868s
+user	8m42.421s
+sys	0m0.605s
+exit 0 end 2026-10-05T18:55:40Z  load 4.24 4.26 4.79
