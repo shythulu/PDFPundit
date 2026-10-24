@@ -1,0 +1,80 @@
+# REPDF paper reference figures, per class and producer (T-26, D-070).
+#
+# NOT READ. The harness does not open this file until the user answers D-070
+# (whether the paper's figures may be printed beside our numbers). A test in
+# src/bench/corpus.rs asserts the reference columns are absent from the results
+# CSV and the aggregate table.
+#
+# Label, when enabled: "REPDF paper, Google Document AI, exact word match; not
+# like-for-like". The paper scores OCR word recall against Google Document AI's
+# OCR of the original; the harness scores the text layer (LCS-F1). The numbers
+# below are not comparable to the harness's and must never be presented as if
+# they were.
+#
+# Source: Seungeun Park, Byeongchan Jeong, Jieon Kim, Jungheum Park, "REPDF:
+# Repairing corrupted PDF files through font mapping and object relationship
+# reconstruction", Forensic Science International: Digital Investigation 56
+# (2026) 302061 (DFRWS EU 2026).
+#
+# repdf_t2_mean6: Table 2 (p. 7), "Text recovery rates of the proposed method by
+#   corruption type and language (%)": the arithmetic mean of the six language
+#   cells (en, zh, hi, es, fr, ar). The mean is derived here; the paper prints
+#   only the six cells.
+# repdf_t5: Table 5 (p. 8), "Comparison of text and image recovery rates (%)
+#   with existing tools", the "Ours" Text row.
+#
+# The two tables disagree for C6 to C10 and the paper does not explain why;
+# neither is taken as correct. "saveas" is the paper's "Save As", "print" its
+# "Print to PDF" (one producer, Microsoft Word, used two ways). Values are
+# percentages as printed, kept as strings so nothing here is a float.
+
+citation = "Park, Jeong, Kim, Park. REPDF: Repairing corrupted PDF files through font mapping and object relationship reconstruction. Forensic Science International: Digital Investigation 56 (2026) 302061. Table 2 p.7; Table 5 p.8."
+label = "REPDF paper, Google Document AI, exact word match; not like-for-like"
+
+[repdf_t2_mean6.saveas]
+C1 = "100.00"
+C2 = "100.00"
+C3 = "100.00"
+C4 = "99.68"
+C5 = "99.98"
+C6 = "85.63"
+C7 = "99.49"
+C8 = "99.49"
+C9 = "60.11"
+C10 = "99.57"
+
+[repdf_t2_mean6.print]
+C1 = "100.00"
+C2 = "100.00"
+C3 = "100.00"
+C4 = "100.00"
+C5 = "100.00"
+C6 = "86.07"
+C7 = "98.91"
+C8 = "85.49"
+C9 = "60.11"
+C10 = "35.35"
+
+[repdf_t5.saveas]
+C1 = "100"
+C2 = "100"
+C3 = "100"
+C4 = "99.74"
+C5 = "99.99"
+C6 = "88.12"
+C7 = "99.51"
+C8 = "99.51"
+C9 = "58.77"
+C10 = "99.58"
+
+[repdf_t5.print]
+C1 = "100"
+C2 = "100"
+C3 = "100"
+C4 = "100"
+C5 = "100"
+C6 = "88.13"
+C7 = "99.21"
+C8 = "87.57"
+C9 = "62.70"
+C10 = "30.49"

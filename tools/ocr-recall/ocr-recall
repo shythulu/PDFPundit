@@ -1,0 +1,4 @@
+#!/bin/sh
+# ocr-recall: the REPDF-style OCR word-recall harness (T-38b). See README.md.
+# Runs ocr_recall.py isolated (-I); set PYTHON to the venv's interpreter.
+exec "${PYTHON:-python3}" -I "$(dirname "$0")/ocr_recall.py" "$@"

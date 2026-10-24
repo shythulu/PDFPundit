@@ -1,0 +1,166 @@
+# CI gates (plan §3.2, T-01). Nothing here sets RUSTFLAGS and nothing in the repo
+# depends on it (D-047). Each "Toolchain" step runs `rustup toolchain install`
+# with no name: it installs the version and components rust-toolchain.toml pins,
+# which every cargo command in the checkout then uses (D-155), so the runners
+# lint and build with the authoring Mac's Rust, not whatever stable is newest.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: rustfmt
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      # The determinism bans must fire: a scratch copy with Instant, f64::cbrt or a
+      # HashMap loop under src/pdf/ must fail clippy (own temp target dir).
+      - name: lint meta-tests
+        if: matrix.os == 'ubuntu-latest'
+        run: tools/lint-meta.sh
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: cargo test
+        run: cargo test --locked
+      # The guard is proven on the artefact that ships: debug-only hooks are
+      # compiled out in release (D-051).
+      - name: cargo test --release (guard)
+        run: cargo test --locked --release --test guard
+
+  purity:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-pc-windows-msvc]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: gate self-test
+        run: python3 -I tools/purity-gate.py --self-test
+      - name: purity gate
+        run: python3 -I tools/purity-gate.py ${{ matrix.target }}
+
+  network:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: network gate
+        run: python3 -I tools/purity-gate.py --network
+
+  licences:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked --version 0.20.2
+      - name: cargo deny check licenses
+        run: cargo deny --locked check licenses
+      # Known RustSec advisories, crates.io as the only source, and no second
+      # version of a crate beyond the skips in deny.toml (F-10). Runs even when
+      # the licence step fails, so one run reports both.
+      - name: cargo deny check advisories sources bans
+        if: ${{ !cancelled() }}
+        run: cargo deny --locked check advisories sources bans
+
+  # The UI goldens (T-00, D-055): the dump from generate.py is deterministic and
+  # the committed tests/data/ui is exactly what it produces, on both Unix runners.
+  # A platform-specific diff is a bug report, not a tolerance.
+  ui-goldens:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: dump twice, compare with each other and with the committed set
+        run: tools/check-ui-goldens.sh
+
+  # Generated font assets are committed; regenerating them must change nothing
+  # (D-021 amended, T-29). The google/fonts extras' programs are not committed
+  # (G-10): fetched by hash first, so every .gmap is regenerated, not kept.
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: fetch the google/fonts extras
+        run: sh fetch-assets.sh --fonts
+      - name: tool tests
+        run: cargo test --locked --release -p build-templates
+      - name: regenerate and diff assets
+        run: |
+          cargo run --locked --release -p build-templates
+          git diff --exit-code assets/
+          test -z "$(git status --porcelain assets/)"
+
+  # Dev-only switches exist only under cfg(debug_assertions) (D-051).
+  release-strings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: build --release
+        run: cargo build --locked --release --bin pdfpundit
+      - name: no dev switches in the release binary
+        run: |
+          if grep -a -o -E 'PDFPUNDIT_(ASSETS|PANIC)' target/release/pdfpundit; then
+            echo "the release binary contains a dev-only switch" >&2
+            exit 1
+          fi
+          echo "release binary clean"
+
+  # THIRD_PARTY_CRATES.md is generated from Cargo.lock over the shipped graph;
+  # regenerating it must change nothing (T-35). The release archive checker's,
+  # guard matrix's and word-list cutter's (G-09) self-tests run here too, so a
+  # broken one shows before a tag does.
+  release-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install
+      - name: generator and checker self-tests
+        run: |
+          python3 -I tools/crate-notices.py --self-test
+          python3 -I tools/check-release-archive.py --self-test
+          python3 -I tools/release-guard-matrix.py --self-test
+          python3 -I tools/cut-wordlist.py --self-test
+      - name: regenerate and diff THIRD_PARTY_CRATES.md
+        run: |
+          cargo fetch --locked
+          python3 -I tools/crate-notices.py
+          git diff --exit-code THIRD_PARTY_CRATES.md

@@ -1,0 +1,8 @@
+# One Rust for local work and CI (D-155): the authoring Mac's 1.98.1. CI runs
+# `rustup toolchain install`, which installs what this file names, so a newer
+# stable on the runners cannot bring lints the local gates never saw. Raise the
+# channel deliberately, with clippy run on the new version first.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

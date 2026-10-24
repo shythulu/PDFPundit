@@ -2,12 +2,143 @@
 name = "pdfpundit"
 version = "0.1.0"
 edition = "2024"
+resolver = "3"
+license = "MIT"
+repository = "https://github.com/shythulu/PDFPundit"
+# Never published (D-047): a crates.io release would be a cat-free way in.
+publish = false
 
+# `publish = false` hides a package from cargo-dist; this opts the binary back
+# in for the release archives (T-35). It publishes nothing to crates.io.
+[package.metadata.dist]
+dist = true
+
+# tools/build-templates writes the committed font assets (T-29, D-021).
+[workspace]
+members = [".", "tools/build-templates"]
+
+# Release packaging (T-35): `dist plan`, `dist build`, `dist generate` read this.
+# Plain archives on the three CI targets with a checksum each, built and
+# published only by .github/workflows/v-release.yml on a `v*` tag. No installers
+# (each fetches over the network; D-142), no source tarball, nothing to
+# crates.io (`publish = false` above). Re-run the eng-r4-fr3 RUSTFLAGS probe
+# before raising cargo-dist-version.
+[workspace.metadata.dist]
+cargo-dist-version = "0.32.0"
+ci = "github"
+installers = []
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+unix-archive = ".tar.xz"
+windows-archive = ".zip"
+checksum = "sha256"
+source-tarball = false
+include = ["THIRD_PARTY_NOTICES.md", "THIRD_PARTY_CRATES.md"]
+tag-namespace = "v"
+pr-run-mode = "skip"
+install-updater = false
+# dist's default, stated so an upgrade cannot flip it: the Windows exe links the
+# C runtime statically and needs no VC++ redistributable. dist builds that
+# target with RUSTFLAGS="-Ctarget-feature=+crt-static", so the shipped .exe is
+# not the binary CI's release job builds (see [profile.dist] below).
+msvc-crt-static = true
+# release-guard.yml runs tools/check-release-archive.py (the guard and
+# release-strings checks) on every archive the plan lists, one leg per target
+# from tools/release-guard-matrix.py, before anything is published.
+global-artifacts-jobs = ["./release-guard"]
+
+[features]
+default = ["export"]
+# Markdown export (M8), on by default.
+export = []
+# Optional OCR (M9), off; model delivery is blocked on D-050.
+ocr = []
+
+# Pins from plan §3.2. flate2 is transitive only: our own code inflates through
+# miniz_oxide's core API and nothing else.
 [dependencies]
-crossterm = "0.29.0"
-flate2 = "1.1.9"
-lopdf = "0.44.0"
+lopdf = { version = "0.45.0", default-features = false }
+miniz_oxide = "=0.9.1"
 memchr = "2.8.3"
-miniz_oxide = "0.9.1"
+serde = { version = "1.0.229", features = ["derive"] }
+# float_roundtrip: floats read back bit-exact (the T-00 goldens carry 17-digit pose values).
+serde_json = { version = "1.0.151", features = ["float_roundtrip", "raw_value"] }
+toml = "1.1"
+sha2 = "0.11"
+thiserror = "2.0"
+similar = "3"
+unicode-normalization = "0.1"
+# Terminal cell widths in the canvas (D-118, G-07); already in the graph
+# through ratatui, so the canvas and the blit's diff agree on every width.
+unicode-width = "0.2.2"
+libm = "0.2.16"
 ratatui = "0.30.2"
-serde = { version = "1.0.228", features = ["derive"] }
+crossterm = "0.29.0"
+hayro = "=0.8.0"
+hayro-syntax = "=0.8.0"
+hayro-interpret = "=0.8.0"
+skrifa = "=0.46.2"
+harfrust = "=0.13.3"
+bytemuck = { version = "1", features = ["derive"] }
+base64 = "0.22"
+percent-encoding = "2.3"
+
+[target.'cfg(unix)'.dependencies]
+# `event`: poll(2) for the kitty handshake's 300 ms window and the raw stdin
+# reader (T-31); `process`: kill(pid, 0), whether a stale temp file's process
+# still runs (D-139). Code only, no new package.
+rustix = { version = "1.1.4", default-features = false, features = ["std", "stdio", "fs", "termios", "event", "process"] }
+# SIGWINCH for the raw stdin reader on kitty (T-31). Already in the graph
+# through crossterm; no default features, so never `extended-siginfo` (cc).
+signal-hook = { version = "0.3.18", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_UI_Shell",
+  "Win32_System_Com",
+  "Win32_System_Console",
+  # GetLocalTime, the status bar's clock (T-23a).
+  "Win32_System_SystemInformation",
+  # OpenProcess and GetExitCodeProcess: whether a stale temp file's process
+  # still runs (D-139).
+  "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+sha1 = "0.11"
+
+# tests/guard.rs opens a pty for the true case and the input flush (T-23a).
+# Dev-only: resolver 3 keeps `pty` out of the shipped graph (eng-r2-q11).
+[target.'cfg(unix)'.dev-dependencies]
+rustix = { version = "1.1.4", default-features = false, features = ["std", "fs", "termios", "event", "pty"] }
+
+# tests/guard.rs's ConPTY true case (ignored until a windows-latest run shows
+# ConPTY delivers output, D-058). Dev-only features of a package already in the
+# graph.
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Console",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+] }
+
+# The C9 salvage tests (T-08, T-08b) inflate hundreds of megabytes of
+# candidates; an unoptimised miniz_oxide (and the Adler-32 it runs over every
+# candidate's output) makes them minutes long. Release is unaffected.
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+[profile.dev.package.adler2]
+opt-level = 3
+
+# The profile `dist build` uses: release with no changes (D-051). On macOS and
+# Linux the shipped binary is the one CI's guard and release-strings jobs build.
+# On Windows it is not: dist adds +crt-static (msvc-crt-static above), a
+# different target feature and cfg. release-guard.yml runs the guard and
+# release-strings checks on the shipped archive itself, so that binary is still
+# checked.
+[profile.dist]
+inherits = "release"

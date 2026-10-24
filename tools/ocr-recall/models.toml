@@ -1,0 +1,86 @@
+# PaddleOCR models for the OCR word-recall harness (T-38b, D-067).
+#
+# Every model is fetched from its Hugging Face repo at the pinned revision,
+# and the sha256 of its `inference.pdiparams` is checked before the first
+# page is read; a mismatch fails the run. Names are always passed to
+# PaddleOCR explicitly: `PaddleOCR(lang="en")` in 3.7.0 picks the
+# PP-OCRv6_medium pair on its own. Revisions and hashes come from the
+# eng-r3-fr1 fact report, section 2.
+#
+# [tiers.<tier>.<script>] routes a page by the script of its manifest `lang`
+# (latin: en, fr, es and und; han: zh; arabic: ar; devanagari: hi), never by
+# its page index (D-069). Changing a tier or a model is an edit here.
+
+[tiers.tiny.latin]
+det = "PP-OCRv6_tiny_det"
+rec = "PP-OCRv6_tiny_rec"
+
+[tiers.tiny.han]
+det = "PP-OCRv6_tiny_det"
+rec = "PP-OCRv6_tiny_rec"
+
+[tiers.tiny.arabic]
+det = "PP-OCRv5_mobile_det"
+rec = "arabic_PP-OCRv5_mobile_rec"
+
+[tiers.tiny.devanagari]
+det = "PP-OCRv5_mobile_det"
+rec = "devanagari_PP-OCRv5_mobile_rec"
+
+[tiers.medium.latin]
+det = "PP-OCRv6_medium_det"
+rec = "PP-OCRv6_medium_rec"
+
+[tiers.medium.han]
+det = "PP-OCRv6_medium_det"
+rec = "PP-OCRv6_medium_rec"
+
+[tiers.medium.arabic]
+det = "PP-OCRv5_mobile_det"
+rec = "arabic_PP-OCRv5_mobile_rec"
+
+[tiers.medium.devanagari]
+det = "PP-OCRv5_mobile_det"
+rec = "devanagari_PP-OCRv5_mobile_rec"
+
+[models.PP-OCRv6_tiny_det]
+repo = "PaddlePaddle/PP-OCRv6_tiny_det"
+revision = "d3177d4e5551463292a61e27cfca2b53e7c3fe9d"
+pdiparams_sha256 = "853f7ed317d4f2f80de646842e5bbc32f9d39c601562cbe466cda42e4bafb1b1"
+pdiparams_bytes = 1718055
+
+[models.PP-OCRv6_tiny_rec]
+repo = "PaddlePaddle/PP-OCRv6_tiny_rec"
+revision = "0736086f72f666350ebcdc0c3a504eeac89cdfad"
+pdiparams_sha256 = "bb2f8f54d1e25f28c71b6fa4fe23f5940e159cae27fbee96155c99f822156e57"
+pdiparams_bytes = 4420410
+
+[models.PP-OCRv6_medium_det]
+repo = "PaddlePaddle/PP-OCRv6_medium_det"
+revision = "8e0f56fb2ef86b461d99cfc7ac5c137738985f61"
+pdiparams_sha256 = "85218d2e3d98f5a21c58b4220627be923a97aee5db3cc71f39536ab31ac53960"
+pdiparams_bytes = 61960476
+
+[models.PP-OCRv6_medium_rec]
+repo = "PaddlePaddle/PP-OCRv6_medium_rec"
+revision = "e5a92bcbc5cc1b494628e458d267778f0704fd7c"
+pdiparams_sha256 = "1b01c79a914587933f615569e75de54f2e638ebb5d3f3b3c1b38c24ede8c7319"
+pdiparams_bytes = 76465087
+
+[models.PP-OCRv5_mobile_det]
+repo = "PaddlePaddle/PP-OCRv5_mobile_det"
+revision = "0d63e78e2b680928f6b1747d76a08db6e645efb7"
+pdiparams_sha256 = "afa1820cb16c1fd0dad589d0f8b389139061c1ef6d68019685fd07be997dda5b"
+pdiparams_bytes = 4692937
+
+[models.arabic_PP-OCRv5_mobile_rec]
+repo = "PaddlePaddle/arabic_PP-OCRv5_mobile_rec"
+revision = "33d91636a65dca87f5562cc48860332ae367ee1b"
+pdiparams_sha256 = "4b4271fd1dd89a40b2056e1a42e58de7c0df2fdcf1a97ca9a8916d7ec45f9143"
+pdiparams_bytes = 7922839
+
+[models.devanagari_PP-OCRv5_mobile_rec]
+repo = "PaddlePaddle/devanagari_PP-OCRv5_mobile_rec"
+revision = "99dcce6d196bd4aaf268c7a5c72c3cc9f3ea4932"
+pdiparams_sha256 = "719be7d20bfe9530e2deae324c999e9911087496bce5e70846767c448d023a01"
+pdiparams_bytes = 7836203

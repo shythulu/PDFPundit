@@ -1,3 +1,11 @@
 # research knowledge base: full texts, PDFs, API caches are never committed (copyright + size)
 research/cache/
 __pycache__/
+/target/
+
+# macOS Finder metadata
+.DS_Store
+
+# google/fonts programs fetch-assets.sh downloads for tools/build-templates;
+# only their .gmap and index entries are committed (D-010 (b), G-10)
+/font-sources/

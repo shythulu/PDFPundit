@@ -1,0 +1,435 @@
+//! The single inflater (D-023): miniz_oxide 0.9.1's core API with a
+//! non-wrapping output buffer. `decode_chain`, the carver's inflate probe and
+//! the C9 salvage all decide "does this stream decode cleanly" here; flate2
+//! is never called. The outcome comes from `TINFLStatus`, never from an error
+//! message (eng-r1-fr2).
+// T-07 is the first caller outside the tests.
+#![cfg_attr(not(test), allow(dead_code))]
+
+use miniz_oxide::inflate::TINFLStatus;
+use miniz_oxide::inflate::core::inflate_flags::{
+    TINFL_FLAG_PARSE_ZLIB_HEADER, TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF,
+};
+use miniz_oxide::inflate::core::{DecompressorOxide, decompress};
+
+/// How an [`inflate`] ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InflateStatus {
+    /// The stream ended and, for a zlib stream, its Adler-32 matched.
+    Done,
+    /// The data decoded to its end but the Adler-32 trailer disagrees.
+    AdlerMismatch,
+    /// Invalid deflate data; `at` is the input consumed when it failed.
+    Failed { at: usize },
+    /// The input ran out before the stream ended (truncated).
+    NeedsMoreInput,
+    /// The output reached the cap before the stream ended. Not one of the
+    /// four statuses the T-06 interface names: the cap has to be reported,
+    /// and folding it into `Failed` or `NeedsMoreInput` would misstate why
+    /// decoding stopped.
+    CapHit,
+}
+
+/// The status, the bytes decoded (for an error, the valid prefix decoded
+/// before it) and the input bytes consumed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InflateResult {
+    pub status: InflateStatus,
+    pub out: Vec<u8>,
+    pub consumed: usize,
+}
+
+const ZLIB: u32 = TINFL_FLAG_PARSE_ZLIB_HEADER | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
+const RAW: u32 = TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
+
+/// Inflates `raw` as a zlib stream into at most `cap` bytes. When the zlib
+/// header itself is rejected, it retries once as raw deflate (some producers
+/// omit the header) and keeps that result only if it reaches `Done` within
+/// [`RAW_END_SLACK`] bytes of the input's end. A raw retry that ends
+/// `NeedsMoreInput`, `Failed` or `CapHit`, or `Done` with more input left,
+/// is dropped on purpose, even with output: bytes that are not zlib often
+/// decode a little as raw deflate by chance (a zlib stream whose CMF byte
+/// became `03` reads as an empty fixed block), and a C9 salvage must not
+/// keep such a prefix. The caller then sees the header failure,
+/// `Failed { at <= 2 }`.
+pub(crate) fn inflate(raw: &[u8], cap: usize) -> InflateResult {
+    let first = run(raw, cap, ZLIB);
+    if header_rejected(&first) {
+        let retry = run(raw, cap, RAW);
+        if retry.status == InflateStatus::Done && retry.consumed + RAW_END_SLACK >= raw.len() {
+            return retry;
+        }
+    }
+    first
+}
+
+/// The input a raw-deflate `Done` may leave unread (T-07's probe-end slack:
+/// an end-of-line before `endstream`).
+pub(crate) const RAW_END_SLACK: usize = 2;
+
+/// The zlib header (its first two bytes) did not parse: nothing was decoded
+/// and the failure is inside the header.
+fn header_rejected(r: &InflateResult) -> bool {
+    matches!(r.status, InflateStatus::Failed { at } if at <= 2) && r.out.is_empty()
+}
+
+/// One pass over `raw` with `flags`. The output buffer starts at
+/// `max(4 × input, 64 KiB)` (the eng-r1-fr2 harness's size), doubles on
+/// `HasMoreOutput` and never exceeds `cap`.
+fn run(raw: &[u8], cap: usize, flags: u32) -> InflateResult {
+    let mut r = Box::<DecompressorOxide>::default();
+    let mut out = vec![0u8; raw.len().saturating_mul(4).max(64 << 10).min(cap)];
+    let (mut in_pos, mut out_pos) = (0usize, 0usize);
+    let status = loop {
+        let (st, used, wrote) = decompress(&mut r, &raw[in_pos..], &mut out, out_pos, flags);
+        in_pos += used;
+        out_pos += wrote;
+        break match st {
+            TINFLStatus::HasMoreOutput => {
+                if out.len() >= cap {
+                    InflateStatus::CapHit
+                } else {
+                    let grown = out.len().saturating_mul(2).clamp(1, cap);
+                    out.resize(grown, 0);
+                    continue;
+                }
+            }
+            TINFLStatus::Done => InflateStatus::Done,
+            TINFLStatus::Adler32Mismatch => InflateStatus::AdlerMismatch,
+            TINFLStatus::FailedCannotMakeProgress | TINFLStatus::NeedsMoreInput => {
+                InflateStatus::NeedsMoreInput
+            }
+            // `Failed`, and `BadParam` or anything newer (the enum is
+            // non-exhaustive): invalid data at this offset.
+            _ => InflateStatus::Failed { at: in_pos },
+        };
+    };
+    out.truncate(out_pos);
+    InflateResult {
+        status,
+        out,
+        consumed: in_pos,
+    }
+}
+
+/// Where a deflate stream at the start of `raw` ends, found without keeping
+/// its output: the carver's inflate probe (T-07, TD §14.3 rung d).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Probe {
+    pub status: InflateStatus,
+    /// Input consumed; for `Done`, the stream's exact length.
+    pub consumed: usize,
+    /// Output decoded (and thrown away).
+    pub produced: usize,
+}
+
+/// The probe's output ring. A power of two at least the 32 KiB deflate
+/// window, as miniz_oxide requires of a wrapping buffer.
+const RING: usize = 64 << 10;
+
+/// [`inflate`]'s outcome for `raw` with the same raw-deflate retry, but
+/// decoding into a fixed 64 KiB ring, so its memory does not grow with the
+/// stream. Decoding stops with `CapHit` once more than `cap` bytes have come
+/// out (counted a ring's worth at a time).
+///
+/// The first 64 KiB of output are decoded with the non-wrapping flag, as
+/// `inflate` does, so a distance reaching before the start of the data
+/// fails here too (miniz_oxide checks that only for a non-wrapping
+/// buffer). Past 64 KiB no distance (at most 32 KiB) can, and the buffer
+/// becomes a ring.
+pub(crate) fn probe(raw: &[u8], cap: usize) -> Probe {
+    let first = probe_run(raw, cap, TINFL_FLAG_PARSE_ZLIB_HEADER);
+    let header_rejected = matches!(first.status, InflateStatus::Failed { at } if at <= 2);
+    if header_rejected && first.produced == 0 {
+        let retry = probe_run(raw, cap, 0);
+        if retry.status == InflateStatus::Done {
+            return retry;
+        }
+    }
+    first
+}
+
+fn probe_run(raw: &[u8], cap: usize, flags: u32) -> Probe {
+    let mut r = Box::<DecompressorOxide>::default();
+    let mut ring = vec![0u8; RING];
+    let (mut in_pos, mut out_pos, mut produced) = (0usize, 0usize, 0usize);
+    let status = loop {
+        let flags = if produced < RING {
+            flags | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF
+        } else {
+            flags
+        };
+        let (st, used, wrote) = decompress(&mut r, &raw[in_pos..], &mut ring, out_pos, flags);
+        in_pos += used;
+        produced += wrote;
+        out_pos = (out_pos + wrote) & (RING - 1);
+        break match st {
+            TINFLStatus::HasMoreOutput if produced >= cap => InflateStatus::CapHit,
+            TINFLStatus::HasMoreOutput => continue,
+            TINFLStatus::Done => InflateStatus::Done,
+            TINFLStatus::Adler32Mismatch => InflateStatus::AdlerMismatch,
+            TINFLStatus::FailedCannotMakeProgress | TINFLStatus::NeedsMoreInput => {
+                InflateStatus::NeedsMoreInput
+            }
+            _ => InflateStatus::Failed { at: in_pos },
+        };
+    };
+    Probe {
+        status,
+        consumed: in_pos,
+        produced,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The miniz column of eng-r1-fr2: its harness function, verbatim in
+    /// behaviour (buffer `max(4 × input, 64 KiB)`, doubled on
+    /// `HasMoreOutput`, zlib header parsed, no raw retry).
+    fn oracle(input: &[u8]) -> (InflateStatus, usize, Vec<u8>) {
+        let mut r = DecompressorOxide::new();
+        let mut out = vec![0u8; (input.len() * 4).max(65536)];
+        let (mut in_pos, mut out_pos) = (0usize, 0usize);
+        loop {
+            let (st, ci, co) = decompress(&mut r, &input[in_pos..], &mut out, out_pos, ZLIB);
+            in_pos += ci;
+            out_pos += co;
+            let status = match st {
+                TINFLStatus::Done => InflateStatus::Done,
+                TINFLStatus::Adler32Mismatch => InflateStatus::AdlerMismatch,
+                TINFLStatus::Failed => InflateStatus::Failed { at: in_pos },
+                TINFLStatus::FailedCannotMakeProgress | TINFLStatus::NeedsMoreInput => {
+                    InflateStatus::NeedsMoreInput
+                }
+                TINFLStatus::HasMoreOutput => {
+                    let n = out.len() * 2;
+                    out.resize(n, 0);
+                    continue;
+                }
+                other => panic!("oracle saw {other:?}"),
+            };
+            out.truncate(out_pos);
+            return (status, in_pos, out);
+        }
+    }
+
+    /// Deterministic text that compresses with dynamic Huffman blocks.
+    fn sample(len: usize) -> Vec<u8> {
+        let words = [
+            "BT ",
+            "/F1 ",
+            "12 ",
+            "Tf ",
+            "(quick) ",
+            "Tj ",
+            "0 -14 Td ",
+            "ET\n",
+            "q ",
+            "Q ",
+        ];
+        let mut s = Vec::with_capacity(len + 16);
+        let mut x = 0x2545_f491_4f6c_dd1du64;
+        while s.len() < len {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            s.extend_from_slice(words[(x % words.len() as u64) as usize].as_bytes());
+            s.extend_from_slice(format!("{} ", x % 997).as_bytes());
+        }
+        s.truncate(len);
+        s
+    }
+
+    fn zlib(data: &[u8]) -> Vec<u8> {
+        miniz_oxide::deflate::compress_to_vec_zlib(data, 6)
+    }
+
+    #[test]
+    fn clean_stream_is_done_and_consumes_the_stream_only() {
+        let data = sample(20_000);
+        let z = zlib(&data);
+        let mut with_eol = z.clone();
+        with_eol.extend_from_slice(b"\r\n");
+        let r = inflate(&with_eol, 1 << 20);
+        assert_eq!(r.status, InflateStatus::Done);
+        assert_eq!(r.out, data);
+        assert_eq!(r.consumed, z.len());
+        assert_eq!((r.status, r.consumed, r.out), oracle(&with_eol));
+    }
+
+    #[test]
+    fn adler_only_damage_decodes_everything_and_says_so() {
+        let data = sample(20_000);
+        let mut z = zlib(&data);
+        let last = z.len() - 1;
+        z[last] ^= 0x01;
+        let r = inflate(&z, 1 << 20);
+        assert_eq!(r.status, InflateStatus::AdlerMismatch);
+        assert_eq!(r.out, data);
+        assert_eq!(r.consumed, z.len());
+        assert_eq!((r.status, r.consumed, r.out), oracle(&z));
+    }
+
+    #[test]
+    fn data_error_at_k_keeps_the_prefix_and_reports_k() {
+        let data = sample(20_000);
+        let z = zlib(&data);
+        // Find a mid-stream flip that is a data error, as C9 makes them.
+        let (mutant, r) = (z.len() / 2..z.len())
+            .find_map(|i| {
+                let mut m = z.clone();
+                m[i] ^= 0x10;
+                let r = inflate(&m, 1 << 20);
+                matches!(r.status, InflateStatus::Failed { .. }).then(|| (m, r))
+            })
+            .expect("some flip is a data error");
+        let InflateStatus::Failed { at } = r.status else {
+            unreachable!()
+        };
+        assert_eq!(at, r.consumed);
+        assert!(at < mutant.len());
+        // The output before the flip's first effect is the original's.
+        let same = r.out.iter().zip(&data).take_while(|(a, b)| a == b).count();
+        assert!(same >= data.len() / 4 && r.out.len() < data.len());
+        assert_eq!((r.status, r.consumed, r.out), oracle(&mutant));
+    }
+
+    #[test]
+    fn truncated_stream_needs_more_input() {
+        let z = zlib(&sample(5_000));
+        let r = inflate(&z[..z.len() / 2], 1 << 20);
+        assert_eq!(r.status, InflateStatus::NeedsMoreInput);
+        assert_eq!((r.status, r.consumed, r.out), oracle(&z[..z.len() / 2]));
+        assert_eq!(inflate(b"", 1 << 20).status, InflateStatus::NeedsMoreInput);
+    }
+
+    /// Every single-byte flip of a stream (xor 0x01, 0x10, 0x80, the
+    /// eng-r1-fr2 sweep) gets the oracle's status, consumed count and output,
+    /// except a header the raw retry decodes to `Done`.
+    #[test]
+    fn mutation_sweep_matches_the_miniz_column() {
+        let z = zlib(&sample(1_500));
+        let mut seen = [0usize; 4];
+        for pos in 0..z.len() {
+            for mask in [0x01u8, 0x10, 0x80] {
+                let mut m = z.clone();
+                m[pos] ^= mask;
+                let r = inflate(&m, 1 << 20);
+                let o = oracle(&m);
+                if pos < 2 && r.status == InflateStatus::Done && o.0 != InflateStatus::Done {
+                    continue;
+                }
+                assert_eq!(
+                    (r.status, r.consumed, &r.out),
+                    (o.0, o.1, &o.2),
+                    "pos {pos} mask {mask:#x}"
+                );
+                seen[match r.status {
+                    InflateStatus::Done => 0,
+                    InflateStatus::AdlerMismatch => 1,
+                    InflateStatus::Failed { .. } => 2,
+                    _ => 3,
+                }] += 1;
+            }
+        }
+        assert!(
+            seen[1] > 0 && seen[2] > 0,
+            "the sweep hit both error classes: {seen:?}"
+        );
+    }
+
+    #[test]
+    fn raw_deflate_is_retried_once() {
+        let data = sample(3_000);
+        let raw = miniz_oxide::deflate::compress_to_vec(&data, 6);
+        let r = inflate(&raw, 1 << 20);
+        assert_eq!(r.status, InflateStatus::Done);
+        assert_eq!(r.out, data);
+        assert_eq!(r.consumed, raw.len());
+    }
+
+    /// A raw retry that ends early is not a decode: `78 9C` damaged to
+    /// `03 9C` reads as raw deflate's empty final fixed block after two
+    /// bytes. A raw stream with an end-of-line after it still decodes.
+    #[test]
+    fn a_raw_retry_that_stops_early_is_dropped() {
+        let data = sample(3_000);
+        let mut z = zlib(&data);
+        assert_eq!(z[..2], [0x78, 0x9C]);
+        z[0] = 0x03;
+        let r = inflate(&z, 1 << 20);
+        assert!(
+            matches!(r.status, InflateStatus::Failed { at: 0..=2 }),
+            "{r:?}"
+        );
+        assert!(r.out.is_empty());
+        let mut raw = miniz_oxide::deflate::compress_to_vec(&data, 6);
+        raw.extend_from_slice(b"\r\n");
+        let r = inflate(&raw, 1 << 20);
+        assert_eq!(r.status, InflateStatus::Done);
+        assert_eq!(r.out, data);
+        raw.push(b'%');
+        assert!(matches!(
+            inflate(&raw, 1 << 20).status,
+            InflateStatus::Failed { at: 0..=2 }
+        ));
+    }
+
+    #[test]
+    fn the_probe_agrees_with_inflate_on_status_and_length() {
+        // Past the 64 KiB ring, so it wraps.
+        let data = sample(150_000);
+        let z = zlib(&data);
+        let mut cases: Vec<Vec<u8>> = vec![z.clone(), z[..z.len() / 2].to_vec()];
+        let mut tail = z.clone();
+        tail.extend_from_slice(b"\nendstream\nendobj\n");
+        cases.push(tail);
+        let mut adler = z.clone();
+        let last = adler.len() - 1;
+        adler[last] ^= 1;
+        cases.push(adler);
+        cases.push(miniz_oxide::deflate::compress_to_vec(&data, 6));
+        cases.push(b"not deflate at all".to_vec());
+        // Single-byte flips all along the stream, early ones included: a
+        // distance reaching before the data must fail in both.
+        for i in (0..z.len()).step_by(293) {
+            for mask in [0x01u8, 0x10, 0x80] {
+                let mut m = z.clone();
+                m[i] ^= mask;
+                cases.push(m);
+            }
+        }
+        for (i, c) in cases.iter().enumerate() {
+            let p = probe(c, usize::MAX);
+            let r = inflate(c, 1 << 30);
+            assert_eq!((p.status, p.consumed), (r.status, r.consumed), "case {i}");
+            assert_eq!(p.produced, r.out.len(), "case {i}");
+        }
+        assert_eq!(probe(&z, usize::MAX).produced, data.len());
+    }
+
+    #[test]
+    fn the_probe_stops_at_its_cap() {
+        let z = zlib(&vec![0u8; 1 << 22]);
+        let p = probe(&z, 1 << 20);
+        assert_eq!(p.status, InflateStatus::CapHit);
+        assert!(p.produced >= 1 << 20 && p.produced < (1 << 20) + RING);
+        assert_eq!(probe(&z, 1 << 23).status, InflateStatus::Done);
+    }
+
+    #[test]
+    fn output_stops_at_the_cap() {
+        let data = vec![0u8; 1 << 20];
+        let z = zlib(&data);
+        let r = inflate(&z, 64 << 10);
+        assert_eq!(r.status, InflateStatus::CapHit);
+        assert!(r.out.len() <= 64 << 10);
+        assert!(data.starts_with(&r.out));
+        let r = inflate(&z, 1 << 20);
+        assert_eq!(r.status, InflateStatus::Done);
+        assert_eq!(r.out.len(), 1 << 20);
+        assert_eq!(inflate(&z, 0).status, InflateStatus::CapHit);
+    }
+}

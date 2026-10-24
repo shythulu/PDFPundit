@@ -1,118 +1,155 @@
 # PDFPundit
 
-![PDFPundit. Forensic PDF repair in pure Rust.](docs/assets/banner.svg)
+**Goal:** force serious people to interact with a very unserious application in
+order to achieve best-in-class PDF repair and Markdown creation.
 
-A forensic PDF repair tool in pure Rust. It rebuilds damaged PDFs from their raw bytes and tells you which parts it recovered and which it had to make up.
+Forensic investigators at extremely serious policing agencies, and very serious
+auditors, should have no choice but to feed their PDFs to a kitty cat.
 
-**Wiki:** https://github.com/shythulu/PDFPundit/wiki
+PDFPundit is a pure-Rust terminal app. It repairs corrupted PDFs from the raw
+bytes up and exports them to Markdown with correct Unicode. To use it, you drop
+the file on the cat. The results are designed to hold up in a case file:
+originals are never modified, output is reproducible, and it works fully
+offline. An optional chain-of-custody mode will hash every input and output and
+write a run report for the case file. There is no command-line version. The cat
+is not optional.
 
-> **Status: research stage. There is no working tool yet.**
-> `src/main.rs` prints "Hello, world!". The work so far is the design and an evidence base for the repair engine. See [Status](#status).
+Design and plans live in `nimbalyst-local/plans/`.
 
-## What it will do
+## Install
 
-1. You give it a damaged PDF.
-2. It carves every object that survives in the file's bytes.
-3. It rebuilds the cross-reference table, trailer, page tree and fonts.
-4. It writes a new file, `<name>.repaired.pdf`. The original is never changed.
-5. It labels every part of the output with how it was obtained.
+1. Download the archive for your machine from the GitHub Releases page.
 
-Later milestones add PDF to Markdown export and optional OCR.
+   | Machine | Archive |
+   |---|---|
+   | Mac with Apple silicon | `pdfpundit-aarch64-apple-darwin.tar.xz` |
+   | Linux, x86-64 | `pdfpundit-x86_64-unknown-linux-gnu.tar.xz` |
+   | Windows, x86-64 | `pdfpundit-x86_64-pc-windows-msvc.zip` |
 
-## Why it exists
+2. Check it against its `.sha256` file, or against `sha256.sum`.
+   - macOS: `shasum -a 256 -c pdfpundit-aarch64-apple-darwin.tar.xz.sha256`
+   - Linux: `sha256sum -c pdfpundit-x86_64-unknown-linux-gnu.tar.xz.sha256`
+   - Windows: compare `Get-FileHash pdfpundit-x86_64-pc-windows-msvc.zip` with
+     the file's contents.
+3. Unpack it and put `pdfpundit` (`pdfpundit.exe` on Windows) somewhere on your
+   `PATH`.
 
-Most PDF readers repair quietly. They guess, and they don't say what they guessed. PDFPundit treats a damaged PDF as evidence, so it has to report its choices.
+The archives are not code-signed yet. macOS Gatekeeper blocks the first run, so
+allow it once in System Settings, Privacy & Security. Windows SmartScreen may
+warn the same way.
 
-| Most repair tools | PDFPundit |
+Each archive holds the binary, `LICENSE`, this README, `THIRD_PARTY_NOTICES.md`
+and `THIRD_PARTY_CRATES.md`. There is no installer and nothing on crates.io.
+
+## Run
+
+Open a terminal and type `pdfpundit`. Arguments are ignored.
+
+It needs a real terminal on both stdin and stdout. Piped or redirected, it
+prints one line and exits with code 2:
+
+```
+PDFPundit runs in a terminal; drop PDFs on the cat.
+```
+
+## Feed the cat
+
+Drag PDFs from your file manager onto the terminal window, or paste their paths.
+Each file the cat accepts goes into the queue, which repairs them one by one.
+
+| Terminal | What a drop does |
 |---|---|
-| Patch the file so it opens | Rebuild a new, standards-conforming file |
-| Hide what they changed | Label every output element with a provenance grade |
-| Trust a checksum match | Require a checksum and an independent check |
-| Pick a revision silently | Report earlier revisions and signs of tampering |
+| kitty | The cat watches the drag. Only a drop on the cat counts. |
+| Others | The terminal pastes the paths, and the cat chomps them. |
+| Windows | The terminal types the paths as keys. The cat still chomps. |
 
-## The damage it targets
+If your terminal does neither, press `b` to browse for files instead.
 
-The starting point is the REPDF method and its ten damage classes ([code and corpus](https://github.com/dfrc-korea/REPDF)).
+## Keys
 
-| ID | Damage | Repair approach |
-|---|---|---|
-| C1 | Header overwritten | Rewrite a valid `%PDF-x.y` header |
-| C2 | Cross-reference table removed | Carve all objects, rebuild the table |
-| C3 | Trailer removed | Find `/Root` and `/Info`, rebuild the trailer |
-| C4 | Page tree broken | Collect `/Page` objects, rebuild `/Pages` |
-| C5 | Object tags stripped | Find object boundaries by structure |
-| C6 | Font mapping lost | Re-link pages to their fonts |
-| C7 | Font program deleted | Substitute from a bundled font database |
-| C8 | Font program and `/ToUnicode` deleted | Substitute the font, rebuild the Unicode map |
-| C9 | Compressed stream damaged | Salvage what decodes, verified |
-| C10 | File truncated | Assemble a document from what survives |
-
-The research has found 23 more damage classes beyond these ten.
-
-## Provenance grades
-
-Every element of a repaired file gets exactly one grade.
-
-| # | Grade | Example |
-|---|---|---|
-| 1 | Verbatim | Bytes copied unchanged |
-| 2 | Partially decoded | Stream output shown to be independent of the damage |
-| 3 | Corrected and verified | The only candidate that passes a checksum and an independent check |
-| 4 | Structurally inferred | Page order, renumbered objects, chosen revision |
-| 5 | Non-content synthesis | New xref, trailer, `/Length` |
-| 6 | Content synthesis | Substituted fonts, generated `/ToUnicode` |
-
-## Status
-
-Snapshot from 2026-10-19. `python research/tools/kb_validate.py` prints live counts.
-
-| Area | State |
+| Key | What it does |
 |---|---|
-| Rust engine | Not started. Crate scaffold only. |
-| Design | Technical design v1 drafted. UI choices still open. |
-| Research | Stage 2 of the plan: choosing tools |
-| Evidence base | 163 sources, 280 claims, 17 reproducible observations |
-| Open questions | 51 research gaps, 3 draft hypotheses |
+| `b` | Browse for PDFs to feed the cat |
+| `e` | Export the selected file to Markdown |
+| Enter | Open the selected file's menu, which has Export → Markdown |
+| `T` | Choose a theme. The default is DarkBerry Blackwater. |
+| `i` | Answer the next font question now |
+| `l` | Leave font questions for later |
+| `q` | Quit |
 
-The next step is the [wayfinder map](https://github.com/shythulu/PDFPundit/issues/1): engine to first verified repair.
+`T`, `i` and `l` work in the full layout only.
 
-## Repository layout
+## Font questions
 
-```
-src/                 Rust crate (pdfpundit). Scaffold only.
-research/            Evidence base: sources, claims, observations, gaps, hypotheses
-  README.md          Start here for research work
-  charter.md         Goal, definitions, success criteria, rules
-  tools/             Validator, fetchers, view renderer, tests
-  experiments/       Scripts behind every observation
-nimbalyst-local/     Plans and mockups
-  plans/             Product, technical and research plans
-docs/agents/         How agents use the issue tracker and labels
-docs/assets/         Images for the README
-```
+Sometimes a repair cannot tell which font a damaged file meant. The file then
+waits in the queue with a question, and the rest of the batch goes on. Press `i`
+to answer it in the font picker.
 
-## Build
+| Key in the picker | What it does |
+|---|---|
+| `↑` `↓` | Move between candidate fonts |
+| Enter | Use the font under the cursor |
+| `b` | Use the best guess, for this file's other questions too |
+| `s` | Skip. The best guess is used and the finding is marked partial. |
+| `a` | Use the best guess for every waiting question |
+| Esc | Close the picker. The file keeps waiting. |
 
-The crate needs Rust 1.85 or newer, because it uses edition 2024.
+Set `[fonts] prompt_unresolved = false` to take the best guess without asking.
 
-```sh
-cargo build
-cargo run
-```
+## Where outputs go
 
-## Design rules
+| Output | Name |
+|---|---|
+| Repaired PDF | `<name>.repaired.pdf` |
+| Markdown export | `<name>.md` |
 
-These hold for the shipped tool. Research may argue to reopen one, with evidence.
+Both go beside the input. Set `[general] output_dir` to an absolute path to
+send them there instead. An output never replaces a file. If the name is taken,
+PDFPundit writes `<name>.repaired (2).pdf`, then `(3)`, and so on.
 
-- Pure Rust. No compiled C in the shipped binary.
-- `lopdf` is the only PDF writer.
-- The original file is never changed.
-- Dependencies are MIT or Apache licensed.
+The original is never modified. If its folder is read-only, the repair stops
+and asks you to set `output_dir`.
 
-## Contributing
+## Config file
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md). The [wiki](https://github.com/shythulu/PDFPundit/wiki/Contributing) has the same guide with more context.
+`config.toml` sits in the config folder. A missing file means the defaults. A
+bad key gives a warning at start-up and the default for that key.
 
-## Licence
+| Platform | Config file |
+|---|---|
+| macOS | `~/Library/Application Support/dev.shythulu.PDFPundit/config.toml` |
+| Linux | `$XDG_CONFIG_HOME/pdfpundit/config.toml`, else `~/.config/pdfpundit/config.toml` |
+| Windows | `%APPDATA%\shythulu\PDFPundit\config\config.toml` |
 
-No licence has been chosen yet. Until one is, all rights are reserved by the author.
+## Terminal size
+
+| Terminal size | Layout |
+|---|---|
+| 112 × 38 or larger | Full layout: the cat, the queue, results, themes, font questions |
+| 32 × 16 or larger | Widget: a small cat that takes drops. `‼` means a file needs you, so grow the window. |
+| Smaller | One status line. It takes no drops and asks the terminal to grow. |
+
+Set `[ui] layout` to `full` or `widget` to pin one of the first two.
+
+## Guarantees
+
+- **Offline.** The binary has no network code.
+- **Deterministic.** The same input and the same answers give the same output
+  bytes, on every run and every machine.
+- **No cat in the output.** Repaired PDFs and Markdown carry nothing from the
+  app's looks.
+- **Originals untouched.** PDFPundit only reads its inputs.
+
+## Limits
+
+- No OCR. A scanned page with no text layer exports no text.
+- No images in the Markdown export yet.
+- No word lists yet, so text repair has no dictionary to check against.
+- The chain-of-custody mode is not built yet.
+
+## License
+
+MIT, see `LICENSE`. Data compiled into the binary (fonts, glyph lists, the
+DarkBerry palette) carries its own terms, listed in `THIRD_PARTY_NOTICES.md`.
+Every Rust crate in its normal dependency graph (including compile-time
+proc-macros), with its licence text, is in `THIRD_PARTY_CRATES.md`.

@@ -1,0 +1,145 @@
+# -----------------------------------------------------------
+# Glyph names from pdf.js that are not in the Adobe Glyph List.
+#
+# Copyright 2012 Mozilla Foundation. Licensed under the Apache
+# License, Version 2.0; the full text is in
+# assets/licenses/pdfjs-Apache-2.0.txt.
+#
+# Taken from src/core/glyphlist.js (getGlyphsUnicode) of
+# https://github.com/mozilla/pdf.js, master as of 2026-10-07:
+# every name of that table that glyphlist.txt lacks, except
+# .notdef. 127 names, mostly TeX/math (the delimiter sizes,
+# display/text operators, extensible pieces). Values unchanged.
+# -----------------------------------------------------------
+#
+# Format: as glyphlist.txt, two semicolon-delimited fields:
+#   (1) glyph name
+#   (2) Unicode scalar value--four uppercase hexadecimal digits
+#
+angbracketleft;3008
+angbracketleftBig;2329
+angbracketleftBigg;2329
+angbracketleftbig;2329
+angbracketleftbigg;2329
+angbracketright;3009
+angbracketrightBig;232A
+angbracketrightBigg;232A
+angbracketrightbig;232A
+angbracketrightbigg;232A
+arrowhookleft;21AA
+arrowhookright;21A9
+arrowleftbothalf;21BD
+arrowlefttophalf;21BC
+arrownortheast;2197
+arrownorthwest;2196
+arrowrightbothalf;21C1
+arrowrighttophalf;21C0
+arrowsoutheast;2198
+arrowsouthwest;2199
+backslashBig;2216
+backslashBigg;2216
+backslashbig;2216
+backslashbigg;2216
+bardbl;2016
+bracehtipdownleft;FE37
+bracehtipdownright;FE37
+bracehtipupleft;FE38
+bracehtipupright;FE38
+braceleftBig;007B
+braceleftBigg;007B
+braceleftbig;007B
+braceleftbigg;007B
+bracerightBig;007D
+bracerightBigg;007D
+bracerightbig;007D
+bracerightbigg;007D
+bracketleftBig;005B
+bracketleftBigg;005B
+bracketleftbig;005B
+bracketleftbigg;005B
+bracketrightBig;005D
+bracketrightBigg;005D
+bracketrightbig;005D
+bracketrightbigg;005D
+ceilingleftBig;2308
+ceilingleftBigg;2308
+ceilingleftbig;2308
+ceilingleftbigg;2308
+ceilingrightBig;2309
+ceilingrightBigg;2309
+ceilingrightbig;2309
+ceilingrightbigg;2309
+circlecopyrt;00A9
+circledotdisplay;2299
+circledottext;2299
+circlemultiplydisplay;2297
+circlemultiplytext;2297
+circleplusdisplay;2295
+circleplustext;2295
+contintegraldisplay;222E
+contintegraltext;222E
+controlNULL;0000
+coproductdisplay;2210
+coproducttext;2210
+f_f;FB00
+f_f_i;FB03
+f_f_l;FB04
+f_i;FB01
+f_l;FB02
+floorleftBig;230A
+floorleftBigg;230A
+floorleftbig;230A
+floorleftbigg;230A
+floorrightBig;230B
+floorrightBigg;230B
+floorrightbig;230B
+floorrightbigg;230B
+hatwide;0302
+hatwider;0302
+hatwidest;0302
+integraldisplay;222B
+integraltext;222B
+intercal;1D40
+intersectiondisplay;22C2
+intersectiontext;22C2
+logicalanddisplay;2227
+logicalandtext;2227
+logicalordisplay;2228
+logicalortext;2228
+parenleftBig;0028
+parenleftBigg;0028
+parenleftbig;0028
+parenleftbigg;0028
+parenrightBig;0029
+parenrightBigg;0029
+parenrightbig;0029
+parenrightbigg;0029
+planckover2pi;210F
+planckover2pi1;210F
+prime;2032
+productdisplay;220F
+producttext;220F
+radicalBig;221A
+radicalBigg;221A
+radicalbig;221A
+radicalbigg;221A
+radicalbt;221A
+radicaltp;221A
+radicalvertex;221A
+slashBig;002F
+slashBigg;002F
+slashbig;002F
+slashbigg;002F
+summationdisplay;2211
+summationtext;2211
+tildewide;02DC
+tildewider;02DC
+tildewidest;02DC
+uniondisplay;22C3
+unionmultidisplay;228E
+unionmultitext;228E
+unionsqdisplay;2294
+unionsqtext;2294
+uniontext;22C3
+vextenddouble;2225
+vextendsingle;2223

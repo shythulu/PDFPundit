@@ -1,0 +1,6 @@
+# A user-dirs.dirs in the shape xdg-user-dirs-update writes, for the appdirs
+# unit tests (T-16). Format: XDG_xxx_DIR="$HOME/yyy" or an absolute path.
+XDG_DESKTOP_DIR="$HOME/Desktop"
+XDG_DOWNLOAD_DIR="$HOME/Downloads"
+XDG_DOCUMENTS_DIR="$HOME/Case Papers"
+XDG_MUSIC_DIR="/srv/music"
